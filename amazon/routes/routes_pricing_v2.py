@@ -912,7 +912,69 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
-   
+    # --- ▼ RAW最安競合との差チェック ▼ ---
+    elif rules.get("max_competitor_price_ratio") and final_price:
+
+        raw_min_price = None
+
+        try:
+
+            conn_acc = sqlite3.connect(os.path.join(DB_DIR, "a_account_master.db"))
+            conn_acc.row_factory = sqlite3.Row
+            cur_acc = conn_acc.cursor()
+
+            cur_acc.execute("""
+                SELECT account_seller_id
+                FROM account_master
+                WHERE user_id = ?
+                AND country_code = ?
+                LIMIT 1
+            """, (user_id, country_code))
+
+            acc = cur_acc.fetchone()
+            conn_acc.close()
+
+            my_seller_id = acc["account_seller_id"] if acc else None
+
+            for offer in normalized:
+
+                # --- 自分除外 ---
+                if my_seller_id and offer.get("seller_id") == my_seller_id:
+                    continue
+
+                price_amount = float(offer.get("price_amount") or 0)
+                shipping_amount = float(offer.get("shipping_amount") or 0)
+
+                total_price = price_amount + shipping_amount
+
+                if total_price <= 0:
+                    continue
+
+                if raw_min_price is None or total_price < raw_min_price:
+                    raw_min_price = total_price
+
+            if raw_min_price is not None:
+
+                max_allowed_price = raw_min_price * (
+                    1 + (float(rules.get("max_competitor_price_ratio")) / 100)
+                )
+
+                if float(final_price) > float(max_allowed_price):
+
+                    status_value = 'INACTIVE'  # ここを修正
+
+                    if is_listed and row["information_status"] != "INACTIVE":
+
+                        res = delete_listings_item(
+                            user_id=user_id,
+                            country_code=country_code,
+                            marketplace_id=region_marketplace_id,
+                            seller_sku=sku
+                        )
+
+        except Exception:
+            pass
+               
     # === 11-12: DB更新 ===
     conn = sqlite3.connect(listed_db)
     try:
