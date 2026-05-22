@@ -149,7 +149,8 @@ if __name__ == "__main__":
     # --- Flaskサーバ起動（これ1回だけ！） ---
     app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
 
-    # TEST
+    # TEST2
+
 
 
 
