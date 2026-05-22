@@ -1,0 +1,197 @@
+<!-- top.html トップタブ専用html -->
+
+<style>
+#top.tab-content.active {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#csvUploadBtn {
+  position: static;   /* ← absolute を消す */
+  transform: none;    /* ← translate を消す */
+  padding: 8px 16px;
+  border-radius: 4px;
+}
+
+#csvResultArea {
+    display: block; /* 横並び防止 */
+    width: 100%;
+}
+
+.csv-result-block {
+    margin-bottom: 30px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.csv-result-block h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+}
+
+@media (max-width: 900px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* サイドバーのボタン */
+.sidebar-btn {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-size: 15px;         /* 大きさ */
+  font-weight: 600;        /* 太さ */
+  letter-spacing: 0.5px;   /* 文字間 */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+}
+
+.sidebar-btn:hover {
+  background: #f0f4ff;
+  border-color: #4a90e2;
+}
+
+.sidebar-btn.active {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+}
+
+/* 折りたたみ状態 */
+.sidebar.collapsed {
+  width: 0; /* 完全に閉じる */
+  min-width: 0;
+  max-width: 0;
+  padding: 0; 
+  overflow: hidden;
+}
+
+/* 折りたたみ中はボタンを消す */
+.sidebar.collapsed .sidebar-btn {
+  display: none;
+}
+
+
+</style>
+
+<!-- ✅ TOPページ ✅ IPアドレス（場所）表示 -->
+<div class="top-layout">
+    <!--左サイドバー  -->
+    <div class="sidebar" id="sidebar">
+        <button class="sidebar-btn active" data-target="dashboard">Dashboard</button>
+        <button class="sidebar-btn" data-target="csv-import">CSV Import</button>
+        <button class="sidebar-btn" data-target="prelisting">Pre-Listing</button>
+        <button class="sidebar-btn" data-target="alllisting">ALL-Listing</button>
+        <button class="sidebar-btn" data-target="pricing">Pricing</button>
+        
+        <!--▼▼▼ ログアウト（青ボタン・白字） ▼▼▼  -->
+        <button id="logoutBtn" class="sidebar-btn" style="margin-top:40px; background:#2c7be5; color:white;">
+            Log out
+        </button>            
+    </div>
+
+    <!-- ✅ サイドバーの外に移動したハンドル  -->
+    <div class="collapse-handle" id="sidebar-collapse">＜</div>
+
+    <!-- 右メインパネル -->
+    <div class="main-panel">
+
+        <div id="dashboard" class="subtab-content active">
+            <!-- <div class="main-container top-page"> -->
+                <h2>Dashboard</h2>
+                <div class="card">
+                    {% include 'api_counter.html' %}
+                </div>
+            <!-- </div>     -->
+        </div>
+   
+        <div id="csv-import" class="subtab-content" hidden>
+            <h2>CSV Import</h2>
+
+            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
+            
+            <!-- CSVファイル選択
+            <div class="file-input-row"> -->
+            <div class="file-input-row" style="display:flex; align-items:center;"> 
+                <div class="file-input-wrapper">
+                    <div class="file-input-row">
+                        <input type="text" id="csvFileName" class="file-input-text" placeholder="出品国のCSVファイルを選択してください" readonly />
+                    <button type="button" id="csvUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+
+                    <button type="button" id="exportListedCsvBtn" class="btn-blue" style="height:36px; margin-left:10px;">CSV Export</button> 
+                    <span style="margin-left:10px; font-size:14px; color:#000000;">※登録済みASIN一覧をCSV出力</span>           
+                    </div>
+                </div>
+            </div>    
+        
+            <!-- 結果表示エリア -->
+            <div id="csvResultArea" style="margin-top:20px;">
+
+                <!-- 件数表示エリアを追加 -->
+                <div id="csvCount" style="margin-bottom:15px; font-size:18px; font-weight:bold; color:#2c7be5;"></div>
+
+                <!-- 出品可能 -->
+                <div class="csv-result-block">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0;">新規登録</h3>
+                        <button id="commitBtn" class="btn-blue">登　録</button>
+                    </div>
+                    <p>Amazonに新規登録します　一回に登録するASIN数は1000件程度を推奨</p>
+                    <table id="csvOkTable" class="display">
+                        <thead><tr><th>ASIN</th><th>SKU</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <!-- 重　複 -->
+                <div class="csv-result-block">
+                    <h3>ASIN重複</h3>
+                    <p>このASINはすでに登録されています</p>
+                    <table id="csvListedTable" class="display">
+                        <thead><tr><th>ASIN</th><th></th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <!-- ブラックリスト -->
+                <div class="csv-result-block">
+                    <h3>ブラックリストASIN</h3>
+                    <p>このASINはブラックリストのため登録できません</p>
+                    <table id="csvBlacklistTable" class="display">
+                        <thead><tr><th>ASIN</th><th>SKU</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>     
+
+        {% include 'listing.html' %}
+        {% include 'pricing.html' %}
+
+        <!-- ▼ Pricing 用：ログインユーザーID注入 -->
+        <script id="zsss-user-id" type="application/json">
+            {{ session.get("user_id") | tojson }}
+        </script>            
+
+        <!-- ✅ Listing 系スクリプト -->
+        <script src="{{ url_for('static', filename='js/listing_pre.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/listing_all.js') }}"></script>
+
+        <!-- ✅ CSV Import 専用スクリプト -->
+        <script src="{{ url_for('static', filename='js/csv_import.js') }}"></script>
+
+    </div>
+</div>
+
+
+

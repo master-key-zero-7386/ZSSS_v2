@@ -1,0 +1,1559 @@
+# ==========================================================
+# Copyright (c) 2026 ZSSS
+# All Rights Reserved.
+# ----------------------------------------------------------
+# ファイル名: amazon/routes_listing.py
+# 目的: Listing（Pre/ALL）管理API
+#      - ASINとSKUの登録・削除
+#      - HOME/regionのカタログ情報をSP-APIで取得してDBへ反映
+#      - Pre Listing / ALL Listing の一覧データを返す
+# ==========================================================
+
+from flask import Blueprint, request, jsonify, current_app, session
+
+import os
+import re
+import json
+import sqlite3
+import traceback
+import time
+from datetime import datetime
+
+from amazon.db import get_conn
+from amazon.adapters import (AmazonAdapter, CatalogAdapterHome, CatalogAdapterRegion)
+from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
+from amazon.adapters.pricing_adapter_home import PricingAdapterHome
+from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
+from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
+from amazon.services.listing_submit_service import submit_listing_service
+from amazon.adapters.amazon_adapter import AmazonAdapter
+from amazon.services.listing_submit_service import delete_listing_item
+from amazon.services.listing_submit_service import bulk_delete_listing_item
+from amazon.services.blacklist_service import is_blacklisted, is_blacklisted_brand
+from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
+from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter 
+from amazon.routes.routes_pricing_v2 import _get_pricing_master_rules
+from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
+from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
+
+
+listing_bp = Blueprint("listing_bp", __name__)
+
+# --- ▼ SECTION 01: HOME専用：ブランド・タイトル・価格・寸法更新処理 ▼ ---
+def update_home_info(asin: str, user_id: int, home_data: dict, country_code: str):
+
+    """
+    HOME専用：
+    globalRegion（= region）で指定された listed_items DB に HOME 情報を書く。
+    ※ もう home_flag は一切参照しない！！
+    """
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    db_path = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+
+
+    if not os.path.exists(db_path):
+        print(f"[WARN] target listed_items DB not found: {db_path}")
+        return False
+
+    try:
+        # --- 値取り出し ---
+        home_title  = (home_data.get("home_title") or "").strip() if home_data else ""
+        home_brand  = (home_data.get("home_brand") or "").strip() if home_data else ""
+        length_cm   = home_data.get("length_cm")
+        width_cm    = home_data.get("width_cm")
+        height_cm   = home_data.get("height_cm")
+        actual_wt   = home_data.get("actual_weight_kg")
+        vol_wt      = home_data.get("volumetric_weight_kg")
+        bill_wt     = home_data.get("billable_weight_kg")
+
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+
+        res = cur.execute("""
+            UPDATE listed_items
+               SET
+                   home_title          = COALESCE(?, home_title),
+                   home_brand          = COALESCE(?, home_brand),
+                   length_cm           = COALESCE(?, length_cm),
+                   width_cm            = COALESCE(?, width_cm),
+                   height_cm           = COALESCE(?, height_cm),
+                   actual_weight_kg    = COALESCE(?, actual_weight_kg),
+                   volumetric_weight_kg= COALESCE(?, volumetric_weight_kg),
+                   billable_weight_kg  = COALESCE(?, billable_weight_kg)
+             WHERE asin = ? AND user_id = ?
+        """, (home_title, home_brand,
+              length_cm, width_cm, height_cm,
+              actual_wt, vol_wt, bill_wt, asin, user_id))
+
+        conn.commit()
+        conn.close()
+
+        print(f"[OK] HOME info updated for {asin}")
+        return True
+
+    except Exception as e:
+        print(f"[ERR] HOME info update failed for {asin}: {e}")
+        return False
+
+# --- ▼ SECTION 02: region専用：ブランド・メーカー更新処理 ▼ ---
+def update_region_info(asin: str, user_id: int, catalog_data: dict, country_code: str):
+    """
+    REGION専用：
+    globalRegion（= region）で指定された listed_items DB に 情報を書く。
+    """
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
+    db_path = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+
+
+    if not os.path.exists(db_path):
+        print(f"[WARN] target listed_items DB not found: {db_path}")
+        return False
+
+    try:
+        # --- region 用値取り出し ---
+        region_brand        = (catalog_data.get("brand") or "").strip() if catalog_data else "" 
+        region_manufacturer = (catalog_data.get("manufacturer") or "").strip() if catalog_data else ""  
+        image_url           = (catalog_data.get("image_url") or "").strip() if catalog_data else ""  
+
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+
+        res = cur.execute("""
+            UPDATE listed_items
+               SET
+                   region_brand        = COALESCE(?, region_brand),
+                   region_manufacturer = COALESCE(?, region_manufacturer),
+                   image_url           = COALESCE(?, image_url)
+             WHERE asin = ? AND user_id = ?
+        """, 
+        (
+            region_brand,
+            region_manufacturer,
+            image_url,
+            asin,
+            user_id
+        ))
+            
+        conn.commit()
+        conn.close()
+
+        print(f"[OK] REGION info updated for {asin}")
+        return True
+
+    except Exception as e:
+        print(f"[ERR] REGION info update failed for {asin}: {e}") 
+        return False
+
+# --- ▼ SECTION 03: チェックセクション ▼ ---
+@listing_bp.post("/listing/add")
+def add_listing():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        items  = data.get("items") or []
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")
+
+        if not items:
+            return jsonify({"status": "error", "message": "No items provided"}), 400
+
+        # --- 新DB：a_marketplaces.db から region を検証 ---
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
+        db_market = os.path.join(base_dir, "db", "a_marketplaces.db")  
+
+        conn = get_conn("a_marketplaces.db")
+        cur = conn.cursor()
+
+        cur.execute("SELECT country_code FROM marketplaces WHERE user_id = ?", (user_id,))
+        valid_country_codes = [str(r[0]).strip().lower() for r in cur.fetchall()]
+        conn.close()
+
+        if country_code.lower() not in valid_country_codes:
+            return jsonify({"status": "error", "message": f"Invalid country_code: {country_code}"}), 400
+
+        # DBファイル名を決定
+        db_name = f"a_{country_code.lower()}_listed_items.db"
+        conn = get_conn(db_name)
+        cur = conn.cursor()
+
+        ok = []
+        listed = []
+        blacklist = []
+        errors = []
+
+        for item in items:
+            asin = re.sub(r"[^A-Z0-9]", "", (item.get("asin") or "").strip().upper())
+            sku = re.sub(r"[^\w\-]", "", (item.get("sku") or "").strip())
+            if not asin or not sku:
+                errors.append({"asin": asin, "sku": sku, "reason": "ASIN or SKU missing"})
+                continue
+
+            # 重複チェックはASINだけ
+            cur.execute("SELECT 1 FROM listed_items WHERE asin=? AND user_id=?", (asin, user_id)) 
+            row = cur.fetchone()
+
+            if row:
+                listed.append({"asin": asin, "sku": sku})
+                continue
+
+            now_utc = datetime.utcnow().isoformat()
+
+            # 登録（catalog 情報のみ・価格は扱わない）
+            cur.execute(
+                """
+                INSERT INTO listed_items 
+                    (user_id, asin, sku, home_title, home_brand, image_url, region_brand, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, asin, sku, "", "", "", "", "pre", now_utc, now_utc)
+            )
+            ok.append({"asin": asin, "sku": sku})
+
+        conn.commit()
+
+        # Pre-Listing 一覧を取得（価格は含めない）
+        cur.execute("""
+            SELECT asin, sku, home_title, home_brand, image_url, region_brand, region_manufacturer
+            FROM listed_items
+            WHERE status='pre' AND user_id=?
+        """, (user_id,))
+        pre_items = [{
+            "asin": r[0],
+            "sku": r[1],
+            "home_title": r[2] or "",
+            "home_brand": r[3] or "",
+            "image_url": r[4] or "",
+            "region_brand": r[5] or "",
+            "region_manufacturer": r[6] or "",
+        } for r in cur.fetchall()]
+        
+        return jsonify({
+            "status": "success",
+            "ok": ok,
+            "listed": listed,
+            "blacklist": blacklist,
+            "errors": errors,
+            "pre": pre_items
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 04: 共通 Shipping補正・設定 + Fee算定処理 ▼ ---
+def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone, P_min=None, P_max=None):
+    # print("HIT BUILD ROW")   // チェック完了後削除
+
+    # --- shipping_config取得 ---
+    conn_cfg = get_conn("a_pricing_settings.db")
+    cur_cfg = conn_cfg.cursor()
+    cur_cfg.execute("""
+        SELECT padding_cm, pack_ratio, volumetric_divisor
+        FROM shipping_config
+        WHERE user_id = ?
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (user_id,)) 
+    cfg = cur_cfg.fetchone()
+    conn_cfg.close()
+
+    padding_cm = cfg[0] if cfg else 0
+    pack_ratio = cfg[1] if cfg else 1.0
+    volum_div  = cfg[2] if cfg else 5000
+
+    # --- normalized ---
+    normalized = {
+        "length_cm": row["length_cm"],
+        "width_cm": row["width_cm"],
+        "height_cm": row["height_cm"],
+        "actual_weight_kg": row["actual_weight_kg"],
+    }
+
+    shipping_config = {
+        "volumetric_divisor": volum_div,
+        "padding_cm": padding_cm,
+        "pack_ratio": pack_ratio,
+    }
+
+    calc_result = shipping_calc(normalized, shipping_config)
+
+    billable_weight = calc_result["billable_weight_kg_rounded"]
+
+    # --- 送料算定 ---
+    shipping_fee = calc_min_shipping_fee(
+        billable_weight,
+        user_id,
+        marketplace_id
+    )
+
+    # --- Black ASIN Brand用 ---
+    is_black_asin = is_blacklisted(row["asin"].strip().lower(), user_id, country_code, current_app.config.get("DB_DIR"))
+    is_black_brand = (
+        is_blacklisted_brand(row["home_brand"], user_id, country_code, current_app.config.get("DB_DIR"))
+        or
+        is_blacklisted_brand(row["region_brand"], user_id, country_code, current_app.config.get("DB_DIR"))
+    )
+
+    # --- ▼ pricing_cache 取得（offer_json）▼ ---
+    conn_cache = get_conn("a_pricing_cache.db")
+    cur_cache = conn_cache.cursor()
+
+    cur_cache.execute("""
+        SELECT home_offers_json, region_offers_json
+        FROM pricing_cache
+        WHERE asin = ?
+        AND region_marketplace_id = ?
+        LIMIT 1
+    """, (row["asin"], marketplace_id))
+
+    cache_row = cur_cache.fetchone()
+
+    if cache_row and cache_row["home_offers_json"]:
+        home_data = json.loads(cache_row["home_offers_json"])
+    else:
+        home_data = {"payload": {}}
+
+    home_offers = (home_data.get("payload") or {}).get("Offers", [])
+
+    if cache_row and cache_row["region_offers_json"]:  
+        data = json.loads(cache_row["region_offers_json"])
+        
+        offer_count = (data.get("payload") or {}).get("Summary", {}).get("TotalOfferCount", 0)
+    else:
+        offer_count = 0
+        data = {"payload": {}}
+
+    conn_cache.close()
+
+    home_amazon = 0
+    home_fba = 0
+    home_fbm = 0
+    region_amazon = 0
+    region_fba = 0
+    region_fbm = 0
+
+    offers = (data.get("payload") or {}).get("Offers", [])
+
+    RETAIL_SELLER_IDS = get_retail_seller_ids()
+
+    for o in home_offers:
+        seller_id = o.get("SellerId")
+        is_fba = o.get("IsFulfilledByAmazon", False)
+
+        if seller_id and seller_id in RETAIL_SELLER_IDS:
+            home_amazon += 1
+        elif is_fba:
+            home_fba += 1
+        else:
+            home_fbm += 1
+
+    for o in offers:
+        seller_id = o.get("SellerId")
+        is_fba = o.get("IsFulfilledByAmazon", False)
+
+        if seller_id and seller_id in RETAIL_SELLER_IDS:
+            region_amazon += 1
+        elif is_fba:
+            region_fba += 1
+        else:
+            region_fbm += 1
+
+    # --- host取得（ここに追加） ---
+    conn_mst = get_conn("a_marketplaces_master.db")
+    cur_mst = conn_mst.cursor()
+
+    # REGION
+    cur_mst.execute("""
+        SELECT host
+        FROM marketplaces_master
+        WHERE marketplace_id = ?
+        LIMIT 1
+    """, (marketplace_id,))
+    row_region = cur_mst.fetchone()
+
+    # HOME
+    cur_mst.execute("""
+        SELECT host
+        FROM marketplaces_master
+        WHERE marketplace_id = ?
+        LIMIT 1
+    """, (row["home_marketplace_id"],))  
+
+    row_home = cur_mst.fetchone()
+
+    conn_mst.close()
+
+    marketplace_host = row_region["host"] if row_region else None 
+    home_marketplace_host = row_home["host"] if row_home else None 
+
+    # --- ▼ BrandGate取得 ▼ ---
+    conn_bg = get_conn("a_brand_gate_result.db")
+    conn_bg.row_factory = sqlite3.Row
+    cur_bg = conn_bg.cursor()
+
+    brand = row["region_brand"]
+
+    if brand:
+        cur_bg.execute("""
+            SELECT status, reason
+            FROM brand_gate_result
+            WHERE user_id = ?
+            AND region_marketplace_id = ?
+            AND brand = ?
+            LIMIT 1
+        """, (user_id, marketplace_id, brand))
+
+        bg_row = cur_bg.fetchone()
+    else:
+        bg_row = None
+
+    conn_bg.close()
+
+    brand_gate_status = bg_row["status"] if bg_row else None
+    brand_gate_reason = bg_row["reason"] if bg_row else None
+
+    # --- ▼ HOME送料取得 ▼ ---
+    home_shipping_amount = 0
+
+    try:
+        normalizer_home = NormalizedPricingAdapter(parent_adapter=None) 
+
+        normalized_home = normalizer_home.normalize_home_offers(
+            home_data
+        )
+
+        rules_home = _get_offer_filter_rules(user_id, "ALL")
+
+        pricing_rules_adapter_home = PricingRulesAdapter(rules_home)
+
+        result_home = pricing_rules_adapter_home.select_home_cost_offer(
+            normalized_home
+        )
+
+        selected_home = result_home.get("selected") if result_home else None
+
+        if selected_home:
+            home_shipping_amount = float(
+                selected_home.get("shipping_amount") or 0
+            )
+
+    except Exception:
+        home_shipping_amount = 0
+        
+    # --- ▼ REGION競合送料取得 ▼ ---
+    region_shipping_amount = 0
+
+    try:
+
+        normalized_region = NormalizedPricingAdapter.normalize_region_offers(
+            None,
+            data
+        )
+
+        rules = _get_pricing_master_rules(user_id, country_code)
+
+        # --- 自分ID取得 ---
+        conn_acc = get_conn("a_account_master.db")
+        conn_acc.row_factory = sqlite3.Row 
+        cur_acc = conn_acc.cursor()  
+
+        cur_acc.execute("""
+            SELECT account_seller_id
+            FROM account_master
+            WHERE user_id = ?
+            AND country_code = ?
+            LIMIT 1
+        """, (user_id, country_code))  
+
+        acc = cur_acc.fetchone()  
+        conn_acc.close()  
+
+        my_seller_id = acc["account_seller_id"] if acc else None  
+
+        rules["my_seller_id"] = my_seller_id  
+
+        pricing_rules_adapter = PricingRulesAdapter(rules)
+
+        result_offer = pricing_rules_adapter.select_region_price_offer(
+            normalized_region
+        )
+
+        selected_offer = result_offer.get("selected") if result_offer else None
+
+        if selected_offer:
+            region_shipping_amount = float(
+                selected_offer.get("shipping_amount") or 0
+            )
+
+    except Exception:
+        region_shipping_amount = 0    
+
+    return {
+        "asin": row["asin"],
+        "sku": row["sku"],
+        "home_title": row["home_title"],
+        "home_brand": row["home_brand"],
+        "image_url": row["image_url"],
+        "length_cm": row["length_cm"],
+        "width_cm": row["width_cm"],
+        "height_cm": row["height_cm"],
+        "actual_weight_kg": row["actual_weight_kg"],
+
+        "actual_weight_kg_corrected": calc_result["actual_weight_kg_corrected"],
+        "volumetric_weight_kg": calc_result["volumetric_weight_kg"],
+        "billable_weight_kg": billable_weight,
+        "shipping_fee": shipping_fee,
+
+        "home_price": row["home_price"],
+        "home_shipping_amount": home_shipping_amount,
+        "region_price": row["region_price"], 
+        "region_shipping_amount": region_shipping_amount,
+        "final_price": row["final_price"],
+        "min_price": row["min_price"], 
+        "max_price": row["max_price"],
+        "region_brand": row["region_brand"],
+        "region_manufacturer": row["region_manufacturer"],
+        "information_status": row["information_status"],
+        "listing_status": row["listing_status"],
+
+        "updated_at": row["updated_at"],
+        "created_at": row["created_at"],   
+        "home_timezone": timezone,   
+
+        "is_black_asin": is_black_asin,
+        "is_black_brand": is_black_brand,
+        "offer_counts": {
+            "home_amazon": home_amazon,
+            "home_fba": home_fba,
+            "home_fbm": home_fbm,        
+            "region_amazon": region_amazon,
+            "region_fba": region_fba,
+            "region_fbm": region_fbm,
+        },
+
+        "home_marketplace_host": home_marketplace_host,
+        "marketplace_host": marketplace_host,   
+
+        "brand_gate_status": brand_gate_status,
+        "brand_gate_reason": brand_gate_reason,  
+    }
+    
+# --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword=""):
+    print("KEYWORD:", keyword)  # // チェック完了後削除
+    
+    # --- marketplace_id + timezone取得 ---
+    conn_mid = get_conn("a_marketplaces.db")
+    cur_mid = conn_mid.cursor()
+
+    cur_mid.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = ?
+        AND LOWER(country_code) = ?
+        LIMIT 1
+    """, (user_id, country_code))
+    row_mid = cur_mid.fetchone()
+
+    cur_mid.execute("""
+        SELECT timezone
+        FROM marketplaces
+        WHERE user_id = ?
+        AND home_flag = 1
+        LIMIT 1
+    """, (user_id,))
+    row_tz = cur_mid.fetchone()
+
+    conn_mid.close()
+
+    if not row_mid:
+        return None, 0, "marketplace_id not found"
+
+    marketplace_id = row_mid[0]
+    timezone = row_tz[0] if row_tz else "UTC"
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    db_file = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+
+    if not os.path.exists(db_file):
+        return None, 0, f"DB not found: {db_file}"
+
+    conn = sqlite3.connect(db_file) 
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    offset = (page - 1) * limit  
+
+    # 標準ソート登録日順       
+    order_by = "created_at DESC"
+
+    # ソート種類       
+    if sort == "created_asc":               # 登録日
+        order_by = "created_at ASC"
+    elif sort == "updated_asc":             # 更新日
+        order_by = "updated_at ASC"
+    elif sort == "updated_desc":
+        order_by = "updated_at DESC"    
+    elif sort == "brand_asc":               # ブランド名
+        order_by = "home_brand ASC"
+    elif sort == "brand_desc":
+        order_by = "home_brand DESC"        
+    elif sort == "price_asc":               # 価格
+        order_by = "final_price ASC"
+    elif sort == "price_desc":
+        order_by = "final_price DESC"
+    elif sort == "weight_asc":              # 請求重量
+        order_by = "billable_weight_kg ASC"
+    elif sort == "weight_desc":
+        order_by = "billable_weight_kg DESC"        
+
+    # --- フィルタ条件 ---
+    query_filter = ""
+    params_base = [status_value, user_id]
+
+    if info_status != "all":
+        query_filter += " AND information_status = ?"
+        params_base.append(info_status)
+
+    if keyword:
+        query_filter += " AND (asin LIKE ? OR sku LIKE ? OR home_title LIKE ?)"
+        params_base.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
+
+    # --- データ取得 ---
+    params_data = params_base + [limit, offset]
+
+    cur.execute(f"""
+        SELECT 
+            asin, sku,
+            home_marketplace_id,  
+            COALESCE(home_title, '') AS home_title,
+            COALESCE(home_brand, '') AS home_brand,
+            COALESCE(image_url, '') AS image_url,
+            length_cm,
+            width_cm,
+            height_cm,
+            actual_weight_kg, 
+            volumetric_weight_kg,
+            billable_weight_kg,
+            COALESCE(home_price, NULL) AS home_price,
+            COALESCE(region_price, NULL) AS region_price,
+            COALESCE(final_price, NULL) AS final_price,
+            COALESCE(min_price, NULL) AS min_price,
+            COALESCE(max_price, NULL) AS max_price, 
+            COALESCE(region_brand, '') AS region_brand,
+            COALESCE(region_manufacturer, '') AS region_manufacturer,
+            COALESCE(information_status, '') AS information_status,
+            COALESCE(listing_status, '') AS listing_status,
+            updated_at,
+            created_at 
+        FROM listed_items
+        WHERE LOWER(status) = ?
+        AND user_id = ?
+        {query_filter}
+        ORDER BY {order_by}
+        LIMIT ? OFFSET ?
+    """, params_data)
+
+    rows = cur.fetchall()
+
+    # --- 件数取得 ---
+    cur.execute(f"""
+        SELECT COUNT(*)
+        FROM listed_items
+        WHERE LOWER(status) = ?
+        AND user_id = ?
+        {query_filter}
+    """, params_base)
+
+    total_count = cur.fetchone()[0]    
+
+    conn.close()
+
+    result = []
+    for row in rows:
+        result.append(
+            _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone)
+        )
+        
+    return result, total_count, None
+
+# --- ▼ SECTION 06: Pre Listing 取得処理 ▼ ---
+@listing_bp.route("/get_prelisting", methods=["GET"])
+def get_prelisting():
+    try:
+        keyword = (request.args.get("keyword") or "").strip().lower()
+        keyword = re.sub(r"[ 　]+", "", keyword)   # スペース削除
+        keyword = re.sub(r"[^a-z0-9ぁ-んァ-ン一-龥]", "", keyword)  # 記号削除
+
+        country_code = (request.args.get("country_code") or "").strip().lower()
+        user_id = request.args.get("user_id") or session.get("user_id")
+
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code is required"}), 400
+
+        sort = request.args.get("sort") or "created_desc"
+
+        info_status = request.args.get("info_status") or "all"
+
+        page = int(request.args.get("page") or 1)
+        keyword = request.args.get("keyword") or ""
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword)
+
+        if err:
+            return jsonify({"status": "error", "message": err}), 400
+
+        return jsonify({"status": "success", "pre": rows, "total_count": total_count})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 07: Pre → ALL 移動処理 ▼ ---
+@listing_bp.route("/get_alllisting", methods=["GET"])
+def get_alllisting():
+    try:
+        country_code = (request.args.get("country_code") or "").strip().lower()
+        user_id = request.args.get("user_id") or session.get("user_id")
+
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code is required"}), 400
+
+        sort = request.args.get("sort") or "created_desc" 
+
+        info_status = request.args.get("info_status") or "all"
+
+        page = int(request.args.get("page") or 1)
+        keyword = request.args.get("keyword") or ""
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword)
+        
+        if err:
+            return jsonify({"status": "error", "message": err}), 400
+
+        return jsonify({"status": "success", "all": rows, "total_count": total_count})
+        
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 08: Listing DB検索（Pre / All 共通） ▼ ---
+@listing_bp.route("/search_listing", methods=["GET"])
+def search_listing():
+
+    try:
+        country_code = (request.args.get("country_code") or "").strip().lower()
+        user_id = request.args.get("user_id") or session.get("user_id")
+
+        mode = request.args.get("mode")
+        keyword = (request.args.get("keyword") or "").strip()
+        detail = request.args.get("detail") == "true"
+
+        sort = request.args.get("sort") or "created_desc"  
+
+        # 標準ソート登録日順       
+        order_by = "created_at DESC"
+
+        # ソート種類       
+        if sort == "created_asc":               # 登録日
+            order_by = "created_at ASC"
+        elif sort == "brand_asc":               # ブランド名
+            order_by = "region_brand ASC"
+        elif sort == "brand_desc":
+            order_by = "region_brand DESC"        
+        elif sort == "price_asc":               # 価格
+            order_by = "final_price ASC"
+        elif sort == "price_desc":
+            order_by = "final_price DESC"
+        elif sort == "weight_asc":              # 請求重量
+            order_by = "billable_weight_kg ASC"
+        elif sort == "weight_desc":
+            order_by = "billable_weight_kg DESC"            
+
+        status_value = "pre" if mode == "pre" else "listed"
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+
+        if detail:
+
+            info_status = request.args.get("info_status") or "all"
+
+            query_filter = ""
+            params = [
+                user_id,
+                status_value,
+                f"%{keyword}%",
+                f"%{keyword}%",
+                f"%{keyword}%",
+                f"%{keyword}%",
+                f"%{keyword}%",
+                f"%{keyword}%",
+                f"%{keyword}%"
+            ]
+
+            if info_status != "all":
+                query_filter = " AND information_status = ?"
+                params.append(info_status)
+
+            cur.execute(f"""
+                SELECT *
+                FROM listed_items
+                WHERE user_id = ?
+                AND LOWER(status) = ?
+                AND (
+                    LOWER(asin) LIKE LOWER(?)
+                    OR LOWER(sku) LIKE LOWER(?)
+                    OR LOWER(home_title) LIKE LOWER(?)
+                    OR LOWER(home_brand) LIKE LOWER(?)
+                    OR LOWER(region_title) LIKE LOWER(?)
+                    OR LOWER(region_brand) LIKE LOWER(?)
+                    OR LOWER(region_manufacturer) LIKE LOWER(?)
+                )
+                {query_filter}
+                ORDER BY created_at DESC
+                LIMIT 200
+            """, params)
+
+        else:
+
+            info_status = request.args.get("info_status") or "all"
+
+            query_filter = ""
+            params = [
+                user_id,
+                status_value,
+                f"%{keyword}%"
+            ]
+
+            if info_status != "all":
+                query_filter = " AND information_status = ?"
+                params.append(info_status)
+
+            cur.execute(f"""
+                SELECT *
+                FROM listed_items
+                WHERE user_id = ?
+                AND LOWER(status) = ?
+                AND asin LIKE ?
+                {query_filter}
+                ORDER BY created_at DESC
+                LIMIT 200
+            """, params)
+
+        rows = cur.fetchall()
+        conn.close()
+
+        # --- ▼ marketplace_id + timezone取得 ▼ ---
+        conn_m = sqlite3.connect("db/a_marketplaces.db")
+        cur_m = conn_m.cursor()
+
+        cur_m.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            LIMIT 1
+        """, (user_id, country_code))
+        r = cur_m.fetchone()
+        marketplace_id = r[0] if r else None
+
+        cur_m.execute("""
+            SELECT timezone
+            FROM marketplaces
+            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            LIMIT 1
+        """, (user_id, country_code))
+        r_tz = cur_m.fetchone()
+        timezone = r_tz[0] if r_tz else "UTC"
+
+        conn_m.close()
+
+        result = []
+        for row in rows:
+            result.append(
+                _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone)
+            )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 09: UI表示用（APIは叩かない / DB参照＋画像補完のみ） ▼ ---
+@listing_bp.post("/fetch_item_info")
+def fetch_item_info():
+    data = request.get_json(force=True)
+
+    asin   = (data.get("asin") or "").strip().upper()
+    country_code = (data.get("country_code") or "").strip().lower()
+
+    if not asin or not country_code:
+        return jsonify({"status": "error", "message": "asin and country_code required"}), 400
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "not logged in"}), 401
+
+    # --- region 正当性チェック（user_id ベース） ---
+    conn_market = get_conn("a_marketplaces.db")
+    cur_market = conn_market.cursor()
+    cur_market.execute(
+        "SELECT country_code FROM marketplaces WHERE user_id = ?", (user_id,)
+    )
+    valid_country_codes = [str(r[0]).strip().lower() for r in cur_market.fetchall()]
+    conn_market.close()
+
+    if country_code not in valid_country_codes:
+        return jsonify({
+            "status": "error",
+            "message": f"Invalid country_code: {country_code}"
+        }), 400
+
+    # --- listed_items DB 読み込み ---
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
+    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+
+    conn = sqlite3.connect(db_file) 
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            home_brand,
+            home_title,
+            length_cm,
+            width_cm,
+            height_cm,
+            actual_weight_kg
+        FROM listed_items
+        WHERE asin = ? AND user_id = ?
+    """, (asin, user_id))
+    row = cur.fetchone()
+    conn.close()
+
+    ui_home_brand = ""
+    ui_home_title = ""
+    ui_length_cm = None
+    ui_width_cm = None
+    ui_height_cm = None
+    ui_actual_weight_kg = None
+
+    if row:
+        (
+            ui_home_brand,
+            ui_home_title,
+            ui_length_cm,
+            ui_width_cm,
+            ui_height_cm,
+            ui_actual_weight_kg,
+        ) = row
+
+    # --- REGION 画像補完（catalog とは別ルート） ---
+    extractor = CatalogImageExtractor(
+        user_id=user_id,
+        country_code=country_code.upper()
+    )
+    region_image_url = extractor.get_image_url(asin) or ""
+
+    # --- REGION 情報更新（画像のみ） ---
+    region_data = {
+        "image_url": region_image_url,
+    }
+
+    update_region_info(
+        asin=asin,
+        user_id=user_id,
+        catalog_data=region_data,
+        country_code=country_code
+    )
+
+    # --- UI 返却 ---
+    return jsonify({
+        "status": "ok",
+        "asin": asin,
+        "home_brand": ui_home_brand,
+        "home_title": ui_home_title,
+        "image_url": region_image_url,
+        "length_cm": ui_length_cm,
+        "width_cm": ui_width_cm,
+        "height_cm": ui_height_cm,
+        "actual_weight_kg": ui_actual_weight_kg,
+    })
+
+# --- ▼ SECTION 10: Delete Listing DBリストから削除処理 ▼ ---
+@listing_bp.route("/delete_item", methods=["POST"])
+def delete_item():
+    """Pre/ALL Listing から ASIN単体削除 + cache同期削除（ユーザー別処理版）"""
+
+    data = request.get_json()
+
+    asin = data.get("asin")
+    sku  = data.get("sku")
+
+    # --- list対応 ---
+    if isinstance(sku, list):
+        sku = sku[0]
+
+    # --- 文字列 ['SKU'] 対応 ---
+    if isinstance(sku, str) and sku.startswith("["):
+        sku = sku.strip("[]'\"")
+
+    asin = (asin or "").strip()
+    sku  = (sku or "").strip()
+    
+    country_code = (data.get("country_code") or "").strip().lower()     # ← HOME禁止、入力country_codeをそのまま使用
+    user_id = session.get("user_id")     
+
+    # status判定（pre / all）
+    status = "listed" if (data.get("status") or "").lower() == "all" else "pre"
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
+    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+    cache_db = os.path.join(base_dir, "db", "a_pricing_cache.db")
+    catalog_cache_db = os.path.join(base_dir, "db", "a_catalog_cache.db")
+
+    # --- DB存在チェック ---
+    if not os.path.exists(db_file):
+        return jsonify({"status": "error", "message": f"database not found: {db_file}"})
+
+    # --- Amazon削除API（ALLのみ） ---
+    if status == "listed":
+
+        conn = get_conn("a_marketplaces.db")
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id=? AND country_code COLLATE NOCASE = ?
+        """, (user_id, country_code))
+
+        row = cur.fetchone()
+        conn.close()
+
+        if row and sku:
+
+            marketplace_id = row["marketplace_id"]
+
+            delete_listing_item(
+                user_id=user_id,
+                country_code=country_code,
+                marketplace_id=marketplace_id,
+                seller_sku=sku
+            )
+            
+    try:
+        # ============================================================
+        # ★ listed_items 削除処理（ユーザーID条件を追加） 
+        # ============================================================
+        conn = sqlite3.connect(db_file, timeout=5)
+        cur = conn.cursor()
+
+        if sku:
+            cur.execute("""
+                DELETE FROM listed_items
+                WHERE asin=? AND sku=? AND user_id=?      
+            """, (asin, sku, user_id))
+        else:
+            cur.execute("""
+                DELETE FROM listed_items
+                WHERE asin=? AND user_id=?     
+            """, (asin, user_id))
+
+        deleted_main = cur.rowcount
+        conn.commit()
+        conn.close()
+
+        # # ============================================================
+        # # ★ cache削除（pricing_cache は HOME共通 DB）
+        # #     → user_id 条件追加で他ユーザーのデータを削除しない 
+        # # ============================================================
+        # if os.path.exists(cache_db):
+        #     cache_conn = sqlite3.connect(cache_db, timeout=5)
+        #     cache_cur = cache_conn.cursor()
+
+        #     if sku:
+        #         cache_cur.execute("""
+        #             DELETE FROM pricing_cache
+        #             WHERE asin=? AND sku=? AND user_id=? 
+        #         """, (asin, sku, user_id))
+        #     else:
+        #         cache_cur.execute("""
+        #             DELETE FROM pricing_cache
+        #             WHERE asin=? AND (sku IS NULL OR sku='') AND user_id=?  
+        #         """, (asin, user_id))
+
+        #     deleted_cache = cache_cur.rowcount
+        #     cache_conn.commit()
+        #     cache_conn.close()
+
+        # # ============================================================
+        # # ★ cache削除（catalog_cache：raw_json 専用）
+        # # ============================================================
+        # if os.path.exists(catalog_cache_db):
+        #     catalog_conn = sqlite3.connect(catalog_cache_db, timeout=5)
+        #     catalog_cur = catalog_conn.cursor()
+
+        #     catalog_cur.execute("""
+        #         DELETE FROM catalog_cache
+        #         WHERE asin=? AND sku=? AND user_id=?
+        #     """, (asin, sku, user_id)) 
+
+        #     deleted_catalog_cache = catalog_cur.rowcount
+        #     catalog_conn.commit()
+        #     catalog_conn.close()
+
+
+        return jsonify({
+            "status": "success",
+            "asin": asin,
+            "sku": sku
+        })
+
+    except Exception as e:
+        print("[ERR] delete_item failed:", e)
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 11: Bulk Delete（From：ALL / Pre 一括削除） ▼ ---
+@listing_bp.route("/bulk_delete_items", methods=["POST"])
+def bulk_delete_items():
+
+    data = request.get_json()
+    items = data.get("items") or []
+    status = data.get("status")
+    # status = data.get("status") or "listed" 
+    print("STATUS VALUE >>>", status, flush=True)  # チェック完了後削除
+
+    user_id = session.get("user_id")
+
+    db_dir = current_app.config.get("DB_DIR")
+
+    if not items:
+        return jsonify({"status": "success", "results": []}) 
+    country_code = (items[0].get("country_code") or "").strip().lower() 
+    listed_db = os.path.join(db_dir, f"a_{country_code}_listed_items.db")
+
+    conn = sqlite3.connect(listed_db)
+    cur = conn.cursor()
+
+    for item in items:
+        sku = (item.get("sku") or "").strip()
+
+        if not sku:
+            continue
+
+        cur.execute("""
+            UPDATE listed_items
+            SET deleting_flag = 1
+            WHERE sku = ?
+        """, (sku,))
+
+    conn.commit()
+    conn.close()  
+
+    results = []
+
+    if not items:
+        return jsonify({"status": "success", "results": results})
+
+    # --- country_codeごとに sku_list をまとめる ---
+    country_sku_map = {}
+    for item in items:
+        country_code = (item.get("country_code") or "").strip().lower()
+        sku = item.get("sku")
+
+        # --- list対応 ---
+        if isinstance(sku, list):
+            sku = sku[0]
+
+        # --- 文字列 ['SKU'] 対応 ---
+        if isinstance(sku, str) and sku.startswith("["):
+            sku = sku.strip("[]'\"")
+
+        sku = (sku or "").strip()
+
+        if country_code not in country_sku_map:
+            country_sku_map[country_code] = []
+
+        country_sku_map[country_code].append(sku)
+
+    # --- Bulk処理（Feed + DB削除） ---
+    for country_code, sku_list in country_sku_map.items():
+
+        # marketplace_id取得
+        conn = get_conn("a_marketplaces.db")
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id=? AND country_code COLLATE NOCASE = ?
+        """, (user_id, country_code))
+        row = cur.fetchone()
+        conn.close()
+
+        if not row:
+            continue
+        marketplace_id = row["marketplace_id"]
+
+        # --- API削除（Bulk Feed） ---
+        if str(status).lower() == "listed":
+            feed_response = bulk_delete_listing_item(
+                user_id=user_id,
+                country_code=country_code,
+                marketplace_id=marketplace_id,
+                sku_list=sku_list
+            )
+            print("BULK FEED RESPONSE:", feed_response, flush=True)
+
+            # ここを追加
+            if isinstance(feed_response, dict):
+                print("FEED ID:", feed_response.get("feedId"), flush=True)  # チェック完了後削除
+
+        # --- DB削除・cache削除（単体Deleteと同じ処理） ---
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+        # cache_db = os.path.join(base_dir, "db", "a_pricing_cache.db")
+        # catalog_cache_db = os.path.join(base_dir, "db", "a_catalog_cache.db")
+
+        conn = sqlite3.connect(db_file, timeout=5)
+        cur = conn.cursor()      
+
+        for sku in sku_list:
+            try:
+                # listed_items 削除
+                # conn = sqlite3.connect(db_file, timeout=5)
+                # cur = conn.cursor()
+                if sku:
+                    cur.execute("""
+                        DELETE FROM listed_items
+                        WHERE sku=? AND user_id=?
+                    """, (sku, user_id))
+                else:
+                    cur.execute("""
+                        DELETE FROM listed_items
+                        WHERE user_id=?
+                    """, (user_id,))
+
+                # if cache_cur:
+
+                #     if sku:
+                #         cache_cur.execute("""
+                #             DELETE FROM pricing_cache
+                #             WHERE sku=? AND user_id=?
+                #         """, (sku, user_id))
+                #     else:
+                #         cache_cur.execute("""
+                #             DELETE FROM pricing_cache
+                #             WHERE user_id=?
+                #         """, (user_id,))
+
+
+                # # catalog_cache 削除
+                # if catalog_cur:
+
+                #     if sku:
+                #         catalog_cur.execute("""
+                #             DELETE FROM catalog_cache
+                #             WHERE sku=? AND user_id=?
+                #         """, (sku, user_id))
+                #     else:
+                #         catalog_cur.execute("""
+                #             DELETE FROM catalog_cache
+                #             WHERE user_id=?
+                #         """, (user_id,))
+
+
+                print(f"[DB DELETE COMPLETE] SKU: {sku}", flush=True)
+                results.append({
+                    "sku": sku,
+                    "status": "ok"
+                })
+
+            except Exception as e:
+                print(f"[DB DELETE ERROR] SKU: {sku} → {e}", flush=True)
+                results.append({
+                    "sku": sku,
+                    "status": "error",
+                    "message": str(e)
+                })
+
+        conn.commit()
+        conn.close()   
+
+    return jsonify({
+        "status": "success",
+        "results": results
+    })
+
+# --- ▼ SECTION 12: Pre → ALL 移動処理 ▼ ---
+@listing_bp.route("/move_to_all", methods=["POST"])
+def move_to_all():
+    """Pre-Listing の ASIN を ALL（出品済）へ移動"""
+
+    try:
+        data = request.get_json()
+        asin = (data.get("asin") or "").strip().upper()
+        country_code = (data.get("country_code") or "").strip()   
+        user_id = session.get("user_id")  
+
+        conn_m = sqlite3.connect("db/a_marketplaces.db")
+        cur_m = conn_m.cursor()
+
+        cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+        LIMIT 1
+        """, (user_id, country_code))
+
+        r = cur_m.fetchone()
+        marketplace_id = r[0] if r else None
+
+        conn_m.close()      
+
+        if not asin:
+            return jsonify({"status": "error", "message": "ASINが指定されていません"})
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+
+        # --- DB存在チェック ---
+        if not os.path.exists(db_file):
+            return jsonify({"status": "error", "message": f"database not found: {db_file}"})
+
+        # リトライ付きでロック回避
+        max_retry = 5
+        for attempt in range(max_retry):
+            try:
+                conn = sqlite3.connect(db_file, timeout=10)
+                cur = conn.cursor()
+
+                # WALモード設定
+                cur.execute("PRAGMA journal_mode=WAL;")
+
+                # --- ▼ 出品用データ取得 ▼ ---
+                cur.execute("""
+                    SELECT 
+                        sku,
+                        final_price,
+                        strategy_quantity,
+                        strategy_handling_time
+                    FROM listed_items
+                    WHERE asin=? AND user_id=?
+                """, (asin, user_id))
+
+                row = cur.fetchone()
+
+                if not row:
+                    conn.close()
+                    return jsonify({"status": "error", "message": "listing data not found"})
+
+                seller_sku, price, strategy_quantity, strategy_handling_time = row       
+
+                # --- ▼ quantity決定 ▼ ---
+                if strategy_quantity and strategy_quantity >= 1:
+                    quantity = strategy_quantity
+                else:
+                    quantity = 1           # 出品在庫数量
+
+                # --- ▼ handling_time決定 ▼ ---
+                db_dir = current_app.config.get("DB_DIR")
+                conn_rule = sqlite3.connect(os.path.join(db_dir, "a_pricing_settings.db"))
+                cur_rule = conn_rule.cursor()
+
+                country_code = country_code.upper()
+
+                cur_rule.execute("""
+                    SELECT default_handling_time
+                    FROM pricing_master_rules
+                    WHERE user_id=? AND country_code=?
+                """, (user_id, country_code))
+
+                r = cur_rule.fetchone()
+
+                if r and r[0] and int(r[0]) >= 1:
+                    handling_time = int(r[0])
+                else:
+                    handling_time = strategy_handling_time   # CSV初期値6
+
+                conn_rule.close()
+ 
+                # ★ ステータス更新（価格は一切触らない）
+                cur.execute("""
+                    UPDATE listed_items
+                    SET 
+                        status = 'listed',
+                        updated_at = datetime('now','localtime')
+                    WHERE asin=? AND status='pre' AND user_id=?
+                """, (asin, user_id)) 
+
+                if cur.rowcount == 0:
+                    conn.close()
+                    return jsonify({"status": "error", "message": "該当ASINが見つかりません"})
+
+                conn.commit()
+
+                # --- ▼ Amazon出品 ▼ ---
+
+                # --- ▼ brand取得（catalog_cache） ▼ ---
+                base = AmazonAdapter(
+                    user_id=user_id,
+                    country_code=country_code,
+                    marketplace_id=marketplace_id
+                )
+                adapter = CatalogAdapterRegion(parent_adapter=base)
+
+                cache = adapter._get_cached_catalog(asin)
+
+                brand = "UNKNOWN"
+
+                if cache and cache.get("region_raw_json"):
+                    try:
+                        data = json.loads(cache["region_raw_json"])
+                        brand_list = data.get("attributes", {}).get("brand", [])
+                        if brand_list and isinstance(brand_list, list):
+                            brand = brand_list[0].get("value") or "UNKNOWN"
+                    except:
+                        pass
+
+                submit_listing_service(
+                    user_id,  
+                    country_code,
+                    marketplace_id,
+                    seller_sku,
+                    asin,
+                    price,
+                    quantity,
+                    handling_time,
+                    brand
+                )
+
+                conn.close()
+
+                return jsonify({
+                    "status": "success",
+                    "asin": asin
+                })
+
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e).lower():
+                    time.sleep(0.5)
+                    continue
+                raise e
+
+        return jsonify({"status": "error", "message": "DBロックが解除されませんでした"})
+
+    except Exception as e:
+        import traceback
+        print("move_to_all error:", traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 13: Bulk PRE → ALL ▼ ---
+@listing_bp.route("/bulk_move_to_all", methods=["POST"])
+def bulk_move_to_all():
+
+    data = request.get_json()
+
+    asins = data.get("asins", [])
+    country_code = data.get("country_code")
+    user_id = session.get("user_id")
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+
+    conn = sqlite3.connect(db_file)
+    cur = conn.cursor()
+
+    for asin in asins:
+
+        cur.execute("""
+        UPDATE listed_items
+        SET status='listed'
+        WHERE asin=? AND status='pre' AND user_id=?
+        """, (asin, user_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "success"})
+
+# --- ▼ SECTION 14 ALL 出品戦略 保存処理 ▼ ---
+@listing_bp.route("/update_strategy", methods=["POST"])
+def update_strategy():
+    """
+    ALL Listing：出品戦略（価格・在庫・売り切り・HT）保存
+    """
+    try:
+        data = request.get_json() or {}
+
+        asin   = (data.get("asin") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")   # ★ SaaS必須
+
+        if not asin or not region or not user_id:
+            return jsonify({"status": "error", "message": "missing parameter"})
+
+        # --- 正規化 ---
+        override_price = data.get("override_price")
+        if override_price in ("", None):
+            override_price = None
+        else:
+            override_price = float(override_price)
+
+        strategy_quantity = data.get("strategy_quantity")
+        strategy_quantity = int(strategy_quantity) if str(strategy_quantity).isdigit() else 0
+
+        strategy_sellout = 1 if data.get("strategy_sellout") else 0
+
+        strategy_handling_time = data.get("strategy_handling_time")
+        strategy_handling_time = int(strategy_handling_time) if str(strategy_handling_time).isdigit() and int(strategy_handling_time) > 0 else 7
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+
+        if not os.path.exists(db_file):
+            return jsonify({"status": "error", "message": f"DB not found: {db_file}"})
+
+        conn = sqlite3.connect(db_file) 
+        cur = conn.cursor()
+
+        now_utc = datetime.utcnow().isoformat()
+        # --- 更新 ---
+        cur.execute("""
+            UPDATE listed_items
+            SET
+                override_price = ?,
+                strategy_quantity = ?,
+                strategy_sellout = ?,
+                strategy_handling_time = ?,
+                updated_at = ?
+            WHERE asin = ? AND user_id = ?
+        """, (
+            override_price,
+            strategy_quantity,
+            strategy_sellout,
+            strategy_handling_time,
+            now_utc,
+            asin,
+            user_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        import traceback
+        print("[update_strategy ERROR]")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
+
+__all__ = ["update_brand_title_in_listed_items"]
+
+

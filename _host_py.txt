@@ -1,0 +1,89 @@
+amazon\adapters\amazon_adapter.py:32:        self.host = self.account.get("host")
+amazon\adapters\amazon_adapter.py:64:    def real_signed_request(self, method: str, endpoint: str, host: str = None, params: dict = None):
+amazon\adapters\amazon_adapter.py:75:        host_to_use = acct.get("spapi_host") or acct.get("host") or self.host
+amazon\adapters\amazon_adapter.py:85:            host=host_to_use,
+amazon\adapters\amazon_adapter.py:107:            "host": self.host,
+amazon\adapters\catalog_adapter_full.py:37:        self.host = self._get_host_from_db(self.region)  # この行は維持
+amazon\adapters\catalog_adapter_full.py:75:    # host を a_marketplaces.db から取得
+amazon\adapters\catalog_adapter_full.py:77:    def _get_host_from_db(self, region: str) -> str:
+amazon\adapters\catalog_adapter_full.py:83:                SELECT host
+amazon\adapters\catalog_adapter_full.py:111:                SELECT client_id, client_secret, access_key, secret_key, refresh_token, host
+amazon\adapters\catalog_adapter_full.py:123:            client_id, client_secret, access_key, secret_key, refresh_token, host = row
+amazon\adapters\catalog_adapter_full.py:128:            host = (host or "").strip()
+amazon\adapters\catalog_adapter_full.py:129:            if host.startswith("https://"):
+amazon\adapters\catalog_adapter_full.py:130:                host = host.replace("https://", "").strip()
+amazon\adapters\catalog_adapter_full.py:131:            if not host:
+amazon\adapters\catalog_adapter_full.py:132:                print(f"[ERR] host未設定 region={self.region}", flush=True)
+amazon\adapters\catalog_adapter_full.py:148:                host=host,
+amazon\adapters\catalog_adapter_home.py:82:                SELECT client_id, client_secret, access_key, secret_key, refresh_token, host
+amazon\adapters\catalog_adapter_home.py:95:            client_id, client_secret, access_key, secret_key, refresh_token, host = row
+amazon\adapters\catalog_adapter_home.py:97:            # --- host 正規化 ---
+amazon\adapters\catalog_adapter_home.py:98:            host = (host or "").strip()
+amazon\adapters\catalog_adapter_home.py:99:            if host.startswith("https://"):
+amazon\adapters\catalog_adapter_home.py:100:                host = host.replace("https://", "").strip()
+amazon\adapters\catalog_adapter_home.py:101:            if not host:
+amazon\adapters\catalog_adapter_home.py:102:                log_debug("[ERR] host empty in HOME adapter")
+amazon\adapters\catalog_adapter_home.py:119:                host=host,
+amazon\adapters\pricing_adapter.py:29:        self.host = getattr(parent_adapter, "host", None) if parent_adapter else None
+amazon\adapters\pricing_adapter.py:190:        self.host = getattr(parent_adapter, "host", None) if parent_adapter else None
+amazon\db.py:74:            host,
+amazon\db.py:75:            spapi_host,
+amazon\db.py:76:            store_host,
+amazon\db.py:110:#                spapi_host, host, marketplace_id,
+amazon\db_migrate.py:82:    "host": "TEXT",
+amazon\db_migrate.py:83:    "spapi_host": "TEXT",
+amazon\routes.py:47:        # region / display_name / marketplace_id / host / spapi_host を取得 # この行を修正
+amazon\routes.py:53:                host,
+amazon\routes.py:54:                spapi_host
+amazon\routes.py:67:                "host": r[3],              
+amazon\routes.py:68:                "spapi_host": r[4],        
+amazon\routes.py:131:            SELECT display_name, marketplace_id, host,
+amazon\routes.py:132:                   spapi_host, locale
+amazon\routes.py:150:                "host": mkt["host"] if mkt else "",
+amazon\routes.py:151:                "spapi_host": mkt["spapi_host"] if mkt else "",
+amazon\routes.py:169:            "host": mkt["host"] if mkt else "",
+amazon\routes.py:170:            "spapi_host": mkt["spapi_host"] if mkt else "",
+amazon\routes.py:251:        host = (data.get("host") or "").strip()
+amazon\routes.py:252:        spapi_host = (data.get("spapi_host") or "").strip()
+amazon\routes.py:260:                region, display_name, marketplace_id, host, spapi_host, updated_at
+amazon\routes.py:270:                host = CASE
+amazon\routes.py:271:                    WHEN excluded.host IS NOT NULL AND TRIM(excluded.host) != ''
+amazon\routes.py:272:                    THEN excluded.host ELSE marketplaces.host END,
+amazon\routes.py:273:                spapi_host = CASE
+amazon\routes.py:274:                    WHEN excluded.spapi_host IS NOT NULL AND TRIM(excluded.spapi_host) != ''
+amazon\routes.py:275:                    THEN excluded.spapi_host ELSE marketplaces.spapi_host END,
+amazon\routes.py:277:        """, (region, display_name, marketplace_id, host, spapi_host))
+amazon\routes.py:359:            host,
+amazon\routes.py:360:            spapi_host,
+amazon\routes.py:379:            "host": r["host"],
+amazon\routes.py:380:            "spapi_host": r["spapi_host"],
+amazon\routes.py:399:    host           = payload.get("host")           or ""
+amazon\routes.py:400:    spapi_host     = payload.get("spapi_host")     or ""
+amazon\routes.py:421:                   host           = ?,
+amazon\routes.py:422:                   spapi_host     = ?,
+amazon\routes.py:426:            (display_name, marketplace_id, host, spapi_host, now, region),
+amazon\routes.py:435:                host, spapi_host, locale, timezone,
+amazon\routes.py:440:            (region, display_name, marketplace_id, host, spapi_host, now, now),
+amazon\spapi_client.py:36:def real_signed_request(method, path, params, host, cfg=None,
+amazon\spapi_client.py:87:        # ✅ spapi_hostを優先
+amazon\spapi_client.py:88:        host = acct.get("spapi_host") or acct.get("host")
+amazon\spapi_client.py:112:    url = f"{host}{path}" + (f"?{query}" if query else "")
+amazon\spapi_client.py:137:    if "-na." in host:
+amazon\spapi_client.py:139:    elif "-eu." in host:
+amazon\spapi_client.py:141:    elif "-fe." in host: # ✅ ここを追加・修正: Far East (JP/AU/SG)
+amazon\spapi_client.py:155:    host_and_path = url.split(scheme_sep, 1)[-1]
+amazon\spapi_client.py:156:    host_only = host_and_path.split("/", 1)[0]
+amazon\spapi_client.py:157:    path_and_q = host_and_path[len(host_only):] or "/"
+amazon\spapi_client.py:160:    headers["host"] = host_only
+amazon\spapi_client.py:165:    signed_headers_list = ["host", "x-amz-date"] + (["x-amz-security-token"] if aws_session else [])
+amazon\spapi_client.py:307:        #                spapi_host, host, access_key, secret_key
+amazon\spapi_client.py:347:                SELECT marketplace_id, host, spapi_host
+amazon\spapi_client.py:357:        host = row_mkt["spapi_host"] or row_mkt["host"] or ""
+amazon\spapi_client.py:374:        # host は spapi_host 優先 → 無ければ host
+amazon\spapi_client.py:375:        spapi_host = row_mkt["spapi_host"] or ""
+amazon\spapi_client.py:376:        host = spapi_host.strip() or (row_mkt["host"] or "")
+amazon\spapi_client.py:385:        print(f"[CHECK] region={region}, host={host}, marketplace_id={marketplace_id}", flush=True)
+amazon\spapi_client.py:737:    host = mkt.get("spapi_host") or mkt.get("host") or ""
+amazon\spapi_client.py:747:    url = f"{host}/listings/2021-08-01/restrictions"
+amazon\spapi_client.py:778:    debug = f"host={host} mp={marketplace_id} asin={asin} reasons={reasons}"
+app.py:84:    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)

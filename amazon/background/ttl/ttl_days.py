@@ -1,0 +1,56 @@
+# ==========================================
+# ファイル名: amazon/background/ttl/ttl_days.py
+# 目的: アカウント設定 TTLサイクル読み込み（統合版）
+# ==========================================
+
+import os
+import sqlite3
+
+TTL_LOG_ENABLED = os.environ.get("TTL_LOG", "1") == "1"
+
+# --- ▼ SECTION: TTL days 取得（DB基準） ▼ ---
+def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
+    if scope not in ("home", "region"):
+        return None
+    if ttl_type not in ("catalog", "pricing"):
+        return None
+
+    # --- 対象カラム決定 ---
+    if scope == "home" and ttl_type == "catalog":
+        enable_col = "enable_home_catalog"
+        days_col   = "h_catalog_ttl_days"
+    elif scope == "home" and ttl_type == "pricing":
+        enable_col = "enable_home_pricing"
+        days_col   = "h_pricing_ttl_days"
+    elif scope == "region" and ttl_type == "catalog":
+        enable_col = "enable_region_catalog"
+        days_col   = "r_catalog_ttl_days"
+    else:  # region + pricing
+        enable_col = "enable_region_pricing"
+        days_col   = "r_pricing_ttl_days"
+
+    db_path = os.path.join(db_dir, "a_marketplaces.db")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute(f"""
+        SELECT
+            {enable_col} AS enabled,
+            {days_col}   AS ttl_days
+        FROM marketplaces
+        WHERE user_id = ?
+          AND marketplace_id = ? 
+        LIMIT 1
+    """, (user_id, marketplace_id))
+
+    row = cur.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+    return {
+        "enabled": row["enabled"],
+        "ttl_days": row["ttl_days"],
+    }
+

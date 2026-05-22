@@ -1,0 +1,39 @@
+static\js\account.js:35:            const homeHost         = document.getElementById("home_host");
+static\js\account.js:36:            const homeSpapiHost    = document.getElementById("home_spapi_host");
+static\js\account.js:42:            if (homeHost)         homeHost.value         = acc.host          || "";
+static\js\account.js:43:            if (homeSpapiHost)    homeSpapiHost.value    = acc.spapi_host    || "";
+static\js\account.js:196:            const homeHost           = document.getElementById("home_host")?.value || "";
+static\js\account.js:197:            const homeSpapiHost      = document.getElementById("home_spapi_host")?.value || "";
+static\js\account.js:203:            const regionHost         = document.getElementById("region_host")?.value || "";
+static\js\account.js:204:            const regionSpapiHost    = document.getElementById("region_spapi_host")?.value || "";
+static\js\account.js:212:                        host:          homeHost,
+static\js\account.js:213:                        spapi_host:    homeSpapiHost
+static\js\account.js:219:                        host:          regionHost,
+static\js\account.js:220:                        spapi_host:    regionSpapiHost
+static\js\account.js:451:            const regionHost      = document.getElementById("region_host");
+static\js\account.js:452:            const regionSpapiHost = document.getElementById("region_spapi_host");
+static\js\account.js:456:            if (regionHost)      regionHost.value      = match.host || "";
+static\js\account.js:457:            if (regionSpapiHost) regionSpapiHost.value = match.spapi_host || "";
+static\js\account.js:465:            const homeHost      = document.getElementById("home_host");
+static\js\account.js:466:            const homeSpapiHost = document.getElementById("home_spapi_host");
+static\js\account.js:470:            if (homeHost)      homeHost.value      = home.host || "";
+static\js\account.js:471:            if (homeSpapiHost) homeSpapiHost.value = home.spapi_host || "";
+static\js\account.js:548:        const host          = acc.host                || acc.region_host         || "";
+static\js\account.js:549:        const spapiHost     = acc.spapi_host          || acc.region_spapi_host   || "";
+static\js\account.js:559:        const hostEl   = document.getElementById("region_host");
+static\js\account.js:560:        const spapiEl  = document.getElementById("region_spapi_host");
+static\js\account.js:570:        if (hostEl)   hostEl.value   = host;
+static\js\account.js:571:        if (spapiEl)  spapiEl.value  = spapiHost;
+static\js\‹Œaccount.js:13:    ["region_display_name", "region_marketplace_id", "region_host"].forEach(id => {
+static\js\‹Œaccount.js:65:                document.getElementById("home_host").value = data.host || "";
+static\js\‹Œaccount.js:66:                document.getElementById("home_spapi_host").value = data.spapi_host || "";                
+static\js\‹Œaccount.js:131:                        const hostEl = document.getElementById("region_host");
+static\js\‹Œaccount.js:132:                        const spapiEl = document.getElementById("region_spapi_host");
+static\js\‹Œaccount.js:136:                        if (hostEl) hostEl.value = data.host || "";
+static\js\‹Œaccount.js:137:                        if (spapiEl) spapiEl.value = data.spapi_host || "";
+static\js\‹Œaccount.js:295:                host: document.getElementById("jp_host")?.value?.trim() || "",
+static\js\‹Œaccount.js:296:                spapi_host: document.getElementById("jp_spapi_host")?.value?.trim() || ""
+static\js\‹Œaccount.js:304:                host: document.getElementById("region_host")?.value?.trim() || "",
+static\js\‹Œaccount.js:305:                spapi_host: document.getElementById("region_spapi_host")?.value?.trim() || ""
+static\js\‹Œaccount.js:529:        document.getElementById("region_host").value = acc.host || "";
+static\js\‹Œaccount.js:530:        document.getElementById("region_spapi_host").value = acc.spapi_host || "";

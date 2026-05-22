@@ -1,0 +1,52 @@
+<!-- login.html -->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ZSSS ログイン</title>
+</head>
+<body>
+
+<h2>ZSSS ログイン</h2>
+
+<form id="loginForm">
+    <div>
+        <label>メールアドレス</label><br>
+        <input type="email" id="email" required>
+    </div>
+
+    <div style="margin-top:10px;">
+        <label>パスワード</label><br>
+        <input type="password" id="password" required>
+    </div>
+
+    <button type="submit" style="margin-top:20px;">ログイン</button>
+</form>
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (data.status === "ok") {
+        window.location.href = "/";  // ログイン成功 → TOP へ
+    } else {
+        alert("メールアドレスまたはパスワードが違います");
+    }
+});
+</script>
+
+</body>
+</html>
+

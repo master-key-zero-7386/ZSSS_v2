@@ -1,0 +1,31 @@
+/* static/css/listing.css
+/* Listing専用 CSS
+
+/* ▼ 行単位 オーバーレイ用 Windows風スピナー */
+.row-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.6);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.row-overlay .win-spinner {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 3px solid rgba(0, 0, 0, 0.15);
+    border-top-color: rgba(0, 0, 0, 0.6);
+    animation: win-spin 0.9s linear infinite;
+}
+
+@keyframes win-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+
+

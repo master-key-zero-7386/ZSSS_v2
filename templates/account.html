@@ -1,0 +1,386 @@
+<!-- account html -->
+
+<!-- 微調整の説明
+　　　1px上げたい → margin-top:-1px;
+　　　3px下げたい → margin-top:3px;　 -->
+
+<style>
+/* ===============================
+   共通ボタン・入力
+=============================== */
+.account-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+.account-btn-blue {
+    background: #007bff;
+    color: #fff;
+    border: none;
+}
+
+/* 入力 */
+.account-input,
+.account-select,
+.account-text {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+.account-label,
+.account-input,
+.account-select,
+.account-hint {
+    font-size: 16px;
+}
+
+/* ===============================
+   API取得設定 共通
+=============================== */
+.api-setting-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.api-setting-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 110px; /* 幅固定でちらつき防止 */
+}
+
+.api-setting-label {
+  flex: 1;
+  font-size: 16px;
+  white-space: nowrap; /* 改行防止 */
+}
+
+/* ===============================
+   ON / OFF 表示（文字固定・色切替）
+=============================== */
+.api-status {
+  font-weight: bold;
+  min-width: 64px;     /* ON(2) / OFF(3) 差異吸収 */
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* OFF 状態（初期） */
+.api-status.off .status-on {
+  color: #999;
+}
+.api-status.off .status-off {
+  color: #d9534f;
+}
+
+/* ON 状態 */
+.api-status.on .status-on {
+  color: #007bff;
+}
+.api-status.on .status-off {
+  color: #999;
+}
+
+/* ===============================
+   説明枠
+=============================== */
+.api-setting-body,
+.api-setting-description {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  min-height: 120px;
+  font-size: 13px;
+  color: #666;
+}
+
+/* ===============================
+   API取得設定：左右分割レイアウト
+=============================== */
+.api-setting-wrapper {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.api-setting-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.api-setting-column {
+  flex: 1;
+  min-width: 0;
+}
+
+/* TTL 数値入力：枠なし・下線のみ・右寄せ */
+.ttl-input {
+  width: 80px;
+  text-align: right;
+  border: none;
+  outline: none;
+  background: transparent;
+
+  border-bottom: 1px solid #999; /* 下線だけ */
+  font-size: 18px;               /* フォントサイズ */
+  padding: 2px 4px;
+}
+
+/* フォーカス時（任意：少し強調） */
+.ttl-input:focus {
+  border-bottom-color: #333;
+}
+
+</style>
+
+
+<div class="main-container account-page">
+  <h2>ACCOUNT Settings</h2>
+  <div class="card">
+
+
+    <!--- ▼ 1段目 ユーザーアカウント設定 --->
+    <div class="save-btn-wrap" style="text-align:left; margin-bottom:8px;">
+      <button type="button" class="account-btn account-btn-blue" id="saveAccountBtn">保　存</button>
+    </div>
+
+    <!-- ★ HOME と SELLING を並べる flex 親 ★ -->
+    <div style="display:flex; gap:24px; width:100%; align-items:flex-start;">
+
+      <!-- ▼ 左：HOME アカウント -->
+      <div style="flex:1; min-width:320px;">
+        <h4 class="account-title">HOME Account</h4>
+
+        <!-- Home Country -->
+        <div style="display:flex; gap:12px; margin-bottom:10px;">
+          <label class="account-label" style="min-width:140px; margin:0;">Home Country：</label>
+          <select id="homeCountryCode" class="account-select"
+                  style="width:280px; margin-top:-9px;"></select>
+        </div>
+
+        <!-- HOME Seller ID -->
+        <div style="display:flex; flex-direction:column; margin-bottom:14px;">
+          <label class="account-label" style="margin-bottom:4px;">HOME Seller ID</label>
+          <input id="home_seller_id" class="account-input"
+                placeholder="A1XXXX..." style="height:40px;">
+        </div>
+
+        <!-- HOME Refresh Token -->
+        <div style="display:flex; flex-direction:column; margin-bottom:14px;">
+          <label class="account-label" style="margin-bottom:4px;">HOME Refresh Token</label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input id="home_refresh_token" class="account-input" type="password"
+                  placeholder="•••••••" style="flex:1; height:40px;">
+            <button type="button" class="account-btn account-btn-blue"
+              onclick="toggleTokenVisibility('home_refresh_token', this)">👁</button>
+          </div>
+        </div>
+
+        <div style="text-align:right;">
+          <button id="home_cancel_btn" type="button" class="btn-cancel" onclick="cancelHomeEdit()" style="display:none;">キャンセル</button>
+          <button type="button" class="account-btn account-btn-blue" id="home_link_btn" onclick="resetAccount('HOME')"> リセット</button>
+        </div>
+      </div>
+
+      <!-- ▼ 右：SELLING Marketplace Account -->
+      <div style="flex:1; min-width:320px;">
+        <h4 class="account-title">SELLING Marketplace Account</h4>
+
+        <!-- Region Country -->
+        <div style="display:flex; gap:12px; margin-bottom:18px;">
+          <label class="account-label" style="min-width:140px; margin:0;">Region Country：</label>
+
+          <span id="country_code-title"
+                class="account-label"
+                style="font-weight:600; line-height:22px;">
+          </span>
+        </div>
+
+        <!-- Seller ID -->
+        <div style="display:flex; flex-direction:column; margin-bottom:14px;">
+          <label class="account-label">Seller ID</label>
+          <input id="region_seller_id" class="account-input"
+                placeholder="A1XXXX..." style="height:40px;">
+        </div>
+
+        <!-- Refresh Token -->
+        <div style="display:flex; flex-direction:column; margin-bottom:14px;">
+          <label class="account-label">Refresh Token</label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input id="region_refresh_token" class="account-input" type="password"
+                  placeholder="•••••••" style="flex:1; height:40px;">
+            <button type="button" class="account-btn account-btn-blue"
+              onclick="toggleTokenVisibility('region_refresh_token', this)">👁</button>
+          </div>
+        </div>
+
+        <div style="text-align:right;">
+          <button id="region_cancel_btn" type="button" class="btn-cancel" onclick="cancelRegionEdit()" style="display:none;">キャンセル</button>
+          <button type="button" class="account-btn account-btn-blue" id="region_link_btn" 
+            onclick="resetAccount(document.getElementById('globalRegion').value)"> リセット</button>
+        </div>
+      </div>
+
+    </div> <!-- ★ flex 親ここで閉じる ★ -->
+
+        <hr style="margin:20px 0;"> <!-- -------- 区切り -------- -->      
+
+    <!-- ✅ スクリプト読込 -->
+    <script src="{{ url_for('static', filename='js/account.js') }}"></script>  
+    <script src="{{ url_for('static', filename='js/account_api_settings.js') }}"></script>
+
+      <!--- ▼ 2段目：API取得設定 ▼ --->
+      <h4 class="account-title">API取得設定（販売先マーケットプレイス）</h4>
+
+      <div class="api-setting-wrapper">
+        <div class="api-setting-actions">
+          <button type="button" class="account-btn account-btn-blue" id="saveApiSettingsBtn">保　存</button>
+          <!--- <button id="saveApiSettingsBtn" type="button">API設定を保存</button> --->   
+        </div>
+
+        <h4 class="account-title">
+          以下の設定は公開されているamazonの商品情報を取得するサイクルを決定するものです
+        </h4>
+
+        <!-- ★ ここが重要：左右分割の親 -->
+            <div class="api-setting-columns">
+              <!-- ===== 左：HOME ===== -->
+              <div class="api-setting-column">
+
+                <div class="api-setting-block">
+                  <label class="switch">
+                    <input type="checkbox" id="enable_home_catalog">
+                    <span class="slider"></span>
+                  </label>
+                  <span class="api-status off">
+                    <span class="status-on">ON</span>
+                    /
+                    <span class="status-off">OFF</span>
+                  </span>
+
+                  <span class="api-title">HOME 商品情報</span>
+
+                  <span class="api-ttl-text">再取得</span>
+                  <input type="number" id="h_catalog_ttl_days" class="ttl-input" value="90" step="0.0001">
+                  <span class="ttl-unit">/日サイクル</span>
+
+                </div>
+
+                <div class="api-setting-block">
+                  <label class="switch">
+                    <input type="checkbox" id="enable_home_pricing">
+                    <span class="slider"></span>
+                  </label>
+                  <span class="api-status off">
+                    <span class="status-on">ON</span>
+                    /
+                    <span class="status-off">OFF</span>
+                  </span>
+
+                  <span class="api-title">HOME 価格情報</span>
+
+                  <span class="api-ttl-text">再取得</span>
+                  <input type="number" id="h_pricing_ttl_days" class="ttl-input" value="90" step="0.0001">
+                  <span class="ttl-unit">/日サイクル</span>              
+
+                </div>
+
+                <!-- HOME 説明枠 -->
+                <div class="api-setting-description">
+                  ・販売国ごとに登録されているブランド名・メーカー名を取得します<br>
+                  ・OFF にすると、仕入れ元（HOMEマーケットプレイス）の情報のみでブラックリスト判定を行います<br><br>
+                  ※ ブラックリスト機能は完全ではありません。<br>
+                  Amazon の仕様変更や情報未取得の場合、制限対象商品が出品される可能性があります。<br>
+                  出品前には必ずご自身で内容をご確認ください。<br>
+                  未確認による Amazon からの警告・措置等について、当社では責任を負いかねます。
+                </div>
+
+              </div>
+
+              <!-- ===== 右：REGION ===== -->
+              <div class="api-setting-column">
+
+                <div class="api-setting-block">
+                  <label class="switch">
+                    <input type="checkbox" id="enable_region_catalog">
+                    <span class="slider"></span>
+                  </label>
+                  <span class="api-status off">
+                    <span class="status-on">ON</span>
+                    /
+                    <span class="status-off">OFF</span>
+                  </span>
+                  
+                  <span class="api-title">販売先 商品情報</span>
+
+                  <span class="api-ttl-text">再取得</span>
+                  <input type="number" id="r_catalog_ttl_days" class="ttl-input" value="90" step="0.0001">
+                  <span class="ttl-unit">/日サイクル</span>
+
+                </div>
+
+                <div class="api-setting-block">
+                  <label class="switch">
+                    <input type="checkbox" id="enable_region_pricing">
+                    <span class="slider"></span>
+                  </label>
+                  <span class="api-status off">
+                    <span class="status-on">ON</span>
+                    /
+                    <span class="status-off">OFF</span>
+                  </span>
+                  <span class="api-title">販売先 価格情報</span>
+
+                  <span class="api-ttl-text">再取得</span>
+                  <input type="number" id="r_pricing_ttl_days" class="ttl-input" value="90" step="0.0001">
+                  <span class="ttl-unit">/日サイクル</span>
+
+                </div>
+
+                <!-- REGION 説明枠 -->
+                <div class="api-setting-description">
+                  ・販売先マーケットプレイスの価格・オファー情報を取得します<br>
+                  ・仕入れ価格算定、利益計算に使用されます<br>
+                  ・API消費が発生します<br><br>
+
+                  ※ OFF にした場合、販売先マーケットプレイスの価格情報は更新されません。<br>
+                  ※ 価格変動・競合状況の変化には対応できなくなります。
+                </div>
+              </div>
+            </div>
+        
+      </div>
+  </div>
+</div>
+
+
+<!-- ▼ 以下新タブ移動の為削除予定 -->    
+    <!-- ▼ 管理者用　Display Marketplace ID/Name -->
+    <style>
+      .marketplace-flex {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap; /* 画面が狭い場合は自動で縦並び */
+        gap: 24px;
+        margin-bottom: 16px;
+      }
+      .marketplace-col {
+        flex: 1 1 48%; /* 通常は50%幅 */
+        min-width: 320px; /* 狭い画面では縦に */
+        text-align: left;
+      }
+      .marketplace-col h4 {
+        margin-top: 8px;
+      }
+    </style>
+
+</div>
+
+
+
+

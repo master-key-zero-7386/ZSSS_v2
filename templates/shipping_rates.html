@@ -1,0 +1,176 @@
+<!-- shipping_rates.html -->
+
+<style>
+/* ===== テーブルだけスクロールさせる（marketplaces_master と同じ） */
+.shipping-table-wrapper {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ヘッダー固定 */
+#shipping-rates-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f0f4f8;
+  z-index: 2;
+}
+
+/* テーブル基本 */
+#shipping-rates-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#shipping-rates-table th,
+#shipping-rates-table td {
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  font-size: 20px;
+  text-align: center;
+}
+
+/* 入力欄は枠なし（管理画面と同じ思想） */
+#shipping-rates-table input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 20px;
+  box-sizing: border-box;
+}
+
+#shipping-rates-table input:focus {
+  outline: none;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+/* ===== 行のゼブラ表示（marketplaces_master 相当） ===== */
+#shipping-rates-table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+#shipping-rates-table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+/* hover も合わせる（任意だが重要） */
+#shipping-rates-table tbody tr:hover {
+  background-color: #eef5ff;
+}
+
+/* 表だけを中央寄せ＆横幅制御 */
+.shipping-table-inner {
+  display: flex;
+  justify-content: center;
+}
+
+/* エクセル表の実幅 */
+.shipping-table-wrapper {
+  width: 100%;
+  max-width: 1400px;            /* 表の最大幅 */
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+/* 最安値（表示専用） */
+.min-price {
+  pointer-events: none;
+  background-color: #f5f5f5;
+  border: none;
+  text-align: right;
+  cursor: default;
+}
+
+.min-price:focus {
+  outline: none;
+}
+
+/* 
+.shipping-table-box {
+    width: max-content;
+    margin-left: auto;
+    margin-right: auto;
+}
+ */
+
+.shipping-table-wrapper {
+  width: 100%;
+  max-width: 1400px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.shipping-actions{
+max-width:1400px;
+margin:0 auto 6px auto;
+display:flex;
+justify-content:flex-end;
+}
+
+/* 最安値キャリア強調表示 */
+.shipping-carrier-selected {
+    background-color: #e6f7e6 !important;
+    font-weight: bold;
+}
+
+/* メモ欄 */
+#shipping-rates-table th:nth-child(7),
+#shipping-rates-table td:nth-child(7) {
+  width: 300px;
+}
+
+
+
+
+</style>
+
+<div class="main-container shipping-rates">
+
+    <h2>配送料金</h2>
+            <p style="margin-bottom:8px;">
+            【入力方法】  <br>
+            重量帯ごとに最大3社のキャリアの送料を入力することが可能です。1キャリアだけの入力でも可能です。<br>
+            重量帯ごとに最安値が右に表示され、価格算定時には右に表示された最安値が採用され計算に使用されます。<br>
+            <br>
+            ※ 最安値は「請求重量（実重量と容積重量を比較して決定）」を基準に算定されます。<br>
+            <br>
+            </p>    
+
+    <div class="card">
+
+        <div class="shipping-table-box">   
+            <div class="shipping-actions">
+                <button id="save-shipping-rates" class="btn-blue">保　存</button>
+            </div>
+            <!-- ★ 表の幅制御用 -->
+            <div class="shipping-table-inner">
+              
+                <div class="shipping-table-wrapper">
+                    <table id="shipping-rates-table" class="shipping-rates-table">
+                        <thead>
+                            <tr>
+                            <th>From (g)</th>
+                            <th>To (g)</th>
+                            <th>Carrier 1</th>
+                            <th>Carrier 2</th>
+                            <th>Carrier 3</th>
+                            <th>最安値</th>
+                            <th>メモ</th>
+                            </tr>
+                        </thead>
+                    <tbody id="shipping-rates-body">
+                        <!-- ★ ここは空でOK scriptで自動作成 -->
+                    </tbody>
+                    </table>
+                </div>
+            </div>    
+        </div>
+    </div> 
+</div>
+
+<script src="{{ url_for('static', filename='js/shipping_rates.js') }}"></script>
+
+
+

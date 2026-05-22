@@ -1,0 +1,175 @@
+<!-- blacklist.html -->
+<style>
+/* ヘッダー固定 */    
+.dataTables_scrollHeadInner,
+.dataTables_scrollHeadInner table {
+    width: 100% !important;
+}
+
+.bl-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.bl-tab {
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    background: #eee;
+    cursor: pointer;
+}
+
+.bl-tab.active {
+    background: #fff;
+    border-bottom: 2px solid #007bff;
+}
+
+.bl-tab-content {
+    display: none !important;
+}
+
+.bl-tab-content.active {
+    display: block !important;
+}
+
+/* ←ここに追加 */
+.note-input {
+    border: none;
+    background: transparent;
+    width: 100%;
+    outline: none;
+}
+
+.note-input:focus {
+    border: 1px solid #007bff;
+    background: #fff;
+}
+
+#brandTable,
+#asinTable {
+    font-size: 18px;
+}
+
+#brandTable,
+#asinTable,
+#brandTable th,
+#brandTable td,
+#asinTable th,
+#asinTable td {
+    font-size: 18px !important;
+}
+
+.edit-main,
+.edit-note {
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    width: 100%;
+    outline: none;
+    padding: 0;
+}
+
+/* 編集中だけ分かるように */
+.edit-main:focus,
+.edit-note:focus {
+    border-bottom: 1px solid #007bff;
+    background: #fff;
+}
+
+#brandTable input,
+#asinTable input {
+    font-size: inherit !important;
+    font-family: inherit !important;
+    color: inherit !important;
+}
+
+</style>
+
+
+<div class="main-container blacklist">
+<h2>BLACK LIST Management</h2>
+
+    <div class="card">
+        <div class="row">
+        <!-- ユーザー ブラックリストタブ -->    
+            <h2>BlackListing</h2>
+            <p>ASIN/ブランドを登録できます</p>
+
+                <h3>CSV Import</h3>
+
+                <input type="file" id="blacklistCsvFileInput" accept=".csv" style="display:none;" />
+
+                <div class="file-input-row"> 
+                    <div class="file-input-wrapper">
+                        <div class="file-input-row">
+                            <input
+                                type="text"
+                                id="blacklistCsvFileName"
+                                class="file-input-text"
+                                placeholder="ブラックリストCSVファイルを選択してください"
+                                readonly
+                            />
+                            <button type="button" id="blacklistCsvUploadBtn" class="btn-blue">Upload CSV</button>
+                            <button type="button" id="blacklistCsvExportBtn" class="btn-blue">Export CSV</button>
+                        </div>
+                    </div>
+                </div>
+
+                <p style="font-size:12px; color:#666; margin-top:6px;">
+                    ※ ASIN 行のみ取り込みます（note 空白OK）
+                </p>                  
+        </div>  
+
+        <div style="margin-top:20px;">
+
+            <!-- タブ -->
+            <div class="bl-tabs">
+                <button class="bl-tab active" data-tab="brand">Brand</button>
+                <button class="bl-tab" data-tab="asin">ASIN</button>
+            </div>
+
+            <!-- 追加フォーム -->
+            <div id="commonForm" style="margin-bottom:10px; display:flex; gap:8px;">
+                <input type="text" id="newMain" placeholder="Brand" style="padding:6px; width:400px;">
+                <input type="text" id="newNote" placeholder="メモ" style="padding:6px; width:500px;">
+                <button class="btn-blue" id="addBtn">追加</button>
+            </div>    
+
+            <!-- ▼ Brand一覧 -->
+            <div id="tab-brand" class="bl-tab-content active">
+                <h3>Brand</h3>
+                <table id="brandTable" class="display">
+                    <thead>
+                        <tr>
+                            <th>Brand</th>
+                            <th>メモ</th>
+                            <th>登録日</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- ▼ ASIN一覧 -->
+            <div id="tab-asin" class="bl-tab-content">
+                <h3>ASIN</h3>
+                <table id="asinTable" class="display">
+                    <thead>
+                        <tr>
+                            <th>ASIN</th>
+                            <th>メモ</th>
+                            <th>登録日</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>    
+    </div>     
+
+</div> <!-- ✅ Blacklist タブの閉じタグ -->
+
+
+<script src="/static/js/blacklist.js"></script>

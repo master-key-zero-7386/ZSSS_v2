@@ -1,0 +1,295 @@
+<!-- listing.html -->
+
+<style>
+.prelisting-table-wrapper {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-bottom: 10px;
+}
+
+.dataTables_wrapper .dataTables_scrollHead {
+    overflow: hidden !important;
+}
+
+/* ZSSS 共通テーブル用ストライプ（ALL-Listingにも効く） */
+.zsss-listing-table.dataTable tbody tr:nth-child(odd) td { background: #ffffff; }
+.zsss-listing-table.dataTable tbody tr:nth-child(even) td { background: #f3f9fa; } 
+
+/* 操作・画像列のセルを左寄せに */
+.zsss-listing-table td.col-ops {
+    text-align: left;   /* ← 中央寄せから左寄せに変更 */
+    padding-left: 10px; /* ← 少し余白をつけて自然に見せる */
+}
+
+/* チェックボックスと画像を横並び */
+.img-toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px; /* ← チェックと画像の間にすき間 */
+}
+
+.zsss-listing-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Listing リスティング ヘッダー分割割合 */
+.zsss-listing-table th:nth-child(1),
+.zsss-listing-table td:nth-child(1) { width: 28%; } /* 商品情報 */
+.zsss-listing-table th:nth-child(2),
+.zsss-listing-table td:nth-child(2) { width: 6%; }  /* 画像 */
+.zsss-listing-table th:nth-child(3),
+.zsss-listing-table td:nth-child(3) { width: 12%; } /* 出品情報 */
+.zsss-listing-table th:nth-child(4),
+.zsss-listing-table td:nth-child(4) { width: 10%; } /* ユーザー変更設定 */
+.zsss-listing-table th:nth-child(5),
+.zsss-listing-table td:nth-child(5) { width: 10%; } /* セラー情報 */
+.zsss-listing-table th:nth-child(6),
+.zsss-listing-table td:nth-child(6) { width: 16%; } /* 重量情報 */
+.zsss-listing-table th:nth-child(7),
+.zsss-listing-table td:nth-child(7) { width: 9%; } /* 更新情報 */
+.zsss-listing-table th:nth-child(8),
+.zsss-listing-table td:nth-child(8) { width: 9%; } /* Action */
+
+/* 商品情報セル内のテキスト省略表示 */
+.zsss-listing-table td.col-info .row-toggle-wrap {
+  display:flex;              /* ← 横並びを維持 */
+  align-items:flex-start;
+  gap:8px;
+  width:100%;
+  white-space:normal !important; /* ← 旧nowrapを無効化 */
+}
+
+.zsss-listing-table td.col-info .row-container {
+  display:block;
+  flex:1 1 auto;
+  min-width:0;               /* ← これが無いと ellipsis が効かない */
+}
+
+.zsss-listing-table td.col-info .asin-cell,
+.zsss-listing-table td.col-info .title-cell,
+.zsss-listing-table td.col-info .brand-cell,
+.zsss-listing-table td.col-info div{
+  display:block;
+  max-width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.zsss-listing-table td.col-info .title-cell {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;        /* ← 最大2行まで表示 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;          /* ← 改行を許可 */
+}
+
+/* Listing 梱包補正　数値項目 */
+.pack-dimensions {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  white-space: nowrap; /* ←これで改行禁止 */
+}
+
+.pack-dimensions div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pack-dimensions input {
+  width: 80px;
+  padding: 3px 6px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  text-align: right;
+}
+
+/* Listing ごみ箱アイコン */
+.delete-btn {
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0;
+    margin: 0 6px 0 0;
+    color: #666;
+    cursor: pointer;
+}
+
+.delete-btn:hover {
+    color: #e74c3c;
+}
+
+/* Listing 検索バー */
+.listing-search-bar input {
+    width: 500px;
+    padding: 10px 10px;
+    font-size: 16px;
+}
+
+.listing-search-bar button {
+    padding: 6px 10px;
+    font-size: 16px;
+}
+
+.listing-search-bar select {
+    width: 200px;
+    padding: 10px 10px;
+    font-size: 16px;
+}
+
+/* Listing Bulk 操作バー */
+.listing-bulk-action{
+    margin-top:10px;
+}
+
+.listing-bulk-action select{
+    width:300px;          /* 検索より少し小さめ */
+    padding:8px 8px;
+    font-size:15px;
+}
+
+.listing-bulk-action button{
+    margin-left:8px;
+    padding:6px 12px;
+    font-size:15px;
+}
+
+</style>
+<div id="prelisting" class="subtab-content">
+    <h2>Pre-Listig</h2>
+
+    <!-- 検索（Pre） -->
+    <div class="listing-search-bar">
+
+        <input id="preListingSearchInput"
+            type="text"
+            placeholder="ASINで検索">
+
+        <!-- ソートプルダウン（Pre） -->
+        <select id="preListingSort">
+            <option value="created_desc">登録順 ▼</option>
+            <option value="created_asc">登録順 ▲</option>
+
+            <option value="updated_asc">更新順 ▲</option>
+            <option value="updated_desc">更新順 ▼</option>            
+
+            <option value="brand_asc">ブランド ▲</option>
+            <option value="brand_desc">ブランド ▼</option>
+
+            <option value="price_asc">価格 ▲</option>
+            <option value="price_desc">価格 ▼</option>
+
+            <option value="weight_asc">重量 ▲</option>
+            <option value="weight_desc">重量 ▼</option>
+        </select>
+
+        <button id="preListingSearchBtn">検　索</button>
+
+        <label class="switch">
+            <input type="checkbox" id="preListingDetailSearch">
+            <span class="slider round"></span>
+        </label>
+        <span>詳細検索</span>
+    </div>   
+
+    <div id="preInfoStatusFilter" style="display:none; margin-top:10px;">
+        <div style="display:flex; gap:20px; align-items:center;">
+            <span>情報取得状態:</span>
+
+            <label><input type="radio" name="preInfoStatus" value="all" checked> 全て</label>
+            <label><input type="radio" name="preInfoStatus" value="ACTIVE"> ACTIVE</label>
+            <label><input type="radio" name="preInfoStatus" value="INACTIVE"> INACTIVE</label>
+        </div>        
+    </div>   
+
+    <!-- ▼ 一括操作（Pre） -->
+    <div class="listing-bulk-action">
+
+        <select id="bulkActionSelectPre">
+            <option value="" disabled selected hidden>一括操作</option>
+            <option value="delete">選択リスト 一括削除</option>
+            <option value="move_to_all">選択リスト 一括出品</option>
+            <option value="brand_check">選択リスト Brand Gateチェック</option>
+            <option value="blacklist" disabled>ブラックリスト追加</option>
+        </select>
+
+        <button id="bulkActionRunPre" disabled>実　行</button>
+
+    </div>
+
+    <table id="prelistingtable" class="display zsss-listing-table"></table>
+</div>
+
+<div id="alllisting" class="subtab-content" >
+    <h2>ALL-Listig</h2>
+
+    <!-- 検索（ALL） -->
+    <div class="listing-search-bar">
+
+        <input id="allListingSearchInput"
+            type="text"
+            placeholder="ASINで検索">
+
+        <!-- ソートプルダウン（ALL） -->
+        <select id="allListingSort">
+            <option value="created_desc">登録順 ▼</option>
+            <option value="created_asc">登録順 ▲</option>
+
+            <option value="updated_asc">更新順 ▲</option>
+            <option value="updated_desc">更新順 ▼</option>   
+                        
+            <option value="brand_asc">ブランド ▲</option>
+            <option value="brand_desc">ブランド ▼</option>
+
+            <option value="price_asc">価格 ▲</option>
+            <option value="price_desc">価格 ▼</option>
+
+            <option value="weight_asc">重量 ▲</option>
+            <option value="weight_desc">重量 ▼</option>
+        </select>              
+
+        <button id="allListingSearchBtn">検　索</button>
+
+        <label class="switch">
+            <input type="checkbox" id="allListingDetailSearch">
+            <span class="slider round"></span>
+        </label>
+        <span>詳細検索</span>     
+    </div>   
+
+    <div id="allInfoStatusFilter" style="display:none; margin-top:10px;">
+        <div style="display:flex; gap:20px; align-items:center;">
+            <span>情報取得状態:</span>
+
+            <label><input type="radio" name="allInfoStatus" value="all" checked> 全て</label>
+            <label><input type="radio" name="allInfoStatus" value="ACTIVE"> ACTIVE</label>
+            <label><input type="radio" name="allInfoStatus" value="INACTIVE"> INACTIVE</label>
+        </div>
+    </div>      
+
+        
+    <!-- ▼ 一括操作（ALL） -->
+    <div class="listing-bulk-action">
+
+        <select id="bulkActionSelectAll">
+            <option value="" disabled selected hidden>一括操作</option>
+            <option value="delete">選択リスト 一括削除</option>
+            <option value="brand_check">選択リスト Brand Gateチェック</option>
+            <option value="blacklist" disabled>ブラックリスト追加</option>
+        </select>
+
+        <button id="bulkActionRunAll" disabled>実　行</button>
+
+    </div>
+
+    <table id="alllistingtable" class="display zsss-listing-table"></table>
+</div>
+
+<script src="{{ url_for('static', filename='js/listing_common.js') }}"></script>
+
+

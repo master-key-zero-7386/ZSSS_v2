@@ -1,0 +1,104 @@
+<!-- ファイル名：templates\admin\api_checker.html -->
+
+<div id="api-checker-container" class="container">
+    <div class="main-container api-checker">
+        <div class="card" style="margin-top:20px; font-size:18px;">
+            <h2>API チェックツール（管理者専用）</h2>
+                <div class="card">
+                    <p>ASIN を指定して API の生データを確認できます。</p>
+
+                    <hr>
+
+                    <!-- ========================= -->
+                    <!-- 入力エリア（region + ASIN） -->
+                    <!-- ========================= -->
+                    <div style="margin-bottom: 20px;">
+
+                        <label style="font-weight: bold;">Marketplace（Region）:</label>
+
+                        <!-- ※ hidden のままでも後から JS がセットできるように class を追加 -->
+                        <!-- <select id="api_region" class="form-select api-checker-input"
+                                style="width: 200px; display: inline-block;">
+                        </select>  標準プルダウン形式-->
+
+                        <select id="api_region"
+                            class="api-checker-input"
+                            style="
+                                width:240px;
+                                font-size:18px;
+                                padding:6px 4px;
+                                border:none;
+                                border-bottom:2px solid #888;
+                                background:transparent;
+                                outline:none;
+                                appearance:none;
+                                -webkit-appearance:none;
+                                -moz-appearance:none;
+                                display:inline-block;
+                            ">
+                        </select>
+
+                        <label style="font-weight:bold; margin-left:20px;">ASIN:</label>
+                        <input
+                            id="api_asin"
+                            type="text"
+                            class="api-checker-input"
+                            placeholder="ASIN を入力"
+                            style="
+                                width:240px;
+                                font-size:18px;
+                                padding:6px 4px;
+                                border:none;
+                                border-bottom:2px solid #888;
+                                background:transparent;
+                                outline:none;
+                                color:#000;
+                                display:inline-block;
+                            ">
+                        <button id="api_check_btn" class="btn-blue api-checker-input"
+                                style="margin-left: 20px;">チェック実行</button>                        
+                    </div>
+
+                    <hr>
+
+                    <!-- ========================= -->
+                    <!-- 結果表示エリア -->
+                    <!-- ========================= -->
+                    <h4>結果表示</h4>
+                        <div style="margin-bottom: 10px;">
+                            <button type="button"
+                                    class="btn btn-blue"
+                                    onclick="copyApiResult()">結果のコピー</button>
+                        </div>        
+
+                    <textarea id="api_result" class="form-control"
+                            style="width: 100%; height: 200px; font-family: monospace;"></textarea>
+                    
+                </div>
+            </div> 
+        </div>
+    </div>
+</div>       
+
+<script>
+function copyApiResult() {
+    const textarea = document.getElementById("api_result");
+    if (!textarea) {
+        alert("コピー対象が見つかりません");
+        return;
+    }
+
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length); // モバイル対応
+
+    try {
+        document.execCommand("copy");
+        alert("API結果をコピーしました");
+    } catch (e) {
+        alert("コピーに失敗しました");
+    }
+}
+</script>
+
+
+

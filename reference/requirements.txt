@@ -1,0 +1,25 @@
+# === ZSSS Web Tool Required Packages ===
+Flask=3.0.3
+Werkzeug=3.0.2
+Jinja2=3.1.4
+itsdangerous=2.2.0
+
+# --- Amazon SP-API SDK ---
+python-amazon-sp-api==1.9.50
+requests=2.32.3
+cachetools=6.1.0
+confuse=2.0.1
+PyYAML=6.0.2
+
+# --- DB  CSV  Data handling ---
+pandas=2.2.2
+openpyxl=3.1.5
+send2trash=1.8.3
+sqlite-utils=3.36
+
+# --- Development  Debugging ---
+python-dotenv=1.0.1
+colorama=0.4.6
+
+# --- Optional (for async  queue) ---
+aiohttp=3.10.3

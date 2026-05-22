@@ -1,0 +1,133 @@
+# ==========================================================
+# Copyright (c) 2026 ZSSS
+# All Rights Reserved.
+# ----------------------------------------------------------
+# ファイル名: amazon/services/blacklist_service.py
+# 目的: ブラックリスト判定
+# ==========================================================
+
+import os
+import sqlite3
+
+# --- ▼ SECTION 01: ブラックリスト判定（From：CSV / TTL 共通） ▼ ---
+def is_blacklisted(asin, user_id, country_code, db_dir):
+    blacklist_dir = os.path.join(db_dir, "blacklist")  
+    all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")  
+
+    # --- allチェック ---
+    if os.path.exists(all_db):  
+        conn = sqlite3.connect(all_db)  
+        cur = conn.cursor()  
+        cur.execute(
+            "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
+            (asin, user_id)
+        )
+        hit = cur.fetchone()  
+        conn.close()  
+
+        if hit:  
+            return True  
+
+    # --- countryチェック ---  # ←ここを修正（外に出す）
+    country_db = os.path.join(
+        blacklist_dir,
+        f"a_{country_code.lower()}_blacklist_asin.db"
+    )  
+
+    if os.path.exists(country_db):  
+        conn = sqlite3.connect(country_db)  
+        cur = conn.cursor()  
+        cur.execute(
+            "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
+            (asin, user_id)
+        )
+        hit = cur.fetchone()  
+        conn.close()  
+
+        if hit:  
+            return True  
+
+    return False
+
+# --- ▼ SECTION 02: ブラックリスト理由取得（From：CSV / check） ▼ ---
+def get_blacklist_reason(asin, country_code, db_dir):
+
+    import os
+    import sqlite3
+
+    blacklist_dir = os.path.join(db_dir, "blacklist")
+
+    reasons = []
+
+    # --- allチェック ---
+    all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")
+    if os.path.exists(all_db):
+        conn = sqlite3.connect(all_db)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
+        if cur.fetchone():
+            reasons.append("All Blacklist")
+        conn.close()
+
+    # --- countryチェック ---
+    country_db = os.path.join(
+        blacklist_dir,
+        f"a_{country_code.lower()}_blacklist_asin.db"
+    )
+    if os.path.exists(country_db):
+        conn = sqlite3.connect(country_db)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
+        if cur.fetchone():
+            reasons.append(f"{country_code.upper()} Blacklist")
+        conn.close()
+
+    if reasons:
+        return " / ".join(reasons)
+
+    return None
+
+# --- ▼ SECTION 03: ブラックリスト判定（Brand）（From：CSV / TTL 共通） ▼ ---
+def is_blacklisted_brand(brand, user_id, country_code, db_dir):
+    brand = (brand or "").strip()
+
+    if not brand:
+        return False
+
+    blacklist_dir = os.path.join(db_dir, "blacklist")
+    all_db = os.path.join(blacklist_dir, "a_all_blacklist_brand.db")
+
+    # --- allチェック ---
+    if os.path.exists(all_db):
+        conn = sqlite3.connect(all_db)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+            (brand, user_id)
+        )
+        hit = cur.fetchone()
+        conn.close()
+
+        if hit:
+            return True
+
+    # --- countryチェック ---
+    country_db = os.path.join(
+        blacklist_dir,
+        f"a_{country_code.lower()}_blacklist_brand.db"
+    )
+
+    if os.path.exists(country_db):
+        conn = sqlite3.connect(country_db)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+            (brand, user_id)
+        )
+        hit = cur.fetchone()
+        conn.close()
+
+        if hit:
+            return True
+
+    return False

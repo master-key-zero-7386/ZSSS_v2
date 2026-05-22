@@ -1,0 +1,256 @@
+<!-- shipping_tools.html -->
+<style>
+/* ============================= */
+/* ブランドゲート専用レイアウト   */
+/* ============================= */
+.brand-gate-grid {
+  display: grid;
+  grid-template-columns: 600px 1fr 1fr;
+  gap: 12px;
+}
+
+/* .brand-gate-grid .asin-panel {
+  flex: 0 0 320px;
+}
+
+.brand-gate-grid .result-panel {
+  flex: 0 0 600px;  
+  min-width: unset; 
+}
+
+.brand-gate-grid .extra-panel {
+  flex: 0 0 260px;
+} */
+
+.asin-panel .btn-row {
+    margin: 8px 0;   /* 上下に余白 */
+}
+
+#bgc-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;  /* 線を綺麗にする */
+}
+
+/* ヘッダー固定 
+#bgc-table th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+  border-bottom: 2px solid #999; /* ヘッダー下は少し濃い線 
+  padding: 6px 8px;
+}
+
+/* 行ごとに下線を追加 
+#bgc-table td {
+  border-bottom: 1px solid #ccc;
+  padding: 4px 8px;
+  word-wrap: break-word; /* 長いブランド名も折り返し 
+}
+
+#bgc-table th {
+  position: sticky;
+  top: 0;
+  background: #fff;   /* 背景白で透け防止 
+  z-index: 2;         /* 下のセルより前面に出す
+  border-bottom: 2px solid #999; /* ヘッダー下の線を少し濃く 
+  padding: 6px 8px;
+}
+ */
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 2;
+  border-bottom: 2px solid #999;
+  padding: 6px 8px;
+}
+
+.table td {
+  border-bottom: 1px solid #ccc;
+  padding: 4px 8px;
+  word-wrap: break-word;
+}
+
+/* ============================= */
+/* ブランドゲート判定結果の色分け */
+/* ============================= */
+.status-open {
+  color: green;
+  font-weight: bold;
+}
+
+.status-approval {
+  color: darkorange;
+  font-weight: bold;
+}
+
+.status-block {
+  color: red;
+  font-weight: bold;
+}
+</style>
+
+
+<!-- ✅ その他ツール -->
+<div class="main-container account-page">
+<h2>TOOL</h2>
+
+    <!-- ▼ SECTION: Brand Gate Check -->
+    <div class="card" style="margin-bottom:20px;">
+
+        <h2>Brand Gate</h2>
+
+        <div class="brand-gate-grid">
+
+            <!-- 左：入力 -->
+            <div class="card asin-panel">
+                <h3>ASIN</h3>
+
+                <div id="brandgateStatus" style="margin-bottom:6px; font-weight:bold;">
+                    Status: Idle
+                </div>
+
+                <div class="btn-row">
+                    <button id="bgc-run" class="btn-blue">Check</button>
+                    <button id="bgc-clear" class="btn-blue" type="button">Clear</button>
+                </div>                
+
+                <textarea id="bgc-asins" rows="40"
+                    placeholder="ASINを1行ずつ入力&#10;Samle>&#10;B000000001&#10;B000000002"
+                    style="width:100%; font-size:16px;"></textarea>
+            </div>
+
+            <!-- 右：結果 -->
+            <div class="card result-panel">
+                <h3>RESULT</h3>
+
+                <div class="btn-row">
+                    <button id="bgc-export-csv" class="btn-blue">Export CSV</button>
+                </div>
+
+                <div style="overflow:auto; max-height:420px;">
+                    <table id="bgc-table" class="table" style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">ASIN</th>
+                                <th style="text-align:left;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card extra-panel">
+                <h3>BRAND</h3>
+
+                <button id="bgc-extract-brand" class="btn-blue">Extract Brand</button>
+
+                <div style="overflow:auto; max-height:420px;">
+                    <table id="bgc-brand-table" class="table" style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">ASIN</th>
+                                <th style="text-align:left;">Brand</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>        
+        </div>
+
+    </div>
+
+    <!-- ▼ SECTION: ASIN DHL　Remoteチェック -->
+    <div class="card">
+        <div class="row">
+            <h2>DHL PDF分割（Nページごと）</h2>
+            <p>配布されるPDF容量が大きい為指定ページ数に分割し軽くしてZIPで一括ダウンロードします。</p>
+
+            <!-- 非表示の file input -->
+            <input type="file" id="pdfFileInput" accept=".pdf" style="display:none;" />
+
+            <!-- CSV Import と同じUI -->
+            <div class="file-input-row">
+                <div class="file-input-wrapper">
+                    <input type="text" id="pdfFileName" class="file-input-text" placeholder="PDFファイルを選択してください" readonly />
+                    <button id="pdfSplitBtn" class="btn-blue">分割してZIP取得</button></div>
+                </div>
+            </div>
+
+            <div class="row" style="margin-top:10px;">
+                <label class="label">分割ページ数</label>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <input id="pdfSplitPer" type="number" min="1" value="60" style="width:80px; font-size:20px;">
+                    <span>ページ毎</span>
+                </div>
+            </div>
+
+            <div class="row">
+                <span class="label"></span>
+                <div class="btn-row">
+            
+            </div>
+
+            <div class="row">
+                <span class="label"></span>
+                <small>例：60にすると 1–60, 61–120, … のPDFに分割します。</small>
+            </div>
+        </div>
+
+        <!-- DHL 遠隔地郵便番号 展開 -->
+        <div class="card">
+            <div class="row">
+                <h2>DHL 遠隔地郵便番号 展開</h2>
+                <p>PDFから該当国の郵便番号テキストを貼り付けて、展開し1列に整形します。</p>
+
+                <div class="row">
+                <label class="label">貼り付け</label>
+                <textarea id="dhlInput" rows="8" placeholder="US例）5桁 
+    02584
+    02642 - 02643
+    02650 - 02652
+    02659" style="width:100%;"></textarea>
+                </div>
+
+                <div class="row">
+                <label class="label">数字桁数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="dhlDigitLen" type="number" value="5" min="3" max="10" style="width:80px; font-size:20px;">
+                        <span>桁</span>
+                    </div> 
+                </div> 
+
+                <div class="row">
+                    <span class="label"></span>
+                    <div class="btn-row"> 
+                    <button id="dhlConvertBtn" class="btn-blue">展開する</button>
+                    <button id="dhlDownloadBtn" class="btn-blue">CSVをダウンロード</button>
+                    <button id="dhlClearBtn" class="btn-blue" type="button">クリア</button> 
+                    </div>
+                </div>
+
+                <div class="row">
+                    <label class="label">件数</label>
+                    <span id="dhlCount"></span>
+                </div>
+
+                <div class="row">
+                    <label class="label">結果</label>
+                    <pre id="dhlOutput" style="max-height: 260px; overflow:auto; background:#f7f7f7; padding:8px; margin:0; width:100%;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+

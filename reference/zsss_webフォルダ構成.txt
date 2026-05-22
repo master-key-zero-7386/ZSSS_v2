@@ -1,0 +1,136 @@
+to=bio
+zsssツール　（Web版）　基本ルール・構成
+１．リストファイル・出力ファイル（CSV）はすべて管理の便宜上頭にRegionを付ける
+　　例：AU_20250721_A21UPUBHOUFSOM_all_nintendo_60-80
+２．amazon用であることを判定できるようにpyフィル名には頭にaを付ける
+　　例：a_au_get_seller_items.py
+
+
+20250814
+to=bio
+題名：基本ルール
+コード修正時
+１．第一に題名で判断して前回記録した内容を必ず上書きする事
+２．修正対象となる”ファイル名”記載する
+３．修正ではなく新規追加の場合はコメントで新規追加と記載する
+４．ただし、そのセクションが丸ごと新規追加の場合には”このセクションは新規追加”とトップに1行入れるだけでいい
+　　３．で指示した各行にコメントを記載する必要もない
+５．どの場所に挿入・追加するのかがわかるように既存コードを検索して直前・直後等分かりやすい方法で指示する事
+６．修正の場合は既存箇所修正と記載する
+６．既存箇所の修正の場合は検索できるように参考のコードを指示し場所を特定する
+７．修正の場合には　そのコードの末尾に　#　この行を修正　# このこの行は新規追加　とコメント付加する
+８．修正・説明・動作チェックなどすべて１ステップごとに進めること
+９．コードをユーザーからアップロードした場合は必ず中を確認して推測・予測での解答は絶対にNGとする
+１０．コードを貼った時には修正箇所だけでなく他に問題となりそうな箇所が無いかも併せて確認する事
+１１．GPTが提案・指示内容説明を書く（コードなし）⇒ユーザがその内容を確認する！⇒問題無ければユーザが「進めて」「OK」などを返す　⇒　GPTがコードを記述する
+
+新機能提案時
+１．提案時にコードを付加して書かない！まずはその内容の説明だけを記述する事！
+
+
+
+to=bio
+zsss_webフォルダ構成
+
+20250825
+/zsss_web/
+├ app.py
+｜
+｜
+├ amazon/
+｜　├ auth(authentication:認証) 
+│  │  └ token_manager.py
+｜　｜
+｜　｜
+｜　├ __init__.py
+｜　├ a_02extract_asin_list.py (ASI抽出)
+｜　├ a_04extract_seller_id.py (セラーID抽出)
+｜　├ a_au_get_seller_items.py
+｜　├ a_us_get_seller_items.py
+｜　├ a_sg_get_seller_items.py
+｜　├ constants.py
+｜　├ db.py
+｜　├ routes.py
+｜
+├ aws/
+｜  ├ __init__.py
+｜  ├ sqs_client.py  ← boto3 でSQSを作成・操作する処理を後で入れる
+｜  └ README.md      ← 「ここはAWS関連コードを入れる」とメモしておく
+｜
+｜
+├ BackUp
+｜
+├ Chrome_Profile/
+｜　├ au/
+｜　├ su/
+｜　├ sg/
+｜
+├ config/
+｜  ├ config.json
+｜
+├ data/
+｜　├ au/
+｜　├ us/
+｜　├ sg/
+｜
+├ lists/
+｜　├ au_category_list.csv
+｜　├ au_extract_history.csv
+｜　├ au_listed_asin.csv
+｜　├ au_removal_list_asin.csv
+｜　├ au_removal_list_brand.csv 
+｜　├ au_seller_list.csv
+｜　├ us_category_list.csv
+｜　├ us_extract_history.csv
+｜　├ us_listed_asin.csv
+｜　├ us_removal_list_asin.csv
+｜　├ us_removal_list_brand.csv
+｜　└ us_seller_list.csv
+｜
+├ log/
+｜　├ log_au_get_seller_items.txt
+｜　├ log_sg_get_seller_items.txt
+｜　└ log_us_get_seller_items.txt
+｜
+├ reference/
+｜　├ zsss_webフォルダ構成.txt
+｜
+├ scripts/　
+｜　├ chromedriver.exe
+｜
+├ static/　
+｜　├ js/
+｜　｜ └ main.js
+│  │  
+│  └ css/
+｜     └ common.css
+｜
+｜
+├ templates/
+｜　├ account.html
+｜　└ index.html
+｜
+├ tools/
+｜　├ __pycache__/
+｜  ｜
+｜　├ driver/
+│  │ └ chromedriver.exe
+│  │ 
+｜　├ dhl_routes.py
+｜
+├ uploads/　（空）
+｜
+├ utils/
+｜　├ __init__.py
+｜　├ dhl_remote_parser.py
+｜　├ spapi_client.py
+｜
+
+
+
+
+
+今やってる事
+・フォルダ設定の構築
+・Web公開s多時を見越して現状を修正
+・

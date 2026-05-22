@@ -1,0 +1,340 @@
+<!-- layout.html -->
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <meta charset="UTF-8">
+    <title>Zero Stock Sales System/Suite Web Tool</title>
+    <base href="/">
+
+    <!-- ▼ layout.html 専用スタイル（Logged in 右端固定用） -->
+    <style>
+        /* 上部タイトルバー */
+        .tabs {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+
+            height: 48px;
+            padding-left: 0;
+            padding-right: 0;
+            box-sizing: border-box;
+            width: 100vw;
+            margin:0;
+
+            background: linear-gradient(90deg, #4a90e2, #7b5cd6, #c0397a);
+            color: #ffffff;
+        }
+
+        /* タイトルZSSS Web Tool */
+        .tabs-title {
+            color:#fff;           /* 白文字 */
+            text-decoration: none; /* 下線消す */
+            font-weight: bold;       /* 太字 */
+            font-size: 23px;
+            margin-left: 10px;
+            margin-right: 50px;
+
+            /* ★ 追加（これが本体） */
+            cursor: pointer;
+            position: relative;
+            z-index: 1000;
+            pointer-events: auto;            
+        }
+
+        /* ✅ 共通タブデザイン */
+        .tabs {
+            position: relative; 
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+
+            display:flex; align-items:center; gap:8px;
+            height:48px; padding:0 8px;
+            border-radius:0;
+            background:linear-gradient(45deg,#41e33b,#9844b7,#cb0000,#001eff);
+            background-size:200% 200%;
+            animation:bggradient 20s ease infinite;
+            box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12);
+            color:#fff;
+        }
+
+        .tabs-title:hover {
+        text-decoration: none; /* ホバーでも下線出さない */
+        color: #e0e0e0;        /* ホバー時にちょっと薄く */
+        }        
+
+        /* 各タブボタン */
+        .tabs .tab {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .tabs .tab.active {
+            font-weight: bold;
+            border-bottom: 2px solid rgba(255,255,255,0.8);
+        }
+        /* タブボタン */
+        .tab {
+            background: transparent;
+            border: 0;
+            color: #fff;
+            font-weight: 600;
+            padding: 0 14px;
+            height: 48px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        /* ホバー */
+        .tab:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* アクティブ */
+        .tab.active {
+            background: #2948fc;
+            color: #fff;
+            box-shadow: inset 0 -2px 0 #fff;
+        }
+
+        .tab-content {
+            position: relative;      /* ← 追加 */
+            overflow-y: auto;        /* ← 中身だけスクロール */
+
+            margin-top: 0 !important; 
+            padding-top: 0 !important;
+            height: calc(100vh - 80px);
+            padding-bottom: 40px;
+
+            display: none;
+            background: linear-gradient(to bottom, #e8f0f9, #f2f7fb);
+            border: 1px solid #ccc;
+            padding: 0px; /* 内側の余白 */
+            margin-top: 0px !important; /* ← 外側の余白を消す */
+            border-radius: 0 0 15px 15px;
+        }
+        
+        .tab-inner {
+            padding: 16px;   /* ← ここで左右余白を復活させる */
+        }        
+
+        .tab-content.active {
+        display: block;
+        }        
+
+        .global-region {
+            display: flex;
+            align-items: center;   
+            margin-left: 100px;
+            margin-right: 25px;
+            position: relative;
+            top: 1px;
+        }
+
+        .global-region select {
+            height: 32px;          
+            padding: 0 6px;
+            border-radius: 4px;
+            border: none;
+            margin: 0;             
+            width: 220px; 
+        }        
+        /* Logged in 表示を右端固定 */
+        .user-display {
+            margin-left: auto;
+            white-space: nowrap;
+            font-size: 0.9em;
+            padding-right: 12px;
+        }
+
+        @keyframes spin {
+        0%   { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+        }
+
+        #toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        }
+
+        .toast {
+        background: rgba(0,0,0,0.85);
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 6px;
+        margin-top: 6px;
+        font-size: 14px;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: opacity .3s, transform .3s;
+        }
+
+        .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+        }
+
+    </style>
+
+    <!-- DataTables 読み込み -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body style="margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
+
+    <script id="enabled-regions" type="application/json">
+        {{ session.get("enabled_regions", []) | tojson }}
+    </script>
+
+    <script>
+        window.ZSSS_IS_ADMIN = "{{ 'true' if session.get('is_admin') else 'false' }}";
+    </script>
+
+    <div id="loadingOverlay" style="display:none;">
+        <div class="overlay-content">
+            <div class="spinner"></div>
+            <p id="loadingMessage"></p>
+        </div>
+    </div>
+
+    <!-- ▼ 上部タイトルバー（全幅） -->
+    <div class="tabs">    
+        <!-- アカウントメニュー -->
+        <div id="user-menu" class="user-menu">
+            <button id="menu-btn" class="menubtn" title="メニュー">&#9776;</button>
+            <div id="user-dropdown" class="menu" hidden>
+                <div class="menuitem" data-action="open-manual">マニュアル</div>
+            </div>
+        </div>
+
+        <a class="tabs-title" href="/amazon/">ZSSS Web V2</a>
+
+        <!-- ✅ DB連動マーケットプレイスプルダウン -->
+        <div class="global-region" style="display:inline-block; margin-left:12px;">
+            <select id="globalRegion" class="select"></select>
+        </div>
+
+        <button class="tab active" data-tab="top">TOP</button>
+        <button class="tab" data-tab="shipping-rates">配送料金設定</button>        
+        <button class="tab" data-tab="account">アカウント設定</button>
+
+
+        {% if session.is_admin %}
+        <button class="tab" data-tab="admin-marketplace">管理者</button>
+        <button class="tab" data-tab="admin-tools">管理者2</button>
+        <button class="tab" data-tab="blacklist">ブラックリスト</button>
+        <button class="tab" data-tab="admin-blacklist">管理者ブラックリスト</button>            
+        <button class="tab" data-tab="shipping-tools">その他ツール</button>   
+        {% endif %}
+        <div style="flex:1;"></div>
+
+        <!-- ▼ ：言語切替 -->
+        <select id="lang_switch" style="margin-left:15px; padding:3px 6px;">
+            <option value="ja">JP</option>
+            <option value="en">EN</option>
+        </select>
+
+        <!-- ▼ 右側：ログインユーザー（完全固定） -->
+        <div class="tabs-right" style="font-size: 1.05rem; font-weight: 500;">
+            👤 Logged in： {{ session.get("user_display_name", "") }}
+        </div>
+    </div>
+
+    <!-- ✅ 各ページ固有の内容をここに挿入 -->
+    <main class="main-content">
+        <div id="top" class="tab-content">
+            {% block content %}{% endblock %}
+        </div>
+
+        <div id="account" class="tab-content" >
+            {% include 'account.html' %}
+        </div>
+
+        <!-- ユーザー用ブラックリスト -->
+        <div id="blacklist" class="tab-content">
+            {% include 'blacklist.html' %}
+        </div>    
+        
+        <!-- 送料設定（ユーザー公開） -->
+        <div id="shipping-rates" class="tab-content">
+            {% include 'shipping_rates.html' %}
+        </div>
+
+        <!-- 管理者表示用 --> 
+        <!-- 管理者 タブ --> 
+        <div id="admin-marketplace" class="tab-content">
+            {% if session.get('is_admin') %}
+                {% include 'admin/marketplace_master.html' %}
+            {% endif %}
+        </div>
+
+        <!-- 管理者2 タブ -->
+        <div id="admin-tools" class="tab-content" >
+            {% if session.get('is_admin') %}
+                {% include 'admin/admin_tools.html' %}
+                {% include 'admin/api_checker.html' %}
+            {% endif %}
+        </div>
+
+        <!-- 管理者用ブラックリスト タブ -->
+        <div id="admin-blacklist" class="tab-content">
+            {% if session.get('is_admin') %}
+                {% include 'admin_blacklist.html' %}
+            {% endif %}
+        </div>      
+
+        <!-- その他ツール -->
+        <div id="shipping-tools" class="tab-content">
+            {% include 'shipping_tools.html' %}
+        </div>
+
+    </main>
+
+   <!--  ✅ トースト通知領域（全ページ共通） -->
+    <div id="toast-container"></div>
+
+    <!-- ✅ 共通スクリプト読込（正しい順序） -->
+    <script src="/static/js/lang.js"></script>
+
+    <script src="{{ url_for('static', filename='js/ui_confirm.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/listing_common.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/brandgate.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/pricing.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/listing_pre.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/listing_all.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        if (window.initTabs) {
+            window.initTabs();   // ★ これが globalRegion を作る唯一の起点
+        }
+    });
+    </script>
+
+    <script src="{{ url_for('static', filename='js/admin_api_checker.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin_marketplace_master.js') }}"></script>
+
+
+<!-- Scroll Top Button ↑ -->
+<button id="scrollTopBtn">▲</button>
+<button id="scrollBottomBtn">▼</button>
+
+</body>
+</html>
+
+

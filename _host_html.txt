@@ -1,0 +1,8 @@
+templates\account.html:148:          <label class="label" style="min-width:140px;">Host</label>
+templates\account.html:149:          <input id="home_host" class="input" type="text" style="background-color:#fff; border:1px solid #999;">
+templates\account.html:153:          <label class="label" style="min-width:140px;">SP-API Host</label>
+templates\account.html:154:          <input id="home_spapi_host" class="input" type="text" style="background-color:#fff; border:1px solid #999;">
+templates\account.html:173:          <label class="label" style="min-width:140px;">Host</label>
+templates\account.html:174:          <input id="region_host" class="input" type="text" style="background-color:#fff; border:1px solid #999;">
+templates\account.html:178:          <label class="label" style="min-width:140px;">SP-API Host</label>
+templates\account.html:179:          <input id="region_spapi_host" class="input" type="text" style="background-color:#fff; border:1px solid #999;">

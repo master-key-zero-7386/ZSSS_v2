@@ -1,0 +1,364 @@
+<!-- plicing.html -->
+<script>
+    window.ZSSS_USER_ID = "{{ session.get('user_id', '') }}";
+</script>
+
+<style>
+    .pricing-save-area {
+        text-align: left;
+        margin-top: 25px;
+        margin-bottom: 30px;
+    }
+
+    #savePricingBtn {
+        background-color: #1976d2;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        padding: 8px 18px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    #savePricingBtn:hover {
+        background-color: #1565c0;
+    }
+</style>
+
+
+<div id="pricing" class="subtab-content" hidden>
+
+    <h2>Pricing 価格条件設定</h2>
+        <div class="pricing-save-area">
+            <button id="savePricingBtn" class="btn-blue" style="font-size:16px;">Save</button>
+        </div>
+
+    <hr>
+
+    <section class="pricing-section" style="margin-bottom:40px;">
+
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">仕入先設定</h3>
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+
+                <div>
+                    <label for="min_rating_percent"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最低評価率</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="min_rating_percent" class="input" type="number" step="1" placeholder="例：90"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="min_rating_count"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最低評価数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="min_rating_count" class="input" type="number" step="1" placeholder="例：5"
+                            style="width:150px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="max_handling_days"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最大出荷日数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="max_handling_days" class="input" type="number" step="1" placeholder="例：6"
+                            style="width:130px;">
+                        <span>日</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="min_stock_qty" style="display:block; font-weight:600; margin-bottom:4px;">最低在庫数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="min_stock_qty" class="input" type="number" step="1" placeholder="例：0"
+                            style="width:130px;">
+                        <span>個</span>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+                    <label style="font-weight:600;">除外・採用条件</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:20px 40px; align-items:center; margin-top:4px;">
+                        <label style="white-space:nowrap;"><input type="checkbox" id="exclude_non_home_ship">
+                            海外出荷を除外</label>
+                        <label style="white-space:nowrap;"><input type="checkbox" id="exclude_future_offer">
+                            予約商品を除外</label>
+                        <label style="white-space:nowrap;"><input type="checkbox" id="consider_points">
+                            獲得ポイントを加味する</label>
+                        <label style="white-space:nowrap;"><input type="checkbox" id="exclude_non_buybox">
+                            カート価格のみ採用</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 梱包材・重量補正 -->
+    <section class="pricing-section" style="margin-bottom:40px;">
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">梱包補正設定</h3>
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+
+                <div>
+                    <label for="pkg_padding_cm"
+                        style="display:block; font-weight:600; margin-bottom:4px;">梱包補正（cm）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pkg_padding_cm" class="input" type="number" placeholder="例：2" style="width:130px;">
+                        <span>cm</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="pkg_weight_ratio"
+                        style="display:block; font-weight:600; margin-bottom:4px;">重量補正率</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pkg_weight_ratio" class="input" type="number" step="0.01" placeholder="例：20"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="pkg_volumetric_divisor"
+                        style="display:block; font-weight:600; margin-bottom:4px;">容積換算係数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pkg_volumetric_divisor" class="input" type="number" placeholder="例：5000"
+                            style="width:150px;">
+                    </div>
+                </div>
+
+                <!-- <div> ユーザー編集をやめて　丸め：500g　最低加重：100g 固定値に変更
+                    <label for="pkg_round_step" style="display:block; font-weight:600; margin-bottom:4px;">重量丸め単位（kg）</label>
+                    <input id="pkg_round_step" class="input" type="number" step="0.1" placeholder="例：0.5" style="width:150px;">
+                </div>
+
+                <div>
+                    <label for="pkg_min_weight_ratio" style="display:block; font-weight:600; margin-bottom:4px;">最低加算重量（kg）</label>
+                    <input id="pkg_min_weight_ratio" class="input" type="number" step="0.01" placeholder="例：0.10" style="width:150px;">
+                </div> -->
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="color:#666; font-size:13px;">※梱包時の緩衝材によるサイズアップ分の補正に利用</span>
+                </div>
+            </div>
+        </div>
+    </section>
+    <hr>
+
+    <!-- 競合設定 -->
+    <section class="pricing-section" style="margin-bottom:40px;">
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">競合設定</h3>
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+
+            <div class="section-body"
+                style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+
+                <div>
+                    <label for="pricing_competitor_min_rating_percent"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最低評価率（％）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pricing_competitor_min_rating_percent" class="input" type="number" step="1"
+                            placeholder="例：90" style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="pricing_competitor_min_rating_count"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最低評価数</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pricing_competitor_min_rating_count" class="input" type="number" step="1"
+                            placeholder="例：5" style="width:150px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+                <div>
+                    <label for="max_competitor_price_ratio"
+                        style="display:block; font-weight:600; margin-bottom:4px;">競合より</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="max_competitor_price_ratio" class="input" type="number" step="0.01"
+                            placeholder="例：20" style="width:130px;">
+                        <span>％</span>
+                        <label for="max_competitor_price_ratio"
+                            style="display:block; font-weight:600; margin-bottom:4px;">以上高い場合は出品しない</label>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="max_listing_price_limit"
+                        style="display:block; font-weight:600; margin-bottom:4px;">出品価格</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="listing_currency_unit"></span>
+                        <input id="max_listing_price_limit" class="input" type="number" step="0.01" placeholder="例：800"
+                            style="width:120px;">
+                        <label for="max_listing_price_limit"
+                            style="display:block; font-weight:600; margin-bottom:4px;">以上の場合は出品しない</label>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="discount_rate"
+                        data-i18n="discount_from"
+                        style="display:block; font-weight:600; margin-bottom:4px;"></label>
+
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="discount_rate" class="input" type="number" step="0.01"
+                            placeholder="3" style="width:120px;">
+                        <span>％</span>
+                        <span data-i18n="discount_label"></span>
+                    </div>
+                </div>            
+
+            </div>
+        </div>
+    </section>
+    <hr>
+
+    <!-- 出品価格 算出設定 -->
+    <section class="pricing-section" style="margin-bottom:40px;">
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">Listing Price Calculation Settings</h3>
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+
+                <!-- 利益率 -->
+                <div>
+                    <label for="min_profit_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Min Profit Margin</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="min_profit_rate" class="input" type="number" step="0.01" placeholder="例：10"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="max_profit_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Max Profit Margin</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="max_profit_rate" class="input" type="number" step="0.01" placeholder="例：50"
+                            style="width:130px;">
+                        <span>％</span>
+                        <span style="font-size:14px; color:#f50909; font-weight:400;">最大設定可能値 80%
+                            <span style="font-size:12px; color:#777; font-weight:400;">
+                                ※最終グレーアウトに変更　最大利益率は販売先の価格情報をもとに上限価格を制御するための設定です。<br>
+                                　API設定で「販売先価格情報取得」をONにしている場合のみ有効になります。
+                            </span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+                <!-- 手数料/税 -->
+                <div>
+                    <label for="amazon_fee_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Amazon Fee</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="amazon_fee_rate" class="input" type="number" step="0.01" placeholder="例：15"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="customs_duty_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">GST/VAT</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="gst_rate" class="input" type="number" step="0.01" placeholder="例：10"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="customs_duty_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Tariff</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="customs_duty_rate" class="input" type="number" step="0.01" placeholder="例：15"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="oversea_remittance_fee_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Bank Fee</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="oversea_remittance_fee_rate" class="input" type="number" step="0.01"
+                            placeholder="例：2" style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="fuel_surcharge_rate"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Fuel Surcharge</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="fuel_surcharge_rate" class="input" type="number" step="0.01" placeholder="例：5"
+                            style="width:130px;">
+                        <span>％</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+                <!-- 経費 -->
+                <div>
+
+                    <label for="shipping_outsource_cost" style="display:block; font-weight:600; margin-bottom:4px;">
+                        Shipping Fee（<span class="home_currency_unit"></span> ）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="shipping_outsource_cost" class="input" type="number" step="0.01"
+                            style="width:130px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="extra_cost" style="display:block; font-weight:600; margin-bottom:4px;">
+                        Packaging Cost（<span class="home_currency_unit"></span> ）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="extra_cost" class="input" type="number" step="0.01" style="width:130px;">
+                    </div>
+                </div>
+
+
+
+                <!-- その他 -->
+                <div>
+                    <label for="default_handling_time"
+                        style="display:block; font-weight:600; margin-bottom:4px;">Handling Time</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="default_handling_time" class="input" type="number" step="1" placeholder="例：7"
+                            style="width:130px;">
+                        <span>days</span>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <hr>
+
+
+
+
+<!-- HOME / Region Seller Price Check -->
+{% include "pricing_debug.html" %}
+
+</div>
+

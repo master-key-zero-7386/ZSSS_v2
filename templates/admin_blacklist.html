@@ -1,0 +1,38 @@
+<!-- admin_blacklist.html -->
+
+<div class="main-container admin-blacklist">
+<h2>管理者ブラックリスト</h2>
+
+    <div class="card">
+        <div class="row">
+            <h2>管理者ブラックリスト登録</h2>
+            <p>ASIN/ブランドを登録できます</p>
+
+            <div class="row">
+                <label class="label">タイプ</label>
+                <select id="admin-bl-type">
+                    <option value="asin">ASIN</option>
+                    <option value="brand">ブランド</option>
+                </select>
+            </div>
+
+            <div class="row">
+                <label class="label">テキスト</label>
+                <input id="admin-bl-key" type="text" placeholder="ASIN または ブランド名">
+            </div>
+
+            <div class="row">
+                <label class="label">メモ</label>
+                <textarea id="admin-bl-reason" rows="2" placeholder="任意"></textarea>
+            </div>
+
+            <div class="row">
+                <span class="label"></span>
+                <div class="btn-row">
+                    <button id="admin-bl-submit" class="btn-blue" disabled>登録する</button>
+                    <button id="admin-bl-reset" class="btn-blue" type="button">入力をやりなおす</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

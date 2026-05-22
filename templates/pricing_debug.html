@@ -1,0 +1,236 @@
+<!-- ファイル名：templates\pricing_debug.html -->
+
+<div class="container">
+    <div style="margin-top:20px; font-size:18px;">
+        <h2>HOME / Region Seller Price Check</h2>
+
+        <input type="text"
+            id="pricing_debug_asin"
+            placeholder="ASIN入力"
+            style="
+                width:240px;
+                font-size:18px;
+                padding:6px 4px;
+                border:none;
+                border-bottom:2px solid #888;
+                background:transparent;
+                outline:none;
+                color:#000;">
+        <button class="btn-blue" onclick="runPricingDebug()">Execute</button>
+        <div id="pricing_debug_output"
+            style="display:none; gap:20px; overflow:auto; margin-bottom:40px;">
+        </div>
+    </div>
+</div>    
+
+<script>
+// let lastPricingDebugData = null;    
+
+async function runPricingDebug() {
+    document.getElementById("pricing_debug_output").style.display = "flex";
+
+    const asin = document.getElementById("pricing_debug_asin").value;
+    if (!asin) return;  
+
+    // ===== HOME =====
+    const resHome = await fetch("/admin/run_home_pricing_debug", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            asin: asin,
+            // country_code: "JP"
+        })
+    });
+
+    const homeData = await resHome.json();
+
+    // HOMEで選ばれた価格を取得
+    const homePrice =
+        homeData?.debug?.selected?.total_price
+        || homeData?.debug?.selected?.price_amount
+        || homeData?.debug?.selected?.ListingPrice?.Amount
+        || 0;
+
+    // ===== REGION =====
+    const regionCountry = document.getElementById("globalRegion").value;
+    const resRegion = await fetch("/admin/run_region_pricing_debug", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            asin: asin,
+            home_price: homePrice,
+            country_code: regionCountry
+        })
+    });
+
+    const regionData = await resRegion.json();
+
+    lastPricingDebugData = {
+        home: homeData,
+        region: regionData
+    };    
+
+    let html = "";
+    let regionHtml = "";
+
+    // ===== HOMEセラー情報表示 ① =====
+    const allOffers = homeData.offers || [];
+    const filtered = (homeData.debug && homeData.debug.filtered) || [];
+    const selected = (homeData.debug && homeData.debug.selected) || null;
+
+    html += "<h4>All Sellers (" + allOffers.length + ")</h4>";
+    html += buildTable(allOffers);
+
+    html += "<h4 style='margin-top:30px;'>Filtered Sellers(" + filtered.length + ")</h4>";
+    html += buildTable(filtered);
+
+    html += "<h4 style='margin-top:30px;'>Selected Seller</h4>";
+    html += selected ? buildTable([selected]) : "<p>なし</p>";
+
+
+    // ===== REGIONセラー情報表示 ② =====
+    const regionOffers = regionData.offers || [];
+    const regionFiltered = (regionData.debug && regionData.debug.filtered) || [];
+    const regionSelected = (regionData.debug && regionData.debug.selected) || null;
+
+    regionHtml += "<h4>All Sellers (" + regionOffers.length + ")</h4>";
+    regionHtml += buildTable(regionOffers);
+
+    regionHtml += "<h4 style='margin-top:30px;'>Filtered Sellers (" + regionFiltered.length + ")</h4>";
+    regionHtml += buildTable(regionFiltered);
+
+    regionHtml += "<h4 style='margin-top:30px;'>Selected Seller</h4>";
+    regionHtml += regionSelected ? buildTable([regionSelected]) : "<p>なし</p>";
+
+    // ===== 価格算定情報表示 ③ =====
+    const pricing = regionData.pricing_result || {};
+    const bd = pricing.breakdown || {};
+
+    let pricingHtml = "<h4>Pricing Breakdown</h4>";
+
+    pricingHtml += `<pre style="line-height:1.8; font-family:monospace;">`;
+
+    pricingHtml += `Cost Structure\n`;
+    pricingHtml += `  Purchase Price : ${bd.home_price ?? "-"}\n`;
+    pricingHtml += `  Intl Shipping  : ${bd.intl_shipping ?? "-"}\n`;
+    pricingHtml += `  Packing        : ${bd.packing ?? "-"}\n`;
+    pricingHtml += `  Outsource      : ${bd.outsource ?? "-"}\n\n`;
+
+    pricingHtml += `CIF Cost         : ${bd.cif_cost ?? "-"}\n`;
+    pricingHtml += `      ${bd.cif_formula ?? ""}\n\n`;                  // 原価計算式  
+
+    pricingHtml += `Duty             : ${bd.duty ?? "-"}\n`;
+    pricingHtml += `      ${bd.duty_formula ?? ""}\n\n`;                 // 関税計算式  
+
+    pricingHtml += `Total Cost       : ${pricing.total_cost ?? "-"}\n`;
+    pricingHtml += `      ${bd.total_cost_formula ?? ""}\n`;             // 総額計算式  
+    pricingHtml += "<hr>";
+
+
+    // pricingHtml += `Target Price Range (FX:${bd.exchange_rate.toFixed(2)})\n`;
+    pricingHtml += `Target Price Range (FX:${bd.exchange_rate ? bd.exchange_rate.toFixed(2) : "-"})\n`;
+    pricingHtml += `  Minimum Price  : ${pricing.P_min ?? "-"}\n`;
+    pricingHtml += `    ${pricing.P_min} = (${pricing.total_cost} / FX) / ${bd.denom_min}\n`; // minPrice格計算式
+    pricingHtml += `     ${bd.denom_formula ?? ""}\n\n`;                 // minPrice率根拠計算式
+
+    pricingHtml += `  Maximum Price  : ${pricing.P_max ?? "-"}\n`;    
+    pricingHtml += `    ${pricing.P_max} = (${pricing.total_cost} / FX) / ${bd.denom_max}\n`; // maxPrice格計算式
+    pricingHtml += `     ${bd.denom_max_formula ?? ""}\n\n`;                 // maxPrice率根拠計算式   
+
+    pricingHtml += ` Fee Rate Formula : ${bd.denom_explain ?? ""}\n`;    // 各種率計算根拠（表示）  
+
+    pricingHtml += "<hr>";
+
+// --- ▼ YOUR PRICE 表示 ▼ ---
+// const yourPrice = pricing.P_min ?? 0;
+const yourPrice = pricing.final_price ?? pricing.P_min ?? 0;
+
+if (regionFiltered.length > 0 && yourPrice > 0) {
+
+    console.log(regionFiltered[0]);  
+
+    const lowest = Number(regionFiltered[0].price_amount);
+
+    const diff = yourPrice - lowest;
+    const percent = (diff / lowest) * 100;
+
+    pricingHtml += `
+Competitor Price Check
+    Your Price        : ${yourPrice.toFixed(2)}
+    Competitor Price  : ${lowest.toFixed(2)}
+    Diff              : ${diff.toFixed(2)} (${percent.toFixed(2)}%)
+    Profit if Matched : ${pricing.profit_rate_at_competitor != null
+        ? (pricing.profit_rate_at_competitor * 100).toFixed(2)
+        : "-"} %
+
+`;
+}
+
+pricingHtml += `</pre>`;
+
+
+    document.getElementById("pricing_debug_output").innerHTML =
+        "<div style='flex:1; overflow:auto; background:#111; color:#0f0; padding:10px; font-size:14px;'>" +
+            html +
+        "</div>" +
+
+        "<div style='flex:1; overflow:auto; background:#111; color:#0ff; padding:10px; font-size:14px;'>" +
+            regionHtml +
+        "</div>" +
+
+        "<div style='flex:1; overflow:auto; background:#1a1a1a; color:#fff; padding:10px; font-size:14px; font-family: monospace;'>" +
+            pricingHtml +
+        "</div>";      
+}
+
+function buildTable(list) {
+
+    if (!list.length) return "<p>なし</p>";
+
+    let html = "<table border='1' cellpadding='5' style='border-collapse:collapse;'>";
+    html += "<tr>";
+    html += "<th>Seller</th>";
+    html += "<th>Price</th>";
+    html += "<th>Ship</th>";
+    html += "<th>Points</th>";
+    html += "<th>Rating%</th>";
+    html += "<th>Count</th>";
+    html += "<th>Hours</th>";
+    html += "<th>Future</th>";
+    html += "<th>BuyBox</th>";
+    html += "<th>FBA</th>";
+    html += "</tr>";
+
+    list.forEach(o => {
+
+        const price = o.price_amount || (o.ListingPrice && o.ListingPrice.Amount);
+        const ship = o.shipping_amount || (o.Shipping && o.Shipping.Amount) || 0;
+        const points = o.points_amount || (o.Points && o.Points.PointsNumber) || 0;
+        const rating = o.rating_percent || (o.SellerFeedbackRating && o.SellerFeedbackRating.SellerPositiveFeedbackRating) || 0;
+        const count = o.rating_count || (o.SellerFeedbackRating && o.SellerFeedbackRating.FeedbackCount) || 0;
+        const hours = o.handling_time_days || (o.ShippingTime && o.ShippingTime.maximumHours) || 0;
+        const future = o.is_future_offer ?? (o.ShippingTime && o.ShippingTime.availabilityType !== "NOW");
+        const buybox = o.is_buybox_winner ?? o.IsBuyBoxWinner;
+        const fba = o.IsFulfilledByAmazon ?? o.is_fulfilled_by_amazon;
+
+        html += "<tr>";
+        html += "<td>" + (o.seller_id || o.SellerId) + "</td>";
+        html += "<td>" + price + "</td>";
+        html += "<td>" + ship + "</td>";
+        html += "<td>" + points + "</td>";
+        html += "<td>" + rating + "</td>";
+        html += "<td>" + count + "</td>";
+        html += "<td>" + hours + "</td>";
+        html += "<td>" + (future ? "✔" : "×") + "</td>";
+        html += "<td>" + (buybox ? "✔" : "×") + "</td>";
+        html += "<td>" + (fba ? "✔" : "×") + "</td>";
+        html += "</tr>";
+    });
+
+    html += "</table>";
+
+    return html;
+}
+</script>
+
+

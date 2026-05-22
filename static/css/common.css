@@ -1,0 +1,494 @@
+/* static/css/common.css */
+
+body {
+    font-family: sans-serif;
+    background-color: #f6f8fa;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.main-container {
+    /* max-width: 1200px;  全体最大幅*/
+    margin-left: 40px;
+    margin-right: 40px;
+    padding: 0px 0px;
+}
+
+h1 {
+    margin: 4px 0;  
+}
+
+.card {
+    border: 1px solid #eee;
+    border-radius: 14px;
+    padding: 16px;
+    background: #fff;
+}
+
+/* === トップ ZSSSロゴ === */
+.title {
+    font-size: 22px;
+    font-weight: 700;  /* 太字（bold）*/
+    margin: 0 0 12px;  /* 文字の下の余白 */
+}
+
+/* === 共通入力・表示サイズ === */
+.input,
+.select,  /* プルダウンで使用 */
+.text {
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 16px;          /* ★ 入力は16pxで統一 */
+    box-sizing: border-box;
+}
+
+/* ラベル・補足文（入力より一段弱く） */
+.label,
+.hint {
+    font-size: 14px;
+}
+
+/* textarea 専用 */
+.text {
+    min-height: 70px;
+    resize: vertical;
+}
+
+
+/* === 強調表示 === */
+.strong {
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.note {
+    background: #fff7e6;
+    border: 1px solid #ffe1a8;
+    border-radius: 12px;
+    padding: 10px;
+    margin-top: 8px;
+    color: #7a4b00;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.kv {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: none;
+    padding: 6px;
+    margin-bottom: 1em;            
+}
+
+.flash-messages {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: #e0f3ff;
+    border: 1px solid #b3e5fc;
+    color: #0277bd;
+    border-radius: 4px;
+    list-style-type: none;
+}
+
+/* --- ▼ SECTION : ZSSS 共通 ボタン系 ▼ ---
+/* 保存・更新　青ボタン */
+.btn-blue {
+    background-color: #007bff;      /* 青地 */
+    color: white;                   /* 白文字 */
+    border: 1px solid #007bff;      /* 青枠 */
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-block;
+    width: auto;  
+    line-height: 1;
+}
+
+.btn-blue:hover {
+    background-color: #0056b3;
+}
+
+.btn-blue:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.btn-row {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+
+/* 共通削除ボタン（破壊操作） */
+.btn-delete {
+  background-color: #fff;          /* 白地 */
+  color: #dc3545;                  /* 赤文字 */
+  border: 1px solid #dc3545;       /* 赤枠 */
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.btn-delete:hover {
+  background-color: #fff5f5;       /* うっすら赤 */
+}
+
+.btn-delete:disabled {
+  color: #aaa;
+  border-color: #aaa;
+  cursor: not-allowed;
+}
+
+
+/* 共通キャンセルボタン（全画面） */
+.btn-cancel {
+  background-color: #fff;           /* 白地 */
+  color: #007bff;                   /* 青文字 */
+  border: 1px solid #007bff;        /* 青枠 */
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.btn-cancel:hover {
+  background-color: #fff5f5;        /* うっすら赤 */
+}
+
+.btn-cancel:disabled {
+  color: #aaa;
+  border-color: #aaa;
+  cursor: not-allowed;
+}
+
+/* 共通 ON / OFF トグル */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background-color: #ccc;
+  transition: .2s;
+  border-radius: 24px;
+}
+.slider:before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .2s;
+  border-radius: 50%;
+}
+.switch input:checked + .slider {
+  background-color: #007bff;
+}
+.switch input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+input[type="checkbox"] {
+    transform: scale(1.5);
+    margin-right: 6px;
+} 
+
+/* --- ▲ SECTION : ZSSS 共通 ボタン系 ▲ ---
+/* メニュー親 */
+.user-menu {
+  position: relative;          /* ← absolute をやめる */
+  height: 48px;
+  display: flex;
+  align-items: center;
+  margin-left: 8px;            /* ロゴとの間に少し余白 */
+  z-index: auto;               /* タブより前に出さない */
+}
+
+/* ドロップダウン本体 */
+#user-dropdown {
+  position: absolute;
+  left: 0; right: auto;   /* ← ロゴと同じラインから左寄せ */
+  top: calc(100% + 6px);
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  padding: 6px 0;
+  z-index: 1500;
+}
+
+/* 項目 */
+#user-dropdown .menuitem {
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.2;
+  color: #111;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#user-dropdown .menuitem:hover {
+  background: #f3f4f6;
+}
+
+/* 三本線メニューボタン */
+.menubtn {
+  background: transparent;     /* 背景は透過 */
+  border: 0;                   /* 枠なし */
+  color: #fff;                 /* アイコン（☰）は白 */
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 22px;             /* ☰ を大きめに */
+}
+
+.menubtn:hover {
+  background: rgba(255,255,255,.15); /* タブと同じホバー感 */
+}
+
+/* # --- ▼ SECTION : Pre / ALL 共通 ▼ ---  */
+/* === Listing（Pre / ALL）共通フォント基準 === */
+#prelisting table td,
+#prelisting table th,
+#alllisting table td,
+#alllisting table th {
+  font-family: sans-serif;   /* 基準フォント */
+  font-size: 13px;           /* 基準サイズ */
+  line-height: 1.4;          /* 基準行高 */
+}
+
+/* === Listing（Pre / ALL）セル縦位置統一 === */
+#prelisting table td,
+#alllisting table td {
+  vertical-align: top;
+}
+
+/* === Listing（Pre / ALL）画像カラム表示制御 === */
+#prelisting .image-container,
+#alllisting .image-container {
+  display: inline-flex;
+  width: 120px;
+  height: 120px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#prelisting .image-container img,
+#alllisting .image-container img {
+  max-width: 120px;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+/* === Listing（Pre / ALL）情報取得状態 表示調整 === */
+.listing_base table td {
+  line-height: 1.6;
+}
+
+.listing_base table td > div {
+  margin-bottom: 4px;
+}
+
+.listing_base table td > div:last-child {
+  margin-bottom: 0;
+}
+
+/* ラベルっぽい先頭文字を少し薄く */
+.listing_base table td span:first-child {
+  color: #666;
+}
+
+/* === 出品戦略 編集UI（Pre / ALL 共通） === */
+.strategy-edit-row {
+  display: flex;
+  align-items: center;
+  margin: 6px 0;              /* 行間だけで編集感を出す */
+}
+
+.strategy-edit-row .label {
+  width: 72px;                /* ← ラベル幅固定（UI安定の要） */
+  color: #555;
+}
+
+.strategy-edit-row input[type="number"] {
+  font-size: 12px;
+  border: none;
+  border-bottom: 1px solid #ccc; 
+  background: transparent;
+  width: 110px;               /* ← 数値入力は全て同一幅 */
+  text-align: right;          /* ← 業務UIの基本 */
+  padding: 6px 6px;
+  box-sizing: border-box;
+}
+
+.strategy-edit-row input[type="checkbox"] {
+  transform: translateY(1px); /* 数値inputとの縦位置微調整 */
+}
+
+/* 出品戦略 編集UI：操作ボタン */
+.strategy-edit-actions {
+  margin-top: 8px;
+  display: block;        /* 縦の流れに戻す */
+}
+
+.strategy-edit-actions button {
+  margin-right: 8px;     /* 横並びなら最低限の間隔 */
+}
+
+/* # --- ▲ SECTION : Pre / ALL 共通 ▲ ---  */
+
+.file-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.file-input-wrapper {
+  position: relative;
+  width: 100%;   /* 親の幅いっぱい */
+  max-width: 900px; /* 必要なら上限を決める */
+}
+
+.file-input-text {
+  flex: 1;
+  min-width: 300px;
+  height: 60px;
+  padding: 0 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* === OAuth 戻り・初期表示時のスクロール位置安定化 === */
+#account {
+    scroll-margin-top: 80px;
+}
+
+.top-layout {
+  display: flex;
+  height: 100%;
+  position: relative; /* ハンドル配置の基準 */
+  margin-top: 10px;
+}
+
+/* サイドバー */
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  padding: 24px 10px 15px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+
+  position: relative; 
+
+  /* height: 100vh; */
+  overflow-y: auto;
+
+}
+
+/* ハンドル */
+.collapse-handle {
+  position: absolute;
+  top: 20px;/* ← ＜マーク上の位置 */
+  left: 240px; /* ← ＜マーク配置の数値 */
+  width: 18px;
+  height: 232px;/* ← ＜マーク下の位置 */
+  background: #96c4f8;
+  border-radius: 0 5px 5px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  user-select: none;
+  transition: left 0.3s ease;
+  z-index: 10; /* サイドバーより前面 */
+}
+
+.sidebar.collapsed + .collapse-handle {
+  left: 0; /* サイドバー閉じたら画面左端 */
+}
+
+.collapse-handle:hover {
+  background: #bbb;
+}
+
+/* メイン表示部分 */
+.main-panel {
+  flex: 1;
+  padding: 0 30px 0 0; /* メニューとパネルの間隔幅 */
+}
+
+.subtab-content {
+    background: none;
+    border: none;
+    padding-left: 30px; /* Dashboardと揃える */
+    padding-top: 10px;
+    margin-top: 0; /* ← ここも必要 */
+}
+
+/* Scroll Top Button ↑ */
+#scrollTopBtn,
+#scrollBottomBtn{
+    position:fixed;
+    right:40px;
+    font-size:22px;
+    padding:10px 14px;
+    border:none;
+    border-radius:50%;
+    background: linear-gradient(135deg,#4a90e2,#7b5cd6);
+    color:white;
+    cursor:pointer;
+    display:none;
+}
+
+#scrollTopBtn{
+    bottom:90px;
+}
+
+#scrollBottomBtn{
+    bottom:40px;
+}
+
+#scrollTopBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}

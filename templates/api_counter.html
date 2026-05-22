@@ -1,0 +1,65 @@
+<!-- api_counter.html APIカウンター用html -->
+
+<style>
+/* APIカウンター */
+.api-header,
+.api-row {
+    display: grid;
+    grid-template-columns: 180px 100px 100px 100px 100px 100px; 
+    gap: 8px;
+    align-items: center;
+}
+
+.api-header {
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 4px;
+    margin-top: 10px;
+}
+
+.api-row {
+    padding: 2px 0;
+}
+
+.col-market { text-align: left; }
+.col-num { text-align: right; }
+
+.api-total {
+    font-weight: bold;
+    margin-top: 6px;
+}
+
+.api-spacer {
+    height: 12px;
+}
+
+</style>
+
+<div class="dashboard-block api-counter">
+
+    <h4>API Counter 【利用状況】</h4>
+
+    <!-- 説明文エリア（後日：管理者ページから変更可能） -->
+    <div class="api-counter-description" id="api-counter-description">
+        この表示は、Amazon SP-API の実行回数を確認するためのカウンターです。<br>
+        表示される数値は「実際に Amazon の API が呼び出された回数」を示します。<br>
+        画面操作や内部処理のみではカウントは増加しません。<br>
+    </div>    
+    <br>
+    
+    <button id="reloadApiCounter" class="btn-blue">UPDATE</button>
+
+    <hr style="margin:20px 0;"> <!-- -------- 区切り -------- -->      
+
+    <div id="api-counter-detail"></div>
+
+    <div class="api-counter-updated">
+        Last updated: <span id="api-counter-updated-at">---</span>
+    </div>
+
+</div>
+
+<script src="/static/js/api_counter.js"></script>
+
+
+

@@ -1,0 +1,147 @@
+<!-- marketplace_master.html -->
+{% block content %}
+
+<style>
+/* ===== レイアウト ===== */
+.admin-page .main-container {
+  margin-left: 0;
+  margin-right: 0;
+  font-size: 13px; 
+}
+
+/* ===== テーブル共通（ここが本体） ===== */
+.admin-page .table-wrapper {
+  overflow-x: auto;
+}
+
+/* ヘッダー固定 */
+.admin-page table thead th {
+  background: #f0f4f8;
+  z-index: 2;
+}
+
+/* ===== 編集行 ===== */
+.admin-page table tr.editing {
+  background: transparent;
+}
+
+/* ===== input ===== */
+.admin-page table td input {
+  width: 100% !important;
+  display: block;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: #ffffff;
+  padding: 4px 6px;
+  box-sizing: border-box;
+}
+
+.admin-page table td input:focus {
+  border-bottom: 2px solid #007bff;
+}
+
+.admin-page .table-wrapper {
+  max-height: 400px;     /* ←追加 */
+  overflow-y: auto;      /* ←修正 */
+  overflow-x: auto;
+}
+
+.admin-page table thead th {
+  position: sticky;   /* ←追加 */
+  top: 0;             /* ←追加 */
+  background: #f0f4f8;
+  z-index: 2;
+}
+
+/* ===== 詳細行 ===== */
+.mkt-detail-box {
+  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.mkt-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.mkt-detail-row label {
+  width: 140px;
+  min-width: 140px;
+  font-weight: 600;
+}
+
+.mkt-detail-row input {
+  flex: 1;
+  padding: 6px 8px;
+}
+</style>
+
+<div class="main-container admin-page">
+  <h2>Marketplaces 管理</h2>
+
+  <div class="card">
+  <h2>Marketplaces Master</h2>    
+    <div style="margin-bottom:12px;">
+        <button id="btn-add-marketplace" class="btn-blue btn-add">新規追加</button>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="mkt-master-table" class="display" style="width:100%;">
+          <thead>
+              <tr>
+                  <th>No</th>
+                  <th>Region</th>
+                  <th>Market</th>                   <!-- display_name -->
+                  <th>Market Id</th>                <!-- marketplace_id -->
+                  <th>currency</th>                 <!-- currency -->
+                  <th>Weight<br>Unit</th>           <!-- weight_unit 重量単位 -->
+                  <th>Dimension<br>Unit</th>        <!-- dimension_unit 寸法単位 -->
+                  <th>Language</th>                 <!-- locale 言語 日付 -->
+                  <th>Override<br>Fx Rate</th>      <!-- override_exchange_ratelocale 手動FX -->
+                  <th>timezone</th>
+                  <th>Tax<br>Mode</th>              <!-- tax_mode CIF/FOB設定 -->
+                  <th>host</th>
+                  <th>spapi_host</th>                  
+                  <th>action</th>
+              </tr>
+          </thead>
+          <tbody>
+            <!-- ここはAJAXで後から埋めるので空にする # ここを修正 -->
+          </tbody>    
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h2>Amazon Retail Sellers</h2>
+
+    <div style="margin-bottom:12px;">
+        <button id="btn-add-amazon-seller" class="btn-blue btn-add">新規追加</button>
+    </div>
+
+    <div class="table-wrapper" style="max-width:1000px;">
+      <table id="amazon-retail-table" class="display" style="width:100%;">
+          <thead>
+              <tr>
+                  <th>No</th>
+                  <th>Country</th>
+                  <th>Seller ID</th>
+                  <th>Note</th>
+                  <th>action</th>
+              </tr>
+          </thead>
+          <tbody>
+              <!-- AJAXで埋める -->
+          </tbody>
+      </table>
+    </div>
+  </div>  
+</div>
+
+
+{% endblock %}
