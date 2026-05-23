@@ -41,7 +41,7 @@ def get_brand_blacklist(user_id, country_code):
     import sqlite3
     db_name = _get_blacklist_db(country_code, "brand")
 
-    conn = sqlite3.connect(db_name)
+    conn = get_conn(db_name)
     cur = conn.cursor()
 
     cur.execute("SELECT brand FROM blacklist_brand WHERE user_id = ?", (user_id,))
@@ -55,7 +55,7 @@ def get_asin_blacklist(user_id, country_code):
     import sqlite3
     db_name = _get_blacklist_db(country_code, "asin")
 
-    conn = sqlite3.connect(db_name)
+    conn = get_conn(db_name)
     cur = conn.cursor()
 
     cur.execute("SELECT asin FROM blacklist_asin WHERE user_id = ?", (user_id,))
@@ -71,8 +71,10 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     # ↑↑↑↑ 削除してもOK デバグPrint
 
     # === 02-01: HOME marketplace_id 確定（listed_items基準） ===
-    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = sqlite3.connect(listed_db)
+    db_name = f"a_{country_code.lower()}_listed_items.db"
+    listed_db = db_name
+    conn = get_conn(db_name)    
+
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -139,7 +141,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         )
 
         # 出品再開
-        conn = sqlite3.connect(listed_db)
+        conn = get_conn(listed_db)
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -170,7 +172,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         )
 
         # 出品停止
-        conn = sqlite3.connect(listed_db)
+        conn = get_conn(listed_db) 
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -194,8 +196,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     )
 
     # --- ▼ TTL更新（HOME PRICING） ▼ ---
-    cache_db = os.path.join(DB_DIR, "a_pricing_cache.db")
-    conn = sqlite3.connect(cache_db)
+    conn = get_conn("a_pricing_cache.db") 
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -281,12 +282,12 @@ def _get_offer_filter_rules(user_id: int, country_code: str):
 
 # --- ▼ SECTION 05:REGION Pricing 正規更新 ▼ ---
 def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_price: float = 0):
-    # print(f"<<<REGION PRICING>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")
-    # ↑↑↑↑ 削除してもOK デバグPrint
 
     # === 05-01: REGION marketplace_id 確定（listed_items基準） ===
-    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = sqlite3.connect(listed_db)
+    db_name = f"a_{country_code.lower()}_listed_items.db"
+    listed_db = db_name
+    conn = get_conn(db_name)
+
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -324,7 +325,7 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     rules = _get_pricing_master_rules(user_id, country_code)
 
     # --- 自分ID取得（ここ追加） ---
-    conn_acc = sqlite3.connect(os.path.join(DB_DIR, "a_account_master.db"))
+    conn_acc = get_conn("a_account_master.db")
     conn_acc.row_factory = sqlite3.Row
     cur_acc = conn_acc.cursor()
 
@@ -375,8 +376,8 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     )
 
     # --- ▼ TTL更新（REGION PRICING） ▼ ---
-    cache_db = os.path.join(DB_DIR, "a_pricing_cache.db")
-    conn = sqlite3.connect(cache_db)
+    conn = get_conn("a_pricing_cache.db") 
+
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -595,13 +596,12 @@ def update_offer_filter_rules():
 # --- ▼ SECTION 11: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
-    # print(f"<<<LISTING PRICE>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")
-    # ↑↑↑↑ 削除してもOK デバグPrint
-
     # === 11-01: listed_items取得 ===
-    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
+    db_name = f"a_{country_code.lower()}_listed_items.db" 
+    listed_db = db_name
 
-    conn = sqlite3.connect(listed_db)
+    conn = get_conn(db_name)
+
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -643,7 +643,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     # home_price = float(home_price)
 
     # === 11-02: tax_mode取得 ===
-    conn_mid = sqlite3.connect(os.path.join(DB_DIR, "a_marketplaces_master.db"))
+    conn_mid = get_conn("a_marketplaces_master.db") 
     conn_mid.row_factory = sqlite3.Row
     cur_mid = conn_mid.cursor()
 
@@ -664,7 +664,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     currency = row_mid["currency"]
 
     # === 11-03: HOME通貨取得 === 
-    conn_home = sqlite3.connect(os.path.join(DB_DIR, "a_marketplaces.db"))
+    conn_home = get_conn("a_marketplaces.db")
     conn_home.row_factory = sqlite3.Row
     cur_home = conn_home.cursor()
 
@@ -758,7 +758,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         # --- ▼ min/max 保存（ここに追加） ---
         try:
-            conn_li = sqlite3.connect(os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db"))
+            conn_li = get_conn(f"a_{country_code.lower()}_listed_items.db")
             cur_li = conn_li.cursor()
 
             cur_li.execute("""
@@ -776,10 +776,10 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     selected_offer = None
 
     try:
-
-        conn_cache = sqlite3.connect(os.path.join(DB_DIR, "a_pricing_cache.db"))
+        conn_cache = get_conn("a_pricing_cache.db") 
         conn_cache.row_factory = sqlite3.Row
         cur_cache = conn_cache.cursor()
+
         cur_cache.execute("""
             SELECT region_offers_json
             FROM pricing_cache
@@ -806,7 +806,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
                 # --- ▼ 自分除外（ここ追加） ---
                 try:
-                    conn_acc = sqlite3.connect(os.path.join(DB_DIR, "a_account_master.db"))
+                    conn_acc = get_conn("a_account_master.db") 
                     conn_acc.row_factory = sqlite3.Row
                     cur_acc = conn_acc.cursor()
 
@@ -919,7 +919,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         try:
 
-            conn_acc = sqlite3.connect(os.path.join(DB_DIR, "a_account_master.db"))
+            conn_acc = get_conn("a_account_master.db")
             conn_acc.row_factory = sqlite3.Row
             cur_acc = conn_acc.cursor()
 
@@ -976,7 +976,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             pass
                
     # === 11-12: DB更新 ===
-    conn = sqlite3.connect(listed_db)
+    conn = get_conn(listed_db)
+
     try:
         cur = conn.cursor()
         cur.execute("""

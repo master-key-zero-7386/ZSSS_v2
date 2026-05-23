@@ -55,12 +55,7 @@ def _get_blacklist_db(country_code: str, target: str) -> str:
     else:
         raise ValueError("invalid target")
 
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "db",
-        "blacklist",
-        filename
-    )
+    return filename 
 
 # --- ▼ SECTION 03: CSV取り込み（ASIN / BRAND 同時） ▼ ---
 @blacklist_bp.post("/blacklist/import")
