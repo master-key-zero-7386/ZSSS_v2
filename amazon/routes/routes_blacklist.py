@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, session
 import sqlite3
 import os
 import csv
+from amazon.db import get_conn
 from io import TextIOWrapper
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -207,10 +208,17 @@ def get_blacklist_brand(country_code):
 
     db_name = _get_blacklist_db(country_code, "brand")
 
+    print("BLACKLIST BRAND DB >>>", db_name)  # // チェック完了後削除
+
+    print("BEFORE GET_CONN")  # // チェック完了後削除
     conn = get_conn(db_name) 
+    print("AFTER GET_CONN")  # // チェック完了後削除
 
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")  # // チェック完了後削除
+    print(cur.fetchall())  # // チェック完了後削除    
 
     try:
         cur.execute("""
@@ -255,10 +263,15 @@ def get_blacklist(country_code):
 
     db_name = _get_blacklist_db(country_code, "asin")
 
+    print("BLACKLIST ASIN DB >>>", db_name)  # // チェック完了後削除
+
     conn = get_conn(db_name) 
 
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")  # // チェック完了後削除
+    print(cur.fetchall())  # // チェック完了後削除      
 
     try:
         cur.execute("""

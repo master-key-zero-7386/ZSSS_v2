@@ -16,14 +16,21 @@ from pathlib import Path
 # 1. 環境変数 ZSSS_DB_DIR が指定されていればそれを使用
 # 2. なければ zsss_web/db をデフォルトとする
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # C:\zsss_web
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))  
 DATA_DIR = os.path.join(BASE_DIR, "db")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # --- ▼ SECTION 01:  ▼ ---
 def get_conn(db_name):
     """指定されたDBに接続（なければ新規作成）"""
-    db_path = os.path.join(DATA_DIR, db_name)
+    # db_path = os.path.join(DATA_DIR, db_name)
+
+    if "_blacklist_" in db_name:
+        db_path = os.path.join(DATA_DIR, "blacklist", db_name) 
+    elif "_seller_list" in db_name:
+        db_path = os.path.join(DATA_DIR, "sellerlist", db_name) 
+    else:
+        db_path = os.path.join(DATA_DIR, db_name)    
     
     conn = sqlite3.connect(db_path, timeout=10)
     conn.row_factory = sqlite3.Row

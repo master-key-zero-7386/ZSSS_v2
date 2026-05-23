@@ -8,6 +8,8 @@
 
 import os
 import sqlite3
+from amazon.db import get_conn
+
 
 # --- ▼ SECTION 01: ブラックリスト判定（From：CSV / TTL 共通） ▼ ---
 def is_blacklisted(asin, user_id, country_code, db_dir):
@@ -98,18 +100,18 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
     all_db = os.path.join(blacklist_dir, "a_all_blacklist_brand.db")
 
     # --- allチェック ---
-    if os.path.exists(all_db):
-        conn = sqlite3.connect(all_db)
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
-            (brand, user_id)
-        )
-        hit = cur.fetchone()
-        conn.close()
+    # if os.path.exists(all_db):
+    conn = get_conn("a_all_blacklist_brand.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+        (brand, user_id)
+    )
+    hit = cur.fetchone()
+    conn.close()
 
-        if hit:
-            return True
+    if hit:
+        return True
 
     # --- countryチェック ---
     country_db = os.path.join(
@@ -117,17 +119,17 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
         f"a_{country_code.lower()}_blacklist_brand.db"
     )
 
-    if os.path.exists(country_db):
-        conn = sqlite3.connect(country_db)
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
-            (brand, user_id)
-        )
-        hit = cur.fetchone()
-        conn.close()
+    # if os.path.exists(country_db):
+    conn = get_conn(f"a_{country_code.lower()}_blacklist_brand.db") 
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+        (brand, user_id)
+    )
+    hit = cur.fetchone()
+    conn.close()
 
-        if hit:
-            return True
+    if hit:
+        return True
 
     return False

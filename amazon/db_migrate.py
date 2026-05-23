@@ -26,6 +26,8 @@ def get_conn(db_name: str):
     else:
         db_path = os.path.join(DB_DIR, db_name)
 
+    print("GET_CONN DB_PATH >>>", db_path)  # // チェック完了後削除
+    
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
 
