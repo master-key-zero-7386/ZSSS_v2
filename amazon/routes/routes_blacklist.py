@@ -27,13 +27,7 @@ def _validate_country_code(country_code: str) -> str:
         "a_marketplaces.db"
     )
 
-    conn = sqlite3.connect(
-        os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "db",
-            "a_marketplaces.db"
-        )
-    )
+    conn = get_conn("a_marketplaces.db")
 
     cur = conn.cursor()
     cur.execute("SELECT LOWER(country_code) FROM marketplaces")
@@ -120,12 +114,11 @@ def import_blacklist_csv():
 
     # --- ASIN DB ---
     if asin_rows:
-        asin_db = os.path.join(db_dir, f"a_{country_code}_blacklist_asin.db")
 
-        if not os.path.exists(asin_db):
-            raise FileNotFoundError(asin_db) 
+        asin_db = f"a_{country_code}_blacklist_asin.db"
 
-        conn = sqlite3.connect(asin_db) 
+        conn = get_conn(asin_db) 
+
         cur = conn.cursor()
 
         cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = ?", (user_id,))
@@ -156,12 +149,11 @@ def import_blacklist_csv():
 
     # --- BRAND DB ---
     if brand_rows:
-        brand_db = os.path.join(db_dir, f"a_{country_code}_blacklist_brand.db")
 
-        if not os.path.exists(brand_db):
-            raise FileNotFoundError(brand_db)
+        brand_db = f"a_{country_code}_blacklist_brand.db"
 
-        conn = sqlite3.connect(brand_db)
+        conn = get_conn(brand_db) 
+
         cur = conn.cursor()
 
         cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = ?", (user_id,))
@@ -215,10 +207,8 @@ def get_blacklist_brand(country_code):
 
     db_name = _get_blacklist_db(country_code, "brand")
 
-    if not os.path.exists(db_name):
-        return jsonify({"status": "error", "message": "blacklist DB not found"}), 500
+    conn = get_conn(db_name) 
 
-    conn = sqlite3.connect(db_name)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -265,9 +255,8 @@ def get_blacklist(country_code):
 
     db_name = _get_blacklist_db(country_code, "asin")
 
-    if not os.path.exists(db_name):
-        return jsonify({"status": "error", "message": "blacklist DB not found"}), 500
-    conn = sqlite3.connect(db_name)
+    conn = get_conn(db_name) 
+
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -333,7 +322,8 @@ def update_blacklist():
     else:
         return jsonify({"status": "error", "message": "invalid target"}), 400
 
-    conn = sqlite3.connect(db_name)
+    conn = get_conn(db_name)
+
     cur = conn.cursor()
 
     try:
@@ -387,27 +377,23 @@ def delete_blacklist():
     db_name_asin = _get_blacklist_db(country_code, "asin")
     db_name_brand = _get_blacklist_db(country_code, "brand")
 
-    # まず asin 側削除
-    if os.path.exists(db_name_asin):
-        conn = sqlite3.connect(db_name_asin)
-        cur = conn.cursor()
-        cur.execute("""
-            DELETE FROM blacklist_asin
-            WHERE id = ? AND user_id = ?
-        """, (row_id, user_id))
-        conn.commit()
-        conn.close()
+    conn = get_conn(db_name_asin) 
+    cur = conn.cursor()
+    cur.execute("""
+        DELETE FROM blacklist_asin
+        WHERE id = ? AND user_id = ?
+    """, (row_id, user_id))
+    conn.commit()
+    conn.close()
 
-    # brand 側削除
-    if os.path.exists(db_name_brand):
-        conn = sqlite3.connect(db_name_brand)
-        cur = conn.cursor()
-        cur.execute("""
-            DELETE FROM blacklist_brand
-            WHERE id = ? AND user_id = ?
-        """, (row_id, user_id))
-        conn.commit()
-        conn.close()
+    conn = get_conn(db_name_brand) 
+    cur = conn.cursor()
+    cur.execute("""
+        DELETE FROM blacklist_brand
+        WHERE id = ? AND user_id = ?
+    """, (row_id, user_id))
+    conn.commit()
+    conn.close()
 
     threading.Thread(
         target=apply_blacklist_update,
@@ -442,36 +428,34 @@ def export_blacklist(country_code):
     writer.writerow(["type", "ASIN/BrandName", "note"])
 
     # --- BRAND ---
-    if os.path.exists(db_brand):
-        conn = sqlite3.connect(db_brand)
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
+    conn = get_conn(db_brand) 
+    conn.row_factory = sqlite3.Row    
+    cur = conn.cursor()
 
-        cur.execute("""
-            SELECT brand, note FROM blacklist_brand
-            WHERE user_id = ?
-        """, (user_id,))
+    cur.execute("""
+        SELECT brand, note FROM blacklist_brand
+        WHERE user_id = ?
+    """, (user_id,))
 
-        for r in cur.fetchall():
-            writer.writerow(["BRAND", r["brand"], r["note"]])
+    for r in cur.fetchall():
+        writer.writerow(["BRAND", r["brand"], r["note"]])
 
-        conn.close()
+    conn.close()
 
     # --- ASIN ---
-    if os.path.exists(db_asin):
-        conn = sqlite3.connect(db_asin)
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
+    conn = get_conn(db_asin) 
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
 
-        cur.execute("""
-            SELECT asin, note FROM blacklist_asin
-            WHERE user_id = ?
-        """, (user_id,))
+    cur.execute("""
+        SELECT asin, note FROM blacklist_asin
+        WHERE user_id = ?
+    """, (user_id,))
 
-        for r in cur.fetchall():
-            writer.writerow(["ASIN", r["asin"], r["note"]])
+    for r in cur.fetchall():
+        writer.writerow(["ASIN", r["asin"], r["note"]])
 
-        conn.close()
+    conn.close()
 
     output.seek(0)
 
@@ -513,7 +497,7 @@ def add_blacklist():
     else:
         return jsonify({"status": "error", "message": "invalid target"}), 400
 
-    conn = sqlite3.connect(db_name)
+    conn = get_conn(db_name) 
     cur = conn.cursor()
 
     try:
@@ -559,23 +543,23 @@ def apply_blacklist_update(user_id, country_code):
     brand_db = _get_blacklist_db(country_code, "brand")
     brand_ng_list = []
 
-    if os.path.exists(brand_db):
-        conn_b = sqlite3.connect(brand_db)
-        cur_b = conn_b.cursor()
-        cur_b.execute("SELECT brand FROM blacklist_brand WHERE user_id = ?", (user_id,))
-        brand_ng_list = [r[0].strip().lower() for r in cur_b.fetchall()]
-        conn_b.close()
+    # if os.path.exists(brand_db):
+    conn_b = get_conn(brand_db)
+    cur_b = conn_b.cursor()
+    cur_b.execute("SELECT brand FROM blacklist_brand WHERE user_id = ?", (user_id,))
+    brand_ng_list = [r[0].strip().lower() for r in cur_b.fetchall()]
+    conn_b.close()
 
     # --- ASINブラック取得 ---
     asin_db = _get_blacklist_db(country_code, "asin")
     asin_ng_list = []
 
-    if os.path.exists(asin_db):
-        conn_a = sqlite3.connect(asin_db)
-        cur_a = conn_a.cursor()
-        cur_a.execute("SELECT asin FROM blacklist_asin WHERE user_id = ?", (user_id,))
-        asin_ng_list = [r[0] for r in cur_a.fetchall()]
-        conn_a.close()
+    # if os.path.exists(asin_db):
+    conn_a = get_conn(asin_db) 
+    cur_a = conn_a.cursor()
+    cur_a.execute("SELECT asin FROM blacklist_asin WHERE user_id = ?", (user_id,))
+    asin_ng_list = [r[0] for r in cur_a.fetchall()]
+    conn_a.close()
 
     # --- 全件取得 ---
     cur.execute("SELECT * FROM listed_items WHERE user_id = ?", (user_id,))
