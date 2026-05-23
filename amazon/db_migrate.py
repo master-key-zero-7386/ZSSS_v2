@@ -779,36 +779,6 @@ def ensure_fx_settings_initialized():
 if __name__ == "__main__":
     main()
 
-# # --- API usage logs（課金対象APIの実行ログ） ---
-# def migrate_api_usage_logs():
-#     conn = get_conn("a_api_usage.db")
-#     cur = conn.cursor()
-
-#     cur.execute("""
-#         CREATE TABLE IF NOT EXISTS api_usage_logs (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             user_id INTEGER NOT NULL,
-#             marketplace_id TEXT NOT NULL,
-#             endpoint TEXT NOT NULL,
-#             -- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-#             created_at TEXT
-#         )
-#     """)
-
-#     # 集計用インデックス
-#     cur.execute("""
-#         CREATE INDEX IF NOT EXISTS idx_api_usage_user_market
-#         ON api_usage_logs (user_id, marketplace_id)
-#     """)
-
-#     cur.execute("""
-#         CREATE INDEX IF NOT EXISTS idx_api_usage_created_at
-#         ON api_usage_logs (created_at)
-#     """)
-
-#     conn.commit()
-#     conn.close()
-
 # --- API shipping rates（送料マスタ） ---
 def migrate_shipping_rates():
     conn = get_conn("a_shipping_rates.db")
