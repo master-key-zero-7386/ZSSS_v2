@@ -192,8 +192,7 @@ def admin_get_marketplaces_master():
         # ★ DataTables は配列を期待する
         return jsonify({"data": []})
 
-    db_path = os.path.join(BASE_DIR, "db", "a_marketplaces_master.db")
-    conn = sqlite3.connect(db_path)
+    conn = get_conn("a_marketplaces_master.db")
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -210,8 +209,7 @@ def admin_get_amazon_retail():
     if not session.get("is_admin"):
         return jsonify({"data": []})
 
-    db_path = os.path.join(BASE_DIR, "db", "a_marketplaces_master.db")
-    conn = sqlite3.connect(db_path)
+    conn = get_conn("a_marketplaces_master.db")
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -347,8 +345,7 @@ def get_account_master():
         # ============================================================
         # ① a_marketplaces.db（統合済みの1レコードを取得） 
         # ============================================================
-        db_mkt = os.path.join(BASE_DIR, "db", "a_marketplaces.db") 
-        conn = sqlite3.connect(db_mkt)
+        conn = get_conn("a_marketplaces.db")
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
@@ -520,8 +517,7 @@ def save_api_settings():
         r_catalog_ttl_days = safe_float(data.get("r_catalog_ttl_days"), 90)
         r_pricing_ttl_days = safe_float(data.get("r_pricing_ttl_days"), 90)        
 
-        db_m = os.path.join(BASE_DIR, "db", "a_marketplaces.db")
-        conn = sqlite3.connect(db_m)
+        conn = get_conn("a_marketplaces.db")
         cur = conn.cursor()
 
         now_utc = datetime.utcnow().isoformat()
@@ -579,8 +575,7 @@ def get_api_settings():
         if not country_code:
             return jsonify({"status": "error", "message": "country_code required"}), 400
 
-        db_m = os.path.join(BASE_DIR, "db", "a_marketplaces.db")
-        conn = sqlite3.connect(db_m)
+        conn = get_conn("a_marketplaces.db")
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
@@ -631,8 +626,8 @@ def set_home_region():
         now_utc = datetime.utcnow().isoformat()
         
         # --- a_account_master.db ---
-        db_acc = os.path.join(BASE_DIR, "db", "a_account_master.db")
-        conn = sqlite3.connect(db_acc)
+        conn = get_conn("a_account_master.db") 
+
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
@@ -660,8 +655,7 @@ def set_home_region():
         conn.close()
 
         # --- a_marketplaces.db (同じロジックで HOME が存在する時だけ更新)
-        db_mkt = os.path.join(BASE_DIR, "db", "a_marketplaces.db")
-        conn = sqlite3.connect(db_mkt)
+        conn = get_conn("a_marketplaces.db") 
         cur = conn.cursor()
         cur.execute("""
             UPDATE marketplaces
