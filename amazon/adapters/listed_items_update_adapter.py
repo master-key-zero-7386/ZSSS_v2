@@ -9,8 +9,10 @@
 # ======================================================
 
 import sqlite3
+from amazon.db import get_conn 
 import os
 from datetime import datetime, timedelta
+
 
 class ListedItemsUpdate:
     def __init__(self, base_dir: str):
@@ -126,8 +128,8 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 03: listed_items書き込み（PRICING HOME） ▼ ---
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = get_conn(listed_db)
+        conn.execute("PRAGMA journal_mode=WAL")         
 
         try:
             cur = conn.cursor()
@@ -185,7 +187,7 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---  
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30)
+        conn = get_conn(listed_db) 
         conn.execute("PRAGMA journal_mode=WAL")
 
         try:
