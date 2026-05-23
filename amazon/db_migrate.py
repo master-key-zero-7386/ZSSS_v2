@@ -15,7 +15,7 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db")
 
 
 def get_conn(db_name: str):
-    """指定DBに接続（なければ新規作成）"""
+    """指定DBへ接続（DB生成は db_migrate.py のみで行う）"""
 
     # --- ▼ ここで保存先を決める（今回は blacklist のみ） ---
     if "_blacklist_" in db_name:
@@ -26,15 +26,10 @@ def get_conn(db_name: str):
     else:
         db_path = os.path.join(DB_DIR, db_name)
 
-    # # --- ▼ フォルダがなければ作成 ---
-    # if not os.path.exists(db_path):
-    #     raise FileNotFoundError(db_path) 
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(db_path)
 
-    # conn = sqlite3.connect(f"file:{db_path}?mode=rw", uri=True)
-    # conn.row_factory = sqlite3.Row
-
-    os.makedirs(os.path.dirname(db_path), exist_ok=True) 
-    conn = sqlite3.connect(db_path, timeout=30) 
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
 
     return conn
@@ -87,7 +82,7 @@ BLACKLIST_BRAND_COLUMNS = {
     "created_at": "TEXT"
 }
 
-#     # --- BlackList 管理者用カラム ---
+# # --- BlackList 管理者用カラム ---
 # BLACKLIST_BRAND_COLUMNS = {
 #     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
 #     "user_id": "INTEGER",
@@ -97,6 +92,12 @@ BLACKLIST_BRAND_COLUMNS = {
 #     "JapanBrand": "TEXT",
 #     "timestamp": "TEXT"
 # }
+
+# --- ▼ SECTION : admin settings（管理者設定） ▼ ---
+ADMIN_SETTINGS_COLUMNS = {
+    "key": "TEXT PRIMARY KEY",
+    "value": "TEXT"
+}
 
 # --- ▼ SECTION ： Bland Gate用 ▼ ---
 BRAND_GATE_RESULT_COLUMNS = {
@@ -502,7 +503,9 @@ def migrate_db(db_name):
     # elif base.endswith("_brand_master.db"):
     #     migrate_table(conn, "brand_master", BRAND_MASTER_COLUMNS)  
     elif base.endswith("_brand_gate_result.db"):
-        migrate_table(conn, "brand_gate_result", BRAND_GATE_RESULT_COLUMNS)        
+        migrate_table(conn, "brand_gate_result", BRAND_GATE_RESULT_COLUMNS)
+    elif base.endswith("_admin_settings.db"):
+        migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS)                   
 
 
     conn.close()

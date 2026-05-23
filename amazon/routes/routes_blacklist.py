@@ -126,21 +126,15 @@ def import_blacklist_csv():
     # --- ASIN DB ---
     if asin_rows:
         asin_db = os.path.join(db_dir, f"a_{country_code}_blacklist_asin.db")
-        conn = sqlite3.connect(asin_db)
+
+        if not os.path.exists(asin_db):
+            raise FileNotFoundError(asin_db) 
+
+        conn = sqlite3.connect(asin_db) 
         cur = conn.cursor()
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS blacklist_asin (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                user_id INTEGER NOT NULL,
-                asin TEXT NOT NULL,
-                note TEXT,
-                created_at TEXT,
-                UNIQUE(user_id, asin COLLATE NOCASE)
-            )
-        """)
-
         cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = ?", (user_id,))
+
         result["asin"]["before"] = cur.fetchone()[0]
 
         now_utc = datetime.utcnow().isoformat()
@@ -168,21 +162,15 @@ def import_blacklist_csv():
     # --- BRAND DB ---
     if brand_rows:
         brand_db = os.path.join(db_dir, f"a_{country_code}_blacklist_brand.db")
+
+        if not os.path.exists(brand_db):
+            raise FileNotFoundError(brand_db)
+
         conn = sqlite3.connect(brand_db)
         cur = conn.cursor()
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS blacklist_brand (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,   
-                user_id INTEGER NOT NULL,
-                brand TEXT NOT NULL,
-                note TEXT,
-                created_at TEXT,
-                UNIQUE(user_id, brand COLLATE NOCASE)
-            )
-        """)
-
         cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = ?", (user_id,))
+
         result["brand"]["before"] = cur.fetchone()[0]
 
         now_utc = datetime.utcnow().isoformat()

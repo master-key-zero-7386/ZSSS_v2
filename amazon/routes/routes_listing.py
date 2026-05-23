@@ -48,13 +48,13 @@ def update_home_info(asin: str, user_id: int, home_data: dict, country_code: str
     ※ もう home_flag は一切参照しない！！
     """
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    db_path = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+    db_name = f"a_{country_code.lower()}_listed_items.db" 
 
-
-    if not os.path.exists(db_path):
-        print(f"[WARN] target listed_items DB not found: {db_path}")
-        return False
+    try:
+        conn = get_conn(db_name)
+    except FileNotFoundError:
+        print(f"[WARN] target listed_items DB not found: {db_name}")
+        return False    
 
     try:
         # --- 値取り出し ---
@@ -67,7 +67,6 @@ def update_home_info(asin: str, user_id: int, home_data: dict, country_code: str
         vol_wt      = home_data.get("volumetric_weight_kg")
         bill_wt     = home_data.get("billable_weight_kg")
 
-        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
         res = cur.execute("""
@@ -103,21 +102,20 @@ def update_region_info(asin: str, user_id: int, catalog_data: dict, country_code
     globalRegion（= region）で指定された listed_items DB に 情報を書く。
     """
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
-    db_path = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+    db_name = f"a_{country_code.lower()}_listed_items.db" 
 
-
-    if not os.path.exists(db_path):
-        print(f"[WARN] target listed_items DB not found: {db_path}")
+    try:
+        conn = get_conn(db_name)
+    except FileNotFoundError:
+        print(f"[WARN] target listed_items DB not found: {db_name}")
         return False
-
+        
     try:
         # --- region 用値取り出し ---
         region_brand        = (catalog_data.get("brand") or "").strip() if catalog_data else "" 
         region_manufacturer = (catalog_data.get("manufacturer") or "").strip() if catalog_data else ""  
         image_url           = (catalog_data.get("image_url") or "").strip() if catalog_data else ""  
 
-        conn = sqlite3.connect(db_path)
         cur = conn.cursor()
 
         res = cur.execute("""
@@ -572,15 +570,14 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     marketplace_id = row_mid[0]
     timezone = row_tz[0] if row_tz else "UTC"
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    db_file = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
+    db_name = f"a_{country_code.lower()}_listed_items.db"
 
-    if not os.path.exists(db_file):
-        return None, 0, f"DB not found: {db_file}"
+    try:
+        conn = get_conn(db_name) 
+    except FileNotFoundError:
+        return None, 0, f"DB not found: {db_name}" 
 
-    conn = sqlite3.connect(db_file) 
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+    cur = conn.cursor()  # ここを修正
 
     offset = (page - 1) * limit  
 
@@ -770,13 +767,16 @@ def search_listing():
             order_by = "billable_weight_kg DESC"            
 
         status_value = "pre" if mode == "pre" else "listed"
+        
+        db_name = f"a_{country_code}_listed_items.db" 
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+        try:
+            conn = get_conn(db_name) 
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500 
 
-        conn = sqlite3.connect(db_file)
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
+
 
         if detail:
 
@@ -847,9 +847,8 @@ def search_listing():
         rows = cur.fetchall()
         conn.close()
 
-        # --- ▼ marketplace_id + timezone取得 ▼ ---
-        conn_m = sqlite3.connect("db/a_marketplaces.db")
-        cur_m = conn_m.cursor()
+        conn_m = get_conn("a_marketplaces.db") 
+        cur_m = conn_m.cursor() 
 
         cur_m.execute("""
             SELECT marketplace_id
@@ -915,12 +914,15 @@ def fetch_item_info():
         }), 400
 
     # --- listed_items DB 読み込み ---
-    import os
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
-    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+    db_name = f"a_{country_code}_listed_items.db"  
 
-    conn = sqlite3.connect(db_file) 
-    cur = conn.cursor()
+    try:
+        conn = get_conn(db_name) 
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500
+
+    cur = conn.cursor() 
+
     cur.execute("""
         SELECT
             home_brand,
@@ -1050,8 +1052,14 @@ def delete_item():
         # ============================================================
         # ★ listed_items 削除処理（ユーザーID条件を追加） 
         # ============================================================
-        conn = sqlite3.connect(db_file, timeout=5)
-        cur = conn.cursor()
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name) 
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
+
+        cur = conn.cursor()         
 
         if sku:
             cur.execute("""
@@ -1067,46 +1075,6 @@ def delete_item():
         deleted_main = cur.rowcount
         conn.commit()
         conn.close()
-
-        # # ============================================================
-        # # ★ cache削除（pricing_cache は HOME共通 DB）
-        # #     → user_id 条件追加で他ユーザーのデータを削除しない 
-        # # ============================================================
-        # if os.path.exists(cache_db):
-        #     cache_conn = sqlite3.connect(cache_db, timeout=5)
-        #     cache_cur = cache_conn.cursor()
-
-        #     if sku:
-        #         cache_cur.execute("""
-        #             DELETE FROM pricing_cache
-        #             WHERE asin=? AND sku=? AND user_id=? 
-        #         """, (asin, sku, user_id))
-        #     else:
-        #         cache_cur.execute("""
-        #             DELETE FROM pricing_cache
-        #             WHERE asin=? AND (sku IS NULL OR sku='') AND user_id=?  
-        #         """, (asin, user_id))
-
-        #     deleted_cache = cache_cur.rowcount
-        #     cache_conn.commit()
-        #     cache_conn.close()
-
-        # # ============================================================
-        # # ★ cache削除（catalog_cache：raw_json 専用）
-        # # ============================================================
-        # if os.path.exists(catalog_cache_db):
-        #     catalog_conn = sqlite3.connect(catalog_cache_db, timeout=5)
-        #     catalog_cur = catalog_conn.cursor()
-
-        #     catalog_cur.execute("""
-        #         DELETE FROM catalog_cache
-        #         WHERE asin=? AND sku=? AND user_id=?
-        #     """, (asin, sku, user_id)) 
-
-        #     deleted_catalog_cache = catalog_cur.rowcount
-        #     catalog_conn.commit()
-        #     catalog_conn.close()
-
 
         return jsonify({
             "status": "success",
@@ -1131,15 +1099,19 @@ def bulk_delete_items():
 
     user_id = session.get("user_id")
 
-    db_dir = current_app.config.get("DB_DIR")
-
     if not items:
         return jsonify({"status": "success", "results": []}) 
-    country_code = (items[0].get("country_code") or "").strip().lower() 
-    listed_db = os.path.join(db_dir, f"a_{country_code}_listed_items.db")
 
-    conn = sqlite3.connect(listed_db)
-    cur = conn.cursor()
+    country_code = (items[0].get("country_code") or "").strip().lower()    
+
+    db_name = f"a_{country_code}_listed_items.db" 
+
+    try:
+        conn = get_conn(db_name)  
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500  
+
+    cur = conn.cursor()  
 
     for item in items:
         sku = (item.get("sku") or "").strip()
@@ -1210,24 +1182,25 @@ def bulk_delete_items():
             )
             print("BULK FEED RESPONSE:", feed_response, flush=True)
 
-            # ここを追加
+
             if isinstance(feed_response, dict):
                 print("FEED ID:", feed_response.get("feedId"), flush=True)  # チェック完了後削除
 
         # --- DB削除・cache削除（単体Deleteと同じ処理） ---
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
-        # cache_db = os.path.join(base_dir, "db", "a_pricing_cache.db")
-        # catalog_cache_db = os.path.join(base_dir, "db", "a_catalog_cache.db")
 
-        conn = sqlite3.connect(db_file, timeout=5)
-        cur = conn.cursor()      
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name) 
+        except FileNotFoundError:
+            continue 
+
+        cur = conn.cursor() 
 
         for sku in sku_list:
             try:
-                # listed_items 削除
-                # conn = sqlite3.connect(db_file, timeout=5)
-                # cur = conn.cursor()
                 if sku:
                     cur.execute("""
                         DELETE FROM listed_items
@@ -1238,35 +1211,6 @@ def bulk_delete_items():
                         DELETE FROM listed_items
                         WHERE user_id=?
                     """, (user_id,))
-
-                # if cache_cur:
-
-                #     if sku:
-                #         cache_cur.execute("""
-                #             DELETE FROM pricing_cache
-                #             WHERE sku=? AND user_id=?
-                #         """, (sku, user_id))
-                #     else:
-                #         cache_cur.execute("""
-                #             DELETE FROM pricing_cache
-                #             WHERE user_id=?
-                #         """, (user_id,))
-
-
-                # # catalog_cache 削除
-                # if catalog_cur:
-
-                #     if sku:
-                #         catalog_cur.execute("""
-                #             DELETE FROM catalog_cache
-                #             WHERE sku=? AND user_id=?
-                #         """, (sku, user_id))
-                #     else:
-                #         catalog_cur.execute("""
-                #             DELETE FROM catalog_cache
-                #             WHERE user_id=?
-                #         """, (user_id,))
-
 
                 print(f"[DB DELETE COMPLETE] SKU: {sku}", flush=True)
                 results.append({
@@ -1301,8 +1245,8 @@ def move_to_all():
         country_code = (data.get("country_code") or "").strip()   
         user_id = session.get("user_id")  
 
-        conn_m = sqlite3.connect("db/a_marketplaces.db")
-        cur_m = conn_m.cursor()
+        conn_m = get_conn("a_marketplaces.db") 
+        cur_m = conn_m.cursor()  
 
         cur_m.execute("""
         SELECT marketplace_id
@@ -1362,9 +1306,8 @@ def move_to_all():
                     quantity = 1           # 出品在庫数量
 
                 # --- ▼ handling_time決定 ▼ ---
-                db_dir = current_app.config.get("DB_DIR")
-                conn_rule = sqlite3.connect(os.path.join(db_dir, "a_pricing_settings.db"))
-                cur_rule = conn_rule.cursor()
+                conn_rule = get_conn("a_pricing_settings.db") 
+                cur_rule = conn_rule.cursor()      
 
                 country_code = country_code.upper()
 
@@ -1463,11 +1406,14 @@ def bulk_move_to_all():
     country_code = data.get("country_code")
     user_id = session.get("user_id")
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+    db_name = f"a_{country_code}_listed_items.db"
 
-    conn = sqlite3.connect(db_file)
-    cur = conn.cursor()
+    try:
+        conn = get_conn(db_name)
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
+
+    cur = conn.cursor()   
 
     for asin in asins:
 
@@ -1513,14 +1459,14 @@ def update_strategy():
         strategy_handling_time = data.get("strategy_handling_time")
         strategy_handling_time = int(strategy_handling_time) if str(strategy_handling_time).isdigit() and int(strategy_handling_time) > 0 else 7
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
+        db_name = f"a_{country_code}_listed_items.db"
 
-        if not os.path.exists(db_file):
-            return jsonify({"status": "error", "message": f"DB not found: {db_file}"})
+        try:
+            conn = get_conn(db_name)  
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500  
 
-        conn = sqlite3.connect(db_file) 
-        cur = conn.cursor()
+        cur = conn.cursor() 
 
         now_utc = datetime.utcnow().isoformat()
         # --- 更新 ---

@@ -10,13 +10,11 @@ DB_NAME = "a_admin_settings.db"
 
 def _get_conn(base_dir):
     path = os.path.join(base_dir, DB_NAME)
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(path) 
+
     conn = sqlite3.connect(path)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS admin_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
     return conn
 
 
