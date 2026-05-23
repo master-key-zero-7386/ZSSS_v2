@@ -658,16 +658,6 @@ def add_unique_indexes():  # UNIQUE制約
         conn2.commit()
         conn2.close()        
 
-    # # --- a_brand_master.db ---
-    # conn = get_conn("a_brand_master.db")
-    # cur = conn.cursor()
-    # cur.execute(
-    #     "CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_master_unique "
-    #     "ON brand_master(user_id, country_code, brand, manufacturer)"
-    # )
-    # conn.commit()
-    # conn.close()
-
     # --- a_brand_gate_result.db ---
     conn = get_conn("a_brand_gate_result.db")
     cur = conn.cursor()
