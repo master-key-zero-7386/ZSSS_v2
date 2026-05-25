@@ -51,10 +51,7 @@ def update_marketplace_master():
             return jsonify({"status": "error", "message": "marketplace_id 必須"}), 400
 
         # DB 接続
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")) 
-        DB_PATH = os.path.join(BASE_DIR, "db", "a_marketplaces_master.db")
-
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn("a_marketplaces_master.db") 
         cur = conn.cursor()
 
         # UPDATE（marketplace_id を主キーにする）
@@ -143,10 +140,8 @@ def insert_marketplace_master():
                 return jsonify({"status": "error", "message": f"{k} 必須"}), 400
 
         # DB 接続
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        DB_PATH = os.path.join(BASE_DIR, "db", "a_marketplaces_master.db")
+        conn = get_conn("a_marketplaces_master.db") 
 
-        conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
 
         now_utc = datetime.utcnow().isoformat()
@@ -230,10 +225,7 @@ def delete_marketplace_master():
         if not marketplace_id:
             return jsonify({"status": "error", "message": "marketplace_id 必須"}), 400
 
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        DB_PATH = os.path.join(BASE_DIR, "db", "a_marketplaces_master.db")
-
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn("a_marketplaces_master.db") 
         cur = conn.cursor()
 
         cur.execute(
@@ -269,10 +261,7 @@ def update_amazon_retail():
             return jsonify({"status": "error", "message": "seller_id 必須"}), 400
 
         # DB 接続
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "db", "a_marketplaces_master.db")
-
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn("a_marketplaces_master.db") 
         cur = conn.cursor()
 
         # UPDATE
@@ -322,10 +311,7 @@ def insert_amazon_retail():
                 return jsonify({"status": "error", "message": f"{k} 必須"}), 400
 
         # DB 接続
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "db", "a_marketplaces_master.db")
-
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn("a_marketplaces_master.db") 
         cur = conn.cursor()
 
         now_utc = datetime.utcnow().isoformat()
@@ -371,10 +357,7 @@ def delete_amazon_retail():
         if not seller_id:
             return jsonify({"status": "error", "message": "seller_id 必須"}), 400
 
-        BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "db", "a_marketplaces_master.db")
-
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_conn("a_marketplaces_master.db") 
         cur = conn.cursor()
 
         cur.execute(
@@ -475,8 +458,7 @@ def get_raw_by_asin():
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
         # --- listed_items ID検索用---
-        conn_l = sqlite3.connect(os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db"))
-        conn_l.row_factory = sqlite3.Row
+        conn_l = get_conn(f"a_{country_code}_listed_items.db") 
         cur_l = conn_l.cursor()
 
         cur_l.execute("""
@@ -490,8 +472,7 @@ def get_raw_by_asin():
         conn_l.close()
 
         # --- pricing_cache ID検索用 ---
-        conn_p = sqlite3.connect(os.path.join(base_dir, "db", "a_pricing_cache.db"))
-        conn_p.row_factory = sqlite3.Row
+        conn_p = get_conn("a_pricing_cache.db") 
         cur_p = conn_p.cursor()
 
         cur_p.execute("""
@@ -513,8 +494,7 @@ def get_raw_by_asin():
         region_pricing = safe_json_load(row_p["region_offers_json"]) if row_p else {}       
 
         # --- catalog_cache ID検索用 ---
-        conn_c = sqlite3.connect(os.path.join(base_dir, "db", "a_catalog_cache.db"))
-        conn_c.row_factory = sqlite3.Row
+        conn_c = get_conn("a_catalog_cache.db")
         cur_c = conn_c.cursor()
 
         cur_c.execute("""
@@ -635,8 +615,7 @@ DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "db", "a_marketplaces.db")
 
 @admin_market_bp.route("/get_marketplaces", methods=["GET"])
 def get_marketplaces():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
 
     cur.execute("SELECT country_code, display_name FROM marketplaces ORDER BY id")
@@ -650,7 +629,6 @@ def get_marketplaces():
             for r in rows
         ]
     })
-
 
 # ▼▼▼ Pricing設定Ⅲ UI Priceチェック機能Ⅲ ▼▼▼
 # --- ▼ SECTIONⅢ 01: HOME Pricing Debug 実行（From：pricing_debug.html） ▼ ---
@@ -759,7 +737,6 @@ def run_region_pricing_debug():
     # --- marketplace_id 取得 ---
     conn_mid = get_conn("a_marketplaces_master.db")
     try:
-        conn_mid.row_factory = sqlite3.Row
         cur_mid = conn_mid.cursor()
         cur_mid.execute("""
             SELECT marketplace_id, tax_mode
@@ -809,9 +786,7 @@ def run_region_pricing_debug():
 
     # --- ▼ 送料算定（正規ルート簡易版）▼ ---
     # === ① listed_items から寸法取得 ===
-    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = sqlite3.connect(listed_db)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
     cur = conn.cursor()
     cur.execute("""
         SELECT length_cm, width_cm, height_cm, actual_weight_kg
@@ -864,8 +839,7 @@ def run_region_pricing_debug():
     )
 
     # === HOME通貨取得 ===
-    conn_home = sqlite3.connect(os.path.join(DB_DIR, "a_marketplaces.db"))
-    conn_home.row_factory = sqlite3.Row
+    conn_home = get_conn("a_marketplaces.db")
     cur_home = conn_home.cursor()
 
     cur_home.execute("""
@@ -882,8 +856,7 @@ def run_region_pricing_debug():
     home_currency = home_row["currency"]
 
     # === REGION通貨取得 ===
-    conn_mid = sqlite3.connect(os.path.join(DB_DIR, "a_marketplaces_master.db"))
-    conn_mid.row_factory = sqlite3.Row
+    conn_mid = get_conn("a_marketplaces_master.db")
     cur_mid = conn_mid.cursor()
 
     cur_mid.execute("""
