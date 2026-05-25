@@ -19,9 +19,7 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
     # ------------------------------------------------------------
     # ① account_master（ユーザー固有情報）
     # ------------------------------------------------------------
-    db_acc = os.path.join(BASE_DIR, "db", "a_account_master.db")
-    conn_acc = sqlite3.connect(db_acc)
-    conn_acc.row_factory = sqlite3.Row
+    conn_acc = get_conn("a_account_master.db")
     cur_acc = conn_acc.cursor()
 
     cur_acc.execute("""
@@ -236,10 +234,8 @@ def get_home_account():
 
         # ======================================================
         # ① HOME region を a_marketplaces.db から決定する
-        # ======================================================
-        db_mkt = os.path.join(BASE_DIR, "db", "a_marketplaces.db") 
-        conn_mkt = sqlite3.connect(db_mkt)
-        conn_mkt.row_factory = sqlite3.Row
+        # ======================================================        
+        conn_mkt = get_conn("a_marketplaces.db")
         cur_mkt = conn_mkt.cursor()
 
         cur_mkt.execute("""
@@ -267,9 +263,7 @@ def get_home_account():
         # ======================================================
         # ② HOME のアカウント情報（すべて a_marketplaces.db から取得） 
         # ======================================================
-        db_mkt = os.path.join(BASE_DIR, "db", "a_marketplaces.db")
-        conn_acc = sqlite3.connect(db_mkt)
-        conn_acc.row_factory = sqlite3.Row
+        conn_acc = get_conn("a_marketplaces.db")
         cur_acc = conn_acc.cursor()
 
         cur_acc.execute("""
@@ -432,10 +426,7 @@ def save_account_master():
         # ② account_master の seller_id / refresh_token だけ更新
         #    ※ 管理者項目（client_id 等）は触らない
         # -------------------------------------------------------
-        db_acc = os.path.join(BASE_DIR, "db", "a_account_master.db")
-
-        conn_acc = sqlite3.connect(db_acc)
-        conn_acc.row_factory = sqlite3.Row
+        conn_acc = get_conn("a_account_master.db")
         cur_acc = conn_acc.cursor()
 
         # --- ▼ 追加：HOMEは必ず1件にする（ここを修正） ---
@@ -680,8 +671,7 @@ def delete_home_account():
         # -----------------------------------------------------
         # ① a_account_master.db の HOME削除（既存）
         # -----------------------------------------------------
-        db_acc = os.path.join(BASE_DIR, "db", "a_account_master.db")
-        conn   = sqlite3.connect(db_acc)
+        conn = get_conn("a_account_master.db")
         cur    = conn.cursor()
 
         cur.execute("""
@@ -696,8 +686,7 @@ def delete_home_account():
         # -----------------------------------------------------
         # ② a_marketplaces.db の HOME削除（追加）
         # -----------------------------------------------------
-        db_mkt = os.path.join(BASE_DIR, "db", "a_marketplaces.db")
-        conn2  = sqlite3.connect(db_mkt)
+        conn2 = get_conn("a_marketplaces.db")
         cur2   = conn2.cursor()
 
         # ★ HOMEフラグ=1 のマーケットプレイスを削除
