@@ -18,7 +18,7 @@ from amazon.routes.routes_catalog_v2 import (update_home_catalog, update_region_
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing,)
 from amazon.background.common.background_common import api_request_sleep 
 from amazon.routes.routes_pricing_v2 import update_listing_price
-from amazon.db_migrate import get_conn
+from amazon.db import get_conn
 from amazon.guard.guard_429 import is_blocked
 
 

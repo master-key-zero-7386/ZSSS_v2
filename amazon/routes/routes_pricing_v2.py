@@ -20,7 +20,7 @@ from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
-from amazon.db_migrate import get_conn
+from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
 from amazon.core.price_calculator import calculate_listing_price
