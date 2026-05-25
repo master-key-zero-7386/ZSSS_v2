@@ -1274,11 +1274,11 @@ def move_to_all():
         max_retry = 5
         for attempt in range(max_retry):
             try:
-                conn = sqlite3.connect(db_file, timeout=10)
+                conn = sqlite3.connect(db_file, timeout=10) # 一旦保留
                 cur = conn.cursor()
 
                 # WALモード設定
-                cur.execute("PRAGMA journal_mode=WAL;")
+                cur.execute("PRAGMA journal_mode=WAL;") # 一旦保留
 
                 # --- ▼ 出品用データ取得 ▼ ---
                 cur.execute("""
