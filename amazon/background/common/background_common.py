@@ -9,7 +9,7 @@
 import os
 import sqlite3
 import time
-from amazon.db_migrate import get_conn  
+from amazon.db import get_conn
 
 
 # --- ▼ SECTION 01: 有効な listed_items DB ファイル名チェック ▼ ---
@@ -37,7 +37,8 @@ def get_valid_country_codes(db_dir: str) -> set[str]:
     db_path = os.path.join(db_dir, "a_marketplaces.db") 
     country_codes = set()
 
-    conn = sqlite3.connect(db_path)
+    conn = get_conn("a_marketplaces.db")
+
     try:
         cur = conn.cursor()
         cur.execute("""
