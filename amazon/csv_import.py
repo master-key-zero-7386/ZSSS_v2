@@ -148,7 +148,7 @@ def import_csv():
     db_dir = current_app.config.get("DB_DIR")
     try:
         # if "file" not in request.files and request.form.get("mode", "check") == "check":
-        mode = request.form.get("mode", "check")  # ←ここに追加
+        mode = request.form.get("mode", "check") 
 
         if mode == "check" and "file" not in request.files:
             
@@ -158,7 +158,8 @@ def import_csv():
         country_code = request.form.get("country_code", "").upper()
 
         # --- 利用可能リージョン取得（DB） ---
-        conn_m = sqlite3.connect(os.path.join(db_dir, "a_marketplaces.db"))
+        conn_m = get_conn("a_marketplaces.db")
+
         cur_m = conn_m.cursor()
         cur_m.execute("SELECT DISTINCT country_code FROM marketplaces")
         valid_regions = [row[0].upper() for row in cur_m.fetchall()]
@@ -251,8 +252,8 @@ def import_csv():
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
 
             if os.path.exists(listed_db):
-                conn = sqlite3.connect(listed_db, timeout=30)
-                conn.execute("PRAGMA journal_mode=WAL")
+                conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+                conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
                 cur = conn.cursor()
                 for asin in asin_list:
                     cur.execute("SELECT 1 FROM listed_items WHERE asin = ?", (asin,))
@@ -299,17 +300,18 @@ def import_csv():
             # ▼ リージョンを再取得してDBを開く（重要）
             country_code = request.form.get("country_code", "").upper()
             # --- 利用可能リージョン取得（DB） ---
-            conn_m = sqlite3.connect(os.path.join(db_dir, "a_marketplaces.db"))
+            conn_m = get_conn("a_marketplaces.db")
             cur_m = conn_m.cursor()
             cur_m.execute("SELECT DISTINCT country_code FROM marketplaces")
             valid_regions = [row[0].upper() for row in cur_m.fetchall()]
             conn_m.close()
 
-            if country_code not in valid_regions:   # ←ここを修正
+            if country_code not in valid_regions:
                 return jsonify({"status": "error", "message": "選択したマーケットプレイスが違います"}), 400
 
-            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db")
-            conn = sqlite3.connect(listed_db, timeout=30)
+            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") # 一旦保留
+            conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+            
             conn.execute("PRAGMA journal_mode=WAL")
             cur = conn.cursor()
 
@@ -319,7 +321,7 @@ def import_csv():
                 return jsonify({"status": "error", "message": "not logged in"}), 401
 
             # REGION marketplace_id（UIで選択された region）
-            conn_m = sqlite3.connect(os.path.join(db_dir, "a_marketplaces.db"))
+            conn_m = get_conn("a_marketplaces.db")
             cur_m = conn_m.cursor()
             cur_m.execute("""
                 SELECT marketplace_id
@@ -483,7 +485,8 @@ def import_csv():
 def insert_cache_record_from_csv(db_dir: str, asin: str, home_marketplace_id: str, region_marketplace_id: str):
     # --- catalog_cache ---
     catalog_db = os.path.join(db_dir, "a_catalog_cache.db")
-    conn_c = sqlite3.connect(catalog_db)
+    conn_c = get_conn("a_catalog_cache.db")
+
     cur_c = conn_c.cursor()
     
     try:
@@ -509,7 +512,7 @@ def insert_cache_record_from_csv(db_dir: str, asin: str, home_marketplace_id: st
 
     # --- pricing_cache ---
     pricing_db = os.path.join(db_dir, "a_pricing_cache.db")
-    conn_p = sqlite3.connect(pricing_db)
+    conn_p = get_conn("a_pricing_cache.db")
     cur_p = conn_p.cursor()
     try:
         now = datetime.utcnow()
@@ -548,7 +551,7 @@ def export_listed_csv():
 
     db_file = os.path.join(db_dir, f"a_{country_code}_listed_items.db") 
 
-    conn = sqlite3.connect(db_file)
+    conn = get_conn(f"a_{country_code}_listed_items.db")
     cur = conn.cursor()
 
     cur.execute("""
