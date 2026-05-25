@@ -14,7 +14,7 @@ def _get_conn(base_dir):
     if not os.path.exists(path):
         raise FileNotFoundError(path) 
 
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path) # 一旦保留
     return conn
 
 
