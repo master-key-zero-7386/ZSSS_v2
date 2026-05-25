@@ -18,7 +18,7 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
 
     # --- allチェック ---
     if os.path.exists(all_db):  
-        conn = sqlite3.connect(all_db)  
+        conn = get_conn("a_all_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
             "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
@@ -37,7 +37,7 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
     )  
 
     if os.path.exists(country_db):  
-        conn = sqlite3.connect(country_db)  
+        conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
             "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
@@ -54,9 +54,6 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
 # --- ▼ SECTION 02: ブラックリスト理由取得（From：CSV / check） ▼ ---
 def get_blacklist_reason(asin, country_code, db_dir):
 
-    import os
-    import sqlite3
-
     blacklist_dir = os.path.join(db_dir, "blacklist")
 
     reasons = []
@@ -64,7 +61,7 @@ def get_blacklist_reason(asin, country_code, db_dir):
     # --- allチェック ---
     all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")
     if os.path.exists(all_db):
-        conn = sqlite3.connect(all_db)
+        conn = get_conn("a_all_blacklist_asin.db")
         cur = conn.cursor()
         cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
         if cur.fetchone():
@@ -77,7 +74,7 @@ def get_blacklist_reason(asin, country_code, db_dir):
         f"a_{country_code.lower()}_blacklist_asin.db"
     )
     if os.path.exists(country_db):
-        conn = sqlite3.connect(country_db)
+        conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()
         cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
         if cur.fetchone():
