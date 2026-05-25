@@ -7,7 +7,7 @@
 # ==========================================================
 
 from amazon.adapters.amazon_adapter import AmazonAdapter
-# from amazon.routes.routes import amazon_bp
+from amazon.db import get_conn
 import sqlite3
 from flask import request, jsonify, session
 
@@ -89,7 +89,8 @@ def extract_brand_logic():
     country_code = (data.get("country_code") or "").upper()
     user_id = session.get("user_id")
 
-    conn = sqlite3.connect("db/a_marketplaces.db")
+    conn = get_conn("a_marketplaces.db")
+
     cur = conn.cursor()
     cur.execute("""
         SELECT marketplace_id
