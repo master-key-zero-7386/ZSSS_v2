@@ -20,8 +20,8 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 01: listed_items書き込み（catalog HOME）  ▼ ---
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+        conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
             cur = conn.cursor()
@@ -84,8 +84,8 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 02: listed_items書き込み（catalog REGION）  ▼ ---
     def update_region_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, region: str, region_marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30)
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+        conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
             cur = conn.cursor()
