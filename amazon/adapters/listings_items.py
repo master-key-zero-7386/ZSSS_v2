@@ -92,8 +92,8 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         db_file = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
 
-        conn_li = sqlite3.connect(db_file)
-        conn_li.row_factory = sqlite3.Row
+        conn_li = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
         cur_li = conn_li.cursor()
 
         cur_li.execute("""
