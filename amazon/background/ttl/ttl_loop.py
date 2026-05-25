@@ -28,9 +28,8 @@ USE_DB_MIN_TTL = True
 
 # --- ▼ SECTION 01:  ▼ ---
 def get_api_conf(user_id, country_code, db_dir):
-    mp_db = os.path.join(db_dir, "a_marketplaces.db")
-
-    conn = sqlite3.connect(mp_db)
+    db_name = "a_marketplaces.db"
+    conn = get_conn(db_name)
     conn.row_factory = sqlite3.Row
 
     try:
