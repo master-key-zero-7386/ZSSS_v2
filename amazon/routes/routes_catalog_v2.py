@@ -27,9 +27,9 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 
     # === 01-1: HOME marketplace_id 確定 ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = sqlite3.connect(listed_db)
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
     try:
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute("""
             SELECT home_marketplace_id
@@ -80,7 +80,8 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 
     # --- ▼ TTL更新（HOME CATALOG） ▼ ---
     cache_db = os.path.join(DB_DIR, "a_catalog_cache.db")
-    conn = sqlite3.connect(cache_db)
+
+    conn = get_conn("a_catalog_cache.db")
     try:
         cur = conn.cursor()
         cur.execute("""
@@ -109,11 +110,12 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     # print(f"<<<REGION CATALOG>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")  # チェック用 削除せずコメントアウトで残す
     # ↑↑↑↑ 削除してもOK デバグPrint
 
-    # === 01-1: REGION marketplace_id 確定 ===
+    # === 01-01: REGION marketplace_id 確定 ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = sqlite3.connect(listed_db)
+
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
     try:
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute("""
             SELECT region_marketplace_id
@@ -131,7 +133,7 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
 
     region_marketplace_id = row["region_marketplace_id"]
 
-    # === 01-2: REGION Catalog raw 取得（API） ===
+    # === 01-02: REGION Catalog raw 取得（API） ===
     base = AmazonAdapter(
         user_id=user_id,
         country_code=country_code,
@@ -142,7 +144,7 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     result = adapter.get_full_catalog_item(asin)
     raw = result.get("raw")
 
-    # === 01-3: NORMALIZE（REGION） ===
+    # === 01-03: NORMALIZE（REGION） ===
     normalizer = NormalizedCatalogAdapter(parent_adapter=adapter)
     normalized = {
         "region_title":         normalizer._normalize_title(raw),
@@ -151,18 +153,8 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     }
     normalized.update(normalizer._normalize_dimensions_weight(raw))
 
-    # # === 01-4: BrandGate保存（TTL連携） ===
-    # brand = normalized.get("region_brand") or "UNKNOWN"
 
-    # save_brand_gate_result(
-    #     user_id=user_id,
-    #     marketplace_id=region_marketplace_id,
-    #     brand=brand,
-    #     status="UNKNOWN",
-    #     reason=None
-    # ) 
-
-    # === 01-5: listed_items 更新（REGION） ===
+    # === 01-04: listed_items 更新（REGION） ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
     updater = ListedItemsUpdate(base_dir=DB_DIR)
     updater.update_region_from_catalog_normalized(
@@ -174,9 +166,10 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
         normalized=normalized,
     )
 
-    # --- ▼ TTL更新（REGION CATALOG） ▼ ---
+    # === 01-05 TTL更新（REGION CATALOG） ===
     cache_db = os.path.join(DB_DIR, "a_catalog_cache.db")
-    conn = sqlite3.connect(cache_db)
+    conn = get_conn("a_catalog_cache.db")
+    
     try:
         cur = conn.cursor()
         cur.execute("""
