@@ -6,12 +6,11 @@
 import math
 import sqlite3
 from amazon.db_migrate import DB_DIR
+from amazon.db import get_conn 
 
 # --- ▼ SECTION 01: pricing_master_rules 取得 ▼ ---
 def get_pricing_master_rule(*, user_id: int, country_code: str):
-
-    conn = sqlite3.connect(f"{DB_DIR}/a_pricing_settings.db")
-    conn.row_factory = sqlite3.Row
+    conn = get_conn("a_pricing_settings.db")
     cur = conn.cursor()
 
     cur.execute("""
