@@ -10,6 +10,7 @@ import os
 import sqlite3
 from datetime import datetime
 from datetime import datetime, timedelta
+from amazon.db import get_conn
 
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.adapters.catalog_adapter_home import CatalogAdapterHome
@@ -169,7 +170,7 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     # === 01-05 TTL更新（REGION CATALOG） ===
     cache_db = os.path.join(DB_DIR, "a_catalog_cache.db")
     conn = get_conn("a_catalog_cache.db")
-    
+
     try:
         cur = conn.cursor()
         cur.execute("""
