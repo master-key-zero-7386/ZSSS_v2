@@ -18,7 +18,8 @@ def resolve_marketplace_id(marketplace_code: str):
     import os
 
     db_path = os.path.join("db", "a_marketplaces_master.db")
-    conn = sqlite3.connect(db_path)
+    
+    conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
 
     cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -181,7 +182,8 @@ def get_shipping_rate_copy_source_list():
         try:
             db_path = os.path.join("db", "a_marketplaces_master.db")
 
-            master_conn = sqlite3.connect(db_path)
+            master_conn = get_conn("a_marketplaces_master.db")
+
             master_cur = master_conn.cursor()
 
             master_cur.execute("""
