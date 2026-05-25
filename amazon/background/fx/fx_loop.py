@@ -88,9 +88,9 @@ def get_last_fx_updated_at():
     import sqlite3
     import os
 
-    db_path = os.path.join(DB_DIR, "a_fx.db")
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
+    db_name = "a_fx.db" 
+    conn = get_conn(db_name) 
+    cur = conn.cursor()    
 
     cur.execute("SELECT last_updated_at FROM fx_settings LIMIT 1")
     row = cur.fetchone()
@@ -108,8 +108,8 @@ def get_fx_update_interval_hours():
     import sqlite3
     import os
 
-    db_path = os.path.join(DB_DIR, "a_fx.db")
-    conn = sqlite3.connect(db_path)
+    db_name = "a_fx.db"  
+    conn = get_conn(db_name) 
     cur = conn.cursor()
 
     cur.execute("SELECT update_interval_hours FROM fx_settings LIMIT 1")
@@ -129,8 +129,8 @@ def update_fx_last_updated_at():
     import os
     from datetime import datetime
 
-    db_path = os.path.join(DB_DIR, "a_fx.db")
-    conn = sqlite3.connect(db_path)
+    db_name = "a_fx.db"  
+    conn = get_conn(db_name) 
     cur = conn.cursor()
 
     now = datetime.utcnow().isoformat()
