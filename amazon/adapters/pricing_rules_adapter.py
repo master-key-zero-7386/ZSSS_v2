@@ -5,7 +5,8 @@
 # ファイル名: amazon/adapters/pricing_rules_adapter.py
 # 目的: HOME Price（仕入側） / region Price（販売側）判定条件
 # ======================================================
-
+from amazon.db import get_conn
+from amazon.db_migrate import DB_DIR
 
 # --- Amazon公式IDリスト ---
 AMAZON_OFFICIAL_IDS = {
@@ -40,10 +41,8 @@ class PricingRulesAdapter:
         filtered = []                
 
         # --- HOME国取得（a_marketplaces.db） ---
-        import sqlite3
-        from amazon.db_migrate import DB_DIR
+        conn = get_conn("a_marketplaces.db")
 
-        conn = sqlite3.connect(f"{DB_DIR}/a_marketplaces.db")
         cur = conn.cursor()
         cur.execute("""
             SELECT country_code
