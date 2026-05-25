@@ -9,7 +9,7 @@
 from __future__ import annotations
 from typing import Dict, Any
 from datetime import datetime
-import sqlite3
+from amazon.db import get_conn
 import json
 import os
 from amazon.spapi_client import real_signed_request 
@@ -141,8 +141,8 @@ class CatalogAdapterRegion:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
 
-        conn = sqlite3.connect(db_file)
-        conn.row_factory = sqlite3.Row
+        conn = get_conn("a_catalog_cache.db")
+
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -172,7 +172,7 @@ class CatalogAdapterRegion:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
 
-        conn = sqlite3.connect(db_file)
+        conn = get_conn("a_catalog_cache.db")
 
         now_utc = datetime.utcnow().isoformat()
 
