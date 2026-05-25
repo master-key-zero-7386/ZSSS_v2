@@ -12,6 +12,7 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
+from amazon.db import get_conn
 
 class PricingAdapterRegion:
     # --- ▼ SECTION 01: AmazonAdapterから認証関連情報の受け取り ▼ ---
@@ -135,8 +136,8 @@ class PricingAdapterRegion:
         )
         db_file = os.path.join(base_dir, "db", "a_pricing_cache.db")
 
-        conn = sqlite3.connect(db_file)
-        conn.row_factory = sqlite3.Row
+        conn = get_conn("a_pricing_cache.db")
+
         try:
             cur = conn.cursor()
             cur.execute(
@@ -175,7 +176,7 @@ class PricingAdapterRegion:
         )
         db_file = os.path.join(base_dir, "db", "a_pricing_cache.db")
 
-        conn = sqlite3.connect(db_file)
+        conn = get_conn("a_pricing_cache.db")
 
         now_utc = datetime.utcnow().isoformat()
 

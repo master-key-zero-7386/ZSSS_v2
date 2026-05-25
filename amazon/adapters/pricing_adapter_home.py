@@ -11,13 +11,15 @@ import json
 import sqlite3
 import os
 from datetime import datetime, timedelta
+from amazon.db import get_conn  
 
-# --- ▼ Amazon Retail Seller ID（DB取得） ▼ ---  # ←ここに追加
+# --- ▼ Amazon Retail Seller ID（DB取得） ▼ ---
 def get_retail_seller_ids():
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     db_file = os.path.join(base_dir, "db", "a_marketplaces_master.db")
 
-    conn = sqlite3.connect(db_file)
+    conn = get_conn("a_marketplaces_master.db")
+
     try:
         cur = conn.cursor()
         cur.execute("SELECT seller_id FROM amazon_retail_sellers")
@@ -149,8 +151,8 @@ class PricingAdapterHome:
         )
         db_file = os.path.join(base_dir, "db", "a_pricing_cache.db")
 
-        conn = sqlite3.connect(db_file)
-        conn.row_factory = sqlite3.Row
+        conn = get_conn("a_pricing_cache.db")
+
         try:
             cur = conn.cursor()
             cur.execute("""
@@ -218,7 +220,7 @@ class PricingAdapterHome:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         db_file = os.path.join(base_dir, "db", "a_pricing_cache.db")
 
-        conn = sqlite3.connect(db_file)
+        conn = get_conn("a_pricing_cache.db")
 
         now_utc = datetime.utcnow().isoformat()
 
