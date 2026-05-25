@@ -11,12 +11,13 @@
 def save_brand_gate_result(user_id, marketplace_id, brand, status, reason):
     import sqlite3
     from datetime import datetime
+    from amazon.db import get_conn
     import os
 
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     db_file = os.path.join(base_dir, "db", "a_brand_gate_result.db")
 
-    conn = sqlite3.connect(db_file)
+    conn = get_conn("a_brand_gate_result.db")
     cur = conn.cursor()
 
     now = datetime.utcnow().isoformat()
