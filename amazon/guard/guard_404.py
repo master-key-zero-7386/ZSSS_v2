@@ -7,6 +7,7 @@ import os
 import sqlite3
 import time
 from amazon.db_migrate import DB_DIR
+from amazon.db import get_conn
 
 # --- ▼ SECTION 01: 404（ASIN個別・恒久停止） ▼ ---
 def mark_asin_api_stop(*, user_id: int, asin: str, region: str) -> None:
@@ -17,7 +18,9 @@ def mark_asin_api_stop(*, user_id: int, asin: str, region: str) -> None:
     """
 
     db_path = os.path.join(DB_DIR, f"a_{region.lower()}_listed_items.db")
-    conn = sqlite3.connect(db_path)
+
+    conn = get_conn(f"a_{region.lower()}_listed_items.db")
+
     try:
         cur = conn.cursor()
         cur.execute("""
