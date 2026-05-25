@@ -4,7 +4,8 @@
 # ==========================================
 
 import os
-import sqlite3
+from amazon.db import get_conn
+
 
 TTL_LOG_ENABLED = os.environ.get("TTL_LOG", "1") == "1"
 
@@ -29,10 +30,11 @@ def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
         enable_col = "enable_region_pricing"
         days_col   = "r_pricing_ttl_days"
 
-    db_path = os.path.join(db_dir, "a_marketplaces.db")
-    conn = sqlite3.connect(db_path)
+
+    db_name = "a_marketplaces.db" 
+    conn = get_conn(db_name) 
     conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+    cur = conn.cursor()    
 
     cur.execute(f"""
         SELECT
