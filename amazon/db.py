@@ -32,7 +32,7 @@ def get_conn(db_name):
     else:
         db_path = os.path.join(DATA_DIR, db_name)    
     
-    conn = sqlite3.connect(db_path, timeout=10)
+    conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
     conn.row_factory = sqlite3.Row
     return conn
 
