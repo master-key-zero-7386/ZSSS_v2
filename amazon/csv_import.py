@@ -24,6 +24,7 @@ import traceback
 from datetime import datetime, timedelta
 from collections import Counter
 from threading import Thread
+from amazon.db import get_conn
 
 from flask import Blueprint, request, jsonify, session, current_app, Response
 from werkzeug.utils import secure_filename
@@ -311,7 +312,7 @@ def import_csv():
 
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") # 一旦保留
             conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
-            
+
             conn.execute("PRAGMA journal_mode=WAL")
             cur = conn.cursor()
 
