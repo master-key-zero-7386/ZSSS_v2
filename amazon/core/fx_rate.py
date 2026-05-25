@@ -2,7 +2,7 @@
 # ファイル名: amazon/core/fx_rate.py
 # 目的: FXレート取得
 # ==========================================
-
+import sqlite3
 from amazon.db import get_conn
 
 # --- ▼ SECTION 01: FX取得（HOME → REGION） ▼ ---
