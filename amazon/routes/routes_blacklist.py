@@ -535,8 +535,8 @@ def apply_blacklist_update(user_id, country_code):
         f"a_{country_code}_listed_items.db"
     )
 
-    conn = sqlite3.connect(db_path, timeout=10)
-    conn.execute("PRAGMA journal_mode=WAL;")
+    conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
+    conn.execute("PRAGMA journal_mode=WAL;") # 一旦保留
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
