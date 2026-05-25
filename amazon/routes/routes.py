@@ -76,8 +76,7 @@ def get_enabled_regions():
 # --- ▼ SECTION 02: マーケットプレイス一覧取得 ---  
 @amazon_bp.route("/get_marketplaces_master", methods=["GET"])        
 @login_required                                                      
-def get_marketplaces_master():                                       
-    from amazon.db import get_conn                                   
+def get_marketplaces_master():                                                                       
     conn = get_conn("a_marketplaces_master.db")                      
     cur = conn.cursor()                                              
 
@@ -130,7 +129,6 @@ def get_marketplaces_master():
 @amazon_bp.route("/get_marketplaces", methods=["GET"])
 @login_required # ログイン情報判定制限
 def get_marketplaces():
-    from amazon.db import get_conn
     conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
 
@@ -200,8 +198,7 @@ def brand_gate_check():
 
         user_id = session.get("user_id")
 
-        # marketplace_id取得（既存と同じ取り方にしろ）
-        conn = sqlite3.connect("db/a_marketplaces.db")
+        conn = get_conn("a_marketplaces.db")
         cur = conn.cursor()
         cur.execute("""
             SELECT marketplace_id
