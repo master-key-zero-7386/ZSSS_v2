@@ -20,7 +20,7 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 01: listed_items書き込み（catalog HOME）  ▼ ---
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+        conn = get_conn(listed_db) 
         conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
@@ -84,7 +84,7 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 02: listed_items書き込み（catalog REGION）  ▼ ---
     def update_region_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, region: str, region_marketplace_id: str, normalized: dict):
-        conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+        conn = get_conn(listed_db)
         conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
@@ -129,7 +129,7 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 03: listed_items書き込み（PRICING HOME） ▼ ---
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
-        conn.execute("PRAGMA journal_mode=WAL")         
+        conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
 
         try:
             cur = conn.cursor()
@@ -188,7 +188,7 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---  
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db) 
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
 
         try:
             cur = conn.cursor()  
