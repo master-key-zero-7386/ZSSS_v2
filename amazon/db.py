@@ -20,24 +20,54 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "db")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# --- ▼ SECTION 01:  ▼ ---
-def get_conn(db_name):
-    """指定されたDBに接続（なければ新規作成）"""
-    # db_path = os.path.join(DATA_DIR, db_name)
+# # --- ▼ SECTION 01:  ▼ ---
+# def get_conn(db_name):
+#     """指定されたDBに接続（なければ新規作成）"""
+#     # db_path = os.path.join(DATA_DIR, db_name)
 
+
+#     if os.path.isabs(db_name): 
+#         db_path = db_name
+#     elif "_blacklist_" in db_name:
+#         db_path = os.path.join(DATA_DIR, "blacklist", db_name) 
+#     elif "_seller_list" in db_name:
+#         db_path = os.path.join(DATA_DIR, "sellerlist", db_name) 
+#     else:
+#         db_path = os.path.join(DATA_DIR, db_name)    
+    
+#     conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
+#     conn.row_factory = sqlite3.Row
+#     return conn
+
+# --- ▼ SECTION 01: DBパス解決 ▼ ---
+def _resolve_db_path(db_name):
 
     if os.path.isabs(db_name): 
-        db_path = db_name
+        return db_name
+
     elif "_blacklist_" in db_name:
-        db_path = os.path.join(DATA_DIR, "blacklist", db_name) 
+        return os.path.join(DATA_DIR, "blacklist", db_name)
+
     elif "_seller_list" in db_name:
-        db_path = os.path.join(DATA_DIR, "sellerlist", db_name) 
-    else:
-        db_path = os.path.join(DATA_DIR, db_name)    
-    
+        return os.path.join(DATA_DIR, "sellerlist", db_name)
+
+    return os.path.join(DATA_DIR, db_name)
+
+
+# --- ▼ SECTION 02: SQLite接続 ▼ ---
+def _get_sqlite_conn(db_path):
+
     conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
     conn.row_factory = sqlite3.Row
+
     return conn
+
+# --- ▼ SECTION 03: 共通接続入口 ▼ ---
+def get_conn(db_name):
+
+    db_path = _resolve_db_path(db_name)
+
+    return _get_sqlite_conn(db_path)
 
 # --- ▼ SECTION 02:アカウント情報取得（user_id + country_code + marketplaces 参照） ▼ ---
 def get_account_info(country_code: str, user_id: str | None = None) -> dict:
