@@ -25,7 +25,10 @@ def get_conn(db_name):
     """指定されたDBに接続（なければ新規作成）"""
     # db_path = os.path.join(DATA_DIR, db_name)
 
-    if "_blacklist_" in db_name:
+
+    if os.path.isabs(db_name): 
+        db_path = db_name
+    elif "_blacklist_" in db_name:
         db_path = os.path.join(DATA_DIR, "blacklist", db_name) 
     elif "_seller_list" in db_name:
         db_path = os.path.join(DATA_DIR, "sellerlist", db_name) 

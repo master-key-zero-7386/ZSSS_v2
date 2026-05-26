@@ -11,6 +11,7 @@ import time
 import sqlite3
 import datetime
 from datetime import timezone, timedelta
+from amazon.db import get_conn
 
 from amazon.background.common.background_common import list_listed_dbs
 from amazon.routes.routes_catalog_v2 import update_home_catalog
@@ -34,8 +35,9 @@ def run_first_loop(app, db_dir):
             targets = []
 
             for listed_db in list_listed_dbs(db_dir):
-                conn = sqlite3.connect(listed_db, timeout=30)
-                conn.execute("PRAGMA journal_mode=WAL")  
+                conn = get_conn(listed_db)
+                conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+
                 conn.row_factory = sqlite3.Row
                 try:
                     cur = conn.cursor()
@@ -88,7 +90,7 @@ def run_first_loop(app, db_dir):
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 
                     # --- ★ SUCCESS判定：pricing_cacheにrawが入っていれば即0 ---
-                    conn_success = sqlite3.connect(cache_db)
+                    conn_success = get_conn(cache_db)
                     try:
                         cur_success = conn_success.cursor()
                         cur_success.execute("""
@@ -99,7 +101,7 @@ def run_first_loop(app, db_dir):
                         row_success = cur_success.fetchone()
 
                         if row_success and row_success[0] is not None:
-                            conn_listed = sqlite3.connect(t["db"])
+                            conn_listed = get_conn(t["db"]) 
                             try:
                                 cur_listed = conn_listed.cursor()
                                 cur_listed.execute("""
@@ -126,7 +128,7 @@ def run_first_loop(app, db_dir):
                     traceback.print_exc()
                 #--------------------------
 
-                conn3 = sqlite3.connect(t["db"])
+                conn3 = get_conn(t["db"])  
                 try:
                     cur3 = conn3.cursor()
                     cur3.execute("""
