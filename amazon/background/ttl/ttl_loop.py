@@ -105,9 +105,9 @@ def run_ttl_loop(app, db_dir):
 
 # --- ▼ SECTION 03: TTL対象取得（Cacheベース / catalog） ▼ ---
 def load_catalog_ttl_targets(db_dir: str):
-
-    conn = sqlite3.connect(os.path.join(db_dir, "a_catalog_cache.db"), timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
+    cache_db = os.path.join(db_dir, "a_catalog_cache.db")
+    conn = get_conn(cache_db)
+    conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
     conn.row_factory = sqlite3.Row
 
     try:
@@ -120,8 +120,8 @@ def load_catalog_ttl_targets(db_dir: str):
         rows = []
 
         for db_path in list_listed_dbs(db_dir):
-            conn_li = sqlite3.connect(db_path, timeout=30)
-            conn_li.execute("PRAGMA journal_mode=WAL")
+            conn_li = get_conn(db_path) 
+            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
             conn_li.row_factory = sqlite3.Row
 
             try:
@@ -172,9 +172,9 @@ def load_catalog_ttl_targets(db_dir: str):
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
-                conn_li = sqlite3.connect(db_path, timeout=30)
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row  
+                conn_li = get_conn(db_path)
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row               
 
                 try:
                     cur_li = conn_li.cursor()  
@@ -244,9 +244,9 @@ def load_catalog_ttl_targets(db_dir: str):
         rows = []
 
         for db_path in list_listed_dbs(db_dir):
-            conn_li = sqlite3.connect(db_path, timeout=30)
-            conn_li.execute("PRAGMA journal_mode=WAL")
-            conn_li.row_factory = sqlite3.Row
+            conn_li = get_conn(db_path) 
+            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+            conn_li.row_factory = sqlite3.Row            
 
             try:
                 cur_li = conn_li.cursor()
@@ -296,9 +296,9 @@ def load_catalog_ttl_targets(db_dir: str):
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
-                conn_li = sqlite3.connect(db_path, timeout=30)
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row  
+                conn_li = get_conn(db_path) 
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row
 
                 try:
                     cur_li = conn_li.cursor()  
@@ -434,9 +434,9 @@ def load_catalog_ttl_targets(db_dir: str):
 
 # --- ▼ SECTION 04: TTL対象取得（Cacheベース / pricing） ▼ ---
 def load_pricing_ttl_targets(db_dir: str):
-    conn = sqlite3.connect(os.path.join(db_dir, "a_pricing_cache.db"), timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.row_factory = sqlite3.Row
+    conn = get_conn(os.path.join(db_dir, "a_pricing_cache.db"))
+    conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+    conn.row_factory = sqlite3.Row   
 
     try:
         cur = conn.cursor()
@@ -448,9 +448,10 @@ def load_pricing_ttl_targets(db_dir: str):
         rows = []
 
         for db_path in list_listed_dbs(db_dir):
-            conn_li = sqlite3.connect(db_path, timeout=30)
-            conn_li.execute("PRAGMA journal_mode=WAL") 
+            conn_li = get_conn(db_path)
+            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
             conn_li.row_factory = sqlite3.Row
+
 
             try:
                 cur_li = conn_li.cursor()
@@ -500,9 +501,9 @@ def load_pricing_ttl_targets(db_dir: str):
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
-                conn_li = sqlite3.connect(db_path, timeout=30)
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row  
+                conn_li = get_conn(db_path)
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row
 
                 try:  
                     cur_li = conn_li.cursor()  
@@ -572,9 +573,9 @@ def load_pricing_ttl_targets(db_dir: str):
         rows = []
 
         for db_path in list_listed_dbs(db_dir):
-            conn_li = sqlite3.connect(db_path, timeout=30)
-            conn_li.execute("PRAGMA journal_mode=WAL")
-            conn_li.row_factory = sqlite3.Row
+            conn_li = get_conn(db_path) 
+            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+            conn_li.row_factory = sqlite3.Row            
 
             try:
                 cur_li = conn_li.cursor()
@@ -623,9 +624,9 @@ def load_pricing_ttl_targets(db_dir: str):
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
-                conn_li = sqlite3.connect(db_path, timeout=30)
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row  
+                conn_li = get_conn(db_path)
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row
 
                 try:
                     cur_li = conn_li.cursor()  

@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timezone, timedelta
 from amazon.utils.brand_gate_store import save_brand_gate_result
 import sqlite3, os
+from amazon.db import get_conn
 
 JST = timezone(timedelta(hours=9))
 
