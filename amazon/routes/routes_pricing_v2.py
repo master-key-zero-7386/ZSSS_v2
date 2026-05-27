@@ -76,7 +76,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     conn = get_conn(db_name)    
 
     try:
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT home_marketplace_id
@@ -267,7 +267,6 @@ def run_refresh_now():
 def _get_offer_filter_rules(user_id: int, country_code: str):
     conn = get_conn("a_pricing_settings.db")
     try:
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute("""
             SELECT *
@@ -289,7 +288,7 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     conn = get_conn(db_name)
 
     try:
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT region_marketplace_id
@@ -407,7 +406,6 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
 def _get_pricing_master_rules(user_id: int, country_code: str):
         conn = get_conn("a_pricing_settings.db")
         try:
-            conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
                 SELECT *
@@ -603,7 +601,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     conn = get_conn(db_name)
 
     try:
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT
