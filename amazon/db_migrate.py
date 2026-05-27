@@ -442,15 +442,6 @@ USER_LOGIN_ACCOUNTS_COLUMNS = {
     "created_at":           "TEXT",                                 # 作成日時
     "updated_at":           "TEXT"                                  # 更新日時
 }
-
-# def get_existing_columns(conn, table_name):
-#     cur = conn.cursor()
-#     try:
-#         cur.execute(f"PRAGMA table_info({table_name})")
-#         return [row[1].lower() for row in cur.fetchall()]  # 小文字化して返す
-#     except sqlite3.OperationalError:
-#         return []
-
 def get_existing_columns(conn, table_name):
     cur = conn.cursor()
 

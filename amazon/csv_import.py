@@ -314,7 +314,7 @@ def import_csv():
 
             if DB_MODE == "sqlite":
                 conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
-                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
             else:
                 conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
