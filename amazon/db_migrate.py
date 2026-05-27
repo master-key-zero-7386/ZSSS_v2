@@ -38,7 +38,6 @@ def get_conn_old(db_name: str):
 
 
 ACCOUNT_MASTER_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "home_flag": "INTEGER DEFAULT 0",
@@ -52,7 +51,6 @@ ACCOUNT_MASTER_COLUMNS = {
 
 
 API_USAGE_LOGS_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "marketplace_id": "TEXT NOT NULL",
@@ -71,7 +69,6 @@ BG_SCAN_SETTINGS_COLUMNS = {
 
 
 BLACKLIST_ASIN_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "asin": "TEXT NOT NULL",
@@ -80,7 +77,6 @@ BLACKLIST_ASIN_COLUMNS = {
 }
 
 BLACKLIST_BRAND_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "brand": "TEXT NOT NULL",
@@ -90,7 +86,6 @@ BLACKLIST_BRAND_COLUMNS = {
 
 # # --- BlackList 管理者用カラム ---
 # BLACKLIST_BRAND_COLUMNS = {
-#     # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
 #     "id": "SERIAL PRIMARY KEY",
 #     "user_id": "INTEGER",
 #     "Brand": "TEXT NOT NULL",
@@ -108,7 +103,6 @@ ADMIN_SETTINGS_COLUMNS = {
 
 # --- ▼ SECTION ： Bland Gate用 ▼ ---
 BRAND_GATE_RESULT_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "region_marketplace_id": "TEXT",
@@ -119,7 +113,6 @@ BRAND_GATE_RESULT_COLUMNS = {
 }
 
 CATALOG_CACHE_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     # "user_id": "INTEGER NOT NULL",
     "asin": "TEXT NOT NULL",
@@ -153,7 +146,6 @@ FX_RATES_COLUMNS = {
 }
 
 PRICING_CACHE_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     # "user_id": "INTEGER NOT NULL",
     "asin": "TEXT NOT NULL",
@@ -174,7 +166,6 @@ PRICING_CACHE_COLUMNS = {
 
 LISTED_ITEMS_COLUMNS = {
     # --- 基本情報 ---
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",      # ID
     "id": "SERIAL PRIMARY KEY",                     # ID
     "user_id": "INTEGER",                           # ユーザ識別ID
     "status": "TEXT NOT NULL DEFAULT 'pre'",        # Pre/ALL Status
@@ -243,7 +234,6 @@ LISTED_ITEMS_COLUMNS = {
 
 # # 未使用 --- ▼ listed brand master（出品実績ブランド） ---
 # LISTED_BRAND_MASTER_COLUMNS = {
-#     # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
 #     "id": "SERIAL PRIMARY KEY",
 #     "user_id": "INTEGER NOT NULL",
 #     "country_code": "TEXT NOT NULL",
@@ -254,7 +244,6 @@ LISTED_ITEMS_COLUMNS = {
 
 MARKETPLACES_COLUMNS = {
     # --- a_account_master.dbからコピー 
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "home_flag": "INTEGER",
@@ -296,7 +285,6 @@ MARKETPLACES_COLUMNS = {
 # --- ▼ SECTION : MARKETPLACES　MASTER（管理） ---
 # --- ▼ amazon_retail_sellers（Amazon直売 sellerId 管理） ---
 AMAZON_RETAIL_SELLERS_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "country_code": "TEXT",
     "seller_id": "TEXT UNIQUE",
@@ -304,7 +292,6 @@ AMAZON_RETAIL_SELLERS_COLUMNS = {
 }
 
 MARKETPLACES_MASTER_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY", 
     "country_code": "TEXT NOT NULL",
     "display_name": "TEXT",
@@ -405,7 +392,6 @@ TTL_STATE_COLUMNS = {
 
 # --- ▼  SECTION : shipping rates（送料テーブル） ---
 SHIPPING_RATES_COLUMNS = {
-    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "marketplace_id": "TEXT NOT NULL",
@@ -423,8 +409,6 @@ SHIPPING_RATES_COLUMNS = {
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
 USER_LOGIN_ACCOUNTS_COLUMNS = {
-
-    # "id":                   "INTEGER PRIMARY KEY AUTOINCREMENT",    # ユーザーID（全DB共通キー）
     "id":                   "SERIAL PRIMARY KEY",                   # ユーザーID（全DB共通キー）
     "email":                "TEXT NOT NULL",                        # ログイン用メール
     "password_hash":        "TEXT NOT NULL",                        # パスワードハッシュ
