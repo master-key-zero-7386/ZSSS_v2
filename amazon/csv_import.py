@@ -311,9 +311,13 @@ def import_csv():
                 return jsonify({"status": "error", "message": "選択したマーケットプレイスが違います"}), 400
 
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") # 一旦保留
-            conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
 
-            conn.execute("PRAGMA journal_mode=WAL")
+            if DB_MODE == "sqlite":
+                conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
+                conn.execute("PRAGMA journal_mode=WAL")
+            else:
+                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
             cur = conn.cursor()
 
             # --- ▼ marketplace_id 取得 ---

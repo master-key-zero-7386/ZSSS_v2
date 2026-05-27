@@ -747,7 +747,6 @@ def add_indexes_listed_items():
             conn = sqlite3.connect(path) # 一旦保留
             cur = conn.cursor()
 
-            # ←ここに追加
             cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'")
             if not cur.fetchone():
                 conn.close()
