@@ -423,7 +423,6 @@ def save_bg_scan_settings():
 def get_bg_scan_settings():
     try:
         conn = get_conn("a_bg_scan_settings.db")
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
         cur.execute("""
