@@ -209,7 +209,7 @@ def admin_get_amazon_retail():
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM amazon_retail_sellers ORDER BY rowid ASC")
+    cur.execute("SELECT * FROM amazon_retail_sellers")
     rows = [dict(row) for row in cur.fetchall()]
     conn.close()
 
