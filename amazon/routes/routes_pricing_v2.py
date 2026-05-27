@@ -323,7 +323,8 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
 
     # --- 自分ID取得（ここ追加） ---
     conn_acc = get_conn("a_account_master.db")
-    conn_acc.row_factory = sqlite3.Row
+    if DB_MODE == "sqlite":
+        conn_acc.row_factory = sqlite3.Row # 一旦保留
     cur_acc = conn_acc.cursor()
 
     cur_acc.execute("""

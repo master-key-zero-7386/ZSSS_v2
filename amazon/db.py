@@ -52,7 +52,7 @@ def _resolve_db_path(db_name):
 def _get_sqlite_conn(db_path):
 
     conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row # 一旦保留
 
     return conn
 

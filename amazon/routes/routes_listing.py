@@ -1329,9 +1329,9 @@ def move_to_all():
                     UPDATE listed_items
                     SET 
                         status = 'listed',
-                        updated_at = datetime('now','localtime')
+                        updated_at = %s
                     WHERE asin=%s AND status='pre' AND user_id=%s
-                """, (asin, user_id)) 
+                """, (now_utc, asin, user_id))
 
                 if cur.rowcount == 0:
                     conn.close()

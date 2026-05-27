@@ -39,7 +39,7 @@ def run_first_loop(app, db_dir):
 
                 if DB_MODE == "sqlite": 
                     conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                    conn.row_factory = sqlite3.Row
+                    conn.row_factory = sqlite3.Row # 一旦保留
 
                 try:
                     cur = conn.cursor()

@@ -32,7 +32,7 @@ def get_api_conf(user_id, country_code, db_dir):
     db_name = "a_marketplaces.db"
     conn = get_conn(db_name)
     if DB_MODE == "sqlite":
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row # 一旦保留
 
     try:
         cur = conn.cursor()
@@ -112,7 +112,7 @@ def load_catalog_ttl_targets(db_dir: str):
 
     if DB_MODE == "sqlite":
         conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
-        conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row # 一旦保留
 
     try:
         cur = conn.cursor()
@@ -128,7 +128,7 @@ def load_catalog_ttl_targets(db_dir: str):
 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row
+                conn_li.row_factory = sqlite3.Row # 一旦保留
 
             try:
                 cur_li = conn_li.cursor()
@@ -189,7 +189,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 conn_li = get_conn(db_path)
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                    conn_li.row_factory = sqlite3.Row               
+                    conn_li.row_factory = sqlite3.Row  # 一旦保留              
 
                 try:
                     cur_li = conn_li.cursor()  
@@ -265,7 +265,7 @@ def load_catalog_ttl_targets(db_dir: str):
             conn_li = get_conn(db_path) 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row            
+                conn_li.row_factory = sqlite3.Row  # 一旦保留          
 
             try:
                 cur_li = conn_li.cursor()
@@ -326,7 +326,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 conn_li = get_conn(db_path) 
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                    conn_li.row_factory = sqlite3.Row
+                    conn_li.row_factory = sqlite3.Row # 一旦保留
 
                 try:
                     cur_li = conn_li.cursor()  
@@ -469,7 +469,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
     if DB_MODE == "sqlite":
         conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-        conn.row_factory = sqlite3.Row   
+        conn.row_factory = sqlite3.Row # 一旦保留  
 
     try:
         cur = conn.cursor()
@@ -485,7 +485,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row
+                conn_li.row_factory = sqlite3. # 一旦保留
 
             try:
                 cur_li = conn_li.cursor()
@@ -547,7 +547,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 conn_li = get_conn(db_path)
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                    conn_li.row_factory = sqlite3.Row
+                    conn_li.row_factory = sqlite3.Row # 一旦保留
 
                 try:  
                     cur_li = conn_li.cursor()  
@@ -623,7 +623,7 @@ def load_pricing_ttl_targets(db_dir: str):
             conn_li = get_conn(db_path) 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row            
+                conn_li.row_factory = sqlite3.Row # 一旦保留            
 
             try:
                 cur_li = conn_li.cursor()
@@ -684,7 +684,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                    conn_li.row_factory = sqlite3.Row
+                    conn_li.row_factory = sqlite3.Row # 一旦保留
 
                 try:
                     cur_li = conn_li.cursor()  
