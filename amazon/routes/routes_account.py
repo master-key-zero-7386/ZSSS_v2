@@ -191,7 +191,6 @@ def admin_get_marketplaces_master():
         return jsonify({"data": []})
 
     conn = get_conn("a_marketplaces_master.db")
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM marketplaces_master ORDER BY id ASC")
@@ -208,7 +207,6 @@ def admin_get_amazon_retail():
         return jsonify({"data": []})
 
     conn = get_conn("a_marketplaces_master.db")
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM amazon_retail_sellers ORDER BY rowid ASC")
@@ -340,7 +338,6 @@ def get_account_master():
         # ① a_marketplaces.db（統合済みの1レコードを取得） 
         # ============================================================
         conn = get_conn("a_marketplaces.db")
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
         cur.execute("""
@@ -567,7 +564,6 @@ def get_api_settings():
             return jsonify({"status": "error", "message": "country_code required"}), 400
 
         conn = get_conn("a_marketplaces.db")
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
         cur.execute("""
@@ -618,8 +614,6 @@ def set_home_region():
         
         # --- a_account_master.db ---
         conn = get_conn("a_account_master.db") 
-
-        conn.row_factory = sqlite3.Row
         cur = conn.cursor()
 
         # ▼ まず new_home のレコードが存在するか確認（ここを追加）
