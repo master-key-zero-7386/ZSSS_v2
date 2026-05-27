@@ -71,13 +71,17 @@ def run_first_loop(app, db_dir):
                     """, (MAX_FIRST_PER_CYCLE,))
                     rows = cur.fetchall()
 
+                    columns = [desc[0] for desc in cur.description]
+
                     for r in rows:
+                        row_dict = dict(zip(columns, r)) 
+
                         targets.append({
                             "db": listed_db,
-                            "user_id": r["user_id"],
-                            "asin": r["asin"],
-                            "home_marketplace_id": r["home_marketplace_id"],
-                            "region_marketplace_id": r["region_marketplace_id"],                            
+                            "user_id": row_dict["user_id"],
+                            "asin": row_dict["asin"],
+                            "home_marketplace_id": row_dict["home_marketplace_id"],
+                            "region_marketplace_id": row_dict["region_marketplace_id"],                          
                         })
                 finally:
                     conn.close()
@@ -112,7 +116,7 @@ def run_first_loop(app, db_dir):
                         cur_success.execute("""
                             SELECT home_offers_json
                             FROM pricing_cache
-                            WHERE asin = ? 
+                            WHERE asin = %s 
                         """, (t["asin"],))
                         row_success = cur_success.fetchone()
 
@@ -123,7 +127,7 @@ def run_first_loop(app, db_dir):
                                 cur_listed.execute("""
                                     UPDATE listed_items
                                     SET first_try_count = 0
-                                    WHERE user_id = ? AND asin = ?
+                                    WHERE user_id = %s AND asin = %s
                                 """, (t["user_id"], t["asin"]))
                                 conn_listed.commit()
                             finally:
@@ -154,7 +158,7 @@ def run_first_loop(app, db_dir):
                                 WHEN first_try_count > 0 THEN first_try_count - 1
                                 ELSE 0
                             END
-                        WHERE user_id = ? AND asin = ?
+                        WHERE user_id = %s AND asin = %s
                     """, (t["user_id"], t["asin"]))
                     conn3.commit()
                 finally:

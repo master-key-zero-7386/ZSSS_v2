@@ -12,6 +12,7 @@ import sqlite3
 from amazon.db import get_conn 
 import os
 from datetime import datetime, timedelta
+from amazon.db import get_conn, DB_MODE
 
 
 class ListedItemsUpdate:

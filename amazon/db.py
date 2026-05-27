@@ -12,6 +12,7 @@ import sqlite3
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
+from amazon.db import get_conn, DB_MODE
 
 # --- DBディレクトリの決定 ---
 # 優先順位:

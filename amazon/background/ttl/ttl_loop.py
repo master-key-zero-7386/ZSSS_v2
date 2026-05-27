@@ -31,7 +31,8 @@ USE_DB_MIN_TTL = True
 def get_api_conf(user_id, country_code, db_dir):
     db_name = "a_marketplaces.db"
     conn = get_conn(db_name)
-    conn.row_factory = sqlite3.Row
+    if DB_MODE == "sqlite":
+        conn.row_factory = sqlite3.Row
 
     try:
         cur = conn.cursor()
@@ -39,8 +40,8 @@ def get_api_conf(user_id, country_code, db_dir):
         cur.execute("""
             SELECT *
             FROM marketplaces
-            WHERE user_id = ?
-            AND country_code = ?
+            WHERE user_id = %s
+            AND country_code = %s
             LIMIT 1
         """, (
             user_id,
@@ -53,11 +54,11 @@ def get_api_conf(user_id, country_code, db_dir):
         if not row:
             return {}
 
-        return dict(row)
+        columns = [desc[0] for desc in cur.description]  
+        return dict(zip(columns, row))
 
     finally:
         conn.close()
-
 
 # --- ▼ SECTION 02: TTL loop 基本設定（FIRST写経） ▼
 def run_ttl_loop(app, db_dir):
@@ -94,7 +95,7 @@ def run_ttl_loop(app, db_dir):
                 cur.execute("""
                     UPDATE ttl_state
                     SET last_id = COALESCE(last_id, 0) + 200
-                    WHERE user_id = ?
+                    WHERE user_id = %s
                 """, (1,))  # ← user_idは後で修正
 
                 conn.commit()
@@ -140,7 +141,11 @@ def load_catalog_ttl_targets(db_dir: str):
 
                 listed_rows = cur_li.fetchall()
 
+                columns_li = [desc[0] for desc in cur_li.description] 
+
                 for lr in listed_rows:
+                    lr = dict(zip(columns_li, lr)) 
+
                     rows.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"]
@@ -160,8 +165,12 @@ def load_catalog_ttl_targets(db_dir: str):
 
         rows_cache = cur.fetchall()
 
+        columns_cache = [desc[0] for desc in cur.description]
+
         cache_map = {}
         for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc))
+
             key = (rc["asin"], rc["home_marketplace_id"])
             cache_map[key] = rc["h_catalog_ttl_at"]
 
@@ -178,16 +187,17 @@ def load_catalog_ttl_targets(db_dir: str):
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
                 conn_li = get_conn(db_path)
-                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row               
+                if DB_MODE == "sqlite":
+                    conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                    conn_li.row_factory = sqlite3.Row               
 
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
                         SELECT user_id
                         FROM listed_items
-                        WHERE asin = ?
-                        AND home_marketplace_id = ?
+                        WHERE asin = %s
+                        AND home_marketplace_id = %s
                         LIMIT 1
                     """, (
                         asin,
@@ -197,6 +207,9 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
+                        columns_li = [desc[0] for desc in cur_li.description] 
+                        row_li = dict(zip(columns_li, row_li)) 
+
                         user_id = row_li["user_id"]
                         fname = os.path.basename(db_path)
                         country_code = fname.split("_")[1].upper()
@@ -250,8 +263,9 @@ def load_catalog_ttl_targets(db_dir: str):
 
         for db_path in list_listed_dbs(db_dir):
             conn_li = get_conn(db_path) 
-            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-            conn_li.row_factory = sqlite3.Row            
+            if DB_MODE == "sqlite":
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row            
 
             try:
                 cur_li = conn_li.cursor()
@@ -264,7 +278,10 @@ def load_catalog_ttl_targets(db_dir: str):
 
                 listed_rows = cur_li.fetchall()
 
+                columns_li = [desc[0] for desc in cur_li.description]
+
                 for lr in listed_rows:
+                    lr = dict(zip(columns_li, lr))
                     rows.append({
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
@@ -285,7 +302,12 @@ def load_catalog_ttl_targets(db_dir: str):
         rows_cache = cur.fetchall()
 
         cache_map = {}
+
+        columns_cache = [desc[0] for desc in cur.description]
+
         for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc)) 
+
             key = (rc["asin"], rc["region_marketplace_id"])
             cache_map[key] = rc["r_catalog_ttl_at"]
 
@@ -302,16 +324,17 @@ def load_catalog_ttl_targets(db_dir: str):
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
                 conn_li = get_conn(db_path) 
-                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row
+                if DB_MODE == "sqlite":
+                    conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                    conn_li.row_factory = sqlite3.Row
 
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
                         SELECT user_id
                         FROM listed_items
-                        WHERE asin = ?
-                        AND region_marketplace_id = ?
+                        WHERE asin = %s
+                        AND region_marketplace_id = %s
                         LIMIT 1
                     """, (
                         asin,
@@ -321,6 +344,9 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
+                        columns_li = [desc[0] for desc in cur_li.description] 
+                        row_li = dict(zip(columns_li, row_li)) 
+
                         user_id = row_li["user_id"]
                         fname = os.path.basename(db_path)
                         country_code = fname.split("_")[1].upper()
@@ -472,7 +498,11 @@ def load_pricing_ttl_targets(db_dir: str):
 
                 listed_rows = cur_li.fetchall()
 
+                columns_li = [desc[0] for desc in cur_li.description] 
+
                 for lr in listed_rows:
+                    lr = dict(zip(columns_li, lr)) 
+
                     rows.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"]
@@ -493,7 +523,12 @@ def load_pricing_ttl_targets(db_dir: str):
         rows_cache = cur.fetchall()
 
         cache_map = {}
+
+        columns_cache = [desc[0] for desc in cur.description] 
+
         for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc))
+
             key = (rc["asin"], rc["home_marketplace_id"])
             cache_map[key] = rc["h_pricing_ttl_at"]
 
@@ -510,16 +545,17 @@ def load_pricing_ttl_targets(db_dir: str):
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
                 conn_li = get_conn(db_path)
-                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row
+                if DB_MODE == "sqlite":
+                    conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                    conn_li.row_factory = sqlite3.Row
 
                 try:  
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""  
                         SELECT user_id
                         FROM listed_items
-                        WHERE asin = ?
-                        AND home_marketplace_id = ?
+                        WHERE asin = %s
+                        AND home_marketplace_id = %s
                         LIMIT 1
                     """, (
                         asin,
@@ -529,6 +565,9 @@ def load_pricing_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
+                        columns_li = [desc[0] for desc in cur_li.description] 
+
+                        row_li = dict(zip(columns_li, row_li))                        
                         user_id = row_li["user_id"]
                         fname = os.path.basename(db_path)
                         country_code = fname.split("_")[1].upper()
@@ -582,8 +621,9 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for db_path in list_listed_dbs(db_dir):
             conn_li = get_conn(db_path) 
-            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-            conn_li.row_factory = sqlite3.Row            
+            if DB_MODE == "sqlite":
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row            
 
             try:
                 cur_li = conn_li.cursor()
@@ -596,7 +636,10 @@ def load_pricing_ttl_targets(db_dir: str):
 
                 listed_rows = cur_li.fetchall()
 
+                columns_li = [desc[0] for desc in cur_li.description]  
+
                 for lr in listed_rows:
+                    lr = dict(zip(columns_li, lr)) 
                     rows.append({
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
@@ -617,7 +660,12 @@ def load_pricing_ttl_targets(db_dir: str):
         rows_cache = cur.fetchall()
 
         cache_map = {}
+
+        columns_cache = [desc[0] for desc in cur.description] 
+
         for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc)) 
+
             key = (rc["asin"], rc["region_marketplace_id"])
             cache_map[key] = rc["r_pricing_ttl_at"]
 
@@ -633,16 +681,18 @@ def load_pricing_ttl_targets(db_dir: str):
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
             for db_path in list_listed_dbs(db_dir):  
                 conn_li = get_conn(db_path)
-                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-                conn_li.row_factory = sqlite3.Row
+                
+                if DB_MODE == "sqlite":
+                    conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                    conn_li.row_factory = sqlite3.Row
 
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
                         SELECT user_id
                         FROM listed_items
-                        WHERE asin = ?
-                        AND region_marketplace_id = ?
+                        WHERE asin = %s
+                        AND region_marketplace_id = %s
                         LIMIT 1
                     """, (
                         asin,
@@ -652,6 +702,9 @@ def load_pricing_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
+                        columns_li = [desc[0] for desc in cur_li.description]  
+                        row_li = dict(zip(columns_li, row_li))  
+
                         user_id = row_li["user_id"]
                         fname = os.path.basename(db_path)
                         country_code = fname.split("_")[1].upper()

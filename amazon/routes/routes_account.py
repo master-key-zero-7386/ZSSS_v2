@@ -30,8 +30,8 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
             account_seller_id,
             refresh_token
         FROM account_master
-        WHERE user_id = ?
-          AND UPPER(TRIM(country_code)) = UPPER(TRIM(?))
+        WHERE user_id = %s
+          AND UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
         LIMIT 1
     """, (user_id, country_code))
 
@@ -41,7 +41,8 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
     if not row_acc:
         raise ValueError(f"[copy_marketplace] account_master に user_id={user_id}, country_code={country_code} がありません")
 
-    acc = {k: row_acc[k] for k in row_acc.keys()}
+    columns_acc = [desc[0] for desc in cur_acc.description] 
+    acc = dict(zip(columns_acc, row_acc)) 
 
 
     # ------------------------------------------------------------
@@ -71,17 +72,19 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
             access_key,
             secret_key
         FROM marketplaces_master
-        WHERE UPPER(TRIM(country_code)) = UPPER(TRIM(?))
+        WHERE UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
         LIMIT 1
     """, (country_code,))
 
     row_m = cur_master.fetchone()
-    conn_master.close()
-
     if not row_m:
-        raise ValueError(f"[copy_marketplace] marketplaces_master に country_code={country_code} がありません")
+        conn_master.close() 
+        raise ValueError(f"[copy_marketplace] marketplaces_master に country_code={country_code} がありません") 
 
-    master = {k: row_m[k] for k in row_m.keys()}
+    columns_m = [desc[0] for desc in cur_master.description] 
+    master = dict(zip(columns_m, row_m))    
+
+    conn_master.close()
 
     # ------------------------------------------------------------
     # ③ account + master を合成 → a_marketplaces.db へ書き込み
@@ -94,7 +97,7 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
         cur_user.execute("""
             UPDATE marketplaces
             SET home_flag = 0
-            WHERE user_id = ?
+            WHERE user_id = %s
             AND home_flag = 1
         """, (acc["user_id"],))
 
@@ -127,11 +130,11 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
             updated_at
         )
         VALUES (
-            ?, ?, ?, ?, ?, 
-            ?, ?, ?, ?,
-            ?, ?, ?, ?, 
-            ?, ?, ?, ?, 
-            ?, ?
+            %s, %s, %s, %s, %s, 
+            %s, %s, %s, %s,
+            %s, %s, %s, %s, 
+            %s, %s, %s, %s, 
+            %s, %s
         )
         ON CONFLICT(user_id, country_code) DO UPDATE SET
             home_flag        = excluded.home_flag,
@@ -151,7 +154,7 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
             locale         = excluded.locale,
             timezone       = excluded.timezone,
             override_exchange_rate  = excluded.override_exchange_rate,
-            updated_at     = ?
+            updated_at     = %s
     """, (
         acc["user_id"],
         acc["home_flag"],
@@ -239,15 +242,14 @@ def get_home_account():
         cur_mkt.execute("""
             SELECT country_code
             FROM marketplaces
-            WHERE user_id = ?
+            WHERE user_id = %s
               AND home_flag = 1
             LIMIT 1
         """, (user_id,)) 
 
         row_home = cur_mkt.fetchone()
 
-        # HOME が無い場合は空で返す
-        if row_home is None:
+        if not row_home:
             conn_mkt.close()
             return jsonify({
                 "status": "success",
@@ -255,11 +257,12 @@ def get_home_account():
                 "marketplace": {}
             })
 
-        home_country_code = row_home["country_code"]
+        home_country_code = row_home[0]      
+
         conn_mkt.close()
 
         # ======================================================
-        # ② HOME のアカウント情報（すべて a_marketplaces.db から取得） 
+        # ② HOME のアカウント情報（すべて a_marketplaces.db から取得）
         # ======================================================
         conn_acc = get_conn("a_marketplaces.db")
         cur_acc = conn_acc.cursor()
@@ -267,7 +270,7 @@ def get_home_account():
         cur_acc.execute("""
             SELECT
                 country_code,
-                account_seller_id,  
+                account_seller_id,
                 refresh_token,
                 marketplace_id,
                 display_name,
@@ -279,21 +282,30 @@ def get_home_account():
                 dimension_unit,
                 timezone,
                 override_exchange_rate
-            FROM marketplaces    
-            WHERE user_id = ?
-            AND UPPER(TRIM(country_code)) = UPPER(TRIM(?))   
+            FROM marketplaces
+            WHERE user_id = %s
+            AND UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
             LIMIT 1
         """, (user_id, home_country_code))
 
         acc = cur_acc.fetchone()
+
+        if not acc:
+            conn_acc.close()
+            return jsonify({"status": "error", "message": "not found"})
+
+        columns_acc = [desc[0] for desc in cur_acc.description]
+        acc = dict(zip(columns_acc, acc))
+
         conn_acc.close()
 
-        mkt = None 
+        mkt = None
 
         # ======================================================
         # --- acc に全情報があるので分割して返す ---
         # ======================================================
-        acc_dict = dict(acc) if acc else {}
+
+        acc_dict = acc if acc else {}
 
         return jsonify({
             "status": "success",
@@ -315,7 +327,6 @@ def get_home_account():
                 "override_exchange_rate": acc_dict.get("override_exchange_rate", "")
             }
         })
-
 
     except Exception as e:
         print("[ERR] get_home_account:", e)
@@ -356,43 +367,40 @@ def get_account_master():
                 timezone,
                 override_exchange_rate
             FROM marketplaces
-            WHERE user_id = ?
-              AND UPPER(TRIM(country_code)) = UPPER(TRIM(?))
+            WHERE user_id = %s
+              AND UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
             LIMIT 1
         """, (user_id, country_code)) 
 
         row = cur.fetchone()
-        conn.close()
 
-        # ============================================================
-        # ② レコード無しならエラー 
-        # ============================================================
         if not row:
+            conn.close()
             return jsonify({"status": "error", "message": "not found"}), 404
 
-        acc = dict(row)
+        columns = [desc[0] for desc in cur.description]
+        row = dict(zip(columns, row))
 
-        # ============================================================
-        # ③ 統一返却（HOME と同じ形式） 
-        # ============================================================
+        conn.close()
+
         return jsonify({
             "status": "success",
             "account": {
-                "account_seller_id": acc.get("account_seller_id", ""),
-                "refresh_token": acc.get("refresh_token", "")
+                "account_seller_id": row.get("account_seller_id", ""),
+                "refresh_token": row.get("refresh_token", "")
             },
             "marketplace": {
-                "country_code": acc.get("country_code", ""),
-                "display_name": acc.get("display_name", ""),
-                "marketplace_id": acc.get("marketplace_id", ""),
-                "host": acc.get("host", ""),
-                "spapi_host": acc.get("spapi_host", ""),
-                "locale": acc.get("locale", ""),
-                "currency": acc.get("currency", ""),
-                "weight_unit": acc.get("weight_unit", ""),
-                "dimension_unit": acc.get("dimension_unit", ""),
-                "timezone": acc.get("timezone", ""),
-                "override_exchange_rate": acc.get("override_exchange_rate", "")
+                "country_code": row.get("country_code", ""),
+                "display_name": row.get("display_name", ""),
+                "marketplace_id": row.get("marketplace_id", ""),
+                "host": row.get("host", ""),
+                "spapi_host": row.get("spapi_host", ""),
+                "locale": row.get("locale", ""),
+                "currency": row.get("currency", ""),
+                "weight_unit": row.get("weight_unit", ""),
+                "dimension_unit": row.get("dimension_unit", ""),
+                "timezone": row.get("timezone", ""),
+                "override_exchange_rate": row.get("override_exchange_rate", "")
             }
         })
 
@@ -431,7 +439,7 @@ def save_account_master():
             cur_acc.execute("""
                 UPDATE account_master
                 SET home_flag = 0
-                WHERE user_id = ?
+                WHERE user_id = %s
                 AND home_flag = 1
             """, (user_id,))
         # --- ▲ 追加ここまで ---
@@ -444,19 +452,17 @@ def save_account_master():
                 account_seller_id, refresh_token,
                 created_at, updated_at
             )
-            VALUES(?, ?, ?, ?, ?, ?, ?)
+            VALUES(%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(user_id, country_code) DO UPDATE SET
                 home_flag         = excluded.home_flag,
                 account_seller_id = excluded.account_seller_id,
                 refresh_token     = excluded.refresh_token,
-                updated_at        = ?
+                updated_at        = excluded.updated_at
         """, (
             user_id, country_code, home_flag,
             account_seller_id, refresh_token,
-            now_utc, now_utc,
-            now_utc
+            now_utc, now_utc
         ))
-
 
         conn_acc.commit()
         conn_acc.close()
@@ -513,19 +519,19 @@ def save_api_settings():
         cur.execute("""
             UPDATE marketplaces
             SET
-                enable_home_catalog   = ?,
-                enable_home_pricing   = ?,
-                enable_region_catalog = ?,
-                enable_region_pricing = ?,
+                enable_home_catalog   = %s,
+                enable_home_pricing   = %s,
+                enable_region_catalog = %s,
+                enable_region_pricing = %s,
 
-                h_catalog_ttl_days = ?,
-                h_pricing_ttl_days = ?,
-                r_catalog_ttl_days = ?,
-                r_pricing_ttl_days = ?, 
+                h_catalog_ttl_days = %s,
+                h_pricing_ttl_days = %s,
+                r_catalog_ttl_days = %s,
+                r_pricing_ttl_days = %s,
 
-                updated_at = ?
-            WHERE user_id = ?
-              AND UPPER(TRIM(country_code)) = UPPER(TRIM(?))
+                updated_at = %s
+            WHERE user_id = %s
+            AND UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
         """, (
             enable_home_catalog,
             enable_home_pricing,
@@ -540,7 +546,7 @@ def save_api_settings():
             now_utc,
             user_id,
             country_code
-        )) 
+        ))
 
         conn.commit()
         conn.close()
@@ -580,20 +586,35 @@ def get_api_settings():
                 r_pricing_ttl_days                 
 
             FROM marketplaces
-            WHERE user_id = ?
-              AND UPPER(TRIM(country_code)) = UPPER(TRIM(?))
+            WHERE user_id = %s
+              AND UPPER(TRIM(country_code)) = UPPER(TRIM(%s))
             LIMIT 1
         """, (user_id, country_code))
 
         row = cur.fetchone()
-        conn.close()
 
         if not row:
+            conn.close()
             return jsonify({"status": "ok", "settings": {}})
+
+        columns = [desc[0] for desc in cur.description]
+        row = dict(zip(columns, row))
+
+        conn.close()
 
         return jsonify({
             "status": "ok",
-            "settings": dict(row)
+            "settings": {
+                "enable_home_catalog": row.get("enable_home_catalog", 0),
+                "enable_home_pricing": row.get("enable_home_pricing", 0),
+                "enable_region_catalog": row.get("enable_region_catalog", 0),
+                "enable_region_pricing": row.get("enable_region_pricing", 0),
+
+                "h_catalog_ttl_days": row.get("h_catalog_ttl_days", 0),
+                "h_pricing_ttl_days": row.get("h_pricing_ttl_days", 0),
+                "r_catalog_ttl_days": row.get("r_catalog_ttl_days", 0),
+                "r_pricing_ttl_days": row.get("r_pricing_ttl_days", 0)
+            }
         })
 
     except Exception as e:
@@ -619,22 +640,24 @@ def set_home_region():
         # ▼ まず new_home のレコードが存在するか確認（ここを追加）
         cur.execute("""
             SELECT 1 FROM account_master
-            WHERE user_id = ? AND country_code = ?
+            WHERE user_id = %s AND country_code = %s
             LIMIT 1
         """, (user_id, new_home))
         exists = cur.fetchone()
 
         if not exists:
             conn.close()
-            # ★ HOME の保存レコードが無いなら、HOMEフラグ更新は行わない
-            return jsonify({"status": "success", "message": "no home record"})
+            return jsonify({
+                "status": "error",
+                "message": "home record not found"
+            }), 404
 
 
         # ▼ HOME の実在が確認できた場合のみフラグ更新（元の処理）
         cur.execute("""
             UPDATE account_master
-            SET home_flag = CASE WHEN country_code = ? THEN 1 ELSE 0 END, updated_at = ?
-            WHERE user_id = ?
+            SET home_flag = CASE WHEN country_code = %s THEN 1 ELSE 0 END, updated_at = %s
+            WHERE user_id = %s
         """, (new_home, now_utc, user_id))
         conn.commit()
         conn.close()
@@ -644,8 +667,8 @@ def set_home_region():
         cur = conn.cursor()
         cur.execute("""
             UPDATE marketplaces
-            SET home_flag = CASE WHEN country_code = ? THEN 1 ELSE 0 END, updated_at = ?
-            WHERE user_id = ?
+            SET home_flag = CASE WHEN country_code = %s THEN 1 ELSE 0 END, updated_at = %s
+            WHERE user_id = %s
         """, (new_home, now_utc, user_id))
         conn.commit()
         conn.close()
@@ -670,7 +693,7 @@ def delete_home_account():
 
         cur.execute("""
             DELETE FROM account_master
-            WHERE user_id = ?
+            WHERE user_id = %s
               AND home_flag = 1
         """, (user_id,))
 
@@ -686,7 +709,7 @@ def delete_home_account():
         # ★ HOMEフラグ=1 のマーケットプレイスを削除
         cur2.execute("""
             DELETE FROM marketplaces
-            WHERE user_id = ?
+            WHERE user_id = %s
               AND home_flag = 1
         """, (user_id,))  
         conn2.commit()

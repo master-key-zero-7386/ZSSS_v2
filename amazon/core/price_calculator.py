@@ -16,16 +16,22 @@ def get_pricing_master_rule(*, user_id: int, country_code: str):
     cur.execute("""
         SELECT *
         FROM pricing_master_rules
-        WHERE user_id = ?
-        AND country_code IN (?, 'ALL')
+        WHERE user_id = %s
+        AND country_code IN (%s, 'ALL')
         ORDER BY country_code DESC
         LIMIT 1
     """, (user_id, country_code))
 
     row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        return None
+
+    columns = [desc[0] for desc in cur.description] 
     conn.close()
 
-    return dict(row) if row else None
+    return dict(zip(columns, row))
 
 # --- ▼ SECTION 02: 出品価格算出エンジン（純計算専用） ▼ ---
 def calculate_listing_price(

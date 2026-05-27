@@ -456,11 +456,11 @@ def get_existing_columns(conn, table_name):
 
     try:
 
-        if DB_MODE == "sqlite":  # ここを修正
+        if DB_MODE == "sqlite":
             cur.execute(f"PRAGMA table_info({table_name})")
             return [row[1].lower() for row in cur.fetchall()]
 
-        elif DB_MODE == "postgres":  # ここを修正
+        elif DB_MODE == "postgres":
             cur.execute("""
                 SELECT column_name
                 FROM information_schema.columns
@@ -600,7 +600,7 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ listed_items テーブルが存在するか確認
-        if DB_MODE == "sqlite":  # ここを修正
+        if DB_MODE == "sqlite": 
             cur2.execute("""
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name='listed_items'

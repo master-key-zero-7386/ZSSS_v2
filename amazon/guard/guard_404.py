@@ -26,7 +26,7 @@ def mark_asin_api_stop(*, user_id: int, asin: str, region: str) -> None:
         cur.execute("""
             UPDATE listed_items
             SET api_stop_asin = 1
-            WHERE user_id = ? AND asin = ?
+            WHERE user_id = %s AND asin = %s
         """, (user_id, asin))
         conn.commit()
     finally:

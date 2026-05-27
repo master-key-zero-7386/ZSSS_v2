@@ -33,7 +33,8 @@ def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
 
     db_name = "a_marketplaces.db" 
     conn = get_conn(db_name) 
-    conn.row_factory = sqlite3.Row
+    if DB_MODE == "sqlite":
+        conn.row_factory = sqlite3.Row
     cur = conn.cursor()    
 
     cur.execute(f"""
@@ -41,8 +42,8 @@ def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
             {enable_col} AS enabled,
             {days_col}   AS ttl_days
         FROM marketplaces
-        WHERE user_id = ?
-          AND marketplace_id = ? 
+        WHERE user_id = %s
+          AND marketplace_id = %s 
         LIMIT 1
     """, (user_id, marketplace_id))
 
@@ -51,8 +52,12 @@ def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
     
     if not row:
         return None
+
+    columns = [desc[0] for desc in cur.description] 
+    row_dict = dict(zip(columns, row))
+
     return {
-        "enabled": row["enabled"],
-        "ttl_days": row["ttl_days"],
+        "enabled": row_dict["enabled"],
+        "ttl_days": row_dict["ttl_days"], 
     }
 
