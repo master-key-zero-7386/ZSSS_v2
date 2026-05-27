@@ -210,7 +210,7 @@ def get_blacklist_brand(country_code):
 
     conn = get_conn(db_name) 
 
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row # 一旦保留
     cur = conn.cursor()  
 
     try:
@@ -258,7 +258,7 @@ def get_blacklist(country_code):
 
     conn = get_conn(db_name) 
 
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row # 一旦保留
     cur = conn.cursor()
 
     try:
