@@ -36,12 +36,28 @@ def run_first_loop(app, db_dir):
 
             for listed_db in list_listed_dbs(db_dir):
                 conn = get_conn(listed_db)
-                conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
 
-                conn.row_factory = sqlite3.Row
+                if DB_MODE == "sqlite": 
+                    conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                    conn.row_factory = sqlite3.Row
+
                 try:
                     cur = conn.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'")
+
+                    if DB_MODE == "sqlite": 
+                        cur.execute("""
+                            SELECT name
+                            FROM sqlite_master
+                            WHERE type='table' AND name='listed_items'
+                        """)
+
+                    elif DB_MODE == "postgres": 
+                        cur.execute("""
+                            SELECT table_name
+                            FROM information_schema.tables
+                            WHERE table_name = 'listed_items'
+                        """)
+
                     if not cur.fetchone(): continue
 
                     cur.execute("""
@@ -51,7 +67,7 @@ def run_first_loop(app, db_dir):
                         AND ttl_stop_status IS NULL
                         GROUP BY user_id, asin
                         ORDER BY created_at ASC
-                        LIMIT ?
+                        LIMIT %s
                     """, (MAX_FIRST_PER_CYCLE,))
                     rows = cur.fetchall()
 

@@ -137,7 +137,7 @@ def update_fx_last_updated_at():
 
     cur.execute("""
         UPDATE fx_settings
-        SET last_updated_at = ?
+        SET last_updated_at = %s
     """, (now,))
 
     conn.commit()

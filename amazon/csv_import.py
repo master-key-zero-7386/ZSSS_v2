@@ -492,20 +492,26 @@ def insert_cache_record_from_csv(db_dir: str, asin: str, home_marketplace_id: st
     
     try:
         cur_c.execute("""
-            INSERT OR REPLACE INTO catalog_cache (
+            INSERT INTO catalog_cache (
                 asin,
                 home_marketplace_id,
                 region_marketplace_id,
                 h_catalog_ttl_at,
                 r_catalog_ttl_at
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
+
+            ON CONFLICT (asin, home_marketplace_id)
+            DO UPDATE SET
+                region_marketplace_id = EXCLUDED.region_marketplace_id,
+                h_catalog_ttl_at = EXCLUDED.h_catalog_ttl_at,
+                r_catalog_ttl_at = EXCLUDED.r_catalog_ttl_at
         """, (
             asin,
             home_marketplace_id,
             region_marketplace_id,
             datetime.utcnow().isoformat(),
-            datetime.utcnow().isoformat(),            
+            datetime.utcnow().isoformat(), 
         ))
         conn_c.commit()
     finally:
@@ -519,14 +525,20 @@ def insert_cache_record_from_csv(db_dir: str, asin: str, home_marketplace_id: st
         now = datetime.utcnow()
         offset = timedelta(seconds=random.randint(0, 300))
         cur_p.execute("""
-            INSERT OR REPLACE INTO pricing_cache (
+            INSERT INTO pricing_cache (
                 asin,
                 home_marketplace_id,
                 region_marketplace_id,
                 h_pricing_ttl_at,
                 r_pricing_ttl_at
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
+
+            ON CONFLICT (asin, home_marketplace_id)
+            DO UPDATE SET
+                region_marketplace_id = EXCLUDED.region_marketplace_id,
+                h_pricing_ttl_at = EXCLUDED.h_pricing_ttl_at,
+                r_pricing_ttl_at = EXCLUDED.r_pricing_ttl_at
         """, (
             asin,
             home_marketplace_id,

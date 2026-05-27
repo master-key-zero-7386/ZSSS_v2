@@ -21,18 +21,27 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 01: listed_items書き込み（catalog HOME）  ▼ ---
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db) 
-        conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+        if DB_MODE == "sqlite":
+            conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            cur.execute("""
-                SELECT name
-                FROM sqlite_master
-                WHERE type='table' AND name='listed_items'
-            """)
+            if DB_MODE == "sqlite": 
+                cur.execute("""
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type='table' AND name='listed_items'
+                """)
+
+            elif DB_MODE == "postgres": 
+                cur.execute("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_name = 'listed_items'
+                """)
             if not cur.fetchone():
                 return
 
@@ -40,7 +49,7 @@ class ListedItemsUpdate:
             cur.execute("""
                 SELECT information_status
                 FROM listed_items
-                WHERE user_id=? AND asin=?
+                WHERE user_id=%s AND asin=%s
             """, (user_id, asin))
             row_debug = cur.fetchone()
 
@@ -48,20 +57,20 @@ class ListedItemsUpdate:
             cur.execute("""
                 UPDATE listed_items
                 SET
-                    home_title = ?,
-                    home_brand = ?,
-                    home_manufacturer = ?,
-                    image_url = ?, 
-                    length_cm = ?,
-                    width_cm = ?,
-                    height_cm = ?,
-                    actual_weight_kg = ?,
-                    volumetric_weight_kg = ?,
-                    billable_weight_kg = ?,
-                    updated_at = ?
+                    home_title = %s,
+                    home_brand = %s,
+                    home_manufacturer = %s,
+                    image_url = %s,
+                    length_cm = %s,
+                    width_cm = %s,
+                    height_cm = %s,
+                    actual_weight_kg = %s,
+                    volumetric_weight_kg = %s,
+                    billable_weight_kg = %s,
+                    updated_at = %s
                 WHERE
-                    user_id = ?
-                    AND asin = ?
+                    user_id = %s
+                    AND asin = %s
             """, (
                 normalized.get("home_title"),
                 normalized.get("home_brand"),

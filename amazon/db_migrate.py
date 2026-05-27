@@ -10,11 +10,13 @@ import os
 import sqlite3
 import glob
 
+from amazon.db import get_conn, DB_MODE 
+
 # DBフォルダ
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db")
 
 
-def get_conn(db_name: str):
+def get_conn_old(db_name: str):
     """指定DBへ接続（DB生成は db_migrate.py のみで行う）"""
 
     # --- ▼ ここで保存先を決める（今回は blacklist のみ） ---
@@ -36,7 +38,8 @@ def get_conn(db_name: str):
 
 
 ACCOUNT_MASTER_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "home_flag": "INTEGER DEFAULT 0",
     "country_code": "TEXT NOT NULL",
@@ -49,7 +52,8 @@ ACCOUNT_MASTER_COLUMNS = {
 
 
 API_USAGE_LOGS_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "marketplace_id": "TEXT NOT NULL",
     "endpoint": "TEXT NOT NULL",
@@ -67,7 +71,8 @@ BG_SCAN_SETTINGS_COLUMNS = {
 
 
 BLACKLIST_ASIN_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "asin": "TEXT NOT NULL",
     "note": "TEXT",
@@ -75,7 +80,8 @@ BLACKLIST_ASIN_COLUMNS = {
 }
 
 BLACKLIST_BRAND_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "brand": "TEXT NOT NULL",
     "note": "TEXT",
@@ -84,7 +90,8 @@ BLACKLIST_BRAND_COLUMNS = {
 
 # # --- BlackList 管理者用カラム ---
 # BLACKLIST_BRAND_COLUMNS = {
-#     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+#     # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+#     "id": "SERIAL PRIMARY KEY",
 #     "user_id": "INTEGER",
 #     "Brand": "TEXT NOT NULL",
 #     "Rank": "TEXT",
@@ -101,7 +108,8 @@ ADMIN_SETTINGS_COLUMNS = {
 
 # --- ▼ SECTION ： Bland Gate用 ▼ ---
 BRAND_GATE_RESULT_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "region_marketplace_id": "TEXT",
     "brand": "TEXT NOT NULL",
@@ -111,7 +119,8 @@ BRAND_GATE_RESULT_COLUMNS = {
 }
 
 CATALOG_CACHE_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     # "user_id": "INTEGER NOT NULL",
     "asin": "TEXT NOT NULL",
     # "sku": "TEXT NOT NULL",
@@ -144,7 +153,8 @@ FX_RATES_COLUMNS = {
 }
 
 PRICING_CACHE_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     # "user_id": "INTEGER NOT NULL",
     "asin": "TEXT NOT NULL",
     # "sku": "TEXT NOT NULL", 
@@ -164,7 +174,8 @@ PRICING_CACHE_COLUMNS = {
 
 LISTED_ITEMS_COLUMNS = {
     # --- 基本情報 ---
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",      # ID
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",      # ID
+    "id": "SERIAL PRIMARY KEY",                     # ID
     "user_id": "INTEGER",                           # ユーザ識別ID
     "status": "TEXT NOT NULL DEFAULT 'pre'",        # Pre/ALL Status
     "information_status": "TEXT DEFAULT ''",        # 情報取得状況 Status
@@ -232,7 +243,8 @@ LISTED_ITEMS_COLUMNS = {
 
 # # 未使用 --- ▼ listed brand master（出品実績ブランド） ---
 # LISTED_BRAND_MASTER_COLUMNS = {
-#     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+#     # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+#     "id": "SERIAL PRIMARY KEY",
 #     "user_id": "INTEGER NOT NULL",
 #     "country_code": "TEXT NOT NULL",
 #     "brand": "TEXT",
@@ -242,7 +254,8 @@ LISTED_ITEMS_COLUMNS = {
 
 MARKETPLACES_COLUMNS = {
     # --- a_account_master.dbからコピー 
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
     "home_flag": "INTEGER",
     "country_code": "TEXT NOT NULL",
@@ -283,14 +296,16 @@ MARKETPLACES_COLUMNS = {
 # --- ▼ SECTION : MARKETPLACES　MASTER（管理） ---
 # --- ▼ amazon_retail_sellers（Amazon直売 sellerId 管理） ---
 AMAZON_RETAIL_SELLERS_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "country_code": "TEXT",
     "seller_id": "TEXT UNIQUE",
     "note": "TEXT"
 }
 
 MARKETPLACES_MASTER_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY", 
     "country_code": "TEXT NOT NULL",
     "display_name": "TEXT",
     "marketplace_id": "TEXT",
@@ -390,7 +405,8 @@ TTL_STATE_COLUMNS = {
 
 # --- ▼  SECTION : shipping rates（送料テーブル） ---
 SHIPPING_RATES_COLUMNS = {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    # "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
     "marketplace_id": "TEXT NOT NULL",
     "weight_from_g": "INTEGER NOT NULL",
@@ -408,7 +424,8 @@ SHIPPING_RATES_COLUMNS = {
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
 USER_LOGIN_ACCOUNTS_COLUMNS = {
 
-    "id":                   "INTEGER PRIMARY KEY AUTOINCREMENT",    # ユーザーID（全DB共通キー）
+    # "id":                   "INTEGER PRIMARY KEY AUTOINCREMENT",    # ユーザーID（全DB共通キー）
+    "id":                   "SERIAL PRIMARY KEY",                   # ユーザーID（全DB共通キー）
     "email":                "TEXT NOT NULL",                        # ログイン用メール
     "password_hash":        "TEXT NOT NULL",                        # パスワードハッシュ
     "user_display_name":    "TEXT",                                 # 表示名
@@ -426,12 +443,33 @@ USER_LOGIN_ACCOUNTS_COLUMNS = {
     "updated_at":           "TEXT"                                  # 更新日時
 }
 
+# def get_existing_columns(conn, table_name):
+#     cur = conn.cursor()
+#     try:
+#         cur.execute(f"PRAGMA table_info({table_name})")
+#         return [row[1].lower() for row in cur.fetchall()]  # 小文字化して返す
+#     except sqlite3.OperationalError:
+#         return []
+
 def get_existing_columns(conn, table_name):
     cur = conn.cursor()
+
     try:
-        cur.execute(f"PRAGMA table_info({table_name})")
-        return [row[1].lower() for row in cur.fetchall()]  # 小文字化して返す
-    except sqlite3.OperationalError:
+
+        if DB_MODE == "sqlite":  # ここを修正
+            cur.execute(f"PRAGMA table_info({table_name})")
+            return [row[1].lower() for row in cur.fetchall()]
+
+        elif DB_MODE == "postgres":  # ここを修正
+            cur.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = %s
+            """, (table_name,))
+
+            return [row[0].lower() for row in cur.fetchall()]
+
+    except Exception:
         return []
 
 def migrate_table(conn, table_name, schema_dict):
@@ -562,10 +600,19 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ listed_items テーブルが存在するか確認
-        cur2.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name='listed_items'
-        """)
+        if DB_MODE == "sqlite":  # ここを修正
+            cur2.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='listed_items'
+            """)
+
+        elif DB_MODE == "postgres":
+            cur2.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'listed_items'
+            """)
+
         exists = cur2.fetchone()
 
         if exists:
@@ -624,10 +671,19 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ blacklist_asin テーブル存在確認
-        cur2.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name='blacklist_asin'
-        """)
+        if DB_MODE == "sqlite": 
+            cur2.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='blacklist_asin'
+            """)
+
+        elif DB_MODE == "postgres": 
+            cur2.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'blacklist_asin'
+            """)
+
         exists = cur2.fetchone()
 
         if exists:
@@ -639,17 +695,26 @@ def add_unique_indexes():  # UNIQUE制約
         conn2.commit()
         conn2.close()
 
-    # --- blacklist_brand UNIQUE（country_code 正） ---  # ←ここに追加
+    # --- blacklist_brand UNIQUE（country_code 正） ---
     for country_code in country_codes:
         db_name = f"a_{country_code}_blacklist_brand.db"
         conn2 = get_conn(db_name)
         cur2 = conn2.cursor()
 
         # ★ blacklist_brand テーブル存在確認
-        cur2.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name='blacklist_brand'
-        """)
+        if DB_MODE == "sqlite":
+            cur2.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='blacklist_brand'
+            """)
+
+        elif DB_MODE == "postgres": 
+            cur2.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'blacklist_brand'
+            """)
+
         exists = cur2.fetchone()
 
         if exists:
@@ -770,10 +835,15 @@ def ensure_fx_settings_initialized():
     count = cur.fetchone()[0]
 
     if count == 0:
+        # cur.execute("""
+        #     INSERT INTO fx_settings (provider_name, update_interval_hours, last_updated_at)
+        #     VALUES (?, ?, ?)
+        # """, ("exchangerate_host", 24, None))
+
         cur.execute("""
             INSERT INTO fx_settings (provider_name, update_interval_hours, last_updated_at)
-            VALUES (?, ?, ?)
-        """, ("exchangerate_host", 24, None))
+            VALUES (%s, %s, %s)
+        """, ("exchangerate_host", 24, None))         
         print("[INIT] fx_settings inserted")
 
     conn.commit()

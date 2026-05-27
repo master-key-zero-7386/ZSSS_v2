@@ -20,6 +20,7 @@ from amazon.background.common.background_common import api_request_sleep
 from amazon.routes.routes_pricing_v2 import update_listing_price
 from amazon.db import get_conn
 from amazon.guard.guard_429 import is_blocked
+from amazon.db import get_conn, DB_MODE
 
 
 
@@ -107,8 +108,10 @@ def run_ttl_loop(app, db_dir):
 def load_catalog_ttl_targets(db_dir: str):
     cache_db = os.path.join(db_dir, "a_catalog_cache.db")
     conn = get_conn(cache_db)
-    conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
-    conn.row_factory = sqlite3.Row
+
+    if DB_MODE == "sqlite":
+        conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+        conn.row_factory = sqlite3.Row
 
     try:
         cur = conn.cursor()
@@ -121,8 +124,10 @@ def load_catalog_ttl_targets(db_dir: str):
 
         for db_path in list_listed_dbs(db_dir):
             conn_li = get_conn(db_path) 
-            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-            conn_li.row_factory = sqlite3.Row
+
+            if DB_MODE == "sqlite":
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
@@ -435,8 +440,10 @@ def load_catalog_ttl_targets(db_dir: str):
 # --- ▼ SECTION 04: TTL対象取得（Cacheベース / pricing） ▼ ---
 def load_pricing_ttl_targets(db_dir: str):
     conn = get_conn(os.path.join(db_dir, "a_pricing_cache.db"))
-    conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-    conn.row_factory = sqlite3.Row   
+
+    if DB_MODE == "sqlite":
+        conn.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+        conn.row_factory = sqlite3.Row   
 
     try:
         cur = conn.cursor()
@@ -449,9 +456,10 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for db_path in list_listed_dbs(db_dir):
             conn_li = get_conn(db_path)
-            conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
-            conn_li.row_factory = sqlite3.Row
 
+            if DB_MODE == "sqlite":
+                conn_li.execute("PRAGMA journal_mode=WAL")  # 一旦保留
+                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()

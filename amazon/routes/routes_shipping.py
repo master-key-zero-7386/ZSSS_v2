@@ -22,13 +22,13 @@ def resolve_marketplace_id(marketplace_code: str):
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
 
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    cur.execute(
-        "SELECT * FROM marketplaces_master"
-    )
+    # cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    # cur.execute(
+    #     "SELECT * FROM marketplaces_master"
+    # )
 
     cur.execute(
-        "SELECT marketplace_id FROM marketplaces_master WHERE country_code = ?",
+        "SELECT marketplace_id FROM marketplaces_master WHERE country_code = %s",
         (marketplace_code.upper(),)
     )
     row = cur.fetchone()
