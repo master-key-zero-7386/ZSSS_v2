@@ -24,7 +24,7 @@ def save_brand_gate_result(user_id, marketplace_id, brand, status, reason):
 
     cur.execute("""
         INSERT INTO brand_gate_result (user_id, region_marketplace_id, brand, status, reason, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT(user_id, region_marketplace_id, brand)
         DO UPDATE SET
             status=excluded.status,

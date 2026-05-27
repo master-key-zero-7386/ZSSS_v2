@@ -172,7 +172,7 @@ def save_fx_rates(base_currency: str, rates: dict):
         cur.execute(
             """
             INSERT INTO fx_rates (base_currency, target_currency, rate, updated_at)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT(base_currency, target_currency)
             DO UPDATE SET
                 rate = excluded.rate,

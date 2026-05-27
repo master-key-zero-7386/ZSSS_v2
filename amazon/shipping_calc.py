@@ -170,12 +170,12 @@ def update_shipping_config():
         # upsert（SQLite）
         cur.execute("""
             INSERT INTO shipping_config (user_id, country_code, padding_cm, pack_ratio, volumetric_divisor, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT(user_id, country_code) DO UPDATE SET
               padding_cm=excluded.padding_cm,
               pack_ratio=excluded.pack_ratio,
               volumetric_divisor=excluded.volumetric_divisor,
-              updated_at=?
+              updated_at=%s
         """, (user_id, country_code, padding_cm, pack_ratio, volumetric_divisor, now_utc, now_utc))
 
         conn.commit()

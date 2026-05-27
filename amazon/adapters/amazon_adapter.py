@@ -130,7 +130,7 @@ def record_api_usage(user_id, marketplace_id, endpoint):
         cur.execute(
             """
             INSERT INTO api_usage_logs (user_id, marketplace_id, endpoint, created_at)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
             """,
             (user_id, marketplace_id, endpoint, now_utc)
         )
