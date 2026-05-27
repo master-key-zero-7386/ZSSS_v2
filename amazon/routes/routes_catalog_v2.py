@@ -35,8 +35,8 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
         cur.execute("""
             SELECT home_marketplace_id
             FROM listed_items
-            WHERE user_id = ?
-              AND asin = ?
+            WHERE user_id = %s
+              AND asin = %s
             LIMIT 1
         """, (user_id, asin))
         row = cur.fetchone()
@@ -87,9 +87,9 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
         cur = conn.cursor()
         cur.execute("""
             UPDATE catalog_cache
-            SET h_catalog_ttl_at = ?
-            WHERE asin = ?
-            AND home_marketplace_id = ?
+            SET h_catalog_ttl_at = %s
+            WHERE asin = %s
+            AND home_marketplace_id = %s
         """, (
             datetime.utcnow().isoformat(),
             asin,
@@ -121,8 +121,8 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
         cur.execute("""
             SELECT region_marketplace_id
             FROM listed_items
-            WHERE user_id = ?
-              AND asin = ?
+            WHERE user_id = %s
+              AND asin = %s
             LIMIT 1
         """, (user_id, asin))
         row = cur.fetchone()
@@ -175,9 +175,9 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
         cur = conn.cursor()
         cur.execute("""
             UPDATE catalog_cache
-            SET r_catalog_ttl_at = ?
-            WHERE asin = ?
-            AND region_marketplace_id = ?
+            SET r_catalog_ttl_at = %s
+            WHERE asin = %s
+            AND region_marketplace_id = %s
         """, (
             datetime.utcnow().isoformat(),
             asin,

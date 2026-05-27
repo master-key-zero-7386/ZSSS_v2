@@ -58,27 +58,27 @@ def update_marketplace_master():
         cur.execute("""
             UPDATE marketplaces_master
             SET
-                country_code = ?,
-                display_name = ?,
-                currency = ?,
-                weight_unit = ?,
-                dimension_unit = ?,
+                country_code = %s,
+                display_name = %s,
+                currency = %s,
+                weight_unit = %s,
+                dimension_unit = %s,
 
-                locale = ?,
-                override_exchange_rate = ?,
-                timezone = ?,
-                tax_mode = ?,                
+                locale = %s,
+                override_exchange_rate = %s,
+                timezone = %s,
+                tax_mode = %s,                
 
-                host = ?,
-                spapi_host = ?,
+                host = %s,
+                spapi_host = %s,
 
-                client_id = ?,
-                client_secret = ?,
-                access_key = ?,
-                secret_key = ?,
-                updated_at = ?
+                client_id = %s,
+                client_secret = %s,
+                access_key = %s,
+                secret_key = %s,
+                updated_at = %s
 
-            WHERE marketplace_id = ?
+            WHERE marketplace_id = %s
         """, (
             data.get("country_code"),
             data.get("display_name"),
@@ -172,7 +172,7 @@ def insert_marketplace_master():
                 created_at,
                 updated_at
 
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             data["country_code"],
             data["display_name"],
@@ -229,7 +229,7 @@ def delete_marketplace_master():
         cur = conn.cursor()
 
         cur.execute(
-            "DELETE FROM marketplaces_master WHERE marketplace_id = ?",
+            "DELETE FROM marketplaces_master WHERE marketplace_id = %s",
             (marketplace_id,)
         )
 
@@ -268,9 +268,9 @@ def update_amazon_retail():
         cur.execute("""
             UPDATE amazon_retail_sellers
             SET
-                country_code = ?,
-                note = ?
-            WHERE seller_id = ?
+                country_code = %s,
+                note = %s
+            WHERE seller_id = %s
         """, (
             data.get("country_code"),
             data.get("note"),
@@ -322,7 +322,7 @@ def insert_amazon_retail():
                 country_code,
                 seller_id,
                 note
-            ) VALUES (?, ?, ?)
+            ) VALUES (%s, %s, %s)
         """, (
             data["country_code"],
             data["seller_id"],
@@ -361,7 +361,7 @@ def delete_amazon_retail():
         cur = conn.cursor()
 
         cur.execute(
-            "DELETE FROM amazon_retail_sellers WHERE seller_id = ?",
+            "DELETE FROM amazon_retail_sellers WHERE seller_id = %s",
             (seller_id,)
         )
 
@@ -399,14 +399,14 @@ def save_bg_scan_settings():
         if interval_min is not None and scan_limit is not None:
             cur.execute("""
                 UPDATE bg_scan_settings
-                SET interval_min = ?, scan_limit = ?, updated_at = ?
+                SET interval_min = %s, scan_limit = %s, updated_at = %s
                 WHERE id = 1
             """, (float(interval_min), int(scan_limit), now))
 
         if ttl_sleep_sec is not None:
             cur.execute("""
                 UPDATE bg_scan_settings
-                SET ttl_sleep_sec = ?, updated_at = ?
+                SET ttl_sleep_sec = %s, updated_at = %s
                 WHERE id = 1
             """, (float(ttl_sleep_sec), now))
 
@@ -463,7 +463,7 @@ def get_raw_by_asin():
         cur_l.execute("""
             SELECT id
             FROM listed_items
-            WHERE asin = ?
+            WHERE asin = %s
             LIMIT 1
         """, (asin,))
 
@@ -477,7 +477,7 @@ def get_raw_by_asin():
         cur_p.execute("""
             SELECT id, home_offers_json, region_offers_json
             FROM pricing_cache
-            WHERE asin = ?
+            WHERE asin = %s
             LIMIT 1
         """, (asin,))
         row_p = cur_p.fetchone()
@@ -499,7 +499,7 @@ def get_raw_by_asin():
         cur_c.execute("""
             SELECT id, home_raw_json, region_raw_json
             FROM catalog_cache
-            WHERE asin = ?
+            WHERE asin = %s
             LIMIT 1
         """, (asin,))
         row_c = cur_c.fetchone()
@@ -542,8 +542,8 @@ def get_ttl_state():
         cur.execute("""
             SELECT last_id
             FROM ttl_state
-            WHERE user_id = ? 
-            AND country_code = ?
+            WHERE user_id = %s 
+            AND country_code = %s
         """, (session.get("user_id"), country_code.upper()))
 
         row = cur.fetchone()
@@ -644,12 +644,11 @@ def run_home_pricing_debug():
 
     conn_home = get_conn("a_marketplaces.db")
     try:
-        conn_home.row_factory = sqlite3.Row
         cur_home = conn_home.cursor()
         cur_home.execute("""
             SELECT country_code
             FROM marketplaces
-            WHERE user_id = ?
+            WHERE user_id = %s
               AND home_flag = 1
             LIMIT 1
         """, (user_id,))
@@ -663,13 +662,12 @@ def run_home_pricing_debug():
     country_code = home_row["country_code"]   
 
     conn_mid = get_conn("a_marketplaces_master.db")
-    try:
-        conn_mid.row_factory = sqlite3.Row
+    try:        
         cur_mid = conn_mid.cursor()
         cur_mid.execute("""
             SELECT marketplace_id
             FROM marketplaces_master
-            WHERE UPPER(country_code)=UPPER(?)
+            WHERE UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (country_code,))
         row_mid = cur_mid.fetchone()
@@ -740,7 +738,7 @@ def run_region_pricing_debug():
         cur_mid.execute("""
             SELECT marketplace_id, tax_mode
             FROM marketplaces_master
-            WHERE UPPER(country_code)=UPPER(?)
+            WHERE UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (country_code,))
         row_mid = cur_mid.fetchone()
@@ -790,7 +788,7 @@ def run_region_pricing_debug():
     cur.execute("""
         SELECT length_cm, width_cm, height_cm, actual_weight_kg
         FROM listed_items
-        WHERE user_id=? AND asin=?
+        WHERE user_id=%s AND asin=%s
         LIMIT 1
     """, (user_id, asin))
     row_dim = cur.fetchone()
@@ -802,7 +800,7 @@ def run_region_pricing_debug():
     cur_cfg.execute("""
         SELECT padding_cm, pack_ratio, volumetric_divisor
         FROM shipping_config
-        WHERE user_id = ?
+        WHERE user_id = %s
         ORDER BY updated_at DESC
         LIMIT 1
     """, (user_id,))
@@ -844,7 +842,7 @@ def run_region_pricing_debug():
     cur_home.execute("""
     SELECT currency
     FROM marketplaces
-    WHERE user_id = ?
+    WHERE user_id = %s
     AND home_flag = 1
     LIMIT 1
     """, (user_id,))
@@ -861,7 +859,7 @@ def run_region_pricing_debug():
     cur_mid.execute("""
     SELECT currency
     FROM marketplaces_master
-    WHERE marketplace_id = ?
+    WHERE marketplace_id = %s
     LIMIT 1
     """, (region_marketplace_id,))
 

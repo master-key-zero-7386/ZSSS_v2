@@ -203,7 +203,7 @@ def brand_gate_check():
         cur.execute("""
             SELECT marketplace_id
             FROM marketplaces
-            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         r = cur.fetchone()

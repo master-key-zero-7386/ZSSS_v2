@@ -41,7 +41,7 @@ def login_auth():
 
     # is_admin → role に修正済み
     cur.execute(
-        "SELECT id, email, password_hash, role, enabled_regions, user_display_name FROM user_login_accounts WHERE email = ?",
+        "SELECT id, email, password_hash, role, enabled_regions, user_display_name FROM user_login_accounts WHERE email = %s",
         (email,)
     )
     row = cur.fetchone()

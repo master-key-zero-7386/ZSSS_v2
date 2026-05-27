@@ -122,7 +122,7 @@ def import_blacklist_csv():
 
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = ?", (user_id,))
+        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = %s", (user_id,))
 
         result["asin"]["before"] = cur.fetchone()[0]
 
@@ -132,7 +132,7 @@ def import_blacklist_csv():
             for r in asin_rows:
                 cur.execute("""
                     INSERT INTO blacklist_asin (user_id, asin, note, created_at)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT(user_id, asin)
                     DO UPDATE SET
                         note = excluded.note
@@ -143,7 +143,7 @@ def import_blacklist_csv():
             conn.close()
             return jsonify({"status": "error", "message": "ASIN upsert failed", "detail": str(e)}), 500
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = ?", (user_id,))
+        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = %s", (user_id,))
         result["asin"]["after"] = cur.fetchone()[0]
         result["asin"]["import"] = result["asin"]["after"] - result["asin"]["before"]
         conn.close()
@@ -157,7 +157,7 @@ def import_blacklist_csv():
 
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = ?", (user_id,))
+        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = %s", (user_id,))
 
         result["brand"]["before"] = cur.fetchone()[0]
 
@@ -167,7 +167,7 @@ def import_blacklist_csv():
             for r in brand_rows:
                 cur.execute("""
                     INSERT INTO blacklist_brand (user_id, brand, note, created_at)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                     ON CONFLICT(user_id, brand)
                     DO UPDATE SET note = excluded.note
                 """, (user_id, r["brand"], r["note"], now_utc))
@@ -177,7 +177,7 @@ def import_blacklist_csv():
             conn.close()
             return jsonify({"status": "error", "message": "BRAND upsert failed", "detail": str(e)}), 500
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = ?", (user_id,))
+        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = %s", (user_id,))
         result["brand"]["after"] = cur.fetchone()[0]
         result["brand"]["import"] = result["brand"]["after"] - result["brand"]["before"]
         conn.close()
@@ -210,7 +210,6 @@ def get_blacklist_brand(country_code):
 
     conn = get_conn(db_name) 
 
-    conn.row_factory = sqlite3.Row # 一旦保留
     cur = conn.cursor()  
 
     try:
@@ -221,7 +220,7 @@ def get_blacklist_brand(country_code):
                 note,
                 created_at
             FROM blacklist_brand
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY created_at DESC
         """, (user_id,))
 
@@ -258,7 +257,6 @@ def get_blacklist(country_code):
 
     conn = get_conn(db_name) 
 
-    conn.row_factory = sqlite3.Row # 一旦保留
     cur = conn.cursor()
 
     try:
@@ -269,7 +267,7 @@ def get_blacklist(country_code):
                 note,
                 created_at
             FROM blacklist_asin
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY created_at DESC
         """, (user_id,))
 
@@ -330,25 +328,27 @@ def update_blacklist():
     try:
         cur.execute(f"""
             UPDATE {table}
-            SET {key} = ?, note = ?  
-            WHERE id = ? AND user_id = ?
+            SET {key} = %s, note = %s  
+            WHERE id = %s AND user_id = %s
         """, (main, note, data.get("id"), user_id))
 
         conn.commit()
         print("ROWCOUNT:", cur.rowcount)  # // チェック完了後削除
-        cur.execute(f"SELECT {key} FROM {table} WHERE id = ?", (data.get("id"),))
+        cur.execute(f"SELECT {key} FROM {table} WHERE id = %s", (data.get("id"),))
         print("AFTER UPDATE:", cur.fetchone())
 
-    except sqlite3.IntegrityError:
-        if table == "blacklist_asin":
-            msg = "同じASINが既に存在しています"
-        else:
-            msg = "同じブランドが既に存在しています"
+    except Exception as e:
+        if "UNIQUE" in str(e) or "duplicate key" in str(e):
+            if table == "blacklist_asin":
+                msg = "同じASINが既に存在しています"
+            else:
+                msg = "同じブランドが既に存在しています"
 
-        return jsonify({
-            "status": "error",
-            "message": msg
-        }), 400
+            return jsonify({
+                "status": "error",
+                "message": msg
+            }), 400
+        raise
 
     finally:
         conn.close()
@@ -382,7 +382,7 @@ def delete_blacklist():
     cur = conn.cursor()
     cur.execute("""
         DELETE FROM blacklist_asin
-        WHERE id = ? AND user_id = ?
+        WHERE id = %s AND user_id = %s
     """, (row_id, user_id))
     conn.commit()
     conn.close()
@@ -391,7 +391,7 @@ def delete_blacklist():
     cur = conn.cursor()
     cur.execute("""
         DELETE FROM blacklist_brand
-        WHERE id = ? AND user_id = ?
+        WHERE id = %s AND user_id = %s
     """, (row_id, user_id))
     conn.commit()
     conn.close()
@@ -430,12 +430,12 @@ def export_blacklist(country_code):
 
     # --- BRAND ---
     conn = get_conn(db_brand) 
-    conn.row_factory = sqlite3.Row # 一旦保留    
+    
     cur = conn.cursor()
 
     cur.execute("""
         SELECT brand, note FROM blacklist_brand
-        WHERE user_id = ?
+        WHERE user_id = %s
     """, (user_id,))
 
     for r in cur.fetchall():
@@ -445,12 +445,12 @@ def export_blacklist(country_code):
 
     # --- ASIN ---
     conn = get_conn(db_asin) 
-    conn.row_factory = sqlite3.Row # 一旦保留
+    
     cur = conn.cursor()
 
     cur.execute("""
         SELECT asin, note FROM blacklist_asin
-        WHERE user_id = ?
+        WHERE user_id = %s
     """, (user_id,))
 
     for r in cur.fetchall():
@@ -504,16 +504,18 @@ def add_blacklist():
     try:
         cur.execute(f"""
             INSERT INTO {table} (user_id, {key}, note, created_at)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         """, (user_id, main, note, datetime.utcnow().isoformat()))
 
         conn.commit()
 
-    except sqlite3.IntegrityError:
-        return jsonify({
-            "status": "error",
-            "message": "既に存在しています"
-        }), 400
+    except Exception as e:
+        if "UNIQUE" in str(e) or "duplicate key" in str(e):
+            return jsonify({
+                "status": "error",
+                "message": "既に存在しています"
+            }), 400
+        raise
 
     finally:
         conn.close()
@@ -547,7 +549,7 @@ def apply_blacklist_update(user_id, country_code):
     # if os.path.exists(brand_db):
     conn_b = get_conn(brand_db)
     cur_b = conn_b.cursor()
-    cur_b.execute("SELECT brand FROM blacklist_brand WHERE user_id = ?", (user_id,))
+    cur_b.execute("SELECT brand FROM blacklist_brand WHERE user_id = %s", (user_id,))
     brand_ng_list = [r[0].strip().lower() for r in cur_b.fetchall()]
     conn_b.close()
 
@@ -558,12 +560,12 @@ def apply_blacklist_update(user_id, country_code):
     # if os.path.exists(asin_db):
     conn_a = get_conn(asin_db) 
     cur_a = conn_a.cursor()
-    cur_a.execute("SELECT asin FROM blacklist_asin WHERE user_id = ?", (user_id,))
+    cur_a.execute("SELECT asin FROM blacklist_asin WHERE user_id = %s", (user_id,))
     asin_ng_list = [r[0] for r in cur_a.fetchall()]
     conn_a.close()
 
     # --- 全件取得 ---
-    cur.execute("SELECT * FROM listed_items WHERE user_id = ?", (user_id,))
+    cur.execute("SELECT * FROM listed_items WHERE user_id = %s", (user_id,))
     rows = cur.fetchall()
 
     for row in rows:
@@ -594,7 +596,7 @@ def apply_blacklist_update(user_id, country_code):
             cur.execute("""
                 UPDATE listed_items
                 SET information_status = 'INACTIVE'
-                WHERE id = ?
+                WHERE id = %s
             """, (row["id"],))
 
             if row["status"] == "listed":
@@ -611,9 +613,9 @@ def apply_blacklist_update(user_id, country_code):
             cur.execute("""
                 UPDATE listed_items
                 SET information_status = 'ACTIVE'
-                WHERE id = ?
+                WHERE id = %s
             """, (row["id"],))            
 
     conn.commit()
     conn.close()
-# --- ▲ ---    
+ 

@@ -72,15 +72,15 @@ def update_home_info(asin: str, user_id: int, home_data: dict, country_code: str
         res = cur.execute("""
             UPDATE listed_items
                SET
-                   home_title          = COALESCE(?, home_title),
-                   home_brand          = COALESCE(?, home_brand),
-                   length_cm           = COALESCE(?, length_cm),
-                   width_cm            = COALESCE(?, width_cm),
-                   height_cm           = COALESCE(?, height_cm),
-                   actual_weight_kg    = COALESCE(?, actual_weight_kg),
-                   volumetric_weight_kg= COALESCE(?, volumetric_weight_kg),
-                   billable_weight_kg  = COALESCE(?, billable_weight_kg)
-             WHERE asin = ? AND user_id = ?
+                   home_title          = COALESCE(%s, home_title),
+                   home_brand          = COALESCE(%s, home_brand),
+                   length_cm           = COALESCE(%s, length_cm),
+                   width_cm            = COALESCE(%s, width_cm),
+                   height_cm           = COALESCE(%s, height_cm),
+                   actual_weight_kg    = COALESCE(%s, actual_weight_kg),
+                   volumetric_weight_kg= COALESCE(%s, volumetric_weight_kg),
+                   billable_weight_kg  = COALESCE(%s, billable_weight_kg)
+             WHERE asin = %s AND user_id = %s
         """, (home_title, home_brand,
               length_cm, width_cm, height_cm,
               actual_wt, vol_wt, bill_wt, asin, user_id))
@@ -121,10 +121,10 @@ def update_region_info(asin: str, user_id: int, catalog_data: dict, country_code
         res = cur.execute("""
             UPDATE listed_items
                SET
-                   region_brand        = COALESCE(?, region_brand),
-                   region_manufacturer = COALESCE(?, region_manufacturer),
-                   image_url           = COALESCE(?, image_url)
-             WHERE asin = ? AND user_id = ?
+                   region_brand        = COALESCE(%s, region_brand),
+                   region_manufacturer = COALESCE(%s, region_manufacturer),
+                   image_url           = COALESCE(%s, image_url)
+             WHERE asin = %s AND user_id = %s
         """, 
         (
             region_brand,
@@ -163,7 +163,7 @@ def add_listing():
         conn = get_conn("a_marketplaces.db")
         cur = conn.cursor()
 
-        cur.execute("SELECT country_code FROM marketplaces WHERE user_id = ?", (user_id,))
+        cur.execute("SELECT country_code FROM marketplaces WHERE user_id = %s", (user_id,))
         valid_country_codes = [str(r[0]).strip().lower() for r in cur.fetchall()]
         conn.close()
 
@@ -188,7 +188,7 @@ def add_listing():
                 continue
 
             # 重複チェックはASINだけ
-            cur.execute("SELECT 1 FROM listed_items WHERE asin=? AND user_id=?", (asin, user_id)) 
+            cur.execute("SELECT 1 FROM listed_items WHERE asin=%s AND user_id=%s", (asin, user_id)) 
             row = cur.fetchone()
 
             if row:
@@ -202,7 +202,7 @@ def add_listing():
                 """
                 INSERT INTO listed_items 
                     (user_id, asin, sku, home_title, home_brand, image_url, region_brand, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (user_id, asin, sku, "", "", "", "", "pre", now_utc, now_utc)
             )
@@ -214,7 +214,7 @@ def add_listing():
         cur.execute("""
             SELECT asin, sku, home_title, home_brand, image_url, region_brand, region_manufacturer
             FROM listed_items
-            WHERE status='pre' AND user_id=?
+            WHERE status='pre' AND user_id=%s
         """, (user_id,))
         pre_items = [{
             "asin": r[0],
@@ -248,7 +248,7 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     cur_cfg.execute("""
         SELECT padding_cm, pack_ratio, volumetric_divisor
         FROM shipping_config
-        WHERE user_id = ?
+        WHERE user_id = %s
         ORDER BY updated_at DESC
         LIMIT 1
     """, (user_id,)) 
@@ -299,8 +299,8 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     cur_cache.execute("""
         SELECT home_offers_json, region_offers_json
         FROM pricing_cache
-        WHERE asin = ?
-        AND region_marketplace_id = ?
+        WHERE asin = %s
+        AND region_marketplace_id = %s
         LIMIT 1
     """, (row["asin"], marketplace_id))
 
@@ -364,7 +364,7 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     cur_mst.execute("""
         SELECT host
         FROM marketplaces_master
-        WHERE marketplace_id = ?
+        WHERE marketplace_id = %s
         LIMIT 1
     """, (marketplace_id,))
     row_region = cur_mst.fetchone()
@@ -373,7 +373,7 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     cur_mst.execute("""
         SELECT host
         FROM marketplaces_master
-        WHERE marketplace_id = ?
+        WHERE marketplace_id = %s
         LIMIT 1
     """, (row["home_marketplace_id"],))  
 
@@ -386,7 +386,6 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
 
     # --- ▼ BrandGate取得 ▼ ---
     conn_bg = get_conn("a_brand_gate_result.db")
-    conn_bg.row_factory = sqlite3.Row
     cur_bg = conn_bg.cursor()
 
     brand = row["region_brand"]
@@ -395,9 +394,9 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
         cur_bg.execute("""
             SELECT status, reason
             FROM brand_gate_result
-            WHERE user_id = ?
-            AND region_marketplace_id = ?
-            AND brand = ?
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+            AND brand = %s
             LIMIT 1
         """, (user_id, marketplace_id, brand))
 
@@ -452,14 +451,14 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
 
         # --- 自分ID取得 ---
         conn_acc = get_conn("a_account_master.db")
-        conn_acc.row_factory = sqlite3.Row 
+        
         cur_acc = conn_acc.cursor()  
 
         cur_acc.execute("""
             SELECT account_seller_id
             FROM account_master
-            WHERE user_id = ?
-            AND country_code = ?
+            WHERE user_id = %s
+            AND country_code = %s
             LIMIT 1
         """, (user_id, country_code))  
 
@@ -547,8 +546,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     cur_mid.execute("""
         SELECT marketplace_id
         FROM marketplaces
-        WHERE user_id = ?
-        AND LOWER(country_code) = ?
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
         LIMIT 1
     """, (user_id, country_code))
     row_mid = cur_mid.fetchone()
@@ -556,7 +555,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     cur_mid.execute("""
         SELECT timezone
         FROM marketplaces
-        WHERE user_id = ?
+        WHERE user_id = %s
         AND home_flag = 1
         LIMIT 1
     """, (user_id,))
@@ -609,11 +608,11 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     params_base = [status_value, user_id]
 
     if info_status != "all":
-        query_filter += " AND information_status = ?"
+        query_filter += " AND information_status = %s"
         params_base.append(info_status)
 
     if keyword:
-        query_filter += " AND (asin LIKE ? OR sku LIKE ? OR home_title LIKE ?)"
+        query_filter += " AND (asin LIKE %s OR sku LIKE %s OR home_title LIKE %s)"
         params_base.extend([f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"])
 
     # --- データ取得 ---
@@ -644,11 +643,11 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             updated_at,
             created_at 
         FROM listed_items
-        WHERE LOWER(status) = ?
-        AND user_id = ?
+        WHERE LOWER(status) = %s
+        AND user_id = %s
         {query_filter}
         ORDER BY {order_by}
-        LIMIT ? OFFSET ?
+        LIMIT %s OFFSET %s
     """, params_data)
 
     rows = cur.fetchall()
@@ -657,8 +656,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     cur.execute(f"""
         SELECT COUNT(*)
         FROM listed_items
-        WHERE LOWER(status) = ?
-        AND user_id = ?
+        WHERE LOWER(status) = %s
+        AND user_id = %s
         {query_filter}
     """, params_base)
 
@@ -796,22 +795,22 @@ def search_listing():
             ]
 
             if info_status != "all":
-                query_filter = " AND information_status = ?"
+                query_filter = " AND information_status = %s"
                 params.append(info_status)
 
             cur.execute(f"""
                 SELECT *
                 FROM listed_items
-                WHERE user_id = ?
-                AND LOWER(status) = ?
+                WHERE user_id = %s
+                AND LOWER(status) = %s
                 AND (
-                    LOWER(asin) LIKE LOWER(?)
-                    OR LOWER(sku) LIKE LOWER(?)
-                    OR LOWER(home_title) LIKE LOWER(?)
-                    OR LOWER(home_brand) LIKE LOWER(?)
-                    OR LOWER(region_title) LIKE LOWER(?)
-                    OR LOWER(region_brand) LIKE LOWER(?)
-                    OR LOWER(region_manufacturer) LIKE LOWER(?)
+                    LOWER(asin) LIKE LOWER(%s)
+                    OR LOWER(sku) LIKE LOWER(%s)
+                    OR LOWER(home_title) LIKE LOWER(%s)
+                    OR LOWER(home_brand) LIKE LOWER(%s)
+                    OR LOWER(region_title) LIKE LOWER(%s)
+                    OR LOWER(region_brand) LIKE LOWER(%s)
+                    OR LOWER(region_manufacturer) LIKE LOWER(%s)
                 )
                 {query_filter}
                 ORDER BY created_at DESC
@@ -830,15 +829,15 @@ def search_listing():
             ]
 
             if info_status != "all":
-                query_filter = " AND information_status = ?"
+                query_filter = " AND information_status = %s"
                 params.append(info_status)
 
             cur.execute(f"""
                 SELECT *
                 FROM listed_items
-                WHERE user_id = ?
-                AND LOWER(status) = ?
-                AND asin LIKE ?
+                WHERE user_id = %s
+                AND LOWER(status) = %s
+                AND asin LIKE %s
                 {query_filter}
                 ORDER BY created_at DESC
                 LIMIT 200
@@ -853,7 +852,7 @@ def search_listing():
         cur_m.execute("""
             SELECT marketplace_id
             FROM marketplaces
-            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         r = cur_m.fetchone()
@@ -862,7 +861,7 @@ def search_listing():
         cur_m.execute("""
             SELECT timezone
             FROM marketplaces
-            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         r_tz = cur_m.fetchone()
@@ -902,7 +901,7 @@ def fetch_item_info():
     conn_market = get_conn("a_marketplaces.db")
     cur_market = conn_market.cursor()
     cur_market.execute(
-        "SELECT country_code FROM marketplaces WHERE user_id = ?", (user_id,)
+        "SELECT country_code FROM marketplaces WHERE user_id = %s", (user_id,)
     )
     valid_country_codes = [str(r[0]).strip().lower() for r in cur_market.fetchall()]
     conn_market.close()
@@ -932,7 +931,7 @@ def fetch_item_info():
             height_cm,
             actual_weight_kg
         FROM listed_items
-        WHERE asin = ? AND user_id = ?
+        WHERE asin = %s AND user_id = %s
     """, (asin, user_id))
     row = cur.fetchone()
     conn.close()
@@ -1031,7 +1030,7 @@ def delete_item():
         cur.execute("""
             SELECT marketplace_id
             FROM marketplaces
-            WHERE user_id=? AND country_code COLLATE NOCASE = ?
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
         """, (user_id, country_code))
 
         row = cur.fetchone()
@@ -1064,12 +1063,12 @@ def delete_item():
         if sku:
             cur.execute("""
                 DELETE FROM listed_items
-                WHERE asin=? AND sku=? AND user_id=?      
+                WHERE asin=%s AND sku=%s AND user_id=%s      
             """, (asin, sku, user_id))
         else:
             cur.execute("""
                 DELETE FROM listed_items
-                WHERE asin=? AND user_id=?     
+                WHERE asin=%s AND user_id=%s     
             """, (asin, user_id))
 
         deleted_main = cur.rowcount
@@ -1094,7 +1093,6 @@ def bulk_delete_items():
     data = request.get_json()
     items = data.get("items") or []
     status = data.get("status")
-    # status = data.get("status") or "listed" 
     print("STATUS VALUE >>>", status, flush=True)  # チェック完了後削除
 
     user_id = session.get("user_id")
@@ -1122,7 +1120,7 @@ def bulk_delete_items():
         cur.execute("""
             UPDATE listed_items
             SET deleting_flag = 1
-            WHERE sku = ?
+            WHERE sku = %s
         """, (sku,))
 
     conn.commit()
@@ -1163,7 +1161,7 @@ def bulk_delete_items():
         cur.execute("""
             SELECT marketplace_id
             FROM marketplaces
-            WHERE user_id=? AND country_code COLLATE NOCASE = ?
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
         """, (user_id, country_code))
         row = cur.fetchone()
         conn.close()
@@ -1204,12 +1202,12 @@ def bulk_delete_items():
                 if sku:
                     cur.execute("""
                         DELETE FROM listed_items
-                        WHERE sku=? AND user_id=?
+                        WHERE sku=%s AND user_id=%s
                     """, (sku, user_id))
                 else:
                     cur.execute("""
                         DELETE FROM listed_items
-                        WHERE user_id=?
+                        WHERE user_id=%s
                     """, (user_id,))
 
                 print(f"[DB DELETE COMPLETE] SKU: {sku}", flush=True)
@@ -1251,7 +1249,7 @@ def move_to_all():
         cur_m.execute("""
         SELECT marketplace_id
         FROM marketplaces
-        WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+        WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
         LIMIT 1
         """, (user_id, country_code))
 
@@ -1288,7 +1286,7 @@ def move_to_all():
                         strategy_quantity,
                         strategy_handling_time
                     FROM listed_items
-                    WHERE asin=? AND user_id=?
+                    WHERE asin=%s AND user_id=%s
                 """, (asin, user_id))
 
                 row = cur.fetchone()
@@ -1314,7 +1312,7 @@ def move_to_all():
                 cur_rule.execute("""
                     SELECT default_handling_time
                     FROM pricing_master_rules
-                    WHERE user_id=? AND country_code=?
+                    WHERE user_id=%s AND country_code=%s
                 """, (user_id, country_code))
 
                 r = cur_rule.fetchone()
@@ -1332,7 +1330,7 @@ def move_to_all():
                     SET 
                         status = 'listed',
                         updated_at = datetime('now','localtime')
-                    WHERE asin=? AND status='pre' AND user_id=?
+                    WHERE asin=%s AND status='pre' AND user_id=%s
                 """, (asin, user_id)) 
 
                 if cur.rowcount == 0:
@@ -1420,7 +1418,7 @@ def bulk_move_to_all():
         cur.execute("""
         UPDATE listed_items
         SET status='listed'
-        WHERE asin=? AND status='pre' AND user_id=?
+        WHERE asin=%s AND status='pre' AND user_id=%s
         """, (asin, user_id))
 
     conn.commit()
@@ -1441,7 +1439,7 @@ def update_strategy():
         country_code = (data.get("country_code") or "").strip()
         user_id = session.get("user_id")   # ★ SaaS必須
 
-        if not asin or not region or not user_id:
+        if not asin or not country_code or not user_id:
             return jsonify({"status": "error", "message": "missing parameter"})
 
         # --- 正規化 ---
@@ -1473,12 +1471,12 @@ def update_strategy():
         cur.execute("""
             UPDATE listed_items
             SET
-                override_price = ?,
-                strategy_quantity = ?,
-                strategy_sellout = ?,
-                strategy_handling_time = ?,
-                updated_at = ?
-            WHERE asin = ? AND user_id = ?
+                override_price = %s,
+                strategy_quantity = %s,
+                strategy_sellout = %s,
+                strategy_handling_time = %s,
+                updated_at = %s
+            WHERE asin = %s AND user_id = %s
         """, (
             override_price,
             strategy_quantity,

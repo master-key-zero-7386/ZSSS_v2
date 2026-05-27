@@ -21,7 +21,7 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
         conn = get_conn("a_all_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
-            "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
+            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s",
             (asin, user_id)
         )
         hit = cur.fetchone()  
@@ -40,7 +40,7 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
         conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
-            "SELECT 1 FROM blacklist_asin WHERE asin = ? AND user_id = ?",
+            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s",
             (asin, user_id)
         )
         hit = cur.fetchone()  
@@ -63,7 +63,7 @@ def get_blacklist_reason(asin, country_code, db_dir):
     if os.path.exists(all_db):
         conn = get_conn("a_all_blacklist_asin.db")
         cur = conn.cursor()
-        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
+        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = %s", (asin,))
         if cur.fetchone():
             reasons.append("All Blacklist")
         conn.close()
@@ -76,7 +76,7 @@ def get_blacklist_reason(asin, country_code, db_dir):
     if os.path.exists(country_db):
         conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()
-        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = ?", (asin,))
+        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = %s", (asin,))
         if cur.fetchone():
             reasons.append(f"{country_code.upper()} Blacklist")
         conn.close()
@@ -101,7 +101,7 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
     conn = get_conn("a_all_blacklist_brand.db")
     cur = conn.cursor()
     cur.execute(
-        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s",
         (brand, user_id)
     )
     hit = cur.fetchone()
@@ -120,7 +120,7 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
     conn = get_conn(f"a_{country_code.lower()}_blacklist_brand.db") 
     cur = conn.cursor()
     cur.execute(
-        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(?) AND user_id = ?",
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s",
         (brand, user_id)
     )
     hit = cur.fetchone()

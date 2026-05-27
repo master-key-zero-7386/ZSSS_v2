@@ -44,7 +44,7 @@ def get_brand_blacklist(user_id, country_code):
     conn = get_conn(db_name)
     cur = conn.cursor()
 
-    cur.execute("SELECT brand FROM blacklist_brand WHERE user_id = ?", (user_id,))
+    cur.execute("SELECT brand FROM blacklist_brand WHERE user_id = %s", (user_id,))
     rows = cur.fetchall()
 
     conn.close()
@@ -58,7 +58,7 @@ def get_asin_blacklist(user_id, country_code):
     conn = get_conn(db_name)
     cur = conn.cursor()
 
-    cur.execute("SELECT asin FROM blacklist_asin WHERE user_id = ?", (user_id,))
+    cur.execute("SELECT asin FROM blacklist_asin WHERE user_id = %s", (user_id,))
     rows = cur.fetchall()
 
     conn.close()
@@ -76,13 +76,12 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     conn = get_conn(db_name)    
 
     try:
-        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT home_marketplace_id
             FROM listed_items
-            WHERE user_id = ?
-              AND asin = ?
+            WHERE user_id = %s
+              AND asin = %s
             LIMIT 1
         """, (user_id, asin))
         row = cur.fetchone()
@@ -146,9 +145,9 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
             cur = conn.cursor()
             cur.execute("""
                 UPDATE listed_items
-                SET updated_at = ?
-                WHERE user_id = ?
-                AND asin = ?
+                SET updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
             """, (
                 datetime.utcnow().isoformat(),
                 user_id,
@@ -177,9 +176,9 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
             cur = conn.cursor()
             cur.execute("""
                 UPDATE listed_items
-                SET updated_at = ?
-                WHERE user_id = ?
-                AND asin = ?
+                SET updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
             """, (
                 datetime.utcnow().isoformat(),
                 user_id,
@@ -201,9 +200,9 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         cur = conn.cursor()
         cur.execute("""
             UPDATE pricing_cache
-            SET h_pricing_ttl_at = ?
-            WHERE asin = ?
-            AND home_marketplace_id = ?
+            SET h_pricing_ttl_at = %s
+            WHERE asin = %s
+            AND home_marketplace_id = %s
         """, (
             datetime.utcnow().isoformat(),
             asin,
@@ -271,7 +270,7 @@ def _get_offer_filter_rules(user_id: int, country_code: str):
         cur.execute("""
             SELECT *
             FROM offer_filter_rules
-            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         row = cur.fetchone()
@@ -288,13 +287,12 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     conn = get_conn(db_name)
 
     try:
-        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT region_marketplace_id
             FROM listed_items
-            WHERE user_id = ?
-              AND asin = ?
+            WHERE user_id = %s
+              AND asin = %s
             LIMIT 1
         """, (user_id, asin))
         row = cur.fetchone()
@@ -331,8 +329,8 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     cur_acc.execute("""
         SELECT account_seller_id
         FROM account_master
-        WHERE user_id = ?
-        AND country_code = ?
+        WHERE user_id = %s
+        AND country_code = %s
         LIMIT 1
     """, (user_id, country_code))
 
@@ -381,9 +379,9 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
         cur = conn.cursor()
         cur.execute("""
             UPDATE pricing_cache
-            SET r_pricing_ttl_at = ?
-            WHERE asin = ?
-            AND region_marketplace_id = ?
+            SET r_pricing_ttl_at = %s
+            WHERE asin = %s
+            AND region_marketplace_id = %s
         """, (
             datetime.utcnow().isoformat(),
             asin,
@@ -410,7 +408,7 @@ def _get_pricing_master_rules(user_id: int, country_code: str):
             cur.execute("""
                 SELECT *
                 FROM pricing_master_rules
-                WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+                WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
                 LIMIT 1
             """, (user_id, country_code))
             row = cur.fetchone()
@@ -449,10 +447,10 @@ def update_pricing_master_rules():
 
     cur.execute("""
         INSERT INTO pricing_master_rules (user_id, country_code, created_at, updated_at)
-        SELECT ?, ?, ?, ?
+        SELECT %s, %s, %s, %s
         WHERE NOT EXISTS (
             SELECT 1 FROM pricing_master_rules
-            WHERE LOWER(user_id)=LOWER(?) AND UPPER(country_code)=UPPER(?)
+            WHERE LOWER(user_id)=LOWER(%s) AND UPPER(country_code)=UPPER(%s)
         )
     """, (user_id, country_code, now_utc, now_utc, user_id, country_code))
 
@@ -461,25 +459,25 @@ def update_pricing_master_rules():
     cur.execute("""
     UPDATE pricing_master_rules
         SET
-            pricing_competitor_min_rating_percent = ?,
-            pricing_competitor_min_rating_count = ?,
-            max_competitor_price_ratio = ?,
-            max_listing_price_limit = ?,
-            discount_rate = ?,
-            min_profit_rate = ?,
-            max_profit_rate = ?,
-            amazon_fee_rate = ?,
-            gst_rate = ?,
-            customs_duty_rate = ?,
-            oversea_remittance_fee_rate = ?,
-            fuel_surcharge_rate = ?,
-            shipping_outsource_cost = ?,            
-            extra_cost = ?,
+            pricing_competitor_min_rating_percent = %s,
+            pricing_competitor_min_rating_count = %s,
+            max_competitor_price_ratio = %s,
+            max_listing_price_limit = %s,
+            discount_rate = %s,
+            min_profit_rate = %s,
+            max_profit_rate = %s,
+            amazon_fee_rate = %s,
+            gst_rate = %s,
+            customs_duty_rate = %s,
+            oversea_remittance_fee_rate = %s,
+            fuel_surcharge_rate = %s,
+            shipping_outsource_cost = %s,            
+            extra_cost = %s,
 
-            default_handling_time = ?,
-            updated_at = ?
-        WHERE LOWER(user_id)=LOWER(?)
-        AND UPPER(country_code)=UPPER(?)
+            default_handling_time = %s,
+            updated_at = %s
+        WHERE LOWER(user_id)=LOWER(%s)
+        AND UPPER(country_code)=UPPER(%s)
     """, (
         body.get("pricing_competitor_min_rating_percent"),
         body.get("pricing_competitor_min_rating_count"),
@@ -536,16 +534,16 @@ def update_offer_filter_rules():
     cur = conn.cursor()
 
     # --- ▼ レコードが無ければインサート ▼ ---
+    now_utc = datetime.utcnow().isoformat() 
+    
     cur.execute("""
         INSERT INTO offer_filter_rules (user_id, country_code, created_at, updated_at)
-        SELECT ?, ?, datetime('now'), datetime('now')
+        SELECT %s, %s, %s, %s
         WHERE NOT EXISTS (
             SELECT 1 FROM offer_filter_rules
-            WHERE LOWER(user_id)=LOWER(?) AND UPPER(country_code)=UPPER(?)
+            WHERE LOWER(user_id)=LOWER(%s) AND UPPER(country_code)=UPPER(%s)
         )
-    """, (user_id, country_code, user_id, country_code))
-
-    now_utc = datetime.utcnow().isoformat()   
+    """, (user_id, country_code, now_utc, now_utc, user_id, country_code))  
 
     # --- ▼ bool → int 正規化 ▼ ---
     exclude_non_home_ship = 1 if body.get("exclude_non_home_ship") else 0
@@ -556,17 +554,17 @@ def update_offer_filter_rules():
     cur.execute("""
         UPDATE offer_filter_rules
         SET
-            min_rating_percent = ?,
-            min_rating_count = ?,
-            max_handling_days = ?,
-            min_stock_qty = ?,
-            exclude_non_home_ship = ?,
-            exclude_future_offer = ?,
-            consider_points = ?,  
-            exclude_non_buybox = ?,
-            updated_at = ?
-        WHERE LOWER(user_id)=LOWER(?)
-        AND UPPER(country_code)=UPPER(?)
+            min_rating_percent = %s,
+            min_rating_count = %s,
+            max_handling_days = %s,
+            min_stock_qty = %s,
+            exclude_non_home_ship = %s,
+            exclude_future_offer = %s,
+            consider_points = %s,  
+            exclude_non_buybox = %s,
+            updated_at = %s
+        WHERE LOWER(user_id)=LOWER(%s)
+        AND UPPER(country_code)=UPPER(%s)
     """, (
         body.get("min_rating_percent"),
         body.get("min_rating_count"),
@@ -601,7 +599,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     conn = get_conn(db_name)
 
     try:
-        conn.row_factory = sqlite3.Row # 一旦保留
         cur = conn.cursor()
         cur.execute("""
             SELECT
@@ -619,8 +616,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 home_brand,         
                 region_brand        
             FROM listed_items
-            WHERE user_id = ?
-              AND asin = ?
+            WHERE user_id = %s
+              AND asin = %s
             LIMIT 1
         """, (user_id, asin))
         row = cur.fetchone()
@@ -642,13 +639,13 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # === 11-02: tax_mode取得 ===
     conn_mid = get_conn("a_marketplaces_master.db") 
-    conn_mid.row_factory = sqlite3.Row
+    
     cur_mid = conn_mid.cursor()
 
     cur_mid.execute("""
         SELECT tax_mode, currency
         FROM marketplaces_master
-        WHERE marketplace_id = ?
+        WHERE marketplace_id = %s
         LIMIT 1
     """, (region_marketplace_id,))
 
@@ -663,13 +660,13 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # === 11-03: HOME通貨取得 === 
     conn_home = get_conn("a_marketplaces.db")
-    conn_home.row_factory = sqlite3.Row
+
     cur_home = conn_home.cursor()
 
     cur_home.execute("""
     SELECT currency
     FROM marketplaces
-    WHERE user_id = ?
+    WHERE user_id = %s
     AND home_flag = 1
     LIMIT 1
     """, (user_id,))
@@ -686,7 +683,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     cur_cfg.execute("""
         SELECT padding_cm, pack_ratio, volumetric_divisor
         FROM shipping_config
-        WHERE user_id = ?
+        WHERE user_id = %s
         ORDER BY updated_at DESC
         LIMIT 1
     """, (user_id,))
@@ -761,8 +758,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
             cur_li.execute("""
                 UPDATE listed_items
-                SET min_price = ?, max_price = ?
-                WHERE user_id = ? AND asin = ?
+                SET min_price = %s, max_price = %s
+                WHERE user_id = %s AND asin = %s
             """, (P_min, P_max, user_id, asin))
 
             conn_li.commit()
@@ -775,14 +772,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     try:
         conn_cache = get_conn("a_pricing_cache.db") 
-        conn_cache.row_factory = sqlite3.Row
+
         cur_cache = conn_cache.cursor()
 
         cur_cache.execute("""
             SELECT region_offers_json
             FROM pricing_cache
-            WHERE asin = ?
-                AND region_marketplace_id = ?
+            WHERE asin = %s
+                AND region_marketplace_id = %s
             LIMIT 1
         """, (asin, region_marketplace_id))
 
@@ -805,14 +802,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 # --- ▼ 自分除外（ここ追加） ---
                 try:
                     conn_acc = get_conn("a_account_master.db") 
-                    conn_acc.row_factory = sqlite3.Row
+                    
                     cur_acc = conn_acc.cursor()
 
                     cur_acc.execute("""
                         SELECT account_seller_id
                         FROM account_master
-                        WHERE user_id = ?
-                        AND country_code = ?
+                        WHERE user_id = %s
+                        AND country_code = %s
                         LIMIT 1
                     """, (user_id, country_code))
 
@@ -879,7 +876,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     )
 
     # --- ▼ ASIN判定 ---
-    asin_ng_flag = asin in asin_ng_list  # ←ここ追加
+    asin_ng_flag = asin in asin_ng_list 
 
     # --- ▼ 統合 ---
     brand_ng_flag = brand_ng_flag or asin_ng_flag     
@@ -918,14 +915,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         try:
 
             conn_acc = get_conn("a_account_master.db")
-            conn_acc.row_factory = sqlite3.Row
+            
             cur_acc = conn_acc.cursor()
 
             cur_acc.execute("""
                 SELECT account_seller_id
                 FROM account_master
-                WHERE user_id = ?
-                AND country_code = ?
+                WHERE user_id = %s
+                AND country_code = %s
                 LIMIT 1
             """, (user_id, country_code))
 
@@ -959,7 +956,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
                 if float(final_price) > float(max_allowed_price):
 
-                    status_value = 'INACTIVE'  # ここを修正
+                    status_value = 'INACTIVE' 
 
                     if is_listed and row["information_status"] != "INACTIVE":
 
@@ -980,11 +977,11 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         cur = conn.cursor()
         cur.execute("""
             UPDATE listed_items
-            SET final_price = ?,
-                information_status = ?,
-                updated_at = ?
-            WHERE user_id = ?
-            AND asin = ?
+            SET final_price = %s,
+                information_status = %s,
+                updated_at = %s
+            WHERE user_id = %s
+            AND asin = %s
         """, (
             final_price,
             status_value,
@@ -1033,7 +1030,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         "final_price": final_price
     }
 
-# --- ▼ SECTION 11 : HOME通貨取得（UI表示用） ▼ ---
+# --- ▼ SECTION 12 : HOME通貨取得（UI表示用） ▼ ---
 @pricing_v2_bp.route("/pricing/get_home_currency", methods=["GET"])
 def get_home_currency():
 
@@ -1046,7 +1043,7 @@ def get_home_currency():
     cur.execute("""
         SELECT currency
         FROM marketplaces
-        WHERE user_id = ?
+        WHERE user_id = %s
         AND home_flag = 1
         LIMIT 1
     """, (user_id,))

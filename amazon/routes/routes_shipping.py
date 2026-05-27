@@ -21,12 +21,6 @@ def resolve_marketplace_id(marketplace_code: str):
     
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
-
-    # cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    # cur.execute(
-    #     "SELECT * FROM marketplaces_master"
-    # )
-
     cur.execute(
         "SELECT marketplace_id FROM marketplaces_master WHERE country_code = %s",
         (marketplace_code.upper(),)
@@ -62,8 +56,8 @@ def load_shipping_rates():
     cur.execute("""
         SELECT COUNT(*) 
         FROM shipping_rates
-        WHERE user_id = ?
-          AND marketplace_id = ?
+        WHERE user_id = %s
+          AND marketplace_id = %s
     """, (user_id, marketplace_id))
 
     count = cur.fetchone()[0]
@@ -77,8 +71,8 @@ def load_shipping_rates():
             carrier_2_price,
             carrier_3_price
         FROM shipping_rates
-        WHERE user_id = ?
-          AND marketplace_id = ?
+        WHERE user_id = %s
+          AND marketplace_id = %s
         ORDER BY weight_from_g
     """, (user_id, marketplace_id))
 
@@ -167,7 +161,7 @@ def get_shipping_rate_copy_source_list():
     cur.execute("""
         SELECT DISTINCT marketplace_id
         FROM shipping_rates
-        WHERE user_id = ?
+        WHERE user_id = %s
         ORDER BY marketplace_id
     """, (user_id,))
 
@@ -189,7 +183,7 @@ def get_shipping_rate_copy_source_list():
             master_cur.execute("""
                 SELECT country_code
                 FROM marketplaces_master
-                WHERE marketplace_id = ?
+                WHERE marketplace_id = %s
             """, (marketplace_id,))
 
             row = master_cur.fetchone()

@@ -30,13 +30,12 @@ def api_raw_catalog_check():
 
     # ★ UIで選んだregionから marketplace_id だけ取得
     conn = get_conn("a_marketplaces.db")
-    conn.row_factory = lambda c, r: {c.description[i][0]: r[i] for i in range(len(r))}
     cur = conn.cursor()
     cur.execute("""
         SELECT marketplace_id
         FROM marketplaces
-        WHERE user_id = ?
-          AND UPPER(country_code) = UPPER(?)
+        WHERE user_id = %s
+          AND UPPER(country_code) = UPPER(%s)
         LIMIT 1
     """, (1, ui_country_code))
     row = cur.fetchone()
