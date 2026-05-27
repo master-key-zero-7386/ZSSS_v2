@@ -47,7 +47,7 @@ class PricingRulesAdapter:
         cur.execute("""
             SELECT country_code
             FROM marketplaces
-            WHERE user_id = ?
+            WHERE user_id = %s
             AND home_flag = 1
             LIMIT 1
         """, (self.rules.get("user_id"),))

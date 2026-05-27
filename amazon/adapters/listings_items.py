@@ -100,8 +100,8 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
         cur_li.execute("""
             SELECT region_brand
             FROM listed_items
-            WHERE asin = ?
-            AND user_id = ?
+            WHERE asin = %s
+            AND user_id = %s
             LIMIT 1
         """, (asin, user_id))
 

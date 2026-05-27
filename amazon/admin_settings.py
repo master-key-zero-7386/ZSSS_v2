@@ -23,7 +23,7 @@ def save_admin_setting(base_dir, key, value):
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO admin_settings (key, value)
-        VALUES (?, ?)
+        VALUES (%s, %s)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
     """, (key, str(value)))
     conn.commit()
@@ -33,7 +33,7 @@ def save_admin_setting(base_dir, key, value):
 def get_admin_setting(base_dir, key, default=None):
     conn = _get_conn(base_dir)
     cur = conn.cursor()
-    cur.execute("SELECT value FROM admin_settings WHERE key = ?", (key,))
+    cur.execute("SELECT value FROM admin_settings WHERE key = %s", (key,))
     row = cur.fetchone()
     conn.close()
     return row[0] if row else default

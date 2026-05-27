@@ -150,17 +150,18 @@ class CatalogAdapterRegion:
                     region_raw_json,
                     region_updated_at
                 FROM catalog_cache
-                WHERE asin = ?
-                AND region_marketplace_id = ?
+                WHERE asin = %s
+                AND region_marketplace_id = %s
                 LIMIT 1
             """, ( asin, self.marketplace_id))
 
             row = cur.fetchone()
 
-            if not row or not row["region_raw_json"]:
+            if not row or not row[0]:
                 return None
 
-            return dict(row)
+            columns = [desc[0] for desc in cur.description] 
+            return dict(zip(columns, row)) 
 
         finally:
             conn.close()
@@ -183,8 +184,8 @@ class CatalogAdapterRegion:
             cur.execute("""
                 SELECT region_raw_json
                 FROM catalog_cache
-                WHERE asin = ?
-                AND region_marketplace_id = ?
+                WHERE asin = %s
+                AND region_marketplace_id = %s
             """, (asin, self.marketplace_id))
 
             row = cur.fetchone()
@@ -198,23 +199,23 @@ class CatalogAdapterRegion:
                     cur.execute("""
                         UPDATE catalog_cache
                         SET
-                            region_raw_json   = ?,
-                            region_updated_at = ?,
-                            updated_at        = ?,
-                            r_catalog_ttl_at  = ?
+                            region_raw_json   = %s,
+                            region_updated_at = %s,
+                            updated_at        = %s,
+                            r_catalog_ttl_at  = %s
                         WHERE
-                            asin = ?
-                            AND region_marketplace_id = ?
+                            asin = %s
+                            AND region_marketplace_id = %s
                     """, (
                         region_raw_json, now_utc, now_utc, now_utc, asin, self.marketplace_id))
                 else:
                     cur.execute("""
                         UPDATE catalog_cache
                         SET
-                            r_catalog_ttl_at = ?
+                            r_catalog_ttl_at = %s
                         WHERE
-                            asin = ?
-                            AND region_marketplace_id = ?
+                            asin = %s
+                            AND region_marketplace_id = %s
                     """, (
                         now_utc, asin, self.marketplace_id))
 

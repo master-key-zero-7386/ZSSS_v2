@@ -162,7 +162,7 @@ def build_oauth_authorize_url(
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
     cur.execute(
-        "SELECT application_id, host FROM marketplaces_master WHERE UPPER(country_code)=UPPER(?)",
+        "SELECT application_id, host FROM marketplaces_master WHERE UPPER(country_code)=UPPER(%s)",
         (marketplace,)
     )
     row = cur.fetchone()

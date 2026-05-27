@@ -94,18 +94,28 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 02: listed_items書き込み（catalog REGION）  ▼ ---
     def update_region_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, region: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
-        conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+        if DB_MODE == "sqlite":
+            conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            cur.execute("""
-                SELECT name
-                FROM sqlite_master
-                WHERE type='table' AND name='listed_items'
-            """)
+            if DB_MODE == "sqlite":
+                cur.execute("""
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type='table' AND name='listed_items'
+                """)
+
+            elif DB_MODE == "postgres":
+                cur.execute("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_name = 'listed_items'
+                """)
+
             if not cur.fetchone():
                 return
 
@@ -113,13 +123,13 @@ class ListedItemsUpdate:
             cur.execute("""
                 UPDATE listed_items
                 SET
-                    region_title = COALESCE(?, region_title),
-                    region_brand = COALESCE(?, region_brand),
-                    region_manufacturer = COALESCE(?, region_manufacturer),
-                    updated_at = ?
+                    region_title = COALESCE(%s, region_title),
+                    region_brand = COALESCE(%s, region_brand),
+                    region_manufacturer = COALESCE(%s, region_manufacturer),
+                    updated_at = %s
                 WHERE
-                    user_id = ?
-                    AND asin = ?
+                    user_id = %s
+                    AND asin = %s
             """, (
                 normalized.get("region_title"),
                 normalized.get("region_brand"),
@@ -138,18 +148,28 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 03: listed_items書き込み（PRICING HOME） ▼ ---
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
-        conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
+        if DB_MODE == "sqlite":
+            conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            cur.execute("""
-                SELECT name
-                FROM sqlite_master
-                WHERE type='table' AND name='listed_items'
-            """)
+            if DB_MODE == "sqlite":
+                cur.execute("""
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type='table' AND name='listed_items'
+                """)
+
+            elif DB_MODE == "postgres":
+                cur.execute("""
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_name = 'listed_items'
+                """)
+
             if not cur.fetchone():
                 return
 
@@ -157,8 +177,8 @@ class ListedItemsUpdate:
             cur.execute("""
                 SELECT id, home_price, information_status
                 FROM listed_items
-                WHERE user_id = ?
-                AND asin = ?
+                WHERE user_id = %s
+                AND asin = %s
                 LIMIT 1
             """, (user_id, asin))
             row_old = cur.fetchone()
@@ -178,11 +198,11 @@ class ListedItemsUpdate:
             cur.execute("""
                 UPDATE listed_items
                 SET
-                    home_price = ?,
-                    updated_at = ?
+                    home_price = %s,
+                    updated_at = %s
                 WHERE
-                    user_id = ?
-                    AND asin = ?
+                    user_id = %s
+                    AND asin = %s
             """, (
                 new_price,
                 now_utc,
@@ -197,7 +217,8 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---  
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db) 
-        conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
+        if DB_MODE == "sqlite":
+            conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
 
         try:
             cur = conn.cursor()  
@@ -207,12 +228,12 @@ class ListedItemsUpdate:
             cur.execute("""  
                 UPDATE listed_items
                 SET
-                    region_price = ?,  
-                    final_price = ?, 
-                    updated_at = ?
+                    region_price = %s,  
+                    final_price = %s, 
+                    updated_at = %s
                 WHERE
-                    user_id = ?
-                    AND asin = ?
+                    user_id = %s
+                    AND asin = %s
             """, (
                 normalized.get("region_price"),  
                 normalized.get("final_price"), 

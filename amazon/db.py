@@ -117,7 +117,7 @@ def get_account_info(country_code: str, user_id: str | None = None) -> dict:
             created_at,
             updated_at
         FROM marketplaces
-        WHERE country_code = ? AND user_id = ?
+        WHERE country_code = %s AND user_id = %s
         LIMIT 1
     """, (country_code, user_id))
 
@@ -129,7 +129,8 @@ def get_account_info(country_code: str, user_id: str | None = None) -> dict:
             f"marketplaces に user_id={user_id}, country_code={country_code} のレコードが見つかりません。"
         )
 
-    return {key: row[key] for key in row.keys()}
+    columns = [desc[0] for desc in cur.description] 
+    return dict(zip(columns, row))
 
 # --- ▼ SECTION 06  ▼ ---
 def get_account_info_by_marketplace_id(marketplace_id: str, user_id: int) -> dict:
@@ -138,7 +139,7 @@ def get_account_info_by_marketplace_id(marketplace_id: str, user_id: int) -> dic
     cur.execute("""
         SELECT *
         FROM marketplaces
-        WHERE marketplace_id = ? AND user_id = ?
+        WHERE marketplace_id = %s AND user_id = %s
         LIMIT 1
     """, (marketplace_id, user_id))
     row = cur.fetchone()
@@ -149,7 +150,8 @@ def get_account_info_by_marketplace_id(marketplace_id: str, user_id: int) -> dic
             f"marketplaces に user_id={user_id}, marketplace_id={marketplace_id} のレコードが見つかりません。"
         )
 
-    return {key: row[key] for key in row.keys()}
+    columns = [desc[0] for desc in cur.description]
+    return dict(zip(columns, row))
 
 # --- ▼ SECTION 07: LWA認証情報取得（master） ▼ ---
 def get_lwa_credentials(country_code: str):
@@ -158,7 +160,7 @@ def get_lwa_credentials(country_code: str):
     cur.execute("""
         SELECT client_id, client_secret
         FROM marketplaces_master
-        WHERE country_code = ?
+        WHERE country_code = %s
         LIMIT 1
     """, (country_code,))
     row = cur.fetchone()
@@ -166,6 +168,9 @@ def get_lwa_credentials(country_code: str):
 
     if not row:
         raise ValueError("LWA credentials not found in master DB")
+
+    columns = [desc[0] for desc in cur.description] 
+    row_dict = dict(zip(columns, row))
 
     return {
         "client_id": row["client_id"],

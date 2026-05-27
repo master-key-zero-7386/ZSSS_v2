@@ -31,7 +31,7 @@ def get_api_usage_summary(user_id: int):
             display_name,
             home_flag
         FROM marketplaces
-        WHERE user_id = ?
+        WHERE user_id = %s
         """,
         (user_id,)
     )
@@ -71,7 +71,7 @@ def get_api_usage_summary(user_id: int):
             endpoint,
             created_at
         FROM api_usage_logs
-        WHERE user_id = ?
+        WHERE user_id = %s
         """,
         (user_id,)
     )

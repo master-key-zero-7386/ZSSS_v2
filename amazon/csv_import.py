@@ -257,7 +257,7 @@ def import_csv():
                 conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
                 cur = conn.cursor()
                 for asin in asin_list:
-                    cur.execute("SELECT 1 FROM listed_items WHERE asin = ?", (asin,))
+                    cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
                     if cur.fetchone():
                         listed_asins.append(asin)
                 conn.close()
@@ -327,7 +327,7 @@ def import_csv():
             cur_m.execute("""
                 SELECT marketplace_id
                 FROM marketplaces
-                WHERE user_id = ? AND country_code = ?
+                WHERE user_id = %s AND country_code = %s
             """, (user_id, country_code))
             row = cur_m.fetchone()
             if not row:
@@ -339,7 +339,7 @@ def import_csv():
             cur_m.execute("""
                 SELECT marketplace_id
                 FROM marketplaces
-                WHERE user_id = ? AND home_flag = 1
+                WHERE user_id = %s AND home_flag = 1
             """, (user_id,))
             row = cur_m.fetchone()
             conn_m.close()
@@ -361,7 +361,7 @@ def import_csv():
 
                 # ▼ listed_items のカラム順に完全一致 
                 cur.execute("""
-                    INSERT OR IGNORE INTO listed_items (
+                    INSERT INTO listed_items ( 
                         user_id,
                         asin,
                         sku,
@@ -405,16 +405,16 @@ def import_csv():
                         updated_at
                     )
                     VALUES (
-                        ?,?,?,?,?,?,
-                        10,?,
-                        ?,?,?,
-                        ?,?,?,?,?,?,
-                        ?,
-                        ?,?,?,?,
-                        ?,?,
-                        ?,?,?,
-                        ?,?,?,
-                        ?,?
+                        %s,%s,%s,%s,%s,%s,
+                        10,%s,
+                        %s,%s,%s,
+                        %s,%s,%s,%s,%s,%s,
+                        %s,
+                        %s,%s,%s,%s,
+                        %s,%s,
+                        %s,%s,%s,
+                        %s,%s,%s,
+                        %s,%s
                     )
                 """, (
                     session.get("user_id"),      # user_id　　　　　　　　　6

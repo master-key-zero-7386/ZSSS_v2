@@ -146,26 +146,27 @@ class PricingAdapterRegion:
                     region_offers_json,
                     region_updated_at
                 FROM pricing_cache
-                WHERE asin = ?
-                    AND region_marketplace_id = ?
+                WHERE asin = %s
+                    AND region_marketplace_id = %s
                 LIMIT 1
                 """,
                 (asin, self.marketplace_id))
 
             row = cur.fetchone()
 
-            if not row or not row["region_offers_json"]:
+            if not row or not row[0]:
                 return None
 
-            if not row["region_updated_at"]:       
+            if not row[1]:   
                 return None
 
-            updated_at = datetime.strptime(
-                row["region_updated_at"], "%Y-%m-%d %H:%M:%S"   
-            )
+            updated_at = datetime.fromisoformat(row[1]) 
+
             expire_at = updated_at + timedelta(days=1)
 
-            return dict(row)
+            columns = [desc[0] for desc in cur.description]  
+            return dict(zip(columns, row))
+
         finally:
             conn.close()
 
@@ -186,8 +187,8 @@ class PricingAdapterRegion:
             cur.execute("""
                 SELECT region_offers_json
                 FROM pricing_cache
-                WHERE asin = ?
-                AND region_marketplace_id = ?
+                WHERE asin = %s
+                AND region_marketplace_id = %s
             """, (asin, self.marketplace_id))
 
             row = cur.fetchone()
@@ -202,13 +203,13 @@ class PricingAdapterRegion:
                         """
                         UPDATE pricing_cache
                         SET
-                            region_offers_json = ?,
-                            region_updated_at  = ?,
-                            updated_at         = ?,
-                            r_pricing_ttl_at   = ?
+                            region_offers_json = %s,
+                            region_updated_at  = %s,
+                            updated_at         = %s,
+                            r_pricing_ttl_at   = %s
                         WHERE
-                            asin = ?
-                            AND region_marketplace_id = ?
+                            asin = %s
+                            AND region_marketplace_id = %s
                         """,(
                             region_offers_json, now_utc, now_utc, now_utc, asin, self.marketplace_id))
                 else:
@@ -216,10 +217,10 @@ class PricingAdapterRegion:
                         """
                         UPDATE pricing_cache
                         SET
-                            r_pricing_ttl_at = ?
+                            r_pricing_ttl_at = %s
                         WHERE
-                            asin = ?
-                            AND region_marketplace_id = ?
+                            asin = %s
+                            AND region_marketplace_id = %s
                         """,(
                             now_utc, asin, self.marketplace_id))
 

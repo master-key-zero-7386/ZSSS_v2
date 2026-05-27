@@ -49,7 +49,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
     if copy_from_marketplace_id:
 
         cur.execute("""
-            INSERT OR IGNORE INTO shipping_rates
+            INSERT INTO shipping_rates
             (
                 user_id,
                 marketplace_id,
@@ -62,7 +62,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
             )
             SELECT
                 user_id,
-                ?,
+                %s,
                 weight_from_g,
                 weight_to_g,
                 carrier_1_price,
@@ -70,8 +70,8 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
                 carrier_3_price,
                 memo
             FROM shipping_rates
-            WHERE user_id = ?
-            AND marketplace_id = ?
+            WHERE user_id = %s
+            AND marketplace_id = %s
         """, (
             marketplace_id,
             user_id,
@@ -84,7 +84,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
 
     for start_g, end_g in generate_weight_ranges():
         cur.execute("""
-            INSERT OR IGNORE INTO shipping_rates
+            INSERT INTO shipping_rates
             (
                 user_id,
                 marketplace_id,
@@ -94,7 +94,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
                 carrier_2_price,
                 carrier_3_price
             )
-            VALUES (?, ?, ?, ?, 0, 0, 0)
+            VALUES (%s, %s, %s, %s, 0, 0, 0)
         """, (user_id, marketplace_id, start_g, end_g))
 
     conn.commit()
@@ -114,8 +114,8 @@ def has_valid_shipping_rates(user_id: int, marketplace_id: str) -> bool:
     cur.execute("""
         SELECT 1
         FROM shipping_rates
-        WHERE user_id = ?
-          AND marketplace_id = ?
+        WHERE user_id = %s
+          AND marketplace_id = %s
           AND (
               carrier_1_price > 0
               OR carrier_2_price > 0
@@ -154,16 +154,16 @@ def update_shipping_rates_bulk(user_id: int, marketplace_id: str, rows: list[dic
             """
             UPDATE shipping_rates
             SET
-                carrier_1_price = ?,
-                carrier_2_price = ?,
-                carrier_3_price = ?,
-                memo = ?,
-                updated_at = ?
+                carrier_1_price = %s,
+                carrier_2_price = %s,
+                carrier_3_price = %s,
+                memo = %s,
+                updated_at = %s
             WHERE
-                user_id = ?
-                AND marketplace_id = ?
-                AND weight_from_g = ?
-                AND weight_to_g = ?
+                user_id = %s
+                AND marketplace_id = %s
+                AND weight_from_g = %s
+                AND weight_to_g = %s
             """,
             (c1, c2, c3, memo, now_utc, user_id, marketplace_id, wf, wt)
         )

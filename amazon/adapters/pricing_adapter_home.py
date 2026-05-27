@@ -160,24 +160,22 @@ class PricingAdapterHome:
                     home_offers_json,
                     home_updated_at 
                 FROM pricing_cache
-                WHERE asin = ?
-                    AND home_marketplace_id = ?
+                WHERE asin = %s
+                    AND home_marketplace_id = %s
                 LIMIT 1
             """, (asin, self.marketplace_id))
 
             row = cur.fetchone()
 
-            if not row or not row["home_offers_json"]:
+            if not row or not row[0]:
                 return None
 
-            if not row["home_updated_at"]: 
+            if not row[1]:
                 return None    
 
-            updated_at = datetime.fromisoformat(row["home_updated_at"])       
+            updated_at = datetime.fromisoformat(row[1])        
 
-            expire_at = updated_at + timedelta(hours=24) 
-
-            data = json.loads(row["home_offers_json"])
+            data = json.loads(row[0])
 
             RETAIL_SELLER_IDS = get_retail_seller_ids()
             offers = data.get("payload", {}).get("Offers", [])
@@ -231,8 +229,8 @@ class PricingAdapterHome:
             cur.execute("""
                 SELECT home_offers_json
                 FROM pricing_cache
-                WHERE asin = ?
-                AND home_marketplace_id = ?
+                WHERE asin = %s
+                AND home_marketplace_id = %s
             """, (asin, self.marketplace_id))
 
             row = cur.fetchone()
@@ -247,23 +245,23 @@ class PricingAdapterHome:
                     cur.execute("""
                         UPDATE pricing_cache
                         SET
-                            home_offers_json = ?,
-                            home_updated_at  = ?,
-                            updated_at       = ?,
-                            h_pricing_ttl_at = ?
+                            home_offers_json = %s,
+                            home_updated_at  = %s,
+                            updated_at       = %s,
+                            h_pricing_ttl_at = %s
                         WHERE
-                            asin = ?
-                            AND home_marketplace_id = ?
+                            asin = %s
+                            AND home_marketplace_id = %s
                     """, (
                         home_offers_json, now_utc, now_utc, now_utc, asin, self.marketplace_id)) 
                 else:
                     cur.execute("""
                         UPDATE pricing_cache
                         SET
-                            h_pricing_ttl_at = ?
+                            h_pricing_ttl_at = %s
                         WHERE
-                            asin = ?
-                            AND home_marketplace_id = ?
+                            asin = %s
+                            AND home_marketplace_id = %s
                     """, (
                         now_utc, asin, self.marketplace_id)) 
 

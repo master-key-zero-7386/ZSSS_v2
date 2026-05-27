@@ -835,11 +835,6 @@ def ensure_fx_settings_initialized():
     count = cur.fetchone()[0]
 
     if count == 0:
-        # cur.execute("""
-        #     INSERT INTO fx_settings (provider_name, update_interval_hours, last_updated_at)
-        #     VALUES (?, ?, ?)
-        # """, ("exchangerate_host", 24, None))
-
         cur.execute("""
             INSERT INTO fx_settings (provider_name, update_interval_hours, last_updated_at)
             VALUES (%s, %s, %s)

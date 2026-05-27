@@ -24,7 +24,7 @@ def get_shipping_config():
         cur.execute("""
             SELECT padding_cm, pack_ratio, volumetric_divisor
             FROM shipping_config
-            WHERE user_id=? AND UPPER(country_code)=UPPER(?)
+            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
         """, (user_id, "ALL"))
 
         row = cur.fetchone()
@@ -207,10 +207,10 @@ def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_i
     cur.execute("""
         SELECT carrier_1_price, carrier_2_price, carrier_3_price
         FROM shipping_rates
-        WHERE user_id = ?
-            AND marketplace_id = ?
-            AND weight_from_g <= ?
-            AND weight_to_g   >= ?
+        WHERE user_id = %s
+            AND marketplace_id = %s
+            AND weight_from_g <= %s
+            AND weight_to_g   >= %s
         LIMIT 1
     """, (user_id, marketplace_id, weight_g, weight_g))
 
