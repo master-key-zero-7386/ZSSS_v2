@@ -253,8 +253,12 @@ def import_csv():
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
 
             if os.path.exists(listed_db):
-                conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
-                conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+
+                if DB_MODE == "sqlite":
+                    conn = sqlite3.connect(listed_db, timeout=30) 
+                    conn.execute("PRAGMA journal_mode=WAL")
+                else:
+                    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")                    
                 cur = conn.cursor()
                 for asin in asin_list:
                     cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
@@ -310,11 +314,11 @@ def import_csv():
             if country_code not in valid_regions:
                 return jsonify({"status": "error", "message": "選択したマーケットプレイスが違います"}), 400
 
-            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") # 一旦保留
+            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db")
 
             if DB_MODE == "sqlite":
-                conn = sqlite3.connect(listed_db, timeout=30) # 一旦保留
-                conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+                conn = sqlite3.connect(listed_db, timeout=30) 
+                conn.execute("PRAGMA journal_mode=WAL")
             else:
                 conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 

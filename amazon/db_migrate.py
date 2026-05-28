@@ -31,7 +31,7 @@ def get_conn_old(db_name: str):
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
 
-    conn = sqlite3.connect(db_path, timeout=30) # 一旦保留
+    conn = sqlite3.connect(db_path, timeout=30) 
     conn.row_factory = sqlite3.Row
 
     return conn
@@ -719,10 +719,10 @@ def add_indexes_listed_items():
     for file in os.listdir(DB_DIR):
         if file.endswith("_listed_items.db"):
             path = os.path.join(DB_DIR, file)
-            conn = sqlite3.connect(path) # 一旦保留
+            conn = sqlite3.connect(path) 
             cur = conn.cursor()
 
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'") # 一旦保留
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'") 
             if not cur.fetchone():
                 conn.close()
                 continue

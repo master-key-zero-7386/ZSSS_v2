@@ -11,7 +11,7 @@ def get_exchange_rate(base_currency: str, target_currency: str):
     db_name = "a_fx.db"
     conn = get_conn(db_name) 
     if DB_MODE == "sqlite":
-        conn.row_factory = sqlite3.Row # 一旦保留 
+        conn.row_factory = sqlite3.Row
 
     cur = conn.cursor()
 

@@ -23,7 +23,7 @@ class ListedItemsUpdate:
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db) 
         if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+            conn.execute("PRAGMA journal_mode=WAL")
 
         try:
             cur = conn.cursor()
@@ -96,7 +96,7 @@ class ListedItemsUpdate:
     def update_region_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, region: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
         if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL") # 一旦保留
+            conn.execute("PRAGMA journal_mode=WAL")
 
         try:
             cur = conn.cursor()
@@ -150,7 +150,7 @@ class ListedItemsUpdate:
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
         if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
+            conn.execute("PRAGMA journal_mode=WAL") 
 
         try:
             cur = conn.cursor()
@@ -219,7 +219,7 @@ class ListedItemsUpdate:
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db) 
         if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL") #一旦保留       
+            conn.execute("PRAGMA journal_mode=WAL")     
 
         try:
             cur = conn.cursor()  

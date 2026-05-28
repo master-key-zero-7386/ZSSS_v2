@@ -51,8 +51,8 @@ def _resolve_db_path(db_name):
 # --- ▼ SECTION 02: SQLite接続 ▼ ---
 def _get_sqlite_conn(db_path):
 
-    conn = sqlite3.connect(db_path, timeout=10) # 一旦保留
-    conn.row_factory = sqlite3.Row # 一旦保留
+    conn = sqlite3.connect(db_path, timeout=10)
+    conn.row_factory = sqlite3.Row
 
     return conn
 

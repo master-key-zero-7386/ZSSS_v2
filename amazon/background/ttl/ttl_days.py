@@ -34,7 +34,7 @@ def get_account_ttl_days(db_dir, user_id, marketplace_id, scope, ttl_type):
     db_name = "a_marketplaces.db" 
     conn = get_conn(db_name) 
     if DB_MODE == "sqlite":
-        conn.row_factory = sqlite3.Row # 一旦保留
+        conn.row_factory = sqlite3.Row
     cur = conn.cursor()    
 
     cur.execute(f"""
