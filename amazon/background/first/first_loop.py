@@ -11,7 +11,7 @@ import time
 import sqlite3
 import datetime
 from datetime import timezone, timedelta
-from amazon.db import get_conn
+from amazon.db import get_conn, DB_MODE
 
 from amazon.background.common.background_common import list_listed_dbs
 from amazon.routes.routes_catalog_v2 import update_home_catalog
@@ -65,7 +65,7 @@ def run_first_loop(app, db_dir):
                         FROM listed_items
                         WHERE first_try_count > 0
                         AND ttl_stop_status IS NULL
-                        GROUP BY user_id, asin
+                        GROUP BY user_id, asin, home_marketplace_id, region_marketplace_id, created_at
                         ORDER BY created_at ASC
                         LIMIT %s
                     """, (MAX_FIRST_PER_CYCLE,))
@@ -74,7 +74,7 @@ def run_first_loop(app, db_dir):
                     columns = [desc[0] for desc in cur.description]
 
                     for r in rows:
-                        row_dict = dict(zip(columns, r)) 
+                        row_dict = r
 
                         targets.append({
                             "db": listed_db,
@@ -120,7 +120,7 @@ def run_first_loop(app, db_dir):
                         """, (t["asin"],))
                         row_success = cur_success.fetchone()
 
-                        if row_success and row_success[0] is not None:
+                        if row_success and row_success["home_offers_json"] is not None:
                             conn_listed = get_conn(t["db"]) 
                             try:
                                 cur_listed = conn_listed.cursor()

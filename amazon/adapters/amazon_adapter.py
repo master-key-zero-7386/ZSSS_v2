@@ -171,8 +171,8 @@ def build_oauth_authorize_url(
     if not row:
         raise ValueError(f"Master config not found for {marketplace}")
 
-    application_id = row[0]
-    host = row[1]
+    application_id = row["application_id"] 
+    host = row["host"] 
 
     # --- ▼ /ap/oa 使用 ▼ ---
     host_without_scheme = host.replace("https://", "").replace("http://", "")

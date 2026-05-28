@@ -12,6 +12,7 @@ import sqlite3
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
+from psycopg2.extras import RealDictCursor
 
 
 # --- DBディレクトリの決定 ---
@@ -69,6 +70,7 @@ def _get_postgres_conn():
         password=PG_PASSWORD,
         dbname=PG_DATABASE,
         client_encoding="UTF8",
+        cursor_factory=RealDictCursor, 
     )
 
     return conn 

@@ -426,6 +426,7 @@ USER_LOGIN_ACCOUNTS_COLUMNS = {
     "created_at":           "TEXT",                                 # 作成日時
     "updated_at":           "TEXT"                                  # 更新日時
 }
+
 def get_existing_columns(conn, table_name):
     cur = conn.cursor()
 
@@ -442,7 +443,7 @@ def get_existing_columns(conn, table_name):
                 WHERE table_name = %s
             """, (table_name,))
 
-            return [row[0].lower() for row in cur.fetchall()]
+            return [row["column_name"].lower() for row in cur.fetchall()] 
 
     except Exception:
         return []
@@ -465,7 +466,7 @@ def migrate_table(conn, table_name, schema_dict):
             cols_def += ", UNIQUE(user_id, country_code)"
 
 
-        cur.execute(f"CREATE TABLE {table_name} ({cols_def})")
+        cur.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({cols_def})")
         print(f"[CREATE] {table_name}")
         
     else:
@@ -565,7 +566,7 @@ def add_unique_indexes():  # UNIQUE制約
     conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT country_code FROM marketplaces")
-    country_codes = [row[0].lower() for row in cur.fetchall()]
+    country_codes = [row["country_code"].lower() for row in cur.fetchall()]
     conn.close()
 
     # その country_code だけ listed_items.db を更新
@@ -767,7 +768,7 @@ def main():
     conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT country_code FROM marketplaces")
-    country_codes = [row[0].lower() for row in cur.fetchall()]
+    country_codes = [row["country_code"].lower() for row in cur.fetchall()]
     conn.close()
 
     # ③ country_code ごとのDBを migrate（ここで listed_items テーブルが作られる）
@@ -806,7 +807,7 @@ def ensure_fx_settings_initialized():
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) FROM fx_settings")
-    count = cur.fetchone()[0]
+    count = cur.fetchone()["count"]
 
     if count == 0:
         cur.execute("""

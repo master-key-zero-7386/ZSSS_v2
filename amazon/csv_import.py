@@ -24,7 +24,7 @@ import traceback
 from datetime import datetime, timedelta
 from collections import Counter
 from threading import Thread
-from amazon.db import get_conn
+from amazon.db import get_conn, DB_MODE
 
 from flask import Blueprint, request, jsonify, session, current_app, Response
 from werkzeug.utils import secure_filename
@@ -163,7 +163,7 @@ def import_csv():
 
         cur_m = conn_m.cursor()
         cur_m.execute("SELECT DISTINCT country_code FROM marketplaces")
-        valid_regions = [row[0].upper() for row in cur_m.fetchall()]
+        valid_regions = [row["country_code"].upper() for row in cur_m.fetchall()]
         conn_m.close()
 
         if country_code not in valid_regions:
@@ -308,7 +308,7 @@ def import_csv():
             conn_m = get_conn("a_marketplaces.db")
             cur_m = conn_m.cursor()
             cur_m.execute("SELECT DISTINCT country_code FROM marketplaces")
-            valid_regions = [row[0].upper() for row in cur_m.fetchall()]
+            valid_regions = [row["country_code"].upper() for row in cur_m.fetchall()]
             conn_m.close()
 
             if country_code not in valid_regions:
@@ -341,7 +341,7 @@ def import_csv():
             if not row:
                 conn_m.close()
                 return jsonify({"status": "error", "message": "region marketplace not found"}), 400
-            region_marketplace_id = row[0]
+            region_marketplace_id = row["marketplace_id"]
 
             # HOME marketplace_id（home_flag = 1）
             cur_m.execute("""
@@ -353,7 +353,7 @@ def import_csv():
             conn_m.close()
             if not row:
                 return jsonify({"status": "error", "message": "home marketplace not found"}), 400
-            home_marketplace_id = row[0]
+            home_marketplace_id = row["marketplace_id"]
 
 
             # ▼ OKタブのASINとSKUを受け取る

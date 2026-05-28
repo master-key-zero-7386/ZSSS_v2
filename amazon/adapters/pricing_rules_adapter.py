@@ -54,7 +54,7 @@ class PricingRulesAdapter:
         row = cur.fetchone()
         conn.close()
 
-        home_country = row[0] if row else None
+        home_country = row["country_code"] if row else None
 
         for offer in normalized_offers:
             # ここに条件判定を順番に追加していく    

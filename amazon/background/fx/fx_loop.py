@@ -57,7 +57,7 @@ def run_fx_loop():
                 conn = get_conn("a_marketplaces_master.db")
                 cur = conn.cursor()
                 cur.execute("SELECT DISTINCT currency FROM marketplaces_master")
-                base_currencies = [row[0] for row in cur.fetchall()]
+                base_currencies = [row["currency"] for row in cur.fetchall()] 
                 conn.close()
 
                 # --- 各通貨を基準に取得＆保存 ---
@@ -97,10 +97,10 @@ def get_last_fx_updated_at():
 
     conn.close()
 
-    if not row or not row[0]:
+    if not row or not row["last_updated_at"]:
         return None
 
-    return datetime.fromisoformat(row[0])
+    return datetime.fromisoformat(row["last_updated_at"])
 
 # --- ▼ SECTION 04: 更新間隔取得 ▼ ---
 def get_fx_update_interval_hours():
@@ -117,10 +117,10 @@ def get_fx_update_interval_hours():
 
     conn.close()
 
-    if not row or row[0] is None:
+    if not row or row["update_interval_hours"] is None:
         return 24  # デフォルト
 
-    return int(row[0])
+    return int(row["update_interval_hours"])
 
 # --- ▼ SECTION 05: 最終更新時刻更新 ▼ ---
 def update_fx_last_updated_at():

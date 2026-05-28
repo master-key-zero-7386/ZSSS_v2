@@ -255,9 +255,9 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     cfg = cur_cfg.fetchone()
     conn_cfg.close()
 
-    padding_cm = cfg[0] if cfg else 0
-    pack_ratio = cfg[1] if cfg else 1.0
-    volum_div  = cfg[2] if cfg else 5000
+    padding_cm = cfg["padding_cm"] if cfg else 0
+    pack_ratio = cfg["pack_ratio"] if cfg else 1.0
+    volum_div  = cfg["volumetric_divisor"] if cfg else 5000
 
     # --- normalized ---
     normalized = {
@@ -566,8 +566,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     if not row_mid:
         return None, 0, "marketplace_id not found"
 
-    marketplace_id = row_mid[0]
-    timezone = row_tz[0] if row_tz else "UTC"
+    marketplace_id = row_mid["marketplace_id"]
+    timezone = row_tz["timezone"] if row_tz else "UTC"
 
     db_name = f"a_{country_code.lower()}_listed_items.db"
 
@@ -654,14 +654,14 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     # --- 件数取得 ---
     cur.execute(f"""
-        SELECT COUNT(*)
+        SELECT COUNT(*) AS count
         FROM listed_items
         WHERE LOWER(status) = %s
         AND user_id = %s
         {query_filter}
     """, params_base)
 
-    total_count = cur.fetchone()[0]    
+    total_count = cur.fetchone()["count"]
 
     conn.close()
 

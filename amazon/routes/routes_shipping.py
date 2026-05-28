@@ -31,7 +31,7 @@ def resolve_marketplace_id(marketplace_code: str):
     if not row:
         raise ValueError(f"Unknown marketplace_code: {marketplace_code}")
 
-    return row[0]
+    return row["marketplace_id"]
 
 # --- ▼ SECTION 02: 送料設定 ロード（表示専用） ▼ ---
 @shipping_bp.route("/shipping-rates/load", methods=["GET"])
@@ -60,7 +60,7 @@ def load_shipping_rates():
           AND marketplace_id = %s
     """, (user_id, marketplace_id))
 
-    count = cur.fetchone()[0]
+    count = cur.fetchone()["count"]
     mode = "edit" if count > 0 else "new"
 
     cur.execute("""
@@ -78,11 +78,11 @@ def load_shipping_rates():
 
     rows = [
         {
-            "weight_from_g": r[0],
-            "weight_to_g": r[1],
-            "carrier_1_price": r[2],
-            "carrier_2_price": r[3],
-            "carrier_3_price": r[4],
+            "weight_from_g": r["weight_from_g"],
+            "weight_to_g": r["weight_to_g"],
+            "carrier_1_price": r["carrier_1_price"],
+            "carrier_2_price": r["carrier_2_price"],
+            "carrier_3_price": r["carrier_3_price"],
         }
         for r in cur.fetchall()
     ]
@@ -193,7 +193,7 @@ def get_shipping_rate_copy_source_list():
             if row:
                 result_rows.append({
                     "marketplace_id": marketplace_id,
-                    "country_code": row[0]
+                    "country_code": row["country_code"] 
                 })
 
         except Exception:

@@ -157,7 +157,7 @@ class CatalogAdapterRegion:
 
             row = cur.fetchone()
 
-            if not row or not row[0]:
+            if not row or not row["updated_at"]:
                 return None
 
             columns = [desc[0] for desc in cur.description] 
@@ -191,7 +191,7 @@ class CatalogAdapterRegion:
             row = cur.fetchone()
 
             # --- 変更がある場合のみUPDATE ---
-            old = json.dumps(json.loads(row[0]), sort_keys=True, ensure_ascii=False) if (row and row[0]) else None
+            old = json.dumps(json.loads(row["region_raw_json"]), sort_keys=True, ensure_ascii=False) if (row and row["region_raw_json"]) else None 
             new = json.dumps(json.loads(region_raw_json), sort_keys=True, ensure_ascii=False) if region_raw_json else None
 
             if row:

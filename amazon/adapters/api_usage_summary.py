@@ -39,7 +39,13 @@ def get_api_usage_summary(user_id: int):
     conn_m.close()
 
     mkt_map = {}
-    for marketplace_id, display_name, home_flag in mkt_rows:
+
+    for row in mkt_rows:
+
+        marketplace_id = row["marketplace_id"]
+        display_name = row["display_name"]
+        home_flag = row["home_flag"]
+
         mkt_map[marketplace_id] = {
             "label": display_name,
             "home_flag": int(home_flag),

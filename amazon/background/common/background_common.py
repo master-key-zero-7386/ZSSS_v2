@@ -46,7 +46,7 @@ def get_valid_country_codes(db_dir: str) -> set[str]:
             FROM marketplaces
         """)
         for row in cur.fetchall():
-            country_codes.add(row[0].upper())
+            country_codes.add(row["country_code"].upper())
     finally:
         conn.close()
 
@@ -67,7 +67,7 @@ def get_ttl_sleep_sec():
 
     conn.close()
 
-    if row and row[0] is not None:
-        return float(row[0])
+    if row and row["ttl_sleep_sec"] is not None:
+        return float(row["ttl_sleep_sec"]) 
 
     return 0.2  # fallback

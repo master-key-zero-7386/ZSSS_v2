@@ -24,10 +24,17 @@ def get_shipping_config():
         cur.execute("""
             SELECT padding_cm, pack_ratio, volumetric_divisor
             FROM shipping_config
-            WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
+            WHERE user_id=%s
+            AND (
+                UPPER(country_code)=UPPER(%s)
+                OR country_code='ALL'
+            )
         """, (user_id, "ALL"))
 
         row = cur.fetchone()
+        print("DEBUG ROW")  # チェック完了後削除
+        print(row)          # チェック完了後削除
+
         conn.close()
 
         if not row:
@@ -43,9 +50,9 @@ def get_shipping_config():
         return jsonify({
             "status": "success",
             "data": {
-                "padding_cm": row[0],
-                "pack_ratio": row[1],
-                "volumetric_divisor": row[2],
+                "padding_cm": row["padding_cm"],
+                "pack_ratio": row["pack_ratio"],
+                "volumetric_divisor": row["volumetric_divisor"],
             }
         }), 200
 

@@ -154,13 +154,13 @@ class PricingAdapterRegion:
 
             row = cur.fetchone()
 
-            if not row or not row[0]:
+            if not row or not row["region_updated_at"]:
                 return None
 
-            if not row[1]:   
+            if not row["region_updated_at"]: 
                 return None
 
-            updated_at = datetime.fromisoformat(row[1]) 
+            updated_at = datetime.fromisoformat(row["region_updated_at"])
 
             expire_at = updated_at + timedelta(days=1)
 
@@ -194,7 +194,7 @@ class PricingAdapterRegion:
             row = cur.fetchone()
 
             # --- 変更がある場合のみUPDATE ---
-            old = json.dumps(json.loads(row[0]), sort_keys=True, ensure_ascii=False) if (row and row[0]) else None
+            old = json.dumps(json.loads(row["region_offers_json"]), sort_keys=True, ensure_ascii=False) if (row and row["region_offers_json"]) else None
             new = json.dumps(json.loads(region_offers_json), sort_keys=True, ensure_ascii=False) if region_offers_json else None
 
             if row:

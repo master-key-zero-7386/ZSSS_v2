@@ -550,7 +550,7 @@ def get_ttl_state():
         conn.close()
 
         return jsonify({
-            "last_id": row[0] if row else None
+            "last_id": row["last_id"] if row else None
         })
 
     except Exception as e:

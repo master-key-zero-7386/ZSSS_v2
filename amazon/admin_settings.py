@@ -36,5 +36,5 @@ def get_admin_setting(base_dir, key, default=None):
     cur.execute("SELECT value FROM admin_settings WHERE key = %s", (key,))
     row = cur.fetchone()
     conn.close()
-    return row[0] if row else default
+    return row["value"] if row else default
 

@@ -29,4 +29,4 @@ def get_exchange_rate(base_currency: str, target_currency: str):
     if not row:
         return None
 
-    return float(row[0])
+    return float(row["rate"])  

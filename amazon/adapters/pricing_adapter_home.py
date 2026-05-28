@@ -167,15 +167,15 @@ class PricingAdapterHome:
 
             row = cur.fetchone()
 
-            if not row or not row[0]:
+            if not row or not row["home_updated_at"]: 
                 return None
 
-            if not row[1]:
+            if not row["home_updated_at"]:
                 return None    
 
-            updated_at = datetime.fromisoformat(row[1])        
+            updated_at = datetime.fromisoformat(row["home_updated_at"]) 
 
-            data = json.loads(row[0])
+            data = json.loads(row["home_offers_json"]) 
 
             RETAIL_SELLER_IDS = get_retail_seller_ids()
             offers = data.get("payload", {}).get("Offers", [])
@@ -236,7 +236,7 @@ class PricingAdapterHome:
             row = cur.fetchone()
 
             # --- 変更がある場合のみUPDATE ---
-            old = json.dumps(json.loads(row[0]), sort_keys=True, ensure_ascii=False) if (row and row[0]) else None
+            old = json.dumps(json.loads(row["home_offers_json"]), sort_keys=True, ensure_ascii=False) if (row and row["home_offers_json"]) else None
             new = json.dumps(json.loads(home_offers_json), sort_keys=True, ensure_ascii=False) if home_offers_json else None  
 
             # --- データ変更がある場合のみ更新 ---
