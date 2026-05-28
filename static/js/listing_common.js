@@ -379,6 +379,48 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }    
 
+    // === ▼ 09-04A: Pre 検索クリアボタン ▼ ===
+    const preSearchClear = document.getElementById("preListingSearchClear");
+
+    if (presearchInput && preSearchClear) {
+
+        presearchInput.addEventListener("input", function () {
+
+            preSearchClear.style.display = this.value ? "block" : "none";
+
+        });
+
+        preSearchClear.addEventListener("click", function () {
+
+            presearchInput.value = "";
+            preSearchClear.style.display = "none";
+            presearchInput.focus();
+
+        });
+
+    } 
+    
+    // === ▼ 09-04B: ALL 検索クリアボタン ▼ ===
+    const allSearchClear = document.getElementById("allListingSearchClear");
+
+    if (allsearchInput && allSearchClear) {
+
+        allsearchInput.addEventListener("input", function () {
+
+            allSearchClear.style.display = this.value ? "block" : "none";
+
+        });
+
+        allSearchClear.addEventListener("click", function () {
+
+            allsearchInput.value = "";
+            allSearchClear.style.display = "none";
+            allsearchInput.focus();
+
+        });
+
+    }    
+
     // === ▼ 09-05: Pre Enter検索 ▼ ===
     if (presearchInput) {
         presearchInput.addEventListener("keydown", function (e) {

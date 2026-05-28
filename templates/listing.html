@@ -166,9 +166,26 @@
     <!-- 検索（Pre） -->
     <div class="listing-search-bar">
 
-        <input id="preListingSearchInput"
-            type="text"
-            placeholder="ASINで検索">
+        <div style="position:relative; display:inline-block;">
+
+            <input id="preListingSearchInput"
+                type="text"
+                placeholder="ASINで検索"
+                style="padding-right:24px;">
+
+            <span id="preListingSearchClear"
+                style="
+                    display:none;
+                    position:absolute;
+                    right:8px;
+                    top:50%;
+                    transform:translateY(-50%);
+                    cursor:pointer;
+                    color:#888;
+                    font-weight:bold;
+                    user-select:none;
+                ">✕</span>
+        </div>
 
         <!-- ソートプルダウン（Pre） -->
         <select id="preListingSort">
@@ -230,10 +247,26 @@
 
     <!-- 検索（ALL） -->
     <div class="listing-search-bar">
+        <div style="position:relative; display:inline-block;">
 
-        <input id="allListingSearchInput"
-            type="text"
-            placeholder="ASINで検索">
+            <input id="allListingSearchInput"
+                type="text"
+                placeholder="ASINで検索"
+                style="padding-right:24px;">
+
+            <span id="allListingSearchClear"
+                style="
+                    display:none;
+                    position:absolute;
+                    right:8px;
+                    top:50%;
+                    transform:translateY(-50%);
+                    cursor:pointer;
+                    color:#888;
+                    font-weight:bold;
+                    user-select:none;
+                ">✕</span>  
+        </div>    
 
         <!-- ソートプルダウン（ALL） -->
         <select id="allListingSort">
