@@ -51,9 +51,9 @@ def update_home_info(asin: str, user_id: int, home_data: dict, country_code: str
     db_name = f"a_{country_code.lower()}_listed_items.db" 
 
     try:
-        conn = get_conn(db_name)
+        conn = get_conn("listed_items")
     except FileNotFoundError:
-        print(f"[WARN] target listed_items DB not found: {db_name}")
+        print(f"[WARN] target listed_items DB not found") 
         return False    
 
     try:
@@ -105,9 +105,9 @@ def update_region_info(asin: str, user_id: int, catalog_data: dict, country_code
     db_name = f"a_{country_code.lower()}_listed_items.db" 
 
     try:
-        conn = get_conn(db_name)
+        conn = get_conn("listed_items")
     except FileNotFoundError:
-        print(f"[WARN] target listed_items DB not found: {db_name}")
+        print(f"[WARN] target listed_items DB not found")
         return False
         
     try:
@@ -171,8 +171,7 @@ def add_listing():
             return jsonify({"status": "error", "message": f"Invalid country_code: {country_code}"}), 400
 
         # DBファイル名を決定
-        db_name = f"a_{country_code.lower()}_listed_items.db"
-        conn = get_conn(db_name)
+        conn = get_conn("listed_items")
         cur = conn.cursor()
 
         ok = []
@@ -572,9 +571,9 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     db_name = f"a_{country_code.lower()}_listed_items.db"
 
     try:
-        conn = get_conn(db_name) 
+        conn = get_conn("listed_items") 
     except FileNotFoundError:
-        return None, 0, f"DB not found: {db_name}" 
+        return None, 0, "DB not found: listed_items" 
 
     cur = conn.cursor()  # ここを修正
 

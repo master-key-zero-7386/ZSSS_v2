@@ -60,8 +60,8 @@ def _get_sqlite_conn(db_path):
 # --- ▼ SECTION 03: PostgreSQL接続（準備） ▼ ---
 def _get_postgres_conn():
 
-    print("PG_HOST =", PG_HOST)  # チェック完了後削除
-    print("PG_DATABASE =", PG_DATABASE)  # チェック完了後削除
+    # print("PG_HOST =", PG_HOST)  # チェック完了後削除
+    # print("PG_DATABASE =", PG_DATABASE)  # チェック完了後削除
 
     conn = psycopg2.connect(
         host=PG_HOST,
@@ -103,6 +103,7 @@ def get_account_info(country_code: str, user_id: str | None = None) -> dict:
 
     cur.execute("""
         SELECT
+            country_code,
             account_seller_id,
             refresh_token,
             marketplace_id,
@@ -132,8 +133,7 @@ def get_account_info(country_code: str, user_id: str | None = None) -> dict:
             f"marketplaces に user_id={user_id}, country_code={country_code} のレコードが見つかりません。"
         )
 
-    columns = [desc[0] for desc in cur.description] 
-    return dict(zip(columns, row))
+    return row 
 
 # --- ▼ SECTION 06  ▼ ---
 def get_account_info_by_marketplace_id(marketplace_id: str, user_id: int) -> dict:
@@ -153,8 +153,7 @@ def get_account_info_by_marketplace_id(marketplace_id: str, user_id: int) -> dic
             f"marketplaces に user_id={user_id}, marketplace_id={marketplace_id} のレコードが見つかりません。"
         )
 
-    columns = [desc[0] for desc in cur.description]
-    return dict(zip(columns, row))
+    return row
 
 # --- ▼ SECTION 07: LWA認証情報取得（master） ▼ ---
 def get_lwa_credentials(country_code: str):
@@ -168,6 +167,10 @@ def get_lwa_credentials(country_code: str):
     """, (country_code,))
     row = cur.fetchone()
     conn.close()
+
+    # --- ▼ DEBUG: LWA確認 ▼ ---
+    print("LWA country_code >>>", country_code)  # // チェック完了後削除
+    # print("LWA row >>>", row)  # // チェック完了後削除
 
     if not row:
         raise ValueError("LWA credentials not found in master DB")

@@ -41,8 +41,10 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
     if not row_acc:
         raise ValueError(f"[copy_marketplace] account_master に user_id={user_id}, country_code={country_code} がありません")
 
-    columns_acc = [desc[0] for desc in cur_acc.description] 
-    acc = dict(zip(columns_acc, row_acc)) 
+    # columns_acc = [desc[0] for desc in cur_acc.description] 
+    # acc = dict(zip(columns_acc, row_acc)) 
+
+    acc = row_acc 
 
 
     # ------------------------------------------------------------
@@ -81,8 +83,7 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
         conn_master.close() 
         raise ValueError(f"[copy_marketplace] marketplaces_master に country_code={country_code} がありません") 
 
-    columns_m = [desc[0] for desc in cur_master.description] 
-    master = dict(zip(columns_m, row_m))    
+    master = row_m  
 
     conn_master.close()
 
@@ -257,7 +258,7 @@ def get_home_account():
                 "marketplace": {}
             })
 
-        home_country_code = row_home[0]      
+        home_country_code = row_home["country_code"]
 
         conn_mkt.close()
 
@@ -294,8 +295,10 @@ def get_home_account():
             conn_acc.close()
             return jsonify({"status": "error", "message": "not found"})
 
-        columns_acc = [desc[0] for desc in cur_acc.description]
-        acc = dict(zip(columns_acc, acc))
+        # columns_acc = [desc[0] for desc in cur_acc.description]
+        # acc = dict(zip(columns_acc, acc))
+
+        acc = acc
 
         conn_acc.close()
 
@@ -378,8 +381,9 @@ def get_account_master():
             conn.close()
             return jsonify({"status": "error", "message": "not found"}), 404
 
-        columns = [desc[0] for desc in cur.description]
-        row = dict(zip(columns, row))
+        # columns = [desc[0] for desc in cur.description]
+        # row = dict(zip(columns, row))
+        row = row 
 
         conn.close()
 
@@ -597,8 +601,10 @@ def get_api_settings():
             conn.close()
             return jsonify({"status": "ok", "settings": {}})
 
-        columns = [desc[0] for desc in cur.description]
-        row = dict(zip(columns, row))
+        # columns = [desc[0] for desc in cur.description]
+        # row = dict(zip(columns, row))
+
+        row = row
 
         conn.close()
 

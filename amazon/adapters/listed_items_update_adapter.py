@@ -183,9 +183,9 @@ class ListedItemsUpdate:
                 LIMIT 1
             """, (user_id, asin))
             row_old = cur.fetchone()
-            old_id = row_old[0] if row_old else None 
-            old_price = row_old[1] if row_old else None
-            old_status = row_old[2] if row_old else None
+            old_id = row_old["id"] if row_old else None 
+            old_price = row_old["home_price"] if row_old else None
+            old_status = row_old["information_status"] if row_old else None
 
             # --- 新価格 ---
             new_price = normalized.get("home_price") 

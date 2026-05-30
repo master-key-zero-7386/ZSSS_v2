@@ -24,7 +24,7 @@ def get_retail_seller_ids():
         cur = conn.cursor()
         cur.execute("SELECT seller_id FROM amazon_retail_sellers")
         rows = cur.fetchall()
-        return [r[0] for r in rows if r[0]]
+        return [r["seller_id"] for r in rows if r["seller_id"]] 
     finally:
         conn.close()
 

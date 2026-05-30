@@ -96,7 +96,7 @@ def run_ttl_loop(app, db_dir):
                     UPDATE ttl_state
                     SET last_id = COALESCE(last_id, 0) + 200
                     WHERE user_id = %s
-                """, (1,))  # ← user_idは後で修正
+                """, (1,))
 
                 conn.commit()
                 conn.close()
@@ -123,7 +123,7 @@ def load_catalog_ttl_targets(db_dir: str):
         # --- Catalog HOME ---
         rows = []
 
-        for db_path in list_listed_dbs(db_dir):
+        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
             conn_li = get_conn(db_path) 
 
             if DB_MODE == "sqlite":
@@ -144,8 +144,6 @@ def load_catalog_ttl_targets(db_dir: str):
                 columns_li = [desc[0] for desc in cur_li.description] 
 
                 for lr in listed_rows:
-                    lr = dict(zip(columns_li, lr)) 
-
                     rows.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"]
@@ -185,7 +183,7 @@ def load_catalog_ttl_targets(db_dir: str):
             country_code = None  
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in list_listed_dbs(db_dir):  
+            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)): 
                 conn_li = get_conn(db_path)
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")
@@ -207,12 +205,25 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
-                        columns_li = [desc[0] for desc in cur_li.description] 
-                        row_li = dict(zip(columns_li, row_li)) 
-
                         user_id = row_li["user_id"]
-                        fname = os.path.basename(db_path)
-                        country_code = fname.split("_")[1].upper()
+
+                        conn_mkt = get_conn("a_marketplaces.db")
+                        try:
+                            cur_mkt = conn_mkt.cursor()
+
+                            cur_mkt.execute("""
+                                SELECT country_code
+                                FROM marketplaces
+                                WHERE marketplace_id = %s
+                                LIMIT 1
+                            """, (mp,))
+
+                            row_mkt = cur_mkt.fetchone()
+
+                        finally:
+                            conn_mkt.close()
+
+                        country_code = row_mkt["country_code"]
                         break
 
                 finally:
@@ -261,8 +272,9 @@ def load_catalog_ttl_targets(db_dir: str):
         # --- Catalog REGION ---
         rows = []
 
-        for db_path in list_listed_dbs(db_dir):
+        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
             conn_li = get_conn(db_path) 
+
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")
                 conn_li.row_factory = sqlite3.Row 
@@ -281,7 +293,6 @@ def load_catalog_ttl_targets(db_dir: str):
                 columns_li = [desc[0] for desc in cur_li.description]
 
                 for lr in listed_rows:
-                    lr = dict(zip(columns_li, lr))
                     rows.append({
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
@@ -322,7 +333,7 @@ def load_catalog_ttl_targets(db_dir: str):
             country_code = None  
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in list_listed_dbs(db_dir):  
+            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
                 conn_li = get_conn(db_path) 
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")
@@ -344,12 +355,25 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
-                        columns_li = [desc[0] for desc in cur_li.description] 
-                        row_li = dict(zip(columns_li, row_li)) 
-
                         user_id = row_li["user_id"]
-                        fname = os.path.basename(db_path)
-                        country_code = fname.split("_")[1].upper()
+
+                        conn_mkt = get_conn("a_marketplaces.db")
+                        try:
+                            cur_mkt = conn_mkt.cursor()
+
+                            cur_mkt.execute("""
+                                SELECT country_code
+                                FROM marketplaces
+                                WHERE marketplace_id = %s
+                                LIMIT 1
+                            """, (mp,))
+
+                            row_mkt = cur_mkt.fetchone()
+
+                        finally:
+                            conn_mkt.close()
+
+                        country_code = row_mkt["country_code"]
                         break
 
                 finally:
@@ -397,20 +421,18 @@ def load_catalog_ttl_targets(db_dir: str):
 
 
         # Catalog HOME ▼▼
-        checked_count = 0 # チェック完了後削除
-        executed_count = 0 # チェック完了後削除
+        checked_count = 0 
+        executed_count = 0 
 
         for r in home_rows:
             record = dict(r)
 
-            checked_count += 1  # チェック完了後削除
+            checked_count += 1 
 
             user_id = record.get("user_id")  
             country_code = record.get("country_code")  
 
-            print(f"<<CAT TTL TARGET HOME>> ASIN:{record.get('asin')} COUNTRY:{country_code}")  # チェック完了後削除
-
-            executed_count += 1  # チェック完了後削除
+            executed_count += 1 
 
             dispatch_ttl_execution(
                 [("home", "catalog")],
@@ -424,24 +446,19 @@ def load_catalog_ttl_targets(db_dir: str):
                 country_code
             )
 
-        print(f"<<TTL COUNT Catalog_HOME>> checked:{checked_count} executed:{executed_count}")  # チェック完了後削除
-
-
         # Catalog REGION ▼▼
-        checked_count = 0  # チェック完了後削除
-        executed_count = 0  # チェック完了後削除
+        checked_count = 0 
+        executed_count = 0 
 
         for r in region_rows:
             record = dict(r)
 
-            checked_count += 1  # チェック完了後削除
+            checked_count += 1 
 
             user_id = record.get("user_id")  
             country_code = record.get("country_code")  
 
-            print(f"<<CAT TTL TARGET REGION>> ASIN:{record.get('asin')} COUNTRY:{country_code}")  # チェック完了後削除
-
-            executed_count += 1  # チェック完了後削除
+            executed_count += 1 
 
             dispatch_ttl_execution(
                 [("region", "catalog")],
@@ -455,13 +472,8 @@ def load_catalog_ttl_targets(db_dir: str):
                 country_code
             )
 
-        print(f"<<TTL COUNT Catalog_REGION>> checked:{checked_count} executed:{executed_count}")  # チェック完了後削除
-
     finally:
         conn.close()
-
-    print("[TTL TARGET COUNT][CATALOG]", len(home_rows) + len(region_rows))  # チェック完了後削除
-
 
 # --- ▼ SECTION 04: TTL対象取得（Cacheベース / pricing） ▼ ---
 def load_pricing_ttl_targets(db_dir: str):
@@ -480,7 +492,7 @@ def load_pricing_ttl_targets(db_dir: str):
         # --- Pricing HOME ---
         rows = []
 
-        for db_path in list_listed_dbs(db_dir):
+        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):    
             conn_li = get_conn(db_path)
 
             if DB_MODE == "sqlite":
@@ -501,8 +513,6 @@ def load_pricing_ttl_targets(db_dir: str):
                 columns_li = [desc[0] for desc in cur_li.description] 
 
                 for lr in listed_rows:
-                    lr = dict(zip(columns_li, lr)) 
-
                     rows.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"]
@@ -534,7 +544,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
         # --- ▼ TTLで並び替え（HOME PRICING）▼ ---
         tmp = []
-
+       
         for r in rows:
             asin = r["asin"]
             mp = r["home_marketplace_id"]
@@ -543,7 +553,7 @@ def load_pricing_ttl_targets(db_dir: str):
             country_code = None  
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in list_listed_dbs(db_dir):  
+            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
                 conn_li = get_conn(db_path)
                 if DB_MODE == "sqlite":
                     conn_li.execute("PRAGMA journal_mode=WAL")
@@ -564,13 +574,26 @@ def load_pricing_ttl_targets(db_dir: str):
 
                     row_li = cur_li.fetchone()
 
-                    if row_li:
-                        columns_li = [desc[0] for desc in cur_li.description] 
-
-                        row_li = dict(zip(columns_li, row_li))                        
+                    if row_li:                      
                         user_id = row_li["user_id"]
-                        fname = os.path.basename(db_path)
-                        country_code = fname.split("_")[1].upper()
+                        
+                        conn_mkt = get_conn("a_marketplaces.db")
+                        try:
+                            cur_mkt = conn_mkt.cursor()
+
+                            cur_mkt.execute("""
+                                SELECT country_code
+                                FROM marketplaces
+                                WHERE marketplace_id = %s
+                                LIMIT 1
+                            """, (mp,))
+
+                            row_mkt = cur_mkt.fetchone()
+
+                        finally:
+                            conn_mkt.close()
+
+                        country_code = row_mkt["country_code"]
                         break
 
                 finally:
@@ -619,7 +642,7 @@ def load_pricing_ttl_targets(db_dir: str):
         # --- Pricing REGION ---
         rows = []
 
-        for db_path in list_listed_dbs(db_dir):
+        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
             conn_li = get_conn(db_path) 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")
@@ -639,7 +662,6 @@ def load_pricing_ttl_targets(db_dir: str):
                 columns_li = [desc[0] for desc in cur_li.description]  
 
                 for lr in listed_rows:
-                    lr = dict(zip(columns_li, lr)) 
                     rows.append({
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
@@ -679,7 +701,7 @@ def load_pricing_ttl_targets(db_dir: str):
             country_code = None  
 
             # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in list_listed_dbs(db_dir):  
+            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
                 conn_li = get_conn(db_path)
                 
                 if DB_MODE == "sqlite":
@@ -702,13 +724,26 @@ def load_pricing_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
-                        columns_li = [desc[0] for desc in cur_li.description]  
-                        row_li = dict(zip(columns_li, row_li))  
+                        user_id = row_li["user_id"]  
 
-                        user_id = row_li["user_id"]
-                        fname = os.path.basename(db_path)
-                        country_code = fname.split("_")[1].upper()
-                        break
+                        conn_mkt = get_conn("a_marketplaces.db")
+                        try:
+                            cur_mkt = conn_mkt.cursor()
+
+                            cur_mkt.execute("""
+                                SELECT country_code
+                                FROM marketplaces
+                                WHERE marketplace_id = %s
+                                LIMIT 1
+                            """, (mp,))
+
+                            row_mkt = cur_mkt.fetchone()
+
+                        finally:
+                            conn_mkt.close()
+
+                        country_code = row_mkt["country_code"]
+                        break                        
 
                 finally:
                     conn_li.close()
@@ -755,20 +790,18 @@ def load_pricing_ttl_targets(db_dir: str):
 
 
         # Pricing HOME ▼▼
-        checked_count = 0 # チェック完了後削除
-        executed_count = 0 # チェック完了後削除
+        checked_count = 0 
+        executed_count = 0 
 
         for r in home_rows:
             record = dict(r)
 
-            checked_count += 1 # チェック完了後削除   
+            checked_count += 1   
 
             user_id = record.get("user_id")  
             country_code = record.get("country_code") 
 
-            print(f"<<Pri TTL TARGET>> ASIN:{record.get('asin')} COUNTRY:{country_code}")  # チェック完了後削除
-
-            executed_count += 1 # チェック完了後削    
+            executed_count += 1  
 
             dispatch_ttl_execution(
                 [("home", "pricing")],
@@ -780,25 +813,21 @@ def load_pricing_ttl_targets(db_dir: str):
                     "region_marketplace_id": None,
                 },
                 country_code
-            )
-
-        print(f"<<TTL COUNT Pricing_HOME>> checked:{checked_count} executed:{executed_count}")  #// チェック完了後削除     
+            )  
 
         # Pricing REGION ▼▼
-        checked_count = 0 # チェック完了後削除
-        executed_count = 0 # チェック完了後削除
+        checked_count = 0 
+        executed_count = 0 
 
         for r in region_rows:
             record = dict(r)
 
-            checked_count += 1  # チェック完了後削除   
+            checked_count += 1 
 
             user_id = record.get("user_id")  
             country_code = record.get("country_code")  
-
-            print(f"<<Pri TTL TARGET REGION>> ASIN:{record.get('asin')} COUNTRY:{country_code}")  # チェック完了後削除
         
-            executed_count += 1  # チェック完了後削除                 
+            executed_count += 1          
 
             dispatch_ttl_execution(
                 [("region", "pricing")],
@@ -810,15 +839,10 @@ def load_pricing_ttl_targets(db_dir: str):
                     "region_marketplace_id": record.get("region_marketplace_id"),
                 },
                 country_code
-            )
-
-        print(f"<<TTL COUNT Pricing_REGION>> checked:{checked_count} executed:{executed_count}")  # TTL対象件数＆更新件数 チェック                 
+            )              
 
     finally:
         conn.close()
-
-    print("[TTL TARGET COUNT][PRICING]", len(home_rows) + len(region_rows))  # チェック完了後削除
-
             
 # --- ▼ SECTION 05: TTL実行受け口 ▼ ---
 def dispatch_ttl_execution(targets, record, country_code):

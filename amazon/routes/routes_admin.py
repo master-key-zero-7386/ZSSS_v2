@@ -807,9 +807,9 @@ def run_region_pricing_debug():
     cfg = cur_cfg.fetchone()
     conn_cfg.close()
 
-    padding_cm = cfg[0] if cfg else 0
-    pack_ratio = cfg[1] if cfg else 1.0
-    volum_div  = cfg[2] if cfg else 5000
+    padding_cm = cfg["padding_cm"] if cfg else 0
+    pack_ratio = cfg["pack_ratio"] if cfg else 1.0
+    volum_div = cfg["volumetric_divisor"] if cfg else 5000
 
     normalized_dim = {
         "length_cm": row_dim["length_cm"] if row_dim else 0,

@@ -34,7 +34,8 @@ def run_first_loop(app, db_dir):
         while True:
             targets = []
 
-            for listed_db in list_listed_dbs(db_dir):
+            for listed_db in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):  
+
                 conn = get_conn(listed_db)
 
                 if DB_MODE == "sqlite": 
@@ -92,9 +93,38 @@ def run_first_loop(app, db_dir):
 
             for t in targets:
                 try:
-                    fname = os.path.basename(t["db"])
-                    cc_home = fname.split("_")[1].upper()
-                    cc_region = cc_home                
+                    # fname = os.path.basename(t["db"])
+                    # cc_home = fname.split("_")[1].upper()
+                    # cc_region = cc_home            
+
+                    conn_mkt = get_conn("a_marketplaces.db") 
+                    cur_mkt = conn_mkt.cursor() 
+
+                    cur_mkt.execute("""
+                        SELECT country_code
+                        FROM marketplaces
+                        WHERE marketplace_id = %s
+                        LIMIT 1
+                    """, (t["home_marketplace_id"],)) 
+
+                    row_home = cur_mkt.fetchone() 
+
+                    cur_mkt.execute("""
+                        SELECT country_code
+                        FROM marketplaces
+                        WHERE marketplace_id = %s
+                        LIMIT 1
+                    """, (t["region_marketplace_id"],)) 
+
+                    row_region = cur_mkt.fetchone() 
+
+                    conn_mkt.close() 
+
+                    cc_home = row_home["country_code"] if row_home else None 
+                    cc_region = row_region["country_code"] if row_region else None                    
+
+                    print("FIRST DB >>>", t["db"])  # // チェック完了後削除
+                    print("FIRST cc_home >>>", cc_home)  # // チェック完了後削除    
 
                     # --- ▼ SECTION  firstで取得・updateする項目 ▼ ---
                     update_home_catalog(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
@@ -105,7 +135,8 @@ def run_first_loop(app, db_dir):
                     update_region_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)                  
                     # === ▲ ここまで ▼ === コメントアウト可
 
-                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
+                    # update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
+                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
                     api_request_sleep()         
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 

@@ -13,6 +13,7 @@ from datetime import datetime
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, session
 from amazon.core.fx_rate import get_exchange_rate
+from amazon.db import DB_MODE  
 
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
@@ -188,11 +189,11 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         finally:
             conn.close()
 
-    update_listing_price(
-        user_id=user_id,
-        asin=asin,
-        country_code=country_code,
-    )
+    # update_listing_price(
+    #     user_id=user_id,
+    #     asin=asin,
+    #     country_code=cc_region,
+    # )
 
     # --- ▼ TTL更新（HOME PRICING） ▼ ---
     conn = get_conn("a_pricing_cache.db") 
@@ -692,9 +693,9 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     cfg = cur_cfg.fetchone()
     conn_cfg.close()
 
-    padding_cm = cfg[0] if cfg else 0
-    pack_ratio = cfg[1] if cfg else 1.0
-    volum_div = cfg[2] if cfg else 5000
+    padding_cm = cfg["padding_cm"] if cfg else 0 
+    pack_ratio = cfg["pack_ratio"] if cfg else 1.0  
+    volum_div = cfg["volumetric_divisor"] if cfg else 5000  
 
     # === 11-05: shipping計算 ===
     normalized = {
@@ -723,6 +724,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # === 11-06: pricing_rules取得 ===
     rules = _get_pricing_master_rules(user_id, country_code)
+    # print("UPDATE PRICE RULES >>>", rules)  # // チェック完了後削除
 
     # === 11-07: FX取得 ===
     exchange_rate = get_exchange_rate(home_currency, currency)
