@@ -209,7 +209,7 @@ def brand_gate_check():
         r = cur.fetchone()
         conn.close()
 
-        marketplace_id = r[0] if r else None
+        marketplace_id = r["marketplace_id"] if r else None
 
         result = []
 
