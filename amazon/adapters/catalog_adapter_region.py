@@ -157,11 +157,11 @@ class CatalogAdapterRegion:
 
             row = cur.fetchone()
 
-            if not row or not row["updated_at"]:
+            if not row or not row["region_updated_at"]: 
                 return None
 
             columns = [desc[0] for desc in cur.description] 
-            return dict(zip(columns, row)) 
+            return dict(row) 
 
         finally:
             conn.close()

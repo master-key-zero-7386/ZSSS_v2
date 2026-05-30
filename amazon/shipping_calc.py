@@ -32,8 +32,6 @@ def get_shipping_config():
         """, (user_id, "ALL"))
 
         row = cur.fetchone()
-        print("DEBUG ROW")  # チェック完了後削除
-        print(row)          # チェック完了後削除
 
         conn.close()
 

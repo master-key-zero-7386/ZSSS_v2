@@ -567,8 +567,6 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     marketplace_id = row_mid["marketplace_id"]
 
-    print("[LISTING DEBUG]", "country_code=", country_code, "marketplace_id=", marketplace_id)  # // チェック完了後削除
-
     timezone = row_tz["timezone"] if row_tz else "UTC"
 
     db_name = f"a_{country_code.lower()}_listed_items.db"
@@ -578,7 +576,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     except FileNotFoundError:
         return None, 0, "DB not found: listed_items" 
 
-    cur = conn.cursor()  # ここを修正
+    cur = conn.cursor() 
 
     offset = (page - 1) * limit  
 
@@ -1274,15 +1272,8 @@ def move_to_all():
         max_retry = 5
         for attempt in range(max_retry):
             try:
-                if DB_MODE == "sqlite":
-                    conn = sqlite3.connect(db_file, timeout=10) 
-                    cur = conn.cursor()
-                    cur.execute("PRAGMA journal_mode=WAL;") 
-
-                else:
-                    conn = get_conn(f"a_{country_code}_listed_items.db")
-                    cur = conn.cursor()
-
+                conn = get_conn(f"a_{country_code}_listed_items.db") 
+                cur = conn.cursor()                  
 
                 # --- ▼ 出品用データ取得 ▼ ---
                 cur.execute("""
@@ -1301,10 +1292,15 @@ def move_to_all():
                     conn.close()
                     return jsonify({"status": "error", "message": "listing data not found"})
 
-                seller_sku, price, strategy_quantity, strategy_handling_time = row       
+                seller_sku = row["sku"]
+                price = row["final_price"] 
+                strategy_quantity = row["strategy_quantity"] 
+                strategy_handling_time = row["strategy_handling_time"]               
 
                 # --- ▼ quantity決定 ▼ ---
-                if strategy_quantity and strategy_quantity >= 1:
+                strategy_quantity = int(strategy_quantity or 0)
+
+                if strategy_quantity >= 1:
                     quantity = strategy_quantity
                 else:
                     quantity = 1           # 出品在庫数量
@@ -1323,13 +1319,15 @@ def move_to_all():
 
                 r = cur_rule.fetchone()
 
-                if r and r[0] and int(r[0]) >= 1:
-                    handling_time = int(r[0])
+                if r and r["default_handling_time"] and int(r["default_handling_time"]) >= 1:
+                    handling_time = int(r["default_handling_time"]) 
                 else:
-                    handling_time = strategy_handling_time   # CSV初期値6
-
+                    handling_time = strategy_handling_time
+                    
                 conn_rule.close()
- 
+
+                now_utc = datetime.utcnow().isoformat()  
+
                 # ★ ステータス更新（価格は一切触らない）
                 cur.execute("""
                     UPDATE listed_items
@@ -1346,7 +1344,6 @@ def move_to_all():
                 conn.commit()
 
                 # --- ▼ Amazon出品 ▼ ---
-
                 # --- ▼ brand取得（catalog_cache） ▼ ---
                 base = AmazonAdapter(
                     user_id=user_id,
@@ -1410,6 +1407,26 @@ def bulk_move_to_all():
     country_code = data.get("country_code")
     user_id = session.get("user_id")
 
+    # --- ▼ marketplace_id取得 ▼ --- 
+    conn_mid = get_conn("a_marketplaces.db") 
+    cur_mid = conn_mid.cursor() 
+
+    cur_mid.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code.lower())) 
+
+    row_mid = cur_mid.fetchone() 
+    conn_mid.close() 
+
+    if not row_mid: 
+        return jsonify({"status": "error", "message": "marketplace_id not found"}) 
+
+    marketplace_id = row_mid["marketplace_id"]     
+
     db_name = f"a_{country_code}_listed_items.db"
 
     try:
@@ -1421,13 +1438,107 @@ def bulk_move_to_all():
 
     for asin in asins:
 
+        # --- ▼ 出品用データ取得 ▼ --- 
         cur.execute("""
-        UPDATE listed_items
-        SET status='listed'
-        WHERE asin=%s AND status='pre' AND user_id=%s
+            SELECT
+                sku,
+                final_price,
+                strategy_quantity,
+                strategy_handling_time
+            FROM listed_items
+            WHERE asin=%s AND user_id=%s
         """, (asin, user_id))
 
+        row = cur.fetchone()
+
+        if not row:
+            continue
+
+        seller_sku = row["sku"] 
+        price = row["final_price"] 
+        strategy_quantity = row["strategy_quantity"] 
+        strategy_handling_time = row["strategy_handling_time"] 
+
+        # --- ▼ quantity決定 ▼ ---
+        strategy_quantity = int(strategy_quantity or 0) 
+
+        if strategy_quantity >= 1: 
+            quantity = strategy_quantity
+        else: 
+            quantity = 1 
+
+        # --- ▼ handling_time決定 ▼ --- 
+        conn_rule = get_conn("a_pricing_settings.db") 
+        cur_rule = conn_rule.cursor() 
+
+        country_code_upper = country_code.upper() 
+
+        cur_rule.execute("""
+            SELECT default_handling_time
+            FROM pricing_master_rules
+            WHERE user_id=%s AND country_code=%s
+        """, (user_id, country_code_upper)) 
+
+        r = cur_rule.fetchone() 
+
+        if r and r["default_handling_time"] and int(r["default_handling_time"]) >= 1: 
+            handling_time = int(r["default_handling_time"]) 
+        else: 
+            handling_time = strategy_handling_time 
+
+        conn_rule.close() 
+
+        now_utc = datetime.utcnow().isoformat() 
+
+        cur.execute("""
+            UPDATE listed_items
+            SET
+                status='listed',
+                updated_at=%s
+            WHERE asin=%s AND status='pre' AND user_id=%s
+        """, (now_utc, asin, user_id))  
+
+        if cur.rowcount == 0: 
+            continue 
+
     conn.commit()
+
+    # --- ▼ brand取得（catalog_cache） ▼ --- 
+    base = AmazonAdapter( 
+        user_id=user_id, 
+        country_code=country_code, 
+        marketplace_id=marketplace_id 
+    ) 
+
+    adapter = CatalogAdapterRegion(parent_adapter=base) 
+
+    cache = adapter._get_cached_catalog(asin) 
+
+    brand = "UNKNOWN" 
+
+    if cache and cache.get("region_raw_json"): 
+        try: 
+            data = json.loads(cache["region_raw_json"]) 
+            brand_list = data.get("attributes", {}).get("brand", []) 
+
+            if brand_list and isinstance(brand_list, list): 
+                brand = brand_list[0].get("value") or "UNKNOWN" 
+
+        except: 
+            pass 
+
+    submit_listing_service( 
+        user_id, 
+        country_code, 
+        marketplace_id, 
+        seller_sku, 
+        asin, 
+        price, 
+        quantity, 
+        handling_time, 
+        brand 
+    ) 
+
     conn.close()
 
     return jsonify({"status": "success"})
