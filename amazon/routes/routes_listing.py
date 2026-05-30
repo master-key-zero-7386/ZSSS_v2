@@ -566,6 +566,9 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         return None, 0, "marketplace_id not found"
 
     marketplace_id = row_mid["marketplace_id"]
+
+    print("[LISTING DEBUG]", "country_code=", country_code, "marketplace_id=", marketplace_id)  # // チェック完了後削除
+
     timezone = row_tz["timezone"] if row_tz else "UTC"
 
     db_name = f"a_{country_code.lower()}_listed_items.db"
@@ -603,8 +606,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         order_by = "billable_weight_kg DESC"        
 
     # --- フィルタ条件 ---
-    query_filter = ""
-    params_base = [status_value, user_id]
+    query_filter = " AND region_marketplace_id = %s"
+    params_base = [status_value, user_id, marketplace_id]
 
     if info_status != "all":
         query_filter += " AND information_status = %s"

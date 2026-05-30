@@ -564,6 +564,29 @@ window.loadalllisting = async function(country_code) {
     window.alllistingLoading = false; 
 };
 
+// =====================================================
+// ✅ ALL専用リージョン切替監視（初回自動発火なし）
+// =====================================================
+window.addEventListener("load", () => {
+    const sel = document.getElementById("globalRegion");
+    if (!sel) return;
+
+    sel.addEventListener("change", (e) => {
+        const activeTab = document
+            .querySelector(".sidebar-btn.active")
+            ?.getAttribute("data-target") || "";
+
+        if (activeTab !== "alllisting") {
+            return;
+        }
+
+        const country_code = e.target.value;
+        if (!country_code) return;
+
+        window.loadalllisting(country_code);
+    });
+});
+
 // --- ▼ SECTION 04: ASIN個別Brandチェック ▼ ---// 
 document.addEventListener("click", function(e) {
 
