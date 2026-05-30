@@ -50,12 +50,12 @@ def get_api_conf(user_id, country_code, db_dir):
 
         row = cur.fetchone()
 
-
         if not row:
             return {}
 
-        columns = [desc[0] for desc in cur.description]  
-        return dict(zip(columns, row))
+        # columns = [desc[0] for desc in cur.description]  
+        # return dict(zip(columns, row))
+        return dict(row)
 
     finally:
         conn.close()
@@ -602,7 +602,7 @@ def load_pricing_ttl_targets(db_dir: str):
             if not user_id or not country_code:
                 continue  
 
-            api_conf = get_api_conf(user_id, country_code, db_dir)  
+            api_conf = get_api_conf(user_id, country_code, db_dir)          
 
             if not api_conf.get("enable_home_pricing"):
                 continue  

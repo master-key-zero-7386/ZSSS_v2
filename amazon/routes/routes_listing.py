@@ -1253,7 +1253,7 @@ def move_to_all():
         """, (user_id, country_code))
 
         r = cur_m.fetchone()
-        marketplace_id = r[0] if r else None
+        marketplace_id = r["marketplace_id"] if r else None
 
         conn_m.close()      
 
