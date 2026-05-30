@@ -452,7 +452,8 @@ def update_pricing_master_rules():
         SELECT %s, %s, %s, %s
         WHERE NOT EXISTS (
             SELECT 1 FROM pricing_master_rules
-            WHERE LOWER(user_id)=LOWER(%s) AND UPPER(country_code)=UPPER(%s)
+            WHERE user_id = %s 
+            AND UPPER(country_code)=UPPER(%s)
         )
     """, (user_id, country_code, now_utc, now_utc, user_id, country_code))
 
@@ -473,12 +474,12 @@ def update_pricing_master_rules():
             customs_duty_rate = %s,
             oversea_remittance_fee_rate = %s,
             fuel_surcharge_rate = %s,
-            shipping_outsource_cost = %s,            
+            shipping_outsource_cost = %s,
             extra_cost = %s,
 
             default_handling_time = %s,
             updated_at = %s
-        WHERE LOWER(user_id)=LOWER(%s)
+        WHERE user_id = %s
         AND UPPER(country_code)=UPPER(%s)
     """, (
         body.get("pricing_competitor_min_rating_percent"),
@@ -543,7 +544,8 @@ def update_offer_filter_rules():
         SELECT %s, %s, %s, %s
         WHERE NOT EXISTS (
             SELECT 1 FROM offer_filter_rules
-            WHERE LOWER(user_id)=LOWER(%s) AND UPPER(country_code)=UPPER(%s)
+            WHERE user_id = %s 
+            AND UPPER(country_code)=UPPER(%s)
         )
     """, (user_id, country_code, now_utc, now_utc, user_id, country_code))  
 
@@ -565,7 +567,7 @@ def update_offer_filter_rules():
             consider_points = %s,  
             exclude_non_buybox = %s,
             updated_at = %s
-        WHERE LOWER(user_id)=LOWER(%s)
+        WHERE user_id = %s
         AND UPPER(country_code)=UPPER(%s)
     """, (
         body.get("min_rating_percent"),
@@ -724,7 +726,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # === 11-06: pricing_rules取得 ===
     rules = _get_pricing_master_rules(user_id, country_code)
-    # print("UPDATE PRICE RULES >>>", rules)  # // チェック完了後削除
 
     # === 11-07: FX取得 ===
     exchange_rate = get_exchange_rate(home_currency, currency)
