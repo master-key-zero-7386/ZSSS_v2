@@ -64,7 +64,6 @@ def import_blacklist_csv():
     if not country_code:
         return jsonify({"status": "error", "message": "country_code required"}), 400
     country_code = country_code.lower()
-
     conn_m = get_conn("a_marketplaces.db")
     cur_m = conn_m.cursor()
 
@@ -77,6 +76,7 @@ def import_blacklist_csv():
     """, (user_id, country_code))
 
     row_mp = cur_m.fetchone()
+
     conn_m.close()
 
     if not row_mp:
@@ -100,15 +100,19 @@ def import_blacklist_csv():
     # CSV読み込み（Excel想定）
     stream = TextIOWrapper(file.stream, encoding="utf-8-sig")
     reader = csv.DictReader(stream)  
+
     rows = list(reader)
-    if len(rows) <= 1:
+
+    if len(rows) <= 0:
         return jsonify({"status": "error", "message": "CSV is empty"}), 400
 
     asin_rows  = []
     brand_rows = []
 
+
     # --- CSV解析（A列で振り分け） ---
     for row in rows:
+
         if not row:
             continue
 
@@ -142,9 +146,14 @@ def import_blacklist_csv():
 
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = %s", (user_id,))
+        cur.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM blacklist_asin
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
 
-        result["asin"]["before"] = cur.fetchone()[0]
+        result["asin"]["before"] = cur.fetchone()["cnt"] 
 
         now_utc = datetime.utcnow().isoformat()
 
@@ -163,8 +172,14 @@ def import_blacklist_csv():
             conn.close()
             return jsonify({"status": "error", "message": "ASIN upsert failed", "detail": str(e)}), 500
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_asin WHERE user_id = %s", (user_id,))
-        result["asin"]["after"] = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM blacklist_asin
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+
+        result["asin"]["after"] = cur.fetchone()["cnt"]
         result["asin"]["import"] = result["asin"]["after"] - result["asin"]["before"]
         conn.close()
 
@@ -177,9 +192,14 @@ def import_blacklist_csv():
 
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = %s", (user_id,))
+        cur.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM blacklist_brand
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
 
-        result["brand"]["before"] = cur.fetchone()[0]
+        result["brand"]["before"] = cur.fetchone()["cnt"]  
 
         now_utc = datetime.utcnow().isoformat()
 
@@ -188,7 +208,7 @@ def import_blacklist_csv():
                 cur.execute("""
                     INSERT INTO blacklist_brand (user_id,region_marketplace_id, brand, note, created_at)
                     VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT(user_id, brand)
+                    ON CONFLICT(user_id, region_marketplace_id, brand)
                     DO UPDATE SET note = excluded.note
                 """, (user_id, region_marketplace_id, r["brand"], r["note"], now_utc))
             conn.commit()
@@ -197,8 +217,14 @@ def import_blacklist_csv():
             conn.close()
             return jsonify({"status": "error", "message": "BRAND upsert failed", "detail": str(e)}), 500
 
-        cur.execute("SELECT COUNT(*) FROM blacklist_brand WHERE user_id = %s", (user_id,))
-        result["brand"]["after"] = cur.fetchone()[0]
+        cur.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM blacklist_brand
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+
+        result["brand"]["after"] = cur.fetchone()["cnt"]
         result["brand"]["import"] = result["brand"]["after"] - result["brand"]["before"]
         conn.close()
 

@@ -95,6 +95,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     `現在件数：${data.brand.after}`
                 );
 
+                loadBrandList(); 
+                loadAsinList();  
+                
                 // リセット
                 fileInput.value = "";
                 fileName.value  = "";
