@@ -666,7 +666,7 @@ def apply_blacklist_update(user_id, country_code):
     )
 
     if DB_MODE == "sqlite":
-        conn = sqlite3.connect(db_path, timeout=10) 
+        conn = sqlite3.connect(db_path, timeout=10)  # DB移行 分岐対応済（SQLite専用）
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.row_factory = sqlite3.Row 
     else:

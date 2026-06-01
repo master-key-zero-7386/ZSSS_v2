@@ -16,7 +16,7 @@ from amazon.db import get_conn, DB_MODE
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db")
 
 
-def get_conn_old(db_name: str):
+def get_conn_old(db_name: str): # 未使用関数 削除保留
     """指定DBへ接続（DB生成は db_migrate.py のみで行う）"""
 
     # --- ▼ ここで保存先を決める（今回は blacklist のみ） ---
@@ -31,7 +31,7 @@ def get_conn_old(db_name: str):
     if not os.path.exists(db_path):
         raise FileNotFoundError(db_path)
 
-    conn = sqlite3.connect(db_path, timeout=30) 
+    conn = sqlite3.connect(db_path, timeout=30)  # 未使用コード（get_conn_old） / DB移行対象外
     conn.row_factory = sqlite3.Row
 
     return conn
@@ -722,7 +722,7 @@ def add_indexes_listed_items():
     for file in os.listdir(DB_DIR):
         if file.endswith("_listed_items.db"):
             path = os.path.join(DB_DIR, file)
-            conn = sqlite3.connect(path) 
+            conn = sqlite3.connect(path)  # DB移行未対応 保留
             cur = conn.cursor()
 
             cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'") 

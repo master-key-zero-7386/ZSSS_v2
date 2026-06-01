@@ -50,9 +50,10 @@ def _resolve_db_path(db_name):
 
 
 # --- ▼ SECTION 02: SQLite接続 ▼ ---
+# SQLite専用接続関数（DB_MODE=sqlite 用）※PostgreSQL移行対象外
 def _get_sqlite_conn(db_path):
 
-    conn = sqlite3.connect(db_path, timeout=10)
+    conn = sqlite3.connect(db_path, timeout=10) # ※PostgreSQL移行対象外
     conn.row_factory = sqlite3.Row
 
     return conn

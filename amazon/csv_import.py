@@ -255,7 +255,7 @@ def import_csv():
             if os.path.exists(listed_db):
 
                 if DB_MODE == "sqlite":
-                    conn = sqlite3.connect(listed_db, timeout=30) 
+                    conn = sqlite3.connect(listed_db, timeout=30)  # DB移行 分岐対応済（SQLite専用）
                     conn.execute("PRAGMA journal_mode=WAL")
                 else:
                     conn = get_conn(f"a_{country_code.lower()}_listed_items.db")                    
@@ -317,7 +317,7 @@ def import_csv():
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db")
 
             if DB_MODE == "sqlite":
-                conn = sqlite3.connect(listed_db, timeout=30) 
+                conn = sqlite3.connect(listed_db, timeout=30)  # DB移行 分岐対応済（SQLite専用）
                 conn.execute("PRAGMA journal_mode=WAL")
             else:
                 conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
