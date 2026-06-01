@@ -71,6 +71,7 @@ BG_SCAN_SETTINGS_COLUMNS = {
 BLACKLIST_ASIN_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
+    "region_marketplace_id": "TEXT",
     "asin": "TEXT NOT NULL",
     "note": "TEXT",
     "created_at": "TEXT"
@@ -79,6 +80,7 @@ BLACKLIST_ASIN_COLUMNS = {
 BLACKLIST_BRAND_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER",
+    "region_marketplace_id": "TEXT",
     "brand": "TEXT NOT NULL",
     "note": "TEXT",
     "created_at": "TEXT"
@@ -665,7 +667,7 @@ def add_unique_indexes():  # UNIQUE制約
         if exists:
             cur2.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_blacklist_user_asin_unique "
-                "ON blacklist_asin(user_id, asin)"
+                "ON blacklist_asin(user_id, region_marketplace_id, asin)"
             )
 
         conn2.commit()
@@ -696,7 +698,7 @@ def add_unique_indexes():  # UNIQUE制約
         if exists:
             cur2.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_blacklist_user_brand_unique "
-                "ON blacklist_brand(user_id, brand)"
+                "ON blacklist_brand(user_id, region_marketplace_id, brand)"
             )
 
         conn2.commit()

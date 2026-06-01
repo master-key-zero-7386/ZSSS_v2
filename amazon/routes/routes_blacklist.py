@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, session
 import sqlite3
 import os
 import csv
-from amazon.db import get_conn
+from amazon.db import get_conn, DB_MODE 
 from io import TextIOWrapper
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -38,6 +38,7 @@ def _validate_country_code(country_code: str) -> str:
     country_code = country_code.lower()
     return country_code if country_code in valid_country_codes else None
 
+# BlackList機能 DB移行修正　保留　
 # --- ▼ SECTION 02: ▼ ---
 def _get_blacklist_db(country_code: str, target: str) -> str:
 
@@ -63,6 +64,25 @@ def import_blacklist_csv():
     if not country_code:
         return jsonify({"status": "error", "message": "country_code required"}), 400
     country_code = country_code.lower()
+
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]    
 
     file = request.files.get("file")
     if not file:
@@ -131,12 +151,12 @@ def import_blacklist_csv():
         try:
             for r in asin_rows:
                 cur.execute("""
-                    INSERT INTO blacklist_asin (user_id, asin, note, created_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT(user_id, asin)
+                    INSERT INTO blacklist_asin (user_id, region_marketplace_id, asin, note, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT(user_id,region_marketplace_id, asin)
                     DO UPDATE SET
                         note = excluded.note
-                """, (user_id, r["asin"], r["note"], now_utc))
+                """, (user_id, region_marketplace_id, r["asin"], r["note"], now_utc))
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -166,11 +186,11 @@ def import_blacklist_csv():
         try:
             for r in brand_rows:
                 cur.execute("""
-                    INSERT INTO blacklist_brand (user_id, brand, note, created_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO blacklist_brand (user_id,region_marketplace_id, brand, note, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT(user_id, brand)
                     DO UPDATE SET note = excluded.note
-                """, (user_id, r["brand"], r["note"], now_utc))
+                """, (user_id, region_marketplace_id, r["brand"], r["note"], now_utc))
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -206,6 +226,25 @@ def get_blacklist_brand(country_code):
     if not user_id or not country_code:
         return jsonify({"status": "error", "message": "invalid user or country_code"}), 400
 
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
     db_name = _get_blacklist_db(country_code, "brand")
 
     conn = get_conn(db_name) 
@@ -221,8 +260,9 @@ def get_blacklist_brand(country_code):
                 created_at
             FROM blacklist_brand
             WHERE user_id = %s
+            AND region_marketplace_id = %s
             ORDER BY created_at DESC
-        """, (user_id,))
+        """, (user_id, region_marketplace_id))
 
         rows = [
             {
@@ -253,6 +293,25 @@ def get_blacklist(country_code):
     if not user_id or not country_code:
         return jsonify({"status": "error", "message": "invalid user or country_code"}), 400
 
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
     db_name = _get_blacklist_db(country_code, "asin")
 
     conn = get_conn(db_name) 
@@ -268,8 +327,9 @@ def get_blacklist(country_code):
                 created_at
             FROM blacklist_asin
             WHERE user_id = %s
+            AND region_marketplace_id = %s
             ORDER BY created_at DESC
-        """, (user_id,))
+        """, (user_id, region_marketplace_id))
 
         rows = [
             {
@@ -414,6 +474,25 @@ def export_blacklist(country_code):
     if not user_id or not country_code:
         return "error", 400
 
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
     db_asin = _get_blacklist_db(country_code, "asin")
     db_brand = _get_blacklist_db(country_code, "brand")
 
@@ -436,7 +515,8 @@ def export_blacklist(country_code):
     cur.execute("""
         SELECT brand, note FROM blacklist_brand
         WHERE user_id = %s
-    """, (user_id,))
+        AND region_marketplace_id = %s
+    """, (user_id, region_marketplace_id))
 
     for r in cur.fetchall():
         writer.writerow(["BRAND", r["brand"], r["note"]])
@@ -451,7 +531,8 @@ def export_blacklist(country_code):
     cur.execute("""
         SELECT asin, note FROM blacklist_asin
         WHERE user_id = %s
-    """, (user_id,))
+        AND region_marketplace_id = %s
+    """, (user_id, region_marketplace_id))
 
     for r in cur.fetchall():
         writer.writerow(["ASIN", r["asin"], r["note"]])
@@ -479,9 +560,29 @@ def add_blacklist():
 
     user_id = session.get("user_id")
     country_code = (data.get("country_code") or "").lower()
+
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
     main = (data.get("main") or "").strip()
     note = data.get("note")
-    target = (data.get("target") or "").lower()  # ←ここ重要
+    target = (data.get("target") or "").lower() 
 
     if not user_id or not country_code or not main or not target:
         return jsonify({"status": "error"}), 400
@@ -503,9 +604,9 @@ def add_blacklist():
 
     try:
         cur.execute(f"""
-            INSERT INTO {table} (user_id, {key}, note, created_at)
-            VALUES (%s, %s, %s, %s)
-        """, (user_id, main, note, datetime.utcnow().isoformat()))
+            INSERT INTO {table} (user_id, region_marketplace_id, {key}, note, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, region_marketplace_id, main, note, datetime.utcnow().isoformat()))
 
         conn.commit()
 
@@ -528,6 +629,7 @@ def add_blacklist():
 
     return jsonify({"status": "ok"})
 
+
 # --- ▼ SECTION 10: ブラックリスト即時反映 ▼ ---
 def apply_blacklist_update(user_id, country_code):
 
@@ -546,6 +648,26 @@ def apply_blacklist_update(user_id, country_code):
 
     cur = conn.cursor()
 
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code.lower()))
+
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        conn.close()
+        return
+
+    region_marketplace_id = row_mp["marketplace_id"]    
+
     # --- ブランドブラック取得 ---
     brand_db = _get_blacklist_db(country_code, "brand")
     brand_ng_list = []
@@ -553,8 +675,16 @@ def apply_blacklist_update(user_id, country_code):
     # if os.path.exists(brand_db):
     conn_b = get_conn(brand_db)
     cur_b = conn_b.cursor()
-    cur_b.execute("SELECT brand FROM blacklist_brand WHERE user_id = %s", (user_id,))
-    brand_ng_list = [r[0].strip().lower() for r in cur_b.fetchall()]
+    cur_b.execute(
+        """
+        SELECT brand
+        FROM blacklist_brand
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        """,
+        (user_id, region_marketplace_id)
+    )
+    brand_ng_list = [r["brand"].strip().lower() for r in cur_b.fetchall()] 
     conn_b.close()
 
     # --- ASINブラック取得 ---
@@ -564,8 +694,16 @@ def apply_blacklist_update(user_id, country_code):
     # if os.path.exists(asin_db):
     conn_a = get_conn(asin_db) 
     cur_a = conn_a.cursor()
-    cur_a.execute("SELECT asin FROM blacklist_asin WHERE user_id = %s", (user_id,))
-    asin_ng_list = [r[0] for r in cur_a.fetchall()]
+    cur_a.execute(
+        """
+        SELECT asin
+        FROM blacklist_asin
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        """,
+        (user_id, region_marketplace_id)
+    )
+    asin_ng_list = [r["asin"] for r in cur_a.fetchall()] 
     conn_a.close()
 
     # --- 全件取得 ---

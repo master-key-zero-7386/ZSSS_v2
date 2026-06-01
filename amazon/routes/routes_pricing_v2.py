@@ -38,33 +38,51 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 pricing_v2_bp = Blueprint("pricing_v2_bp", __name__)
 
 # --- ▼ SECTION 01: blacklist取得（From：routes_pricing_v2.py） ▼ ---
-def get_brand_blacklist(user_id, country_code):
+def get_brand_blacklist(user_id, region_marketplace_id, country_code):
     import sqlite3
     db_name = _get_blacklist_db(country_code, "brand")
 
     conn = get_conn(db_name)
     cur = conn.cursor()
 
-    cur.execute("SELECT brand FROM blacklist_brand WHERE user_id = %s", (user_id,))
+    cur.execute(
+        """
+        SELECT brand
+        FROM blacklist_brand
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        """,
+        (user_id, region_marketplace_id)
+    )
+
     rows = cur.fetchall()
 
     conn.close()
 
-    return [r[0] for r in rows]
+    return [r["brand"] for r in rows]
 
-def get_asin_blacklist(user_id, country_code):
+def get_asin_blacklist(user_id, region_marketplace_id, country_code):
     import sqlite3
     db_name = _get_blacklist_db(country_code, "asin")
 
     conn = get_conn(db_name)
     cur = conn.cursor()
 
-    cur.execute("SELECT asin FROM blacklist_asin WHERE user_id = %s", (user_id,))
+    cur.execute(
+        """
+        SELECT asin
+        FROM blacklist_asin
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        """,
+        (user_id, region_marketplace_id)
+    )
+
     rows = cur.fetchall()
 
     conn.close()
 
-    return [r[0] for r in rows]
+    return [r["asin"] for r in rows]
 
 # --- ▼ SECTION 02:HOME Pricing 正規更新 ▼ ---
 def update_home_pricing(*, user_id: int, asin: str, country_code: str):
@@ -861,8 +879,16 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     is_listed = (row["status"] == "listed")
     
     # --- ▼ ブラック取得 ---
-    brand_ng_list = get_brand_blacklist(user_id, country_code)  
-    asin_ng_list  = get_asin_blacklist(user_id, country_code)
+    brand_ng_list = get_brand_blacklist(
+        user_id,
+        row["region_marketplace_id"],
+        country_code
+    )
+    asin_ng_list = get_asin_blacklist(
+        user_id,
+        row["region_marketplace_id"],
+        country_code
+    )
 
     # --- ▼ ブランド判定 ---
     brand_list = []
