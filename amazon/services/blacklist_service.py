@@ -12,7 +12,7 @@ from amazon.db import get_conn
 
 
 # --- ▼ SECTION 01: ブラックリスト判定（From：CSV / TTL 共通） ▼ ---
-def is_blacklisted(asin, user_id, country_code, db_dir):
+def is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
     blacklist_dir = os.path.join(db_dir, "blacklist")  
     all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")  
 
@@ -21,8 +21,8 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
         conn = get_conn("a_all_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
-            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s",
-            (asin, user_id)
+            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s",
+            (asin, user_id, marketplace_id)
         )
         hit = cur.fetchone()  
         conn.close()  
@@ -40,8 +40,8 @@ def is_blacklisted(asin, user_id, country_code, db_dir):
         conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()  
         cur.execute(
-            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s",
-            (asin, user_id)
+            "SELECT 1 FROM blacklist_asin WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s",
+            (asin, user_id, marketplace_id) 
         )
         hit = cur.fetchone()  
         conn.close()  
@@ -87,7 +87,7 @@ def get_blacklist_reason(asin, country_code, db_dir):
     return None
 
 # --- ▼ SECTION 03: ブラックリスト判定（Brand）（From：CSV / TTL 共通） ▼ ---
-def is_blacklisted_brand(brand, user_id, country_code, db_dir):
+def is_blacklisted_brand(brand, user_id, country_code, marketplace_id, db_dir):
     brand = (brand or "").strip()
 
     if not brand:
@@ -97,12 +97,11 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
     all_db = os.path.join(blacklist_dir, "a_all_blacklist_brand.db")
 
     # --- allチェック ---
-    # if os.path.exists(all_db):
     conn = get_conn("a_all_blacklist_brand.db")
     cur = conn.cursor()
     cur.execute(
-        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s",
-        (brand, user_id)
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s AND region_marketplace_id = %s", 
+        (brand, user_id, marketplace_id)
     )
     hit = cur.fetchone()
     conn.close()
@@ -120,8 +119,8 @@ def is_blacklisted_brand(brand, user_id, country_code, db_dir):
     conn = get_conn(f"a_{country_code.lower()}_blacklist_brand.db") 
     cur = conn.cursor()
     cur.execute(
-        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s",
-        (brand, user_id)
+        "SELECT 1 FROM blacklist_brand WHERE LOWER(brand) = LOWER(%s) AND user_id = %s AND region_marketplace_id = %s",
+        (brand, user_id, marketplace_id)
     )
     hit = cur.fetchone()
     conn.close()

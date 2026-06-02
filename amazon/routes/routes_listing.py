@@ -284,11 +284,16 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     )
 
     # --- Black ASIN Brand用 ---
-    is_black_asin = is_blacklisted(row["asin"].strip().lower(), user_id, country_code, current_app.config.get("DB_DIR"))
+    is_black_asin = is_blacklisted(
+        row["asin"].strip().lower(), 
+        user_id, 
+        country_code, 
+        marketplace_id,
+        current_app.config.get("DB_DIR"))
     is_black_brand = (
-        is_blacklisted_brand(row["home_brand"], user_id, country_code, current_app.config.get("DB_DIR"))
+        is_blacklisted_brand(row["home_brand"], user_id, country_code, marketplace_id, current_app.config.get("DB_DIR"))
         or
-        is_blacklisted_brand(row["region_brand"], user_id, country_code, current_app.config.get("DB_DIR"))
+        is_blacklisted_brand(row["region_brand"], user_id, country_code, marketplace_id, current_app.config.get("DB_DIR"))
     )
 
     # --- ▼ pricing_cache 取得（offer_json）▼ ---
