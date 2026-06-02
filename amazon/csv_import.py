@@ -164,6 +164,17 @@ def import_csv():
         cur_m = conn_m.cursor()
         cur_m.execute("SELECT DISTINCT country_code FROM marketplaces")
         valid_regions = [row["country_code"].upper() for row in cur_m.fetchall()]
+
+        cur_m.execute("""                                
+            SELECT marketplace_id                  
+            FROM marketplaces                 
+            WHERE LOWER(country_code) = %s     
+            LIMIT 1                             
+        """, (country_code.lower(),))          
+
+        row_market = cur_m.fetchone()    
+        marketplace_id = row_market["marketplace_id"] if row_market else None
+
         conn_m.close()
 
         if country_code not in valid_regions:
@@ -246,7 +257,7 @@ def import_csv():
             for rec in records:
                 asin = rec["asin"]
 
-                if is_blacklisted(asin, user_id, country_code, db_dir):
+                if is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
                     blacklist_asins[asin] = "blacklist"
                     
             # --- ▼ 既登録チェック ▼ ---
