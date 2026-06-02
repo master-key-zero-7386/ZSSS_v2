@@ -34,12 +34,6 @@ PG_USER = os.environ.get("PG_USER")
 PG_PASSWORD = os.environ.get("PG_PASSWORD")
 PG_DATABASE = os.environ.get("PG_DATABASE")
 
-print("PG_HOST=", repr(PG_HOST))          # チェック完了後削除
-print("PG_PORT=", repr(PG_PORT))          # チェック完了後削除
-print("PG_USER=", repr(PG_USER))          # チェック完了後削除
-print("PG_PASSWORD=", repr(PG_PASSWORD))  # チェック完了後削除
-print("PG_DATABASE=", repr(PG_DATABASE))  # チェック完了後削除
-
 # --- ▼ SECTION 01: DBパス解決 ▼ ---
 def _resolve_db_path(db_name):
 
