@@ -38,9 +38,9 @@ os.makedirs(TRASH_DIR, exist_ok=True)
 amazon_bp = Blueprint("amazon", __name__, url_prefix="/amazon", template_folder="../templates")
 
 # --- ▼ SECTION 01: マーケットプレイスプルダウン（DB display_name取得） 既存箇所修正 ▼ ---
-@amazon_bp.route("/get_enabled_regions")
+@amazon_bp.route("/get_enabled_country_codes")
 @login_required # ログイン情報判定制限
-def get_enabled_regions():
+def get_enabled_country_codes():
     try:
         conn = get_conn("a_marketplaces.db")
         cur = conn.cursor()
@@ -67,7 +67,7 @@ def get_enabled_regions():
                 "spapi_host": r[4],        
             }
             for r in rows
-        ]  # この行を修正
+        ]
 
         return jsonify({"status": "success", "regions": regions})
     except Exception as e:

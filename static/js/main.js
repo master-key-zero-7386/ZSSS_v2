@@ -59,8 +59,9 @@ const restoredRegion =
     localStorage.getItem("sellingRegion") || null;
 
 // --- ▼ SECTION 09: enabled regions 読み込み ▼ ---
-window.ZSSS_ENABLED_REGIONS = JSON.parse(
-    document.getElementById("enabled-regions")?.textContent || "[]"
+window.ZSSS_ENABLED_COUNTRY_CODES = JSON.parse(
+
+    document.getElementById("enabled-country-codes")?.textContent || "[]" 
 ).map(r => r.toUpperCase());
 
 // --- ▼ SECTION 10:  ▼ ---
@@ -100,7 +101,7 @@ window.addEventListener("DOMContentLoaded", () => {
             .then(markets => {
 
                 globalRegionEl.innerHTML = "";
-                const enabled = window.ZSSS_ENABLED_REGIONS || [];
+                const enabled = window.ZSSS_ENABLED_COUNTRY_CODES || [];
                 const enabledLower = enabled.map(r => r.toLowerCase());
 
                 // 復元元（優先順）

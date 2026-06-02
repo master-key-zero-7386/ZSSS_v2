@@ -629,9 +629,9 @@ def get_api_settings():
         return jsonify({"status": "error", "message": str(e)})
 
 # --- ▼ SECTION 11: HOME フラグ切り替えAPI ▼ ---Z
-@account_bp.route("/set_home_region", methods=["POST"])
+@account_bp.route("/set_home_country_code", methods=["POST"])
 @login_required
-def set_home_region():
+def set_home_country_code():
     data = request.json
     new_home = (data.get("new_home_country_code") or "").strip().upper()
     user_id = session["user_id"]

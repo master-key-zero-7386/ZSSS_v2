@@ -41,9 +41,10 @@ def login_auth():
 
     # is_admin → role に修正済み
     cur.execute(
-        "SELECT id, email, password_hash, role, enabled_regions, user_display_name FROM user_login_accounts WHERE email = %s",
+        "SELECT id, email, password_hash, role, enabled_country_codes, user_display_name FROM user_login_accounts WHERE email = %s",
         (email,)
     )
+
     row = cur.fetchone()
     conn.close()
 
@@ -60,7 +61,7 @@ def login_auth():
     # --- ログイン成功 ---
     session["user_id"] = row["id"]
     session["is_admin"] = (row["role"] == "admin")
-    session["enabled_regions"] = (row["enabled_regions"] or "").split(",")
+    session["enabled_country_codes"] = (row["enabled_country_codes"] or "").split(",") 
     session["user_display_name"] = row["user_display_name"]
 
     return jsonify({"status": "ok"})
@@ -76,7 +77,7 @@ def get_user_role():
     return jsonify({
         "status": "ok",
         "is_admin": session.get("is_admin", False),
-        "enabled_regions": session.get("enabled_regions", []),
+        "enabled_country_codes": session.get("enabled_country_codes", []),
         "user_id": session.get("user_id")
     })
 
