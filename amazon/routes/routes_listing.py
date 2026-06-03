@@ -239,7 +239,7 @@ def add_listing():
 
 # --- ▼ SECTION 04: 共通 Shipping補正・設定 + Fee算定処理 ▼ ---
 def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone, P_min=None, P_max=None):
-    # print("HIT BUILD ROW")   // チェック完了後削除
+    print(f"[BUILD START] {row['asin']}")  # // チェック完了後削除
 
     # --- shipping_config取得 ---
     conn_cfg = get_conn("a_pricing_settings.db")
@@ -489,6 +489,9 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     except Exception:
         region_shipping_amount = 0    
 
+
+    print(f"[BUILD END] {row['asin']}")  # // チェック完了後削除
+    
     return {
         "asin": row["asin"],
         "sku": row["sku"],
@@ -657,6 +660,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     rows = cur.fetchall()
 
+    print(f"[DEBUG] rows fetched = {len(rows)}")  # // チェック完了後削除
+
     # --- 件数取得 ---
     cur.execute(f"""
         SELECT COUNT(*) AS count
@@ -671,11 +676,16 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     conn.close()
 
     result = []
+
+    print("[DEBUG] build start")  # // チェック完了後削除
+
     for row in rows:
         result.append(
             _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone)
         )
-        
+    
+    print("[DEBUG] build end")  # // チェック完了後削除
+    
     return result, total_count, None
 
 # --- ▼ SECTION 06: Pre Listing 取得処理 ▼ ---

@@ -53,8 +53,6 @@ def get_api_conf(user_id, country_code, db_dir):
         if not row:
             return {}
 
-        # columns = [desc[0] for desc in cur.description]  
-        # return dict(zip(columns, row))
         return dict(row)
 
     finally:
@@ -192,7 +190,9 @@ def load_catalog_ttl_targets(db_dir: str):
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
-                        SELECT user_id
+                        SELECT 
+                            user_id,
+                            region_marketplace_id
                         FROM listed_items
                         WHERE asin = %s
                         AND home_marketplace_id = %s
@@ -216,7 +216,7 @@ def load_catalog_ttl_targets(db_dir: str):
                                 FROM marketplaces
                                 WHERE marketplace_id = %s
                                 LIMIT 1
-                            """, (mp,))
+                            """, (row_li["region_marketplace_id"],))
 
                             row_mkt = cur_mkt.fetchone()
 
@@ -342,7 +342,9 @@ def load_catalog_ttl_targets(db_dir: str):
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
-                        SELECT user_id
+                        SELECT 
+                            user_id,
+                            region_marketplace_id
                         FROM listed_items
                         WHERE asin = %s
                         AND region_marketplace_id = %s
@@ -366,7 +368,7 @@ def load_catalog_ttl_targets(db_dir: str):
                                 FROM marketplaces
                                 WHERE marketplace_id = %s
                                 LIMIT 1
-                            """, (mp,))
+                            """, (row_li["region_marketplace_id"],))
 
                             row_mkt = cur_mkt.fetchone()
 
@@ -559,10 +561,13 @@ def load_pricing_ttl_targets(db_dir: str):
                     conn_li.execute("PRAGMA journal_mode=WAL")
                     conn_li.row_factory = sqlite3.Row
 
-                try:  
-                    cur_li = conn_li.cursor()  
+                try:
+                    cur_li = conn_li.cursor()    
+
                     cur_li.execute("""  
-                        SELECT user_id
+                        SELECT
+                            user_id,
+                            region_marketplace_id
                         FROM listed_items
                         WHERE asin = %s
                         AND home_marketplace_id = %s
@@ -570,13 +575,13 @@ def load_pricing_ttl_targets(db_dir: str):
                     """, (
                         asin,
                         mp
-                    ))
+                    ))  
 
                     row_li = cur_li.fetchone()
 
                     if row_li:                      
                         user_id = row_li["user_id"]
-                        
+
                         conn_mkt = get_conn("a_marketplaces.db")
                         try:
                             cur_mkt = conn_mkt.cursor()
@@ -586,23 +591,23 @@ def load_pricing_ttl_targets(db_dir: str):
                                 FROM marketplaces
                                 WHERE marketplace_id = %s
                                 LIMIT 1
-                            """, (mp,))
+                            """, (row_li["region_marketplace_id"],))
 
                             row_mkt = cur_mkt.fetchone()
 
                         finally:
                             conn_mkt.close()
 
-                        country_code = row_mkt["country_code"]
-                        break
-
+                        country_code = row_mkt["country_code"]  
+                        break     
+                        
                 finally:
                     conn_li.close()
 
             if not user_id or not country_code:
                 continue  
 
-            api_conf = get_api_conf(user_id, country_code, db_dir)          
+            api_conf = get_api_conf(user_id, country_code, db_dir)     
 
             if not api_conf.get("enable_home_pricing"):
                 continue  
@@ -711,7 +716,9 @@ def load_pricing_ttl_targets(db_dir: str):
                 try:
                     cur_li = conn_li.cursor()  
                     cur_li.execute("""
-                        SELECT user_id
+                        SELECT 
+                            user_id,
+                            region_marketplace_id
                         FROM listed_items
                         WHERE asin = %s
                         AND region_marketplace_id = %s
@@ -735,7 +742,7 @@ def load_pricing_ttl_targets(db_dir: str):
                                 FROM marketplaces
                                 WHERE marketplace_id = %s
                                 LIMIT 1
-                            """, (mp,))
+                            """, (row_li["region_marketplace_id"],))
 
                             row_mkt = cur_mkt.fetchone()
 
