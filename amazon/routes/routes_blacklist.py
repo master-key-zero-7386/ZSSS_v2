@@ -713,6 +713,8 @@ def apply_blacklist_update(user_id, country_code):
     brand_ng_list = [r["brand"].strip().lower() for r in cur_b.fetchall()] 
     conn_b.close()
 
+    print(f"[BL] {country_code} {region_marketplace_id} {len(brand_ng_list)}")  # // チェック完了後削除
+
     # --- ASINブラック取得 ---
     asin_db = _get_blacklist_db(country_code, "asin")
     asin_ng_list = []
@@ -733,7 +735,15 @@ def apply_blacklist_update(user_id, country_code):
     conn_a.close()
 
     # --- 全件取得 ---
-    cur.execute("SELECT * FROM listed_items WHERE user_id = %s", (user_id,))
+    cur.execute("""
+        SELECT *
+        FROM listed_items
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+    """, (
+        user_id,
+        region_marketplace_id
+    ))
     rows = cur.fetchall()
 
     for row in rows:
@@ -758,6 +768,8 @@ def apply_blacklist_update(user_id, country_code):
             for ng in brand_ng_list
         )
 
+        print(f"[BRAND] {asin} {brand_list} {brand_ng}")  # // チェック完了後削除
+
         if asin_ng or brand_ng:
 
             # --- INACTIVE ---
@@ -768,7 +780,6 @@ def apply_blacklist_update(user_id, country_code):
             """, (row["id"],))
 
             if row["status"] == "listed":
-                print(f"[BLACKLIST DELETE] ASIN:{asin}")  # // チェック完了後削除
                 delete_listings_item(
                     user_id=user_id,
                     country_code=country_code,
