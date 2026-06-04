@@ -4,6 +4,7 @@
 # 　　　算定条件・送料表の保存
 # ==========================================
 
+import time
 import math
 from typing import Dict, Optional
 from amazon.routes.routes import amazon_bp
@@ -192,7 +193,7 @@ def update_shipping_config():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # --- ▼ SECTION 06: Shipping 送料算定（表示用・最安） ▼ ---
-def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_id: str,) -> float | None:
+def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_id: str, SHIPPING_RATE_ROWS=None) -> float | None:
     """
     請求重量(kg)から送料表を引き、最安送料を返す（表示用）
     - DB保存なし
@@ -201,26 +202,47 @@ def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_i
     if not billable_weight_kg or billable_weight_kg <= 0:
         return None
 
+    SHIPPING_RATE_ROWS = SHIPPING_RATE_ROWS or []  
+
     # kg -> g
     weight_g = int(round(billable_weight_kg * 1000))
 
-    from amazon.db import get_conn
-    conn = get_conn("a_shipping_rates.db")
-    cur = conn.cursor()
+    # from amazon.db import get_conn
+    # t_ship = time.time()  # // チェック完了後削除
 
-    # 重量帯1行取得
-    cur.execute("""
-        SELECT carrier_1_price, carrier_2_price, carrier_3_price
-        FROM shipping_rates
-        WHERE user_id = %s
-            AND marketplace_id = %s
-            AND weight_from_g <= %s
-            AND weight_to_g   >= %s
-        LIMIT 1
-    """, (user_id, marketplace_id, weight_g, weight_g))
+    # conn = get_conn("a_shipping_rates.db")
+    # cur = conn.cursor()
 
-    row = cur.fetchone()
-    conn.close()
+    # print(f"[TIME shipping_connect] {weight_g} {time.time()-t_ship:.3f}s")  # // チェック完了後削除
+
+    # # 重量帯1行取得
+    # cur.execute("""
+    #     SELECT carrier_1_price, carrier_2_price, carrier_3_price
+    #     FROM shipping_rates
+    #     WHERE user_id = %s
+    #         AND marketplace_id = %s
+    #         AND weight_from_g <= %s
+    #         AND weight_to_g   >= %s
+    #     LIMIT 1
+    # """, (user_id, marketplace_id, weight_g, weight_g))
+
+    # row = cur.fetchone()
+
+    # print(f"[TIME shipping_query] {weight_g} {time.time()-t_ship:.3f}s")  # // チェック完了後削除
+
+    # conn.close()
+
+    row = None  # ここを修正
+
+    for r in SHIPPING_RATE_ROWS:  # ここを修正
+
+        if (
+            r["weight_from_g"] <= weight_g
+            and
+            r["weight_to_g"] >= weight_g
+        ):
+            row = r
+            break    
 
     if not row:
         return None

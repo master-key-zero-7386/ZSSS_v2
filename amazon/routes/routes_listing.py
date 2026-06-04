@@ -238,25 +238,46 @@ def add_listing():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # --- ▼ SECTION 04: 共通 Shipping補正・設定 + Fee算定処理 ▼ ---
-def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone, P_min=None, P_max=None):
+def _build_listing_row_with_shipping(
+    row, user_id, marketplace_id, country_code, timezone, 
+    black_asin_set=None, black_brand_set=None, 
+    RETAIL_SELLER_IDS=None, 
+    SHIPPING_CONFIG=None, 
+    SHIPPING_RATE_ROWS=None,
+    PRICING_CACHE_ROWS=None,
+    MARKETPLACE_HOST=None, 
+    HOME_MARKETPLACE_HOST=None, 
+    OFFER_FILTER_RULES=None, 
+    PRICING_MASTER_RULES=None, 
+    ACCOUNT_SELLER_ID=None, 
+    BRAND_GATE_MAP=None, 
+    P_min=None, P_max=None):
+
     print(f"[BUILD START] {row['asin']}")  # // チェック完了後削除
 
-    # --- shipping_config取得 ---
-    conn_cfg = get_conn("a_pricing_settings.db")
-    cur_cfg = conn_cfg.cursor()
-    cur_cfg.execute("""
-        SELECT padding_cm, pack_ratio, volumetric_divisor
-        FROM shipping_config
-        WHERE user_id = %s
-        ORDER BY updated_at DESC
-        LIMIT 1
-    """, (user_id,)) 
-    cfg = cur_cfg.fetchone()
-    conn_cfg.close()
+    import time
+    t0 = time.time()  # // チェック完了後削除
 
-    padding_cm = cfg["padding_cm"] if cfg else 0
-    pack_ratio = cfg["pack_ratio"] if cfg else 1.0
-    volum_div  = cfg["volumetric_divisor"] if cfg else 5000
+    # --- shipping_config取得 ---
+
+    # conn_cfg = get_conn("a_pricing_settings.db")
+    # cur_cfg = conn_cfg.cursor()
+    # cur_cfg.execute("""
+    #     SELECT padding_cm, pack_ratio, volumetric_divisor
+    #     FROM shipping_config
+    #     WHERE user_id = %s
+    #     ORDER BY updated_at DESC
+    #     LIMIT 1
+    # """, (user_id,)) 
+    # cfg = cur_cfg.fetchone()
+    # conn_cfg.close()
+
+    # padding_cm = cfg["padding_cm"] if cfg else 0
+    padding_cm = SHIPPING_CONFIG["padding_cm"] if SHIPPING_CONFIG else 0
+    # pack_ratio = cfg["pack_ratio"] if cfg else 1.0
+    pack_ratio = SHIPPING_CONFIG["pack_ratio"] if SHIPPING_CONFIG else 1.0
+    # volum_div  = cfg["volumetric_divisor"] if cfg else 5000
+    volum_div  = SHIPPING_CONFIG["volumetric_divisor"] if SHIPPING_CONFIG else 5000 
 
     # --- normalized ---
     normalized = {
@@ -280,35 +301,69 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
     shipping_fee = calc_min_shipping_fee(
         billable_weight,
         user_id,
-        marketplace_id
+        marketplace_id,
+        SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
     )
+
+    print(f"[TIME before_blacklist] {row['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
 
     # --- Black ASIN Brand用 ---
-    is_black_asin = is_blacklisted(
-        row["asin"].strip().lower(), 
-        user_id, 
-        country_code, 
-        marketplace_id,
-        current_app.config.get("DB_DIR"))
-    is_black_brand = (
-        is_blacklisted_brand(row["home_brand"], user_id, country_code, marketplace_id, current_app.config.get("DB_DIR"))
-        or
-        is_blacklisted_brand(row["region_brand"], user_id, country_code, marketplace_id, current_app.config.get("DB_DIR"))
+    is_black_asin = (
+        row["asin"].strip().lower() in black_asin_set
     )
 
+    is_black_brand = (
+        (row.get("home_brand") or "").strip().lower() in black_brand_set
+        or
+        (row.get("region_brand") or "").strip().lower() in black_brand_set
+    )
+
+    # 遅延テストのため一旦コメントアウト
+    # is_black_brand = (
+    #     is_blacklisted_brand(
+    #         row["home_brand"],
+    #         user_id,
+    #         country_code,
+    #         marketplace_id,
+    #         current_app.config.get("DB_DIR")
+    #     )
+    #     or
+    #     is_blacklisted_brand(
+    #         row["region_brand"],
+    #         user_id,
+    #         country_code,
+    #         marketplace_id,
+    #         current_app.config.get("DB_DIR")
+    #     )
+    # )
+    # === ▲ （ここまで） ▲ ===
+
+    print(f"[TIME after_blacklist] {row['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
+
     # --- ▼ pricing_cache 取得（offer_json）▼ ---
-    conn_cache = get_conn("a_pricing_cache.db")
-    cur_cache = conn_cache.cursor()
+    t_conn = time.time()  # // チェック完了後削除
 
-    cur_cache.execute("""
-        SELECT home_offers_json, region_offers_json
-        FROM pricing_cache
-        WHERE asin = %s
-        AND region_marketplace_id = %s
-        LIMIT 1
-    """, (row["asin"], marketplace_id))
+    # conn_cache = get_conn("a_pricing_cache.db")
 
-    cache_row = cur_cache.fetchone()
+    # print(f"[TIME pricing_connect] {row['asin']} {time.time()-t_conn:.3f}s")  # // チェック完了後削除
+
+    # cur_cache = conn_cache.cursor()
+
+    # cur_cache.execute("""
+    #     SELECT home_offers_json, region_offers_json
+    #     FROM pricing_cache
+    #     WHERE asin = %s
+    #     AND region_marketplace_id = %s
+    #     LIMIT 1
+    # """, (row["asin"], marketplace_id))
+
+    # cache_row = cur_cache.fetchone()
+
+    cache_row = PRICING_CACHE_ROWS.get(row["asin"])
+
+    t_json = time.time()  # // チェック完了後削除
+
+    print(f"[TIME pricing_cache] {row['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
 
     if cache_row and cache_row["home_offers_json"]:
         home_data = json.loads(cache_row["home_offers_json"])
@@ -325,7 +380,9 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
         offer_count = 0
         data = {"payload": {}}
 
-    conn_cache.close()
+    print(f"[TIME pricing_json] {row['asin']} {time.time()-t_json:.3f}s")  # // チェック完了後削除   
+
+    # conn_cache.close()
 
     home_amazon = 0
     home_fba = 0
@@ -336,7 +393,9 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
 
     offers = (data.get("payload") or {}).get("Offers", [])
 
-    RETAIL_SELLER_IDS = get_retail_seller_ids()
+    t_retail = time.time()  # // チェック完了後削除
+
+    print(f"[TIME retail_seller] {row['asin']} {time.time()-t_retail:.3f}s")  # // チェック完了後削除
 
     for o in home_offers:
         seller_id = o.get("SellerId")
@@ -360,18 +419,19 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
         else:
             region_fbm += 1
 
-    # --- host取得（ここに追加） ---
+    # --- host取得 ---
     conn_mst = get_conn("a_marketplaces_master.db")
     cur_mst = conn_mst.cursor()
-
+    
     # REGION
-    cur_mst.execute("""
-        SELECT host
-        FROM marketplaces_master
-        WHERE marketplace_id = %s
-        LIMIT 1
-    """, (marketplace_id,))
-    row_region = cur_mst.fetchone()
+    # cur_mst.execute("""
+    #     SELECT host
+    #     FROM marketplaces_master
+    #     WHERE marketplace_id = %s
+    #     LIMIT 1
+    # """, (marketplace_id,))
+    # row_region = cur_mst.fetchone()
+    # 事前取得済み(MARKETPLACE_HOST)
 
     # HOME
     cur_mst.execute("""
@@ -385,51 +445,65 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
 
     conn_mst.close()
 
-    marketplace_host = row_region["host"] if row_region else None 
+    marketplace_host = MARKETPLACE_HOST 
     home_marketplace_host = row_home["host"] if row_home else None 
 
     # --- ▼ BrandGate取得 ▼ ---
-    conn_bg = get_conn("a_brand_gate_result.db")
-    cur_bg = conn_bg.cursor()
+    # conn_bg = get_conn("a_brand_gate_result.db")
+    # cur_bg = conn_bg.cursor()
 
-    brand = row["region_brand"]
+    # brand = row["region_brand"]
 
-    if brand:
-        cur_bg.execute("""
-            SELECT status, reason
-            FROM brand_gate_result
-            WHERE user_id = %s
-            AND region_marketplace_id = %s
-            AND brand = %s
-            LIMIT 1
-        """, (user_id, marketplace_id, brand))
+    # if brand:
+    #     cur_bg.execute("""
+    #         SELECT status, reason
+    #         FROM brand_gate_result
+    #         WHERE user_id = %s
+    #         AND region_marketplace_id = %s
+    #         AND brand = %s
+    #         LIMIT 1
+    #     """, (user_id, marketplace_id, brand))
 
-        bg_row = cur_bg.fetchone()
-    else:
-        bg_row = None
+    #     bg_row = cur_bg.fetchone()
+    # else:
+    #     bg_row = None
 
-    conn_bg.close()
+    # conn_bg.close()
+
+    brand = str(row["region_brand"] or "").strip().lower()
+
+    bg_row = BRAND_GATE_MAP.get(brand) if brand else None
 
     brand_gate_status = bg_row["status"] if bg_row else None
     brand_gate_reason = bg_row["reason"] if bg_row else None
 
     # --- ▼ HOME送料取得 ▼ ---
+    t_home_rule = time.time()  # // チェック完了後削除
+
     home_shipping_amount = 0
 
     try:
         normalizer_home = NormalizedPricingAdapter(parent_adapter=None) 
 
+        print(f"[HOME 01] {row['asin']} {time.time()-t_home_rule:.3f}s")  # // チェック完了後削除
+
         normalized_home = normalizer_home.normalize_home_offers(
             home_data
         )
 
-        rules_home = _get_offer_filter_rules(user_id, "ALL")
+        print(f"[HOME 02] {row['asin']} {time.time()-t_home_rule:.3f}s")  # // チェック完了後削除
+
+        rules_home = OFFER_FILTER_RULES 
 
         pricing_rules_adapter_home = PricingRulesAdapter(rules_home)
+
+        print(f"[HOME 03] {row['asin']} {time.time()-t_home_rule:.3f}s")  # // チェック完了後削除
 
         result_home = pricing_rules_adapter_home.select_home_cost_offer(
             normalized_home
         )
+
+        print(f"[HOME 04] {row['asin']} {time.time()-t_home_rule:.3f}s")  # // チェック完了後削除
 
         selected_home = result_home.get("selected") if result_home else None
 
@@ -440,8 +514,12 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
 
     except Exception:
         home_shipping_amount = 0
+
+    print(f"[TIME home_rule] {row['asin']} {time.time()-t_home_rule:.3f}s")  # // チェック完了後削除
         
     # --- ▼ REGION競合送料取得 ▼ ---
+    t_region_rule = time.time()  # // チェック完了後削除
+
     region_shipping_amount = 0
 
     try:
@@ -451,25 +529,27 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
             data
         )
 
-        rules = _get_pricing_master_rules(user_id, country_code)
+        # rules = _get_pricing_master_rules(user_id, country_code)
+        rules = dict(PRICING_MASTER_RULES or {}) 
 
         # --- 自分ID取得 ---
-        conn_acc = get_conn("a_account_master.db")
+        # conn_acc = get_conn("a_account_master.db")
         
-        cur_acc = conn_acc.cursor()  
+        # cur_acc = conn_acc.cursor()  
 
-        cur_acc.execute("""
-            SELECT account_seller_id
-            FROM account_master
-            WHERE user_id = %s
-            AND country_code = %s
-            LIMIT 1
-        """, (user_id, country_code))  
+        # cur_acc.execute("""
+        #     SELECT account_seller_id
+        #     FROM account_master
+        #     WHERE user_id = %s
+        #     AND country_code = %s
+        #     LIMIT 1
+        # """, (user_id, country_code))  
 
-        acc = cur_acc.fetchone()  
-        conn_acc.close()  
+        # acc = cur_acc.fetchone()  
+        # conn_acc.close()  
 
-        my_seller_id = acc["account_seller_id"] if acc else None  
+        # my_seller_id = acc["account_seller_id"] if acc else None  
+        my_seller_id = ACCOUNT_SELLER_ID
 
         rules["my_seller_id"] = my_seller_id  
 
@@ -487,8 +567,11 @@ def _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code,
             )
 
     except Exception:
-        region_shipping_amount = 0    
+        region_shipping_amount = 0 
 
+    print(f"[TIME region_rule] {row['asin']} {time.time()-t_region_rule:.3f}s")  # // チェック完了後削除   
+
+    print(f"[BUILD TIME] {row['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
 
     print(f"[BUILD END] {row['asin']}")  # // チェック完了後削除
     
@@ -560,13 +643,15 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     row_mid = cur_mid.fetchone()
 
     cur_mid.execute("""
-        SELECT timezone
+        SELECT timezone, country_code
         FROM marketplaces
         WHERE user_id = %s
         AND home_flag = 1
         LIMIT 1
     """, (user_id,))
     row_tz = cur_mid.fetchone()
+
+    HOME_COUNTRY = row_tz["country_code"] if row_tz else None
 
     conn_mid.close()
 
@@ -677,13 +762,185 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     result = []
 
+    black_asin_set = set() 
+    black_brand_set = set()  
+
+    conn_bl = get_conn("a_all_blacklist_asin.db")
+    cur_bl = conn_bl.cursor()         
+
+    cur_bl.execute("""
+        SELECT asin
+        FROM blacklist_asin
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+    """, (user_id, marketplace_id)) 
+
+    black_asin_set = {
+        str(r["asin"]).strip().lower()
+        for r in cur_bl.fetchall()
+    }
+
+    conn_bl.close()
+    
+    conn_brand = get_conn(f"a_{country_code}_blacklist_brand.db") 
+    cur_brand = conn_brand.cursor()  
+
+    cur_brand.execute("""  
+        SELECT brand
+        FROM blacklist_brand
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+    """, (user_id, marketplace_id))
+
+    black_brand_set = {  
+        str(r["brand"]).strip().lower()
+        for r in cur_brand.fetchall()
+    }
+
+    conn_brand.close()     
+
+    RETAIL_SELLER_IDS = get_retail_seller_ids()
+
+    conn_cfg = get_conn("a_pricing_settings.db")
+    cur_cfg = conn_cfg.cursor()
+
+    cur_cfg.execute("""
+        SELECT padding_cm, pack_ratio, volumetric_divisor
+        FROM shipping_config
+        WHERE user_id = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (user_id,))
+
+    SHIPPING_CONFIG = cur_cfg.fetchone()
+
+    conn_ship = get_conn("a_shipping_rates.db")
+    cur_ship = conn_ship.cursor()
+
+    cur_ship.execute("""
+        SELECT
+            weight_from_g,
+            weight_to_g,
+            carrier_1_price,
+            carrier_2_price,
+            carrier_3_price
+        FROM shipping_rates
+        WHERE user_id = %s
+        AND marketplace_id = %s
+    """, (user_id, marketplace_id))
+
+    SHIPPING_RATE_ROWS = cur_ship.fetchall()
+
+    conn_ship.close()
+
+    conn_cache = get_conn("a_pricing_cache.db")
+    cur_cache = conn_cache.cursor()
+
+    cur_cache.execute("""
+        SELECT
+            asin,
+            home_offers_json,
+            region_offers_json
+        FROM pricing_cache
+        WHERE region_marketplace_id = %s
+    """, (marketplace_id,))
+
+    PRICING_CACHE_ROWS = {
+        r["asin"]: r
+        for r in cur_cache.fetchall()
+    }
+
+    # conn_cache.close()
+
+    conn_cfg.close()    
+
+    conn_mst = get_conn("a_marketplaces_master.db")
+    cur_mst = conn_mst.cursor()
+
+    cur_mst.execute("""
+        SELECT host
+        FROM marketplaces_master
+        WHERE marketplace_id = %s
+        LIMIT 1
+    """, (marketplace_id,))
+
+    row_region = cur_mst.fetchone()
+
+    conn_mst.close()
+
+    MARKETPLACE_HOST = row_region["host"] if row_region else None
+
+    OFFER_FILTER_RULES = _get_offer_filter_rules(user_id, "ALL")
+
+    OFFER_FILTER_RULES["home_country"] = HOME_COUNTRY
+
+    PRICING_MASTER_RULES = _get_pricing_master_rules(user_id, country_code)
+
+    conn_acc = get_conn("a_account_master.db")
+
+    cur_acc = conn_acc.cursor()
+
+    cur_acc.execute("""
+        SELECT account_seller_id
+        FROM account_master
+        WHERE user_id = %s
+        AND country_code = %s
+        LIMIT 1
+    """, (user_id, country_code))
+
+    acc = cur_acc.fetchone()
+
+    conn_acc.close()
+
+    ACCOUNT_SELLER_ID = acc["account_seller_id"] if acc else None    
+
+    conn_bg = get_conn("a_brand_gate_result.db")
+    cur_bg = conn_bg.cursor()
+
+    cur_bg.execute("""
+        SELECT brand, status, reason
+        FROM brand_gate_result
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+    """, (user_id, marketplace_id))
+
+    BRAND_GATE_MAP = {
+        str(r["brand"]).strip().lower(): r
+        for r in cur_bg.fetchall()
+    }
+
+    conn_bg.close()    
+
+    print(f"[DEBUG] black_asin_set={len(black_asin_set)} " f"black_brand_set={len(black_brand_set)}")  # // チェック完了後削除
+
+    t_build = time.time()  # // チェック完了後削除
+
     print("[DEBUG] build start")  # // チェック完了後削除
 
     for row in rows:
         result.append(
-            _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone)
+            _build_listing_row_with_shipping(
+                row,
+                user_id,
+                marketplace_id,
+                country_code,
+                timezone,
+                black_asin_set,     
+                black_brand_set,
+                RETAIL_SELLER_IDS=RETAIL_SELLER_IDS,
+                SHIPPING_CONFIG=SHIPPING_CONFIG,
+                SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS, 
+                PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
+                MARKETPLACE_HOST=MARKETPLACE_HOST, 
+                OFFER_FILTER_RULES=OFFER_FILTER_RULES,
+                PRICING_MASTER_RULES=PRICING_MASTER_RULES,
+                ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
+                BRAND_GATE_MAP=BRAND_GATE_MAP 
+            )
         )
     
+    print(f"[DEBUG] build total {time.time()-t_build:.3f}s")  # // チェック完了後削除
+
     print("[DEBUG] build end")  # // チェック完了後削除
     
     return result, total_count, None

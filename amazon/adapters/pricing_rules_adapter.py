@@ -38,23 +38,32 @@ class PricingRulesAdapter:
             if total_offers < int(min_stock_qty):
                 return None
 
-        filtered = []                
+        filtered = []     
 
-        # --- HOME国取得（a_marketplaces.db） ---
-        conn = get_conn("a_marketplaces.db")
+        print(f"[HOME_COST 01]")  # // チェック完了後削除           
 
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT country_code
-            FROM marketplaces
-            WHERE user_id = %s
-            AND home_flag = 1
-            LIMIT 1
-        """, (self.rules.get("user_id"),))
-        row = cur.fetchone()
-        conn.close()
 
-        home_country = row["country_code"] if row else None
+        # # --- HOME国取得（a_marketplaces.db） ---
+        # conn = get_conn("a_marketplaces.db")
+
+        # cur = conn.cursor()
+        # cur.execute("""
+        #     SELECT country_code
+        #     FROM marketplaces
+        #     WHERE user_id = %s
+        #     AND home_flag = 1
+        #     LIMIT 1
+        # """, (self.rules.get("user_id"),))
+        # row = cur.fetchone()
+        # conn.close()
+
+        # home_country = row["country_code"] if row else None
+
+
+        home_country = self.rules.get("home_country")
+
+        print(f"[HOME_COST COUNTRY] {home_country}")  # // チェック完了後削除
+        print(f"[HOME_COUNT] normalized={len(normalized_offers)}")  # // チェック完了後削除
 
         for offer in normalized_offers:
             # ここに条件判定を順番に追加していく    
@@ -120,6 +129,9 @@ class PricingRulesAdapter:
                     continue                    
             filtered.append(offer)
 
+        print(f"[HOME_COST 02]")  # // チェック完了後削除
+
+        print(f"[HOME_COUNT] filtered={len(filtered)}")  # // チェック完了後削除
 
         if not filtered:      
             return None
@@ -145,7 +157,9 @@ class PricingRulesAdapter:
             if min_total is None or total < min_total:
                 min_total = total
                 min_offer = offer
-       
+
+        print(f"[HOME_COST 03]")  # // チェック完了後削除       
+
         return {
             "selected": min_offer,
             "filtered": filtered,

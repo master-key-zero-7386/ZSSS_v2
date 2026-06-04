@@ -46,8 +46,6 @@ window.loadprelisting = async function (country_code) {
         processing: true,
 
         ajax: function(dt, callback) {
-            console.log("DT KEYWORD:", dt.search.value); // チェック完了後削除
-
             const sort = document.getElementById("preListingSort")?.value;
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
@@ -57,6 +55,7 @@ window.loadprelisting = async function (country_code) {
             fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
+
                 callback({
                     data: json.pre,
                     recordsTotal: json.total_count,
@@ -95,8 +94,6 @@ window.loadprelisting = async function (country_code) {
                 orderable: false,
                 defaultContent: "",
                 render: function (_d, _t, row) {
-
-                    // console.log(row);  // チェック完了後削除
 
                     const asin = row.asin || "";
                     const checked = row.selected ? "checked" : "";
@@ -444,7 +441,7 @@ window.loadprelisting = async function (country_code) {
     });
 
     // --- ▼ SECTION 06: DataTable 再描画時にも登録ボタンを再アタッチ
-    preTable.off('draw').on('draw', function () {
+    preTable.off('draw').on('draw', function () {        
         const hasRealRows = $("#prelistingtable tbody tr").toArray().some(
             tr => !$(tr).text().includes("No data")
         );
