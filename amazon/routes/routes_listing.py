@@ -985,7 +985,15 @@ def search_listing():
         result = []
         for row in rows:
             result.append(
-                _build_listing_row_with_shipping(row, user_id, marketplace_id, country_code, timezone)
+                _build_listing_row_with_shipping(
+                    row, 
+                    user_id, 
+                    marketplace_id, 
+                    country_code, 
+                    timezone,
+                    set(),
+                    set()
+                )
             )
 
         return jsonify(result)
