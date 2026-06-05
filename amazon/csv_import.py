@@ -254,14 +254,42 @@ def import_csv():
 
             user_id = session.get("user_id")
 
+            import time  # ここを修正
+            t_black = time.time()  # // チェック完了後削除
+
+            conn_bl = get_conn("a_all_blacklist_asin.db")  
+            cur_bl = conn_bl.cursor() 
+
+            cur_bl.execute("""  
+                SELECT asin
+                FROM blacklist_asin
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+            """, (
+                user_id,
+                marketplace_id
+            ))
+
+            black_asin_set = { 
+                str(r["asin"]).strip().upper()
+                for r in cur_bl.fetchall()
+            }
+
+            conn_bl.close() 
+
             for rec in records:
                 asin = rec["asin"]
 
-                if is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
+                # if is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
+                if asin in black_asin_set: 
                     blacklist_asins[asin] = "blacklist"
-                    
+
+            print(f"[CSV BLACK] {time.time()-t_black:.3f}s")  # // チェック完了後削除   
+
             # --- ▼ 既登録チェック ▼ ---
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
+
+            t_listed = time.time()  # // チェック完了後削除
 
             if os.path.exists(listed_db):
 
@@ -276,6 +304,8 @@ def import_csv():
                     if cur.fetchone():
                         listed_asins.append(asin)
                 conn.close()
+
+                print(f"[CSV LISTED] {time.time()-t_listed:.3f}s")  # // チェック完了後削除
 
             # ▼ SKU割り振り
             today = datetime.utcnow().strftime("%Y%m%d") 
