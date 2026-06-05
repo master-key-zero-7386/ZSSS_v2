@@ -420,8 +420,8 @@ def _build_listing_row_with_shipping(
             region_fbm += 1
 
     # --- host取得 ---
-    conn_mst = get_conn("a_marketplaces_master.db")
-    cur_mst = conn_mst.cursor()
+    # conn_mst = get_conn("a_marketplaces_master.db")
+    # cur_mst = conn_mst.cursor()
     
     # REGION
     # cur_mst.execute("""
@@ -434,42 +434,22 @@ def _build_listing_row_with_shipping(
     # 事前取得済み(MARKETPLACE_HOST)
 
     # HOME
-    cur_mst.execute("""
-        SELECT host
-        FROM marketplaces_master
-        WHERE marketplace_id = %s
-        LIMIT 1
-    """, (row["home_marketplace_id"],))  
+    # cur_mst.execute("""
+    #     SELECT host
+    #     FROM marketplaces_master
+    #     WHERE marketplace_id = %s
+    #     LIMIT 1
+    # """, (row["home_marketplace_id"],))  
 
-    row_home = cur_mst.fetchone()
+    # row_home = cur_mst.fetchone()
 
-    conn_mst.close()
+    # conn_mst.close()
 
     marketplace_host = MARKETPLACE_HOST 
-    home_marketplace_host = row_home["host"] if row_home else None 
+    # home_marketplace_host = row_home["host"] if row_home else None 
+    home_marketplace_host = HOME_MARKETPLACE_HOST 
 
     # --- ▼ BrandGate取得 ▼ ---
-    # conn_bg = get_conn("a_brand_gate_result.db")
-    # cur_bg = conn_bg.cursor()
-
-    # brand = row["region_brand"]
-
-    # if brand:
-    #     cur_bg.execute("""
-    #         SELECT status, reason
-    #         FROM brand_gate_result
-    #         WHERE user_id = %s
-    #         AND region_marketplace_id = %s
-    #         AND brand = %s
-    #         LIMIT 1
-    #     """, (user_id, marketplace_id, brand))
-
-    #     bg_row = cur_bg.fetchone()
-    # else:
-    #     bg_row = None
-
-    # conn_bg.close()
-
     brand = str(row["region_brand"] or "").strip().lower()
 
     bg_row = BRAND_GATE_MAP.get(brand) if brand else None
@@ -523,7 +503,6 @@ def _build_listing_row_with_shipping(
     region_shipping_amount = 0
 
     try:
-
         normalized_region = NormalizedPricingAdapter.normalize_region_offers(
             None,
             data
@@ -746,6 +725,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     rows = cur.fetchall()
 
     print(f"[DEBUG] rows fetched = {len(rows)}")  # // チェック完了後削除
+    print(f"[HOME_MP_OUTSIDE] {rows[0]['home_marketplace_id']}")  # // チェック完了後削除
 
     # --- 件数取得 ---
     cur.execute(f"""
@@ -866,9 +846,19 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     row_region = cur_mst.fetchone()
 
+    cur_mst.execute("""
+        SELECT host
+        FROM marketplaces_master
+        WHERE marketplace_id = %s
+        LIMIT 1
+    """, (rows[0]["home_marketplace_id"],)) 
+
+    row_home = cur_mst.fetchone() 
+
     conn_mst.close()
 
     MARKETPLACE_HOST = row_region["host"] if row_region else None
+    HOME_MARKETPLACE_HOST = row_home["host"] if row_home else None
 
     OFFER_FILTER_RULES = _get_offer_filter_rules(user_id, "ALL")
 
@@ -932,6 +922,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS, 
                 PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
                 MARKETPLACE_HOST=MARKETPLACE_HOST, 
+                HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
                 OFFER_FILTER_RULES=OFFER_FILTER_RULES,
                 PRICING_MASTER_RULES=PRICING_MASTER_RULES,
                 ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
