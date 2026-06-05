@@ -990,7 +990,9 @@ def search_listing():
                     user_id, 
                     marketplace_id, 
                     country_code, 
-                    timezone
+                    timezone,
+                    set(), 
+                    set()                          
                 )
             )
 
