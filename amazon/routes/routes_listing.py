@@ -1832,6 +1832,8 @@ def bulk_move_to_all():
         except: 
             pass 
 
+    print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # チェック完了後削除
+        
     submit_listing_service( 
         user_id, 
         country_code, 
