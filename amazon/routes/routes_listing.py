@@ -1080,7 +1080,7 @@ def search_listing():
             r["asin"]: r
             for r in cur_cache.fetchall()
         }
-        
+
         conn_cache.close()
 
         conn_cfg.close()
@@ -1740,6 +1740,9 @@ def bulk_move_to_all():
 
     for asin in asins:
 
+        print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # チェック完了後削除
+
+        # --- ▼ 出品用データ取得 ▼ --- 
         # --- ▼ 出品用データ取得 ▼ --- 
         cur.execute("""
             SELECT
