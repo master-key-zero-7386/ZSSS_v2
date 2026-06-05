@@ -986,13 +986,23 @@ def search_listing():
         for row in rows:
             result.append(
                 _build_listing_row_with_shipping(
-                    row, 
-                    user_id, 
-                    marketplace_id, 
-                    country_code, 
+                    row,
+                    user_id,
+                    marketplace_id,
+                    country_code,
                     timezone,
-                    set(),
-                    set()
+                    black_asin_set,
+                    black_brand_set,
+                    RETAIL_SELLER_IDS=RETAIL_SELLER_IDS,
+                    SHIPPING_CONFIG=SHIPPING_CONFIG,
+                    SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS,
+                    PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
+                    MARKETPLACE_HOST=MARKETPLACE_HOST,
+                    HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
+                    OFFER_FILTER_RULES=OFFER_FILTER_RULES,
+                    PRICING_MASTER_RULES=PRICING_MASTER_RULES,
+                    ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
+                    BRAND_GATE_MAP=BRAND_GATE_MAP
                 )
             )
 
