@@ -843,14 +843,17 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     row_region = cur_mst.fetchone()
 
-    cur_mst.execute("""
-        SELECT host
-        FROM marketplaces_master
-        WHERE marketplace_id = %s
-        LIMIT 1
-    """, (rows[0]["home_marketplace_id"],)) 
+    row_home = None
 
-    row_home = cur_mst.fetchone() 
+    if rows:
+        cur_mst.execute("""
+            SELECT host
+            FROM marketplaces_master
+            WHERE marketplace_id = %s
+            LIMIT 1
+        """, (rows[0]["home_marketplace_id"],)) 
+
+        row_home = cur_mst.fetchone() 
 
     conn_mst.close()
 
