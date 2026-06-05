@@ -969,7 +969,7 @@ def search_listing():
             LIMIT 1
         """, (user_id, country_code))
         r = cur_m.fetchone()
-        marketplace_id = r[0] if r else None
+        marketplace_id = r["marketplace_id"] if r else None 
 
         cur_m.execute("""
             SELECT timezone
@@ -978,7 +978,7 @@ def search_listing():
             LIMIT 1
         """, (user_id, country_code))
         r_tz = cur_m.fetchone()
-        timezone = r_tz[0] if r_tz else "UTC"
+        timezone = r_tz["timezone"] if r_tz else "UTC"
 
         conn_m.close()
 
