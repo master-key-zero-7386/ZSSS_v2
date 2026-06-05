@@ -724,9 +724,6 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     rows = cur.fetchall()
 
-    print(f"[DEBUG] rows fetched = {len(rows)}")  # // チェック完了後削除
-    print(f"[HOME_MP_OUTSIDE] {rows[0]['home_marketplace_id']}")  # // チェック完了後削除
-
     # --- 件数取得 ---
     cur.execute(f"""
         SELECT COUNT(*) AS count
