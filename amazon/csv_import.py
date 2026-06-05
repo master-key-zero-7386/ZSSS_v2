@@ -148,7 +148,6 @@ def check_csv():
 def import_csv():
     db_dir = current_app.config.get("DB_DIR")
     try:
-        # if "file" not in request.files and request.form.get("mode", "check") == "check":
         mode = request.form.get("mode", "check") 
 
         if mode == "check" and "file" not in request.files:
@@ -254,9 +253,6 @@ def import_csv():
 
             user_id = session.get("user_id")
 
-            import time  # ここを修正
-            t_black = time.time()  # // チェック完了後削除
-
             conn_bl = get_conn("a_all_blacklist_asin.db")  
             cur_bl = conn_bl.cursor() 
 
@@ -280,16 +276,11 @@ def import_csv():
             for rec in records:
                 asin = rec["asin"]
 
-                # if is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
                 if asin in black_asin_set: 
                     blacklist_asins[asin] = "blacklist"
 
-            print(f"[CSV BLACK] {time.time()-t_black:.3f}s")  # // チェック完了後削除   
-
             # --- ▼ 既登録チェック ▼ ---
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
-
-            t_listed = time.time()  # // チェック完了後削除
 
             if os.path.exists(listed_db):
 
@@ -304,8 +295,6 @@ def import_csv():
                     if cur.fetchone():
                         listed_asins.append(asin)
                 conn.close()
-
-                print(f"[CSV LISTED] {time.time()-t_listed:.3f}s")  # // チェック完了後削除
 
             # ▼ SKU割り振り
             today = datetime.utcnow().strftime("%Y%m%d") 
@@ -403,6 +392,8 @@ def import_csv():
             today = datetime.utcnow().strftime("%Y%m%d") 
 
             now_utc = datetime.utcnow().isoformat()
+
+            conn_c, cur_c, conn_p, cur_p = insert_cache_record_from_csv_batch() 
 
             for asin, sku in zip(asins, skus):
                 if not sku:  
@@ -510,15 +501,64 @@ def import_csv():
                 ))
 
                 # CSV取り込み時点で cache 骨格を同時に作成
-                insert_cache_record_from_csv(
-                    db_dir,
+                cur_c.execute("""
+                    INSERT INTO catalog_cache (
+                        asin,
+                        home_marketplace_id,
+                        region_marketplace_id,
+                        h_catalog_ttl_at,
+                        r_catalog_ttl_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+
+                    ON CONFLICT (asin, home_marketplace_id)
+                    DO UPDATE SET
+                        region_marketplace_id = EXCLUDED.region_marketplace_id,
+                        h_catalog_ttl_at = EXCLUDED.h_catalog_ttl_at,
+                        r_catalog_ttl_at = EXCLUDED.r_catalog_ttl_at
+                """, (
                     asin,
                     home_marketplace_id,
                     region_marketplace_id,
-                )              
+                    datetime.utcnow().isoformat(),
+                    datetime.utcnow().isoformat(),
+                ))
+
+                now = datetime.utcnow()
+                offset = timedelta(seconds=random.randint(0, 300))
+
+                cur_p.execute("""
+                    INSERT INTO pricing_cache (
+                        asin,
+                        home_marketplace_id,
+                        region_marketplace_id,
+                        h_pricing_ttl_at,
+                        r_pricing_ttl_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
+
+                    ON CONFLICT (asin, home_marketplace_id)
+                    DO UPDATE SET
+                        region_marketplace_id = EXCLUDED.region_marketplace_id,
+                        h_pricing_ttl_at = EXCLUDED.h_pricing_ttl_at,
+                        r_pricing_ttl_at = EXCLUDED.r_pricing_ttl_at
+                """, (
+                    asin,
+                    home_marketplace_id,
+                    region_marketplace_id,
+                    (now + offset).isoformat(),
+                    (now + offset).isoformat(),
+                ))
 
             conn.commit()
+
+            conn_c.commit()
+            conn_p.commit()
+
             conn.close()
+
+            conn_c.close()
+            conn_p.close()             
 
             app = current_app._get_current_object()             
 
@@ -531,73 +571,16 @@ def import_csv():
         print("========================")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTION 04: CacheDB登録 ▼ ---
-def insert_cache_record_from_csv(db_dir: str, asin: str, home_marketplace_id: str, region_marketplace_id: str):
-    # --- catalog_cache ---
-    catalog_db = os.path.join(db_dir, "a_catalog_cache.db")
+# --- ▼ SECTION 04: CSV一括CacheDB登録 ▼ ---
+def insert_cache_record_from_csv_batch():
+
     conn_c = get_conn("a_catalog_cache.db")
-
     cur_c = conn_c.cursor()
-    
-    try:
-        cur_c.execute("""
-            INSERT INTO catalog_cache (
-                asin,
-                home_marketplace_id,
-                region_marketplace_id,
-                h_catalog_ttl_at,
-                r_catalog_ttl_at
-            )
-            VALUES (%s, %s, %s, %s, %s)
 
-            ON CONFLICT (asin, home_marketplace_id)
-            DO UPDATE SET
-                region_marketplace_id = EXCLUDED.region_marketplace_id,
-                h_catalog_ttl_at = EXCLUDED.h_catalog_ttl_at,
-                r_catalog_ttl_at = EXCLUDED.r_catalog_ttl_at
-        """, (
-            asin,
-            home_marketplace_id,
-            region_marketplace_id,
-            datetime.utcnow().isoformat(),
-            datetime.utcnow().isoformat(), 
-        ))
-        conn_c.commit()
-    finally:
-        conn_c.close()
-
-    # --- pricing_cache ---
-    pricing_db = os.path.join(db_dir, "a_pricing_cache.db")
     conn_p = get_conn("a_pricing_cache.db")
     cur_p = conn_p.cursor()
-    try:
-        now = datetime.utcnow()
-        offset = timedelta(seconds=random.randint(0, 300))
-        cur_p.execute("""
-            INSERT INTO pricing_cache (
-                asin,
-                home_marketplace_id,
-                region_marketplace_id,
-                h_pricing_ttl_at,
-                r_pricing_ttl_at
-            )
-            VALUES (%s, %s, %s, %s, %s)
 
-            ON CONFLICT (asin, home_marketplace_id)
-            DO UPDATE SET
-                region_marketplace_id = EXCLUDED.region_marketplace_id,
-                h_pricing_ttl_at = EXCLUDED.h_pricing_ttl_at,
-                r_pricing_ttl_at = EXCLUDED.r_pricing_ttl_at
-        """, (
-            asin,
-            home_marketplace_id,
-            region_marketplace_id,
-            (now + offset).isoformat(),
-            (now + offset).isoformat(),
-        ))
-        conn_p.commit()
-    finally:
-        conn_p.close()
+    return conn_c, cur_c, conn_p, cur_p
 
 # --- ▼ SECTION 05: CSV Export ▼ ---
 @csv_import_bp.route("/export_listed_csv", methods=["GET"])

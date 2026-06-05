@@ -60,10 +60,6 @@ def _get_sqlite_conn(db_path):
 
 # --- ▼ SECTION 03: PostgreSQL接続（準備） ▼ ---
 def _get_postgres_conn():
-
-    # print("PG_HOST =", PG_HOST)  # チェック完了後削除
-    # print("PG_DATABASE =", PG_DATABASE)  # チェック完了後削除
-
     conn = psycopg2.connect(
         host=PG_HOST,
         port=PG_PORT,
@@ -75,8 +71,6 @@ def _get_postgres_conn():
     )
 
     return conn 
-
-    # raise NotImplementedError("PostgreSQL connection is not implemented yet")
 
 # --- ▼ SECTION 04: 共通接続入口 ▼ ---
 def get_conn(db_name):
@@ -170,9 +164,6 @@ def get_lwa_credentials(country_code: str):
     conn.close()
 
     # --- ▼ DEBUG: LWA確認 ▼ ---
-    print("LWA country_code >>>", country_code)  # // チェック完了後削除
-    # print("LWA row >>>", row)  # // チェック完了後削除
-
     if not row:
         raise ValueError("LWA credentials not found in master DB")
 

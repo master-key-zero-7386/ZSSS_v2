@@ -4,9 +4,6 @@
 // =====================================================
 
 window.loadalllisting = async function(country_code) {
-    console.log("LOAD ALL START >>>", country_code, Date.now()); // チェック完了後削除
-
-
     document.querySelector("#alllisting")?.removeAttribute("hidden"); 
 
     if (window.alllistingLoading) 
@@ -50,11 +47,11 @@ window.loadalllisting = async function(country_code) {
                     
                     fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&page=${page}&keyword=${encodeURIComponent(keyword)}`)           
                         .then(res => {
-                            // console.log("RES:", res); // チェック完了後削除
+                            
                             return res.json();
                         })
                         .then(json => {
-                            // console.log("JSON:", json); // チェック完了後削除
+                            
                             callback({
                                 data: json.all,
                                 recordsTotal: json.total_count,
@@ -62,7 +59,7 @@ window.loadalllisting = async function(country_code) {
                             });
                         })
                         .catch(err => {
-                            // console.error("FETCH ERROR:", err); // チェック完了後削除
+                            
                         });
 
                 },            
@@ -487,7 +484,7 @@ window.loadalllisting = async function(country_code) {
             });
 
         } catch(e) {
-            // console.error("DT ERROR:", e); // チェック完了後削除
+            
             return; 
         }
 

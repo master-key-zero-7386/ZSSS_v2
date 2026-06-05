@@ -485,13 +485,7 @@ window.addEventListener("DOMContentLoaded", () => {
         if (!region) {
             window._activating = false;
             return;
-        }
-
-        // // ▼ここから追加
-        // console.log("CLICK TARGET:", targetId); // // チェック完了後削除
-        // console.log("PANE EXISTS:", document.getElementById(targetId)); // // チェック完了後削除
-        // console.log("ALL FUNC:", typeof loadalllisting); // // チェック完了後削除
-        // // ▲ここまで追加      
+        }   
         
         if (targetId !== "alllisting") return;
         

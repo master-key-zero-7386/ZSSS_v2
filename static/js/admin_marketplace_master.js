@@ -159,7 +159,6 @@ function initMarketplaceMaster() {
         if ($tr.hasClass('editing')) return;
 
         const rowData = window.mktTable.row($tr).data();
-        console.log("ROW DATA >>>", rowData); // チェック完了後削除
 
         // ★ キャンセル用に元データ退避
         $tr.data('originalRowData', { ...rowData });
@@ -185,9 +184,7 @@ function initMarketplaceMaster() {
 
         // ★ 全カラムを input 化
         editableColumns.forEach(col => {
-        const value = rowData[col.key] ?? '';
-
-        console.log("EDIT COL >>>", col.key, value, rowData); // チェック完了後削除    
+        const value = rowData[col.key] ?? '';  
 
         $tr.find(`td:eq(${col.index})`).html(
             `<input type="${col.type}"
@@ -278,9 +275,6 @@ function initMarketplaceMaster() {
         const $tr = $(this).closest('tr');
         const original = $tr.data('originalRowData'); // null → 新規
 
-
-        console.log("SAVE HTML >>>", $tr.html()); // チェック完了後削除
-
         // ★ 入力値回収（全カラム）
         const payload = {
             marketplace_id: original ? original.marketplace_id : $tr.find('.edit-marketplace_id').val(),
@@ -310,8 +304,6 @@ function initMarketplaceMaster() {
         const url = original
             ? '/admin/marketplace_master/update'
             : '/admin/marketplace_master/insert';
-
-        console.log("PAYLOAD >>>", payload); // チェック完了後削除
 
         fetch(url, {
             method: 'POST',

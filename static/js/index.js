@@ -14,8 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.addEventListener("click", () => {
             const target = btn.getAttribute("data-target");
 
-            console.log("CLICK:", target); // チェック完了後削除
-
             const country_code = (document.getElementById("globalRegion")?.value || "US").trim();
 
             if (target === "prelisting") {

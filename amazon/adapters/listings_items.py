@@ -220,7 +220,7 @@ def delete_listings_feed(user_id, country_code, marketplace_id, sku_list):
 
     feed_id = feed_submit.get("feedId")
 
-    print("FEED ID:", feed_id, flush=True)  # ←ここを追加（チェック完了後削除）
+    print("FEED ID:", feed_id, flush=True)  # チェック完了後削除
 
     import time
     time.sleep(5)

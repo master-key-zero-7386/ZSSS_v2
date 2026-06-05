@@ -124,8 +124,6 @@ def insert_rows(pg_conn, table_name, rows):
 
     cur = pg_conn.cursor()
 
-    print(f"[INSERT] {table_name} rows={len(rows)}") # チェック完了後削除
-
     for row in rows:
         values = [row[col] for col in columns]
         cur.execute(sql, values)

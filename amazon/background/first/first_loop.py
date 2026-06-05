@@ -123,9 +123,6 @@ def run_first_loop(app, db_dir):
                     cc_home = row_home["country_code"] if row_home else None 
                     cc_region = row_region["country_code"] if row_region else None                    
 
-                    print("FIRST DB >>>", t["db"])  # // チェック完了後削除
-                    print("FIRST cc_home >>>", cc_home)  # // チェック完了後削除    
-
                     # --- ▼ SECTION  firstで取得・updateする項目 ▼ ---
                     update_home_catalog(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
 

@@ -85,7 +85,6 @@ def calculate_listing_price(
 
     # --- 最低利益価格 ---
     denom_min = 1 - (r * (1 + g)) - g - m_min - rem        # 計算式: 分母 = 1 - (手数料率 × (1 + 税率)) - 税率 - 最低利益率 - 送金手数料率
-    # print("DENOM DEBUG:", r, g, m_min, rem)  # // チェック完了後削除
 
     if denom_min <= 0:
         return {
@@ -117,7 +116,6 @@ def calculate_listing_price(
 
     # --- 最大利益価格 ---
     denom_max = 1 - (r * (1 + g)) - g - m_max - rem        # 計算式: 分母 = 1 - (手数料率 × (1 + 税率)) - 税率 - 最大利益率 - 送金手数料率
-    # print("DENOM MAX DEBUG:", r, g, m_max, rem, denom_max)  # // チェック完了後削除
 
     if denom_max <= 0:
         return {
