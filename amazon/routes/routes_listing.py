@@ -980,19 +980,200 @@ def search_listing():
         r_tz = cur_m.fetchone()
         timezone = r_tz["timezone"] if r_tz else "UTC"
 
+        cur_m.execute("""
+            SELECT timezone, country_code
+            FROM marketplaces
+            WHERE user_id = %s
+            AND home_flag = 1
+            LIMIT 1
+        """, (user_id,))
+        row_tz_home = cur_m.fetchone()
+
+        HOME_COUNTRY = row_tz_home["country_code"] if row_tz_home else None
+        
         conn_m.close()
+
+        black_asin_set = set()
+        black_brand_set = set()
+
+        conn_bl = get_conn("a_all_blacklist_asin.db")
+        cur_bl = conn_bl.cursor()
+
+        cur_bl.execute("""
+            SELECT asin
+            FROM blacklist_asin
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, marketplace_id))
+
+        black_asin_set = {
+            str(r["asin"]).strip().lower()
+            for r in cur_bl.fetchall()
+        }
+
+        conn_bl.close()
+
+        conn_brand = get_conn(f"a_{country_code}_blacklist_brand.db")
+        cur_brand = conn_brand.cursor()
+
+        cur_brand.execute("""
+            SELECT brand
+            FROM blacklist_brand
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, marketplace_id))
+
+        black_brand_set = {
+            str(r["brand"]).strip().lower()
+            for r in cur_brand.fetchall()
+        }
+
+        conn_brand.close()
+
+        RETAIL_SELLER_IDS = get_retail_seller_ids()
+
+        conn_cfg = get_conn("a_pricing_settings.db")
+        cur_cfg = conn_cfg.cursor()
+
+        cur_cfg.execute("""
+            SELECT padding_cm, pack_ratio, volumetric_divisor
+            FROM shipping_config
+            WHERE user_id = %s
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """, (user_id,))
+
+        SHIPPING_CONFIG = cur_cfg.fetchone()
+
+        conn_ship = get_conn("a_shipping_rates.db")
+        cur_ship = conn_ship.cursor()
+
+        cur_ship.execute("""
+            SELECT
+                weight_from_g,
+                weight_to_g,
+                carrier_1_price,
+                carrier_2_price,
+                carrier_3_price
+            FROM shipping_rates
+            WHERE user_id = %s
+            AND marketplace_id = %s
+        """, (user_id, marketplace_id))
+
+        SHIPPING_RATE_ROWS = cur_ship.fetchall()
+
+        conn_ship.close()
+
+        conn_cache = get_conn("a_pricing_cache.db")
+        cur_cache = conn_cache.cursor()
+
+        cur_cache.execute("""
+            SELECT
+                asin,
+                home_offers_json,
+                region_offers_json
+            FROM pricing_cache
+            WHERE region_marketplace_id = %s
+        """, (marketplace_id,))
+
+        PRICING_CACHE_ROWS = {
+            r["asin"]: r
+            for r in cur_cache.fetchall()
+        }
+        
+        conn_cache.close()
+
+        conn_cfg.close()
+
+        conn_mst = get_conn("a_marketplaces_master.db")
+        cur_mst = conn_mst.cursor()
+
+        cur_mst.execute("""
+            SELECT host
+            FROM marketplaces_master
+            WHERE marketplace_id = %s
+            LIMIT 1
+        """, (marketplace_id,))
+
+        row_region = cur_mst.fetchone()
+
+        row_home = None
+
+        if rows:
+            cur_mst.execute("""
+                SELECT host
+                FROM marketplaces_master
+                WHERE marketplace_id = %s
+                LIMIT 1
+            """, (rows[0]["home_marketplace_id"],))
+
+            row_home = cur_mst.fetchone()
+
+        conn_mst.close()
+
+        MARKETPLACE_HOST = row_region["host"] if row_region else None
+        HOME_MARKETPLACE_HOST = row_home["host"] if row_home else None
+
+        OFFER_FILTER_RULES = _get_offer_filter_rules(user_id, "ALL")
+        OFFER_FILTER_RULES["home_country"] = HOME_COUNTRY
+
+        PRICING_MASTER_RULES = _get_pricing_master_rules(user_id, country_code)
+
+        conn_acc = get_conn("a_account_master.db")
+        cur_acc = conn_acc.cursor()
+
+        cur_acc.execute("""
+            SELECT account_seller_id
+            FROM account_master
+            WHERE user_id = %s
+            AND country_code = %s
+            LIMIT 1
+        """, (user_id, country_code))
+
+        acc = cur_acc.fetchone()
+
+        conn_acc.close()
+
+        ACCOUNT_SELLER_ID = acc["account_seller_id"] if acc else None
+
+        conn_bg = get_conn("a_brand_gate_result.db")
+        cur_bg = conn_bg.cursor()
+
+        cur_bg.execute("""
+            SELECT brand, status, reason
+            FROM brand_gate_result
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+        """, (user_id, marketplace_id))
+
+        BRAND_GATE_MAP = {
+            str(r["brand"]).strip().lower(): r
+            for r in cur_bg.fetchall()
+        }
+
+        conn_bg.close()
 
         result = []
         for row in rows:
             result.append(
                 _build_listing_row_with_shipping(
-                    row, 
-                    user_id, 
-                    marketplace_id, 
-                    country_code, 
+                    row,
+                    user_id,
+                    marketplace_id,
+                    country_code,
                     timezone,
-                    set(), 
-                    set()                          
+                    black_asin_set,
+                    black_brand_set,
+                    RETAIL_SELLER_IDS=RETAIL_SELLER_IDS,
+                    SHIPPING_CONFIG=SHIPPING_CONFIG,
+                    SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS,
+                    PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
+                    MARKETPLACE_HOST=MARKETPLACE_HOST,
+                    HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
+                    OFFER_FILTER_RULES=OFFER_FILTER_RULES,
+                    PRICING_MASTER_RULES=PRICING_MASTER_RULES,
+                    ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
+                    BRAND_GATE_MAP=BRAND_GATE_MAP
                 )
             )
 
