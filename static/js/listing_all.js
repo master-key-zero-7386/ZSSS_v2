@@ -453,6 +453,7 @@ window.loadalllisting = async function(country_code) {
                                 `;
                             }
                         },
+                        { title: "Action", data: null, defaultContent: "", orderable: false },                        
                     ]
             });
 
