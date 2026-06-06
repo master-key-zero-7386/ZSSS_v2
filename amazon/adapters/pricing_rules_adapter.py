@@ -189,6 +189,8 @@ class PricingRulesAdapter:
                 min_total = total
                 min_offer = offer
 
+        print(f"[SELECTED] price={min_offer.get('price_amount')} rating={min_offer.get('rating_percent')} count={min_offer.get('rating_count')}" , flush=True)  # チェック完了後削除
+
         return {
             "selected": min_offer,
             "filtered": filtered,
