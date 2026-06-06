@@ -119,7 +119,7 @@ window.loadprelisting = async function (country_code) {
                                             margin-bottom:4px;
                                         ">
                                         ${asin}
-                                    </strong>
+                                    </strong>                              
 
                                     <button class="bg-check-btn" data-asin="${asin}"
                                         style="
@@ -137,6 +137,12 @@ window.loadprelisting = async function (country_code) {
                                         ">
                                         Brand CHECK
                                     </button>
+
+                                    <!-- SKU -->
+                                    <span class="sku-cell"
+                                        style="font-size:13px; color:#555; margin-left:8px;">
+                                        ${row.sku || ""}
+                                    </span>   
 
                                     <span class="bg-result" style="margin-left:6px; font-size:16px;"></span>                                    
 
@@ -181,12 +187,6 @@ window.loadprelisting = async function (country_code) {
                                     ${row.home_title || ""}
                                 </div>
                                 
-                                <!-- SKU -->
-                                <div class="sku-cell"
-                                    style="font-size:13px; color:#555; margin-top:2px;"> 
-                                    ${row.sku || ""}
-                                </div>
-
                                 <div class="brand-cell">
                                     ${
                                         row.is_black_brand

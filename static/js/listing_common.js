@@ -294,45 +294,45 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // --- ▼ SECTION 09 検索機能 ▼ ---
-    // === ▼ 09-01: 検索モード切替（Pre） ▼ ===
-    const presearchInput = document.getElementById("preListingSearchInput");
-    const predetailSwitch = document.getElementById("preListingDetailSearch");
+    // // 未使用切り替え機能--- ▼ SECTION 09 検索機能 ▼ ---
+    // // === ▼ 09-01: 検索モード切替（Pre） ▼ ===
+    // const presearchInput = document.getElementById("preListingSearchInput");
+    // const predetailSwitch = document.getElementById("preListingDetailSearch");
 
-    if (presearchInput && predetailSwitch) {
-        predetailSwitch.addEventListener("change", function () {
+    // if (presearchInput && predetailSwitch) {
+    //     predetailSwitch.addEventListener("change", function () {
 
-            if (this.checked) {
-                presearchInput.placeholder = "ASIN SKU Title Brandで検索";
+    //         if (this.checked) {
+    //             presearchInput.placeholder = "ASIN SKU Title Brandで検索";
 
-                document.getElementById("preInfoStatusFilter").style.display = "block";
+    //             document.getElementById("preInfoStatusFilter").style.display = "block";
 
-            } else {
-                presearchInput.placeholder = "ASINで検索";
-                document.getElementById("preInfoStatusFilter").style.display = "none";
-            }
+    //         } else {
+    //             presearchInput.placeholder = "ASINで検索";
+    //             document.getElementById("preInfoStatusFilter").style.display = "none";
+    //         }
 
-        });
-    }
-    // === ▼ 09-02: 検索モード切替（ALL） ▼ ===
-    const allsearchInput = document.getElementById("allListingSearchInput");
-    const alldetailSwitch = document.getElementById("allListingDetailSearch");
+    //     });
+    // }
+    // // === ▼ 09-02: 検索モード切替（ALL） ▼ ===
+    // const allsearchInput = document.getElementById("allListingSearchInput");
+    // const alldetailSwitch = document.getElementById("allListingDetailSearch");
 
-    if (allsearchInput && alldetailSwitch) {
-        alldetailSwitch.addEventListener("change", function () {
+    // if (allsearchInput && alldetailSwitch) {
+    //     alldetailSwitch.addEventListener("change", function () {
 
-            if (this.checked) {
-                allsearchInput.placeholder = "ASIN SKU Title Brandで検索";
+    //         if (this.checked) {
+    //             allsearchInput.placeholder = "ASIN SKU Title Brandで検索";
 
-                document.getElementById("allInfoStatusFilter").style.display = "block";
+    //             document.getElementById("allInfoStatusFilter").style.display = "block";
 
-            } else {
-                allsearchInput.placeholder = "ASINで検索";
-                document.getElementById("allInfoStatusFilter").style.display = "none";
-            }
+    //         } else {
+    //             allsearchInput.placeholder = "ASINで検索";
+    //             document.getElementById("allInfoStatusFilter").style.display = "none";
+    //         }
 
-        });
-    }
+    //     });
+    // }
 
     // === ▼ 09-03: Pre 検索実行 ▼ ===
     const preSearchBtn = document.getElementById("preListingSearchBtn");
