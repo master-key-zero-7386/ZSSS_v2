@@ -194,6 +194,9 @@ window.loadprelisting = async function (country_code) {
                                             : (row.home_brand || "")
                                     }
                                 </div>
+                                <div class="region-brand-cell" style="font-size:13px; color:#666;">
+                                    REGION:${row.region_brand}
+                                </div>
                             </div>
                         </div>
                     `;
