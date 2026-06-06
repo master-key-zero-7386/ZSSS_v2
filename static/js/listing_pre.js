@@ -272,7 +272,7 @@ window.loadprelisting = async function (country_code) {
                             </div>                                               
 
                             <div>
-                                <span style="display:inline-block; width:90px;">競合最安値</span>
+                                <span style="display:inline-block; width:90px;">選択競合価格</span>
                                 ：<span class="disp-ht">
                                     ${
                                         (() => {
@@ -446,17 +446,18 @@ window.loadprelisting = async function (country_code) {
             tr => !$(tr).text().includes("No data")
         );
         if (hasRealRows) {
+            window.attachRefreshButtons("#prelistingtable"); 
             window.attachRegisterButtons("#prelistingtable");
             window.attachDeleteButtons("#prelistingtable");
         }
     });
 
-    // Pre⇒ALLへの登録作業が確認できたら削除してOK　↑↑↑ここまで
 
     const hasRealRows = $("#prelistingtable").DataTable().rows().count() > 0; 
     if (hasRealRows) {
         $("#prelistingtable").off("click", ".register-btn");
         $("#prelistingtable").off("click", ".delete-btn");
+        window.attachRefreshButtons("#prelistingtable");
         window.attachRegisterButtons("#prelistingtable");
         window.attachDeleteButtons("#prelistingtable");
     }

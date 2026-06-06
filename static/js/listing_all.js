@@ -282,7 +282,7 @@ window.loadalllisting = async function(country_code) {
                                             </div>  
                                             
                                             <div>
-                                                <span style="display:inline-block; width:90px;">競合最安値</span>
+                                                <span style="display:inline-block; width:90px;">選択競合価格</span>
                                                 ：<span class="disp-ht">
                                                     ${
                                                         (() => {
@@ -536,6 +536,7 @@ window.loadalllisting = async function(country_code) {
             );
             if (hasRealRows) {
                 $("#alllistingtable").off("click", ".delete-btn");
+                window.attachRefreshButtons("#alllistingtable"); 
                 window.attachDeleteButtons("#alllistingtable");
             }
         });
@@ -632,46 +633,46 @@ document.addEventListener("click", function(e) {
 
 });
 
-// --- ▼ SECTION 05: 最新取得ボタン ▼ ---
-document.addEventListener("click", async function(e) {
-    const btn = e.target.closest(".refresh-now-btn");
-    if (!btn) return;
+// // --- ▼ SECTION 05: 最新取得ボタン ▼ ---
+// document.addEventListener("click", async function(e) {
+//     const btn = e.target.closest(".refresh-now-btn");
+//     if (!btn) return;
 
-    const asin = btn.dataset.asin;
+//     const asin = btn.dataset.asin;
 
-    const region = document.getElementById("globalRegion")?.value;
+//     const region = document.getElementById("globalRegion")?.value;
 
-    if (!asin || !region) {
-        return;
-    }
+//     if (!asin || !region) {
+//         return;
+//     }
 
-    btn.disabled = true;
-    btn.innerText = "取得中...";
+//     btn.disabled = true;
+//     btn.innerText = "取得中...";
 
-    try {
+//     try {
 
-        await fetch("/run_refresh_now", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                asin: asin,
-                country_code: region
-            })
-        });
+//         await fetch("/run_refresh_now", {
+//             method: "POST",
+//             headers: {
+//                 "Content-Type": "application/json"
+//             },
+//             body: JSON.stringify({
+//                 asin: asin,
+//                 country_code: region
+//             })
+//         });
 
-        loadalllisting(region);
+//         loadalllisting(region);
 
-    } catch (e) {
+//     } catch (e) {
 
-        alert("最新取得失敗");
+//         alert("最新取得失敗");
 
-    } finally {
+//     } finally {
 
-        btn.disabled = false;
-        btn.innerText = "最新取得";
-    }
-});
+//         btn.disabled = false;
+//         btn.innerText = "最新取得";
+//     }
+// });
 
 

@@ -240,7 +240,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         "offers": raw.get("payload", {}).get("Offers", []),
     }
 
-# --- ▼ SECTION 03: ALL 手動最新取得（From：listing_all.js） ▼ ---
+# --- ▼ SECTION 03: 手動最新取得（From：listing_all.js） ▼ ---
 @pricing_v2_bp.route("/run_refresh_now", methods=["POST"])
 def run_refresh_now():
 

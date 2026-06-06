@@ -22,7 +22,8 @@ table.dataTable td:last-child {
     position: absolute;
     inset: 0;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     justify-content: center;
     gap: 8px;
 }
@@ -35,7 +36,80 @@ table.dataTable td:last-child {
 
 document.head.appendChild(style);
 
-// --- ▼ SECTION 01: 登録ボタン生成（pre / all 共通） ▼ ---
+// --- ▼ SECTION 01: 最新取得ボタン生成（pre / all 共通） ▼ ---
+window.attachRefreshButtons = function (tableSelector) {
+
+    const currentTab = tableSelector.includes("all") ? "all" : "pre";
+    const country_code = document.getElementById("globalRegion")?.value;
+
+    if (!country_code) return;
+
+    document.querySelectorAll(`${tableSelector} tbody tr`).forEach(row => {
+
+        if (row.querySelector(".dataTables_empty")) return;
+
+        const asinCell = row.querySelector("strong.asin-cell");
+        const asin = asinCell ? asinCell.textContent.trim() : "";
+
+        let actionCell = row.querySelector("td:last-child");
+        if (!actionCell) {
+            actionCell = document.createElement("td");
+            row.appendChild(actionCell);
+        }
+
+        let wrap = actionCell.querySelector(".listing-action-wrap");
+        if (!wrap) {
+            wrap = document.createElement("div");
+            wrap.className = "listing-action-wrap";
+            actionCell.appendChild(wrap);
+        }
+
+        if (wrap.querySelector(".refresh-now-btn")) return;
+
+        const refreshBtn = document.createElement("button");
+        refreshBtn.className = "btn-blue refresh-now-btn";
+        refreshBtn.textContent = "最新取得";
+
+        refreshBtn.addEventListener("click", async () => {
+
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = "取得中...";
+
+            try {
+
+                await fetch("/run_refresh_now", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        asin: asin,
+                        country_code: country_code
+                    })
+                });
+
+                if (currentTab === "all") {
+                    window.loadalllisting(country_code);
+                } else {
+                    window.loadprelisting(country_code);
+                }
+
+            } catch (e) {
+
+                alert("最新取得失敗");
+
+            } finally {
+
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = "最新取得";
+            }
+        });
+
+        wrap.prepend(refreshBtn);
+    });
+};
+
+// --- ▼ SECTION 02: 登録ボタン生成（pre / all 共通） ▼ ---
 window.attachRegisterButtons = function (tableSelector) {
     const currentTab = tableSelector.includes("all") ? "all" : "pre";
     const country_code = document.getElementById("globalRegion")?.value;
@@ -102,7 +176,7 @@ window.attachRegisterButtons = function (tableSelector) {
 
 };
 
-// --- ▼ SECTION 02: ごみ箱ボタン生成（pre / all 共通） ▼ ---
+// --- ▼ SECTION 03: ごみ箱ボタン生成（pre / all 共通） ▼ ---
 window.attachDeleteButtons = function (tableSelector) {
     const currentTab = tableSelector.includes("all") ? "all" : "pre";
     const country_code = document.getElementById("globalRegion")?.value;
@@ -165,7 +239,7 @@ window.attachDeleteButtons = function (tableSelector) {
     });
 };
 
-// --- ▼ SECTION 03: 全選択 / 全解除（行チェックボックス） ▼ ---
+// --- ▼ SECTION 04: 全選択 / 全解除（行チェックボックス） ▼ ---
 window.setupRowSelectionHandlers = function () {
     const pairs = [
         { toggle: "#toggleAllRows", selector: ".row-select" },
@@ -185,12 +259,12 @@ window.setupRowSelectionHandlers = function () {
     });
 };
 
-// --- ▼ SECTION 04: 共通ハンドラ初期化 ▼ ---
+// --- ▼ SECTION 05: 共通ハンドラ初期化 ▼ ---
 window.initCommonHandlers = function () {
     window.setupRowSelectionHandlers();
 };
 
-// --- ▼ SECTION 05: 情報取得状態 編集UI制御（pre / all 共通） ▼ ---
+// --- ▼ SECTION 06: 情報取得状態 編集UI制御（pre / all 共通） ▼ ---
 $(document).on("click", ".edit-btn", function () {
     // const cell = $(this).closest("td");
     const cell = $(this).closest(".listing-strategy-summary, .listing-strategy-edit").parent();
@@ -199,14 +273,14 @@ $(document).on("click", ".edit-btn", function () {
     cell.find(".listing-strategy-edit").show();
 });
 
-// --- ▼ SECTION 06: 編集取消（表示を戻す） ▼ ---
+// --- ▼ SECTION 07: 編集取消（表示を戻す） ▼ ---
 $(document).on("click", ".cancel-edit-btn", function () {
     const cell = $(this).closest("td");
     cell.find(".listing-strategy-edit").hide();
     cell.find(".listing-strategy-summary").show();             
 });
 
-// --- ▼ SECTION 07: ALL 出品戦略 保存処理（ALL専用） ▼ ---
+// --- ▼ SECTION 08: ALL 出品戦略 保存処理（ALL専用） ▼ ---
 $(document).on("click", ".save-edit-btn", async function () {
 
     const $cell = $(this).closest("td");
@@ -266,7 +340,7 @@ $(document).on("click", ".save-edit-btn", async function () {
 
 document.addEventListener("DOMContentLoaded", () => {
 
-    // --- ▼ SECTION 08: サイドバークリックで pre / all を切り替え ▼
+    // --- ▼ SECTION 09: サイドバークリックで pre / all を切り替え ▼
     document.querySelectorAll(".sidebar-btn").forEach(btn => {
         btn.addEventListener("click", () => {
 
@@ -300,44 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // === ▼ 09-02: 検索ワードクリア（ALL） ▼ ===
     const allsearchInput = document.getElementById("allListingSearchInput");    
-
-    // // 未使用切り替え機能--- ▼ SECTION 09 検索機能 ▼ ---    
-    // const predetailSwitch = document.getElementById("preListingDetailSearch");
-
-    // if (presearchInput && predetailSwitch) {
-    //     predetailSwitch.addEventListener("change", function () {
-
-    //         if (this.checked) {
-    //             presearchInput.placeholder = "ASIN SKU Title Brandで検索";
-
-    //             document.getElementById("preInfoStatusFilter").style.display = "block";
-
-    //         } else {
-    //             presearchInput.placeholder = "ASINで検索";
-    //             document.getElementById("preInfoStatusFilter").style.display = "none";
-    //         }
-
-    //     });
-    // }
-
-    // // === ▼ 09-02: 検索モード切替（ALL） ▼ ===
-    // const alldetailSwitch = document.getElementById("allListingDetailSearch");
-
-    // if (allsearchInput && alldetailSwitch) {
-    //     alldetailSwitch.addEventListener("change", function () {
-
-    //         if (this.checked) {
-    //             allsearchInput.placeholder = "ASIN SKU Title Brandで検索";
-
-    //             document.getElementById("allInfoStatusFilter").style.display = "block";
-
-    //         } else {
-    //             allsearchInput.placeholder = "ASINで検索";
-    //             document.getElementById("allInfoStatusFilter").style.display = "none";
-    //         }
-
-    //     });
-    // }
 
     // === ▼ 09-03: Pre 検索実行 ▼ ===
     const preSearchBtn = document.getElementById("preListingSearchBtn");
@@ -669,7 +705,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     });    
 
-    // --- ▼ SECTION: ALL 一括操作 実行 ▼ ---
+    // --- ▼ SECTION 12: ALL 一括操作 実行 ▼ ---
     document.getElementById("bulkActionRunAll").addEventListener("click", async function () {
 
         const action = document.getElementById("bulkActionSelectAll").value;
@@ -794,7 +830,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 });
 
-// --- ▼ SECTION 11: Listing共通：ASINセルクリックコピー ▼ --- 
+// --- ▼ SECTION 13: Listing共通：ASINセルクリックコピー ▼ --- 
 document.addEventListener("click", function (e) {
 
     const cell = e.target.closest(".asin-cell"); // ここを修正
@@ -853,7 +889,7 @@ document.addEventListener("click", function (e) {
             }, 600);
         };
 
-// --- ▼ SECTION 12: 行単位オーバーレイ（listing専用・初期定義） ▼ ---
+// --- ▼ SECTION 14: 行単位オーバーレイ（listing専用・初期定義） ▼ ---
 function showRowOverlay(table, asin) {
     const row = table
         .rows()
@@ -898,7 +934,4 @@ function hideRowOverlay(table, asin) {
     const overlay = firstCell.querySelector(".row-overlay");
     if (overlay) overlay.remove();
 }
-
-
-
 }
