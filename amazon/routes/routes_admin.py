@@ -781,6 +781,8 @@ def run_region_pricing_debug():
 
     discount_rate = rules.get("discount_rate") or 0
 
+    print("CUSTOMS:", rules.get("customs_duty_rate"), flush=True)  # チェック完了後削除
+
     # --- ▼ 送料算定（正規ルート簡易版）▼ ---
     # === ① listed_items から寸法取得 ===
     conn = get_conn(f"a_{country_code.lower()}_listed_items.db")

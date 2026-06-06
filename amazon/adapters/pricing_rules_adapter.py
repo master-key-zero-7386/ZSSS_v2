@@ -165,6 +165,8 @@ class PricingRulesAdapter:
                 if rating_count is None or int(rating_count) < int(min_rating_count):
                     continue
 
+            print(f"[FILTER PASS] price={offer.get('price_amount')} rating={offer.get('rating_percent')} count={offer.get('rating_count')}" , flush=True)  # チェック完了後削除
+
             filtered.append(offer)
 
         if not filtered:
