@@ -186,12 +186,16 @@ window.loadalllisting = async function(country_code) {
                                             </div>
                                             
                                             <div class="brand-cell">
+                                                BRAND:
                                                 ${
                                                     row.is_black_brand
                                                         ? `<span style="color:red !important; font-weight:bold; font-size:18px;">${row.home_brand || ""}</span>`
                                                         : (row.home_brand || "")
                                                 }
                                             </div>
+                                            <div class="region-brand-cell" style="font-size:13px; color:#666;">
+                                                REGION:${row.region_brand}
+                                            </div>                                            
                                         </div>
                                     </div>
                                 `;   
