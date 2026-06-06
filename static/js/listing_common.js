@@ -294,9 +294,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // // 未使用切り替え機能--- ▼ SECTION 09 検索機能 ▼ ---
-    // // === ▼ 09-01: 検索モード切替（Pre） ▼ ===
-    // const presearchInput = document.getElementById("preListingSearchInput");
+
+    // === ▼ 09-01: 検索ワードクリア（Pre） ▼ ===
+    const presearchInput = document.getElementById("preListingSearchInput");
+
+    // === ▼ 09-02: 検索ワードクリア（ALL） ▼ ===
+    const allsearchInput = document.getElementById("allListingSearchInput");    
+
+    // // 未使用切り替え機能--- ▼ SECTION 09 検索機能 ▼ ---    
     // const predetailSwitch = document.getElementById("preListingDetailSearch");
 
     // if (presearchInput && predetailSwitch) {
@@ -314,8 +319,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     //     });
     // }
+
     // // === ▼ 09-02: 検索モード切替（ALL） ▼ ===
-    // const allsearchInput = document.getElementById("allListingSearchInput");
     // const alldetailSwitch = document.getElementById("allListingDetailSearch");
 
     // if (allsearchInput && alldetailSwitch) {

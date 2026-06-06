@@ -548,13 +548,13 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     if keyword:
         query_filter += """
             AND (
-                asin LIKE %s
-                OR sku LIKE %s
-                OR home_title LIKE %s
-                OR home_brand LIKE %s
-                OR home_manufacturer LIKE %s
-                OR region_brand LIKE %s
-                OR region_manufacturer LIKE %s
+                asin ILIKE %s
+                OR sku ILIKE %s
+                OR home_title ILIKE %s
+                OR home_brand ILIKE %s
+                OR home_manufacturer ILIKE %s
+                OR region_brand ILIKE %s
+                OR region_manufacturer ILIKE %s
             )
         """
         params_base.extend([
