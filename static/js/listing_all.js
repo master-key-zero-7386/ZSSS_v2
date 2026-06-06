@@ -453,33 +453,6 @@ window.loadalllisting = async function(country_code) {
                                 `;
                             }
                         },
-                        
-                        {
-                            title: "Action",
-                            data: null,
-                            orderable: false,
-                            render: function (_data, _type, row) {
-
-                                return `
-                                    <button class="refresh-now-btn"
-                                        data-asin="${row.asin}"
-                                        style="
-                                            padding:4px 10px;
-                                            font-size:12px;
-                                            border:1px solid #007bff;
-                                            border-radius:4px;
-                                            background:#007bff;
-                                            color:#fff;
-                                            cursor:pointer;
-                                            position:relative;
-                                            z-index:9999;
-                                            pointer-events:auto;                                            
-                                        ">
-                                        最新取得
-                                    </button>
-                                `;
-                            }
-                        },
                     ]
             });
 
@@ -633,46 +606,6 @@ document.addEventListener("click", function(e) {
 
 });
 
-// // --- ▼ SECTION 05: 最新取得ボタン ▼ ---
-// document.addEventListener("click", async function(e) {
-//     const btn = e.target.closest(".refresh-now-btn");
-//     if (!btn) return;
 
-//     const asin = btn.dataset.asin;
-
-//     const region = document.getElementById("globalRegion")?.value;
-
-//     if (!asin || !region) {
-//         return;
-//     }
-
-//     btn.disabled = true;
-//     btn.innerText = "取得中...";
-
-//     try {
-
-//         await fetch("/run_refresh_now", {
-//             method: "POST",
-//             headers: {
-//                 "Content-Type": "application/json"
-//             },
-//             body: JSON.stringify({
-//                 asin: asin,
-//                 country_code: region
-//             })
-//         });
-
-//         loadalllisting(region);
-
-//     } catch (e) {
-
-//         alert("最新取得失敗");
-
-//     } finally {
-
-//         btn.disabled = false;
-//         btn.innerText = "最新取得";
-//     }
-// });
 
 
