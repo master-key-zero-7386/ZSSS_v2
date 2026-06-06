@@ -545,27 +545,27 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         query_filter += " AND information_status = %s"
         params_base.append(info_status)
 
-        if keyword:
-            query_filter += """
-                AND (
-                    asin LIKE %s
-                    OR sku LIKE %s
-                    OR home_title LIKE %s
-                    OR home_brand LIKE %s
-                    OR home_manufacturer LIKE %s
-                    OR region_brand LIKE %s
-                    OR region_manufacturer LIKE %s
-                )
-            """
-            params_base.extend([
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%",    
-                f"%{keyword}%"
-            ])
+    if keyword:
+        query_filter += """
+            AND (
+                asin LIKE %s
+                OR sku LIKE %s
+                OR home_title LIKE %s
+                OR home_brand LIKE %s
+                OR home_manufacturer LIKE %s
+                OR region_brand LIKE %s
+                OR region_manufacturer LIKE %s
+            )
+        """
+        params_base.extend([
+            f"%{keyword}%",
+            f"%{keyword}%",
+            f"%{keyword}%",
+            f"%{keyword}%",
+            f"%{keyword}%",
+            f"%{keyword}%",    
+            f"%{keyword}%"
+        ])
 
     # --- データ取得 ---
     params_data = params_base + [limit, offset]
