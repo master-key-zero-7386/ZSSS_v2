@@ -184,6 +184,8 @@ class PricingRulesAdapter:
                 continue
 
             total = float(price) + float(shipping)
+            
+            print(f"[TOTAL] price={price} ship={shipping} total={total}", flush=True)  # チェック完了後削除
 
             if min_total is None or total < min_total:
                 min_total = total
