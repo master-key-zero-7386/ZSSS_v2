@@ -605,13 +605,22 @@ def export_listed_csv():
     """)
 
     rows = cur.fetchall()
+
+    print(rows[0], flush=True)  # チェック完了後削除
+
     conn.close()
 
     output = io.StringIO()
     writer = csv.writer(output)
 
     writer.writerow(["ASIN", "SKU", "STATUS"])
-    writer.writerows(rows)
+    
+    for row in rows:
+        writer.writerow([
+            row["asin"],
+            row["sku"],
+            row["status"]
+        ])
 
     output.seek(0)
 
