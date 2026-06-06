@@ -165,8 +165,6 @@ class PricingRulesAdapter:
                 if rating_count is None or int(rating_count) < int(min_rating_count):
                     continue
 
-            print(f"[FILTER PASS] price={offer.get('price_amount')} rating={offer.get('rating_percent')} count={offer.get('rating_count')}" , flush=True)  # チェック完了後削除
-
             filtered.append(offer)
 
         if not filtered:
@@ -184,14 +182,10 @@ class PricingRulesAdapter:
                 continue
 
             total = float(price) + float(shipping)
-            
-            print(f"[TOTAL] price={price} ship={shipping} total={total}", flush=True)  # チェック完了後削除
 
             if min_total is None or total < min_total:
                 min_total = total
                 min_offer = offer
-
-        print(f"[SELECTED] price={min_offer.get('price_amount')} rating={min_offer.get('rating_percent')} count={min_offer.get('rating_count')}" , flush=True)  # チェック完了後削除
 
         return {
             "selected": min_offer,

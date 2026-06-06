@@ -299,10 +299,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("B");
       await saveShippingConfigV2();
       console.log("C");
-
-      console.log("CALL updatePricingMasterRules"); // チェック完了後削除
       await updatePricingMasterRules(); 
-      
       console.log("D");
 
       // --- ▼ Price Check 再計算（API再取得なし） ▼ ---

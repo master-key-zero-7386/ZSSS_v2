@@ -419,9 +419,7 @@ def update_blacklist():
         """, (main, note, data.get("id"), user_id))
 
         conn.commit()
-        print("ROWCOUNT:", cur.rowcount)  # // チェック完了後削除
         cur.execute(f"SELECT {key} FROM {table} WHERE id = %s", (data.get("id"),))
-        print("AFTER UPDATE:", cur.fetchone())
 
     except Exception as e:
         if "UNIQUE" in str(e) or "duplicate key" in str(e):

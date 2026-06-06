@@ -1413,7 +1413,6 @@ def bulk_delete_items():
     data = request.get_json()
     items = data.get("items") or []
     status = data.get("status")
-    print("STATUS VALUE >>>", status, flush=True)  # チェック完了後削除
 
     user_id = session.get("user_id")
 

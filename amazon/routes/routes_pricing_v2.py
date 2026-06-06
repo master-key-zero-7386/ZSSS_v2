@@ -477,8 +477,6 @@ def update_pricing_master_rules():
 
     now_utc = datetime.utcnow().isoformat()   
 
-    print("SAVE MAX:", body.get("max_profit_rate"), flush=True)  # チェック完了後削除
-    
     cur.execute("""
     UPDATE pricing_master_rules
         SET

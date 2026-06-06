@@ -606,8 +606,6 @@ def export_listed_csv():
 
     rows = cur.fetchall()
 
-    print(rows[0], flush=True)  # チェック完了後削除
-
     conn.close()
 
     output = io.StringIO()

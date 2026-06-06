@@ -190,11 +190,6 @@ class ListedItemsUpdate:
             # --- 新価格 ---
             new_price = normalized.get("home_price") 
 
-            print(f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[PRICE CHECK]] ID:{old_id} ASIN:{asin} old:{old_price} new:{new_price} status:{old_status}")  # // チェック完了後削除 可
-
-            # # --- TTL更新判定 ---
-            # ttl_value = now_utc if old_price != new_price else None 
-
             # --- UPDATE ---
             cur.execute("""
                 UPDATE listed_items
