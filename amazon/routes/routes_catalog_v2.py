@@ -56,7 +56,11 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
     )
     adapter = CatalogAdapterHome(parent_adapter=base)
     result = adapter.get_full_catalog_item(asin)
+
+    print(f"[FIRST CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
+    
     raw = result.get("raw")
+
 
     # === 01-3: NORMALIZE（HOME） ===
     normalizer = NormalizedCatalogAdapter(parent_adapter=adapter)

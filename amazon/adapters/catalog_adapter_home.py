@@ -102,7 +102,7 @@ class CatalogAdapterHome:
         # === ① 生データ取得（API） ===
         raw = self.fetch_catalog(asin)
 
-        # --- ▼ エラー時は保存しない ▼ ---  # ←ここに追加
+        # --- ▼ エラー時は保存しない ▼ ---  
         if isinstance(raw, dict) and raw.get("errors"):
 
             return {
