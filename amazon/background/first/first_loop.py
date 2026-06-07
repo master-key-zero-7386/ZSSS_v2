@@ -143,7 +143,7 @@ def run_first_loop(app, db_dir):
 
                     # 未使用 update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
 
-                    # テスト update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
+                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
                     api_request_sleep()         
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 
