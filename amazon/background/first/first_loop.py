@@ -138,13 +138,12 @@ def run_first_loop(app, db_dir):
 
                     t2 = time.time()  # // チェック完了後削除
 
-                    # # === ▼ firstでregion_pricingを１回は取得するためのコード ▼ ===
-                    # update_region_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)                  
-                    
-                    # print(f"[FIRST TIME][REGION_PRICING] {t['asin']} {time.time()-t2:.3f}s")  # // チェック完了後削除
+                    # 解除中# === ▼ firstでregion_pricingを１回は取得するためのコード ▼ ===
+                    # update_region_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)  
 
-                    # update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
-                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
+                    # 未使用 update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
+
+                    # テスト update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
                     api_request_sleep()         
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 
