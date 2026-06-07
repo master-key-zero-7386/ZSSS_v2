@@ -91,17 +91,8 @@ def run_first_loop(app, db_dir):
                 time.sleep(FIRST_LOOP_SLEEP_SEC)
                 continue
 
-            # 更新カウント集計用　Print消す場合はセットで削除 ▼▼▼ ----
-            for idx, t in enumerate(targets, start=1): 
-                try:
-                    print(f"[FIRST PROGRESS] {idx}/{len(targets)} ASIN:{t['asin']}")  # // チェック完了後削除
-            # --- ▲▲▲ ここまでセット削除 ▲▲▲ ---   
-
-            # 上記集計カウントのため↑↑↑ Print消すときは for t in targets: ↓にもどす
-            # for t in targets: 
-            #     try:
-            # --- ▲▲▲ ここまでセットもどす ▲▲▲ ---         
-                    
+            for t in targets: 
+                try:                   
                     conn_mkt = get_conn("a_marketplaces.db") 
                     cur_mkt = conn_mkt.cursor() 
 
