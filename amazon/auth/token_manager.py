@@ -23,6 +23,8 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
+    print(get_ttl_sleep_sec())  # // チェック完了後削除
+    
     time.sleep(get_ttl_sleep_sec())  
 
     response = requests.post(LWA_TOKEN_URL, data=payload, headers=headers)
