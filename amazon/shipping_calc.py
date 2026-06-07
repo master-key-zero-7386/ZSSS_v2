@@ -222,5 +222,13 @@ def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_i
     if not row:
         return None
 
-    prices = [float(p) for p in row.values() if p is not None and float(p) > 0]     
+    print(row)  # // チェック完了後削除
+
+    prices = [
+        float(row["carrier_1_price"]),
+        float(row["carrier_2_price"]),
+        float(row["carrier_3_price"])
+    ]  
+
+    prices = [p for p in prices if p > 0]  
     return min(prices) if prices else None
