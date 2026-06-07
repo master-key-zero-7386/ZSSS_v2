@@ -11,7 +11,14 @@ from amazon.background.common.background_common import get_ttl_sleep_sec
 
 LWA_TOKEN_URL = "https://api.amazon.com/auth/o2/token"
 
+_TOKEN_CACHE = {}
+
 def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> str:
+
+    cache = _TOKEN_CACHE.get(refresh_token) 
+
+    if cache and cache["expires_at"] > time.time():
+        return cache["access_token"]
 
     t0 = time.time()  # // チェック完了後削除
 
@@ -34,8 +41,11 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
     if response.status_code == 200:
         data = response.json()
 
-        print(data)  # // チェック完了後削除
-        
+        _TOKEN_CACHE[refresh_token] = {  
+            "access_token": data["access_token"],  
+            "expires_at": time.time() + int(data.get("expires_in", 3600)) - 60  
+        } 
+
         return data["access_token"]
     else:
         raise Exception(f"Access token request failed: {response.text}")
