@@ -124,7 +124,11 @@ def run_first_loop(app, db_dir):
                     cc_region = row_region["country_code"] if row_region else None                    
 
                     # --- ▼ SECTION  firstで取得・updateする項目 ▼ ---
+                    t0 = time.time()  # // チェック完了後削除
+
                     update_home_catalog(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
+
+                    print(f"[FIRST TIME][CATALOG] {t['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
 
                     update_home_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
 
