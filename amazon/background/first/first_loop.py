@@ -130,11 +130,18 @@ def run_first_loop(app, db_dir):
 
                     print(f"[FIRST TIME][CATALOG] {t['asin']} {time.time()-t0:.3f}s")  # // チェック完了後削除
 
+                    t1 = time.time()  # // チェック完了後削除
+
                     update_home_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
+
+                    print(f"[FIRST TIME][HOME_PRICING] {t['asin']} {time.time()-t1:.3f}s")  # // チェック完了後削除
+
+                    t2 = time.time()  # // チェック完了後削除
 
                     # === ▼ firstでregion_pricingを１回は取得するためのコード ▼ ===
                     update_region_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)                  
-                    # === ▲ ここまで ▼ === コメントアウト可
+                    
+                    print(f"[FIRST TIME][REGION_PRICING] {t['asin']} {time.time()-t2:.3f}s")  # // チェック完了後削除
 
                     # update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_home)
                     update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
