@@ -23,8 +23,8 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
-from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
-from amazon.core.price_calculator import calculate_listing_price
+# from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
@@ -747,17 +747,30 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         "pack_ratio": pack_ratio,
     }
 
-    calc_result = shipping_calc(normalized, shipping_config)
+    # calc_result = shipping_calc(normalized, shipping_config)
     
+    # billable_weight = calc_result["billable_weight_kg_rounded"]
 
-    billable_weight = calc_result["billable_weight_kg_rounded"]
+    # shipping_fee = calc_min_shipping_fee(
+    #     billable_weight,
+    #     user_id,
+    #     region_marketplace_id,
+    #     SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
+    # )
 
-    shipping_fee = calc_min_shipping_fee(
-        billable_weight,
+    shipping_result = calculate_shipping_result(
+        normalized,
+        shipping_config,
         user_id,
         region_marketplace_id,
-        SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
+        SHIPPING_RATE_ROWS
     )
+
+    calc_result = shipping_result["calc_result"] 
+
+    billable_weight = shipping_result["billable_weight"] 
+
+    shipping_fee = shipping_result["shipping_fee"]    
 
     # === 11-06: pricing_rules取得 ===
     rules = _get_pricing_master_rules(user_id, country_code)

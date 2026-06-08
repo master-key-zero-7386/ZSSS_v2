@@ -25,6 +25,7 @@ from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
+from amazon.core.price_calculator import calculate_shipping_result 
 from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
@@ -272,17 +273,31 @@ def _build_listing_row_with_shipping(
         "pack_ratio": pack_ratio,
     }
 
-    calc_result = shipping_calc(normalized, shipping_config)
+    # calc_result = shipping_calc(normalized, shipping_config)
 
-    billable_weight = calc_result["billable_weight_kg_rounded"]
+    # billable_weight = calc_result["billable_weight_kg_rounded"]
 
-    # --- 送料算定 ---
-    shipping_fee = calc_min_shipping_fee(
-        billable_weight,
+    # # --- 送料算定 ---
+    # shipping_fee = calc_min_shipping_fee(
+    #     billable_weight,
+    #     user_id,
+    #     marketplace_id,
+    #     SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
+    # )
+
+    shipping_result = calculate_shipping_result(  
+        normalized,
+        shipping_config,
         user_id,
         marketplace_id,
-        SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
+        SHIPPING_RATE_ROWS
     )
+
+    calc_result = shipping_result["calc_result"]  
+
+    billable_weight = shipping_result["billable_weight"]  
+
+    shipping_fee = shipping_result["shipping_fee"]    
 
     # --- Black ASIN Brand用 ---
     is_black_asin = (

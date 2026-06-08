@@ -7,6 +7,7 @@ import math
 import sqlite3
 from amazon.db_migrate import DB_DIR
 from amazon.db import get_conn 
+from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
 
 # --- ▼ SECTION 01: pricing_master_rules 取得 ▼ ---
 def get_pricing_master_rule(*, user_id: int, country_code: str):
@@ -169,5 +170,29 @@ def calculate_listing_price(
             "denom_max": round(denom_max, 4),            
         }
     } 
+
+
+# --- ▼ SECTION 03: Shipping共通計算（From：routes_pricing_v2.py / routes_listing.py） ▼ ---
+def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_id, SHIPPING_RATE_ROWS):
+
+    calc_result = shipping_calc(
+        normalized,
+        shipping_config
+    )
+
+    billable_weight = calc_result["billable_weight_kg_rounded"]
+
+    shipping_fee = calc_min_shipping_fee(
+        billable_weight,
+        user_id,
+        marketplace_id,
+        SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
+    )
+
+    return {
+        "calc_result": calc_result,
+        "billable_weight": billable_weight,
+        "shipping_fee": shipping_fee
+    }
 
 
