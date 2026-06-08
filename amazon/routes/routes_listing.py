@@ -32,7 +32,7 @@ from amazon.services.listing_submit_service import bulk_delete_listing_item
 from amazon.services.blacklist_service import is_blacklisted, is_blacklisted_brand
 from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter 
-from amazon.routes.routes_pricing_v2 import _get_pricing_master_rules
+from amazon.core.price_calculator import get_pricing_master_rule
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 
@@ -726,7 +726,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     OFFER_FILTER_RULES["home_country"] = HOME_COUNTRY
 
-    PRICING_MASTER_RULES = _get_pricing_master_rules(user_id, country_code)
+    PRICING_MASTER_RULES = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
 
     conn_acc = get_conn("a_account_master.db")
 
@@ -1091,7 +1091,7 @@ def search_listing():
         OFFER_FILTER_RULES = _get_offer_filter_rules(user_id, "ALL")
         OFFER_FILTER_RULES["home_country"] = HOME_COUNTRY
 
-        PRICING_MASTER_RULES = _get_pricing_master_rules(user_id, country_code)
+        PRICING_MASTER_RULES = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
 
         conn_acc = get_conn("a_account_master.db")
         cur_acc = conn_acc.cursor()

@@ -20,7 +20,6 @@ from amazon.db_migrate import DB_DIR
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
-from amazon.routes.routes_pricing_v2 import _get_pricing_master_rules
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.price_calculator import calculate_listing_price
@@ -768,7 +767,7 @@ def run_region_pricing_debug():
     normalized = normalizer.normalize_region_offers(raw)
 
     # === ルール取得 ===
-    rules = _get_pricing_master_rules(user_id, country_code)
+    rules = get_pricing_master_rule(user_id=user_id, country_code=country_code)
 
     adapter_rules = PricingRulesAdapter(rules)
     result_select = adapter_rules.select_region_price_offer(normalized)

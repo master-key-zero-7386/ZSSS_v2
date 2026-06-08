@@ -13,7 +13,6 @@ from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
 def get_pricing_master_rule(*, user_id: int, country_code: str):
     conn = get_conn("a_pricing_settings.db")
     cur = conn.cursor()
-
     cur.execute("""
         SELECT *
         FROM pricing_master_rules
@@ -21,18 +20,18 @@ def get_pricing_master_rule(*, user_id: int, country_code: str):
         AND country_code IN (%s, 'ALL')
         ORDER BY country_code DESC
         LIMIT 1
-    """, (user_id, country_code))
+    """, (user_id, country_code.upper()))
 
     row = cur.fetchone()
 
     if not row:
         conn.close()
-        return None
+        return {}
 
     columns = [desc[0] for desc in cur.description] 
     conn.close()
 
-    return dict(zip(columns, row))
+    return dict(row)
 
 # --- ▼ SECTION 02: 出品価格算出エンジン（純計算専用） ▼ ---
 def calculate_listing_price(

@@ -23,7 +23,7 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
-from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config)
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
@@ -334,7 +334,7 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     normalized = normalizer.normalize_region_offers(raw)
 
     # === 05-04: REGION 競合価格選択 ===
-    rules = _get_pricing_master_rules(user_id, country_code)
+    rules = get_pricing_master_rule(user_id=user_id, country_code=country_code)
 
     # --- 自分ID取得（ここ追加） ---
     conn_acc = get_conn("a_account_master.db")
@@ -416,37 +416,21 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
         "offers": raw.get("payload", {}).get("Offers", []),
     }
 
-# --- ▼ SECTION 06: 内部用 販売条件取得（From：update_region_pricing） ▼ ---
-def _get_pricing_master_rules(user_id: int, country_code: str):
-        conn = get_conn("a_pricing_settings.db")
-        try:
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT *
-                FROM pricing_master_rules
-                WHERE user_id=%s AND UPPER(country_code)=UPPER(%s)
-                LIMIT 1
-            """, (user_id, country_code))
-            row = cur.fetchone()
-            return dict(row) if row else {}
-        finally:
-            conn.close()
-
-# --- ▼ SECTION 07 : 販売条件取得（UI用API） ▼ ---
+# --- ▼ SECTION 06 : 販売条件取得（UI用API） ▼ ---
 @pricing_v2_bp.route("/pricing/get_pricing_master_rules", methods=["GET"]) 
 def get_pricing_master_rules():
 
     user_id = request.args.get("user_id")
     country_code = request.args.get("country_code")
 
-    data = _get_pricing_master_rules(user_id, country_code)
+    data = get_pricing_master_rule(user_id=int(user_id), country_code=country_code)     
 
     return jsonify({
         "status": "success",
         "data": data
     })
 
-# --- ▼ SECTION 08 : 販売条件更新（UI用API） ▼ ---
+# --- ▼ SECTION 07 : 販売条件更新（UI用API） ▼ ---
 @pricing_v2_bp.route("/pricing/update_pricing_master_rules", methods=["POST"])
 def update_pricing_master_rules():
 
@@ -518,14 +502,14 @@ def update_pricing_master_rules():
     conn.commit()
     conn.close()
 
-    data = _get_pricing_master_rules(user_id, country_code)
+    data = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
 
     return jsonify({
         "status": "success",
         "data": data
     })
 
-# --- ▼ SECTION 09 : 競合条件取得（UI用API） ▼ ---
+# --- ▼ SECTION 08 : 競合条件取得（UI用API） ▼ ---
 @pricing_v2_bp.route("/pricing/get_offer_filter_rules", methods=["GET"])
 def get_offer_filter_rules():
 
@@ -539,7 +523,7 @@ def get_offer_filter_rules():
         "data": data
     })
 
-# --- ▼ SECTION 10 : 競合条件更新（UI用API） ▼ ---
+# --- ▼ SECTION 09 : 競合条件更新（UI用API） ▼ ---
 @pricing_v2_bp.route("/pricing/update_offer_filter_rules", methods=["POST"])
 def update_offer_filter_rules():
 
@@ -607,10 +591,10 @@ def update_offer_filter_rules():
         "data": data
     })
 
-# --- ▼ SECTION 11: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
+# --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
-    # === 11-01: listed_items取得 ===
+    # === -01: listed_items取得 ===
     db_name = f"a_{country_code.lower()}_listed_items.db" 
     listed_db = db_name
 
@@ -653,7 +637,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     else:
         home_price = float(home_price)        
 
-    # === 11-02: tax_mode取得 ===
+    # === -02: tax_mode取得 ===
     conn_mid = get_conn("a_marketplaces_master.db") 
     
     cur_mid = conn_mid.cursor()
@@ -674,7 +658,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     tax_mode = row_mid["tax_mode"]
     currency = row_mid["currency"]
 
-    # === 11-03: HOME通貨取得 === 
+    # === -03: HOME通貨取得 === 
     conn_home = get_conn("a_marketplaces.db")
 
     cur_home = conn_home.cursor()
@@ -692,7 +676,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     home_currency = home_row["currency"]
 
-    # === 11-04: shipping_config取得 ===
+    # === -04: shipping_config取得 ===
     cfg = get_shipping_config(user_id) 
 
     padding_cm = cfg["padding_cm"] if cfg else 0 
@@ -701,7 +685,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     SHIPPING_RATE_ROWS = get_shipping_rate(user_id, region_marketplace_id)    
 
-    # === 11-05: shipping計算 ===
+    # === -05: shipping計算 ===
     normalized = {
         "length_cm": row["length_cm"],
         "width_cm": row["width_cm"],
@@ -729,13 +713,13 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     shipping_fee = shipping_result["shipping_fee"]    
 
-    # === 11-06: pricing_rules取得 ===
-    rules = _get_pricing_master_rules(user_id, country_code)
+    # === -06: pricing_rules取得 ===
+    rules = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
 
-    # === 11-07: FX取得 ===
+    # === -07: FX取得 ===
     exchange_rate = get_exchange_rate(home_currency, currency)
 
-    # === 11-08: 価格計算 ===
+    # === -08: 価格計算 ===
     if home_price is None:
         P_min = None
         P_max = None
@@ -776,7 +760,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         except Exception:
             pass
 
-    # === 11-08.5: 競合価格取得 ===
+    # === -08.5: 競合価格取得 ===
     selected_offer = None
 
     try:
@@ -848,7 +832,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         region_price = price_amount + shipping_amount  
 
-    # === 11-09: 出品価格決定 ===
+    # === -09: 出品価格決定 ===
     discount_rate = rules.get("discount_rate") or 0   
     
     final_price = decide_listing_price(
@@ -859,7 +843,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         discount_rate=discount_rate,
     )
 
-    # === 11-11: 上限価格チェック ===
+    # === -11: 上限価格チェック ===
     max_price = rules.get("max_listing_price_limit")
 
     # --- PREはAPI叩かない（←ここ追加） ---
@@ -985,7 +969,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         except Exception:
             pass
                
-    # === 11-12: DB更新 ===
+    # === -12: DB更新 ===
     conn = get_conn(listed_db)
 
     try:
@@ -1045,7 +1029,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         "final_price": final_price
     }
 
-# --- ▼ SECTION 12 : HOME通貨取得（UI表示用） ▼ ---
+# --- ▼ SECTION 11 : HOME通貨取得（UI表示用） ▼ ---
 @pricing_v2_bp.route("/pricing/get_home_currency", methods=["GET"])
 def get_home_currency():
 
