@@ -113,8 +113,8 @@ async function runPricingDebug() {
     pricingHtml += `Cost Structure\n`;
     pricingHtml += `  Purchase Price : ${bd.home_price ?? "-"}\n`;
     pricingHtml += `  Intl Shipping  : ${bd.intl_shipping ?? "-"}\n`;
-    pricingHtml += `  Packing        : ${bd.packing ?? "-"}\n`;
-    pricingHtml += `  Outsource      : ${bd.outsource ?? "-"}\n\n`;
+    pricingHtml += `  Outsource      : ${bd.outsource ?? "-"}\n`;
+    pricingHtml += `  Packing        : ${bd.packing ?? "-"}\n\n`;
 
     pricingHtml += `CIF Cost         : ${bd.cif_cost ?? "-"}\n`;
     pricingHtml += `      ${bd.cif_formula ?? ""}\n\n`;                  // 原価計算式  

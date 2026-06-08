@@ -24,7 +24,7 @@ from amazon.adapters import (AmazonAdapter, CatalogAdapterHome, CatalogAdapterRe
 from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
-from amazon.core.price_calculator import (calculate_shipping_result, get_shipping_rate)
+from amazon.core.price_calculator import (calculate_shipping_result, get_shipping_rate, get_shipping_config)
 from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
@@ -670,20 +670,9 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     RETAIL_SELLER_IDS = get_retail_seller_ids()
 
-    conn_cfg = get_conn("a_pricing_settings.db")
-    cur_cfg = conn_cfg.cursor()
+    SHIPPING_CONFIG = get_shipping_config(user_id) 
 
-    cur_cfg.execute("""
-        SELECT padding_cm, pack_ratio, volumetric_divisor
-        FROM shipping_config
-        WHERE user_id = %s
-        ORDER BY updated_at DESC
-        LIMIT 1
-    """, (user_id,))
-
-    SHIPPING_CONFIG = cur_cfg.fetchone()
-
-    SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id    )
+    SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id)
 
     conn_cache = get_conn("a_pricing_cache.db")
     cur_cache = conn_cache.cursor()
@@ -702,7 +691,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         for r in cur_cache.fetchall()
     }
 
-    conn_cfg.close()    
+    # conn_cfg.close()    
 
     conn_mst = get_conn("a_marketplaces_master.db")
     cur_mst = conn_mst.cursor()
@@ -1045,37 +1034,9 @@ def search_listing():
 
         RETAIL_SELLER_IDS = get_retail_seller_ids()
 
-        conn_cfg = get_conn("a_pricing_settings.db")
-        cur_cfg = conn_cfg.cursor()
-
-        cur_cfg.execute("""
-            SELECT padding_cm, pack_ratio, volumetric_divisor
-            FROM shipping_config
-            WHERE user_id = %s
-            ORDER BY updated_at DESC
-            LIMIT 1
-        """, (user_id,))
-
-        SHIPPING_CONFIG = cur_cfg.fetchone()
-
-        conn_ship = get_conn("a_shipping_rates.db")
-        cur_ship = conn_ship.cursor()
-
-        cur_ship.execute("""
-            SELECT
-                weight_from_g,
-                weight_to_g,
-                carrier_1_price,
-                carrier_2_price,
-                carrier_3_price
-            FROM shipping_rates
-            WHERE user_id = %s
-            AND marketplace_id = %s
-        """, (user_id, marketplace_id))
-
-        SHIPPING_RATE_ROWS = cur_ship.fetchall()
-
-        conn_ship.close()
+        SHIPPING_CONFIG = get_shipping_config(user_id) 
+        
+        SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id)        
 
         conn_cache = get_conn("a_pricing_cache.db")
         cur_cache = conn_cache.cursor()

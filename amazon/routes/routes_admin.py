@@ -25,7 +25,7 @@ from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.price_calculator import calculate_listing_price
 from amazon.core.pricing_strategy import decide_listing_price
-from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate)
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config)
 from amazon.constants import BASE_DIR
 import json
 
@@ -794,37 +794,8 @@ def run_region_pricing_debug():
     conn.close()
 
     # === ② shipping_config取得 ===
-    conn_cfg = get_conn("a_pricing_settings.db")
-    cur_cfg = conn_cfg.cursor()
-    cur_cfg.execute("""
-        SELECT padding_cm, pack_ratio, volumetric_divisor
-        FROM shipping_config
-        WHERE user_id = %s
-        ORDER BY updated_at DESC
-        LIMIT 1
-    """, (user_id,))
-    cfg = cur_cfg.fetchone()
-    conn_cfg.close()
+    cfg = get_shipping_config(user_id) 
 
-    # --- ▼ shipping_rates取得 ▼ ---
-    # conn_ship = get_conn("a_shipping_rates.db")
-    # cur_ship = conn_ship.cursor()
-
-    # cur_ship.execute("""
-    #     SELECT
-    #         weight_from_g,
-    #         weight_to_g,
-    #         carrier_1_price,
-    #         carrier_2_price,
-    #         carrier_3_price
-    #     FROM shipping_rates
-    #     WHERE user_id = %s
-    #     AND marketplace_id = %s
-    # """, (user_id, region_marketplace_id))
-
-    # SHIPPING_RATE_ROWS = cur_ship.fetchall() 
-
-    # conn_ship.close()
     SHIPPING_RATE_ROWS = get_shipping_rate(user_id, region_marketplace_id)    
 
     padding_cm = cfg["padding_cm"] if cfg else 0

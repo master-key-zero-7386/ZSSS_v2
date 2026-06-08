@@ -218,3 +218,23 @@ def get_shipping_rate(user_id, marketplace_id):
 
     return shipping_rate
 
+# --- ▼ SECTION 05: shipping_config取得（From：routes_pricing_v2.py / routes_listing.py / routes_admin.py） ▼ ---
+def get_shipping_config(user_id):
+
+    conn_cfg = get_conn("a_pricing_settings.db")
+    cur_cfg = conn_cfg.cursor()
+
+    cur_cfg.execute("""
+        SELECT padding_cm, pack_ratio, volumetric_divisor
+        FROM shipping_config
+        WHERE user_id = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+    """, (user_id,))
+
+    shipping_config = cur_cfg.fetchone()
+
+    conn_cfg.close()
+
+    return shipping_config
+

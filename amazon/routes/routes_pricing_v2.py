@@ -23,7 +23,7 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
-from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate)
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
@@ -693,19 +693,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     home_currency = home_row["currency"]
 
     # === 11-04: shipping_config取得 ===
-    conn_cfg = get_conn("a_pricing_settings.db")
-    cur_cfg = conn_cfg.cursor()
-
-    cur_cfg.execute("""
-        SELECT padding_cm, pack_ratio, volumetric_divisor
-        FROM shipping_config
-        WHERE user_id = %s
-        ORDER BY updated_at DESC
-        LIMIT 1
-    """, (user_id,))
-
-    cfg = cur_cfg.fetchone()
-    conn_cfg.close()
+    cfg = get_shipping_config(user_id) 
 
     padding_cm = cfg["padding_cm"] if cfg else 0 
     pack_ratio = cfg["pack_ratio"] if cfg else 1.0  
