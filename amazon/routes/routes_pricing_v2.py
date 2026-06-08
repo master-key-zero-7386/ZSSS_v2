@@ -23,7 +23,7 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
-from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result)
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
@@ -711,24 +711,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     pack_ratio = cfg["pack_ratio"] if cfg else 1.0  
     volum_div = cfg["volumetric_divisor"] if cfg else 5000  
 
-    conn_ship = get_conn("a_shipping_rates.db")
-    cur_ship = conn_ship.cursor()
-
-    cur_ship.execute("""
-        SELECT
-            weight_from_g,
-            weight_to_g,
-            carrier_1_price,
-            carrier_2_price,
-            carrier_3_price
-        FROM shipping_rates
-        WHERE user_id = %s
-        AND marketplace_id = %s
-    """, (user_id, region_marketplace_id))
-
-    SHIPPING_RATE_ROWS = cur_ship.fetchall()
-
-    conn_ship.close()
+    SHIPPING_RATE_ROWS = get_shipping_rate(user_id, region_marketplace_id)    
 
     # === 11-05: shipping計算 ===
     normalized = {

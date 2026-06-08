@@ -171,7 +171,6 @@ def calculate_listing_price(
         }
     } 
 
-
 # --- ▼ SECTION 03: Shipping共通計算（From：routes_pricing_v2.py / routes_listing.py） ▼ ---
 def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_id, SHIPPING_RATE_ROWS):
 
@@ -195,4 +194,27 @@ def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_
         "shipping_fee": shipping_fee
     }
 
+# --- ▼ SECTION 04: shipping_rates取得（From：routes_pricing_v2.py / routes_listing.py / routes_admin.py） ▼ ---
+def get_shipping_rate(user_id, marketplace_id):
+
+    conn_ship = get_conn("a_shipping_rates.db")
+    cur_ship = conn_ship.cursor()
+
+    cur_ship.execute("""
+        SELECT
+            weight_from_g,
+            weight_to_g,
+            carrier_1_price,
+            carrier_2_price,
+            carrier_3_price
+        FROM shipping_rates
+        WHERE user_id = %s
+        AND marketplace_id = %s
+    """, (user_id, marketplace_id))
+
+    shipping_rate = cur_ship.fetchall()
+
+    conn_ship.close()
+
+    return shipping_rate
 

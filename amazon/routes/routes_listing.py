@@ -24,7 +24,7 @@ from amazon.adapters import (AmazonAdapter, CatalogAdapterHome, CatalogAdapterRe
 from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
-from amazon.core.price_calculator import calculate_shipping_result 
+from amazon.core.price_calculator import (calculate_shipping_result, get_shipping_rate)
 from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
@@ -683,24 +683,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     SHIPPING_CONFIG = cur_cfg.fetchone()
 
-    conn_ship = get_conn("a_shipping_rates.db")
-    cur_ship = conn_ship.cursor()
-
-    cur_ship.execute("""
-        SELECT
-            weight_from_g,
-            weight_to_g,
-            carrier_1_price,
-            carrier_2_price,
-            carrier_3_price
-        FROM shipping_rates
-        WHERE user_id = %s
-        AND marketplace_id = %s
-    """, (user_id, marketplace_id))
-
-    SHIPPING_RATE_ROWS = cur_ship.fetchall()
-
-    conn_ship.close()
+    SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id    )
 
     conn_cache = get_conn("a_pricing_cache.db")
     cur_cache = conn_cache.cursor()
