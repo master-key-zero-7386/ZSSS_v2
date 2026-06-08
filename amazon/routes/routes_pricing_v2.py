@@ -86,9 +86,6 @@ def get_asin_blacklist(user_id, region_marketplace_id, country_code):
 
 # --- ▼ SECTION 02:HOME Pricing 正規更新 ▼ ---
 def update_home_pricing(*, user_id: int, asin: str, country_code: str):
-    # print(f"<<<HOME PRICING>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")  # チェック用 削除せずコメントアウトで残す
-    # ↑↑↑↑ 削除してもOK デバグPrint
-
     # === 02-01: HOME marketplace_id 確定（listed_items基準） ===
     db_name = f"a_{country_code.lower()}_listed_items.db"
     listed_db = db_name
@@ -717,6 +714,25 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     pack_ratio = cfg["pack_ratio"] if cfg else 1.0  
     volum_div = cfg["volumetric_divisor"] if cfg else 5000  
 
+    conn_ship = get_conn("a_shipping_rates.db")
+    cur_ship = conn_ship.cursor()
+
+    cur_ship.execute("""
+        SELECT
+            weight_from_g,
+            weight_to_g,
+            carrier_1_price,
+            carrier_2_price,
+            carrier_3_price
+        FROM shipping_rates
+        WHERE user_id = %s
+        AND marketplace_id = %s
+    """, (user_id, region_marketplace_id))
+
+    SHIPPING_RATE_ROWS = cur_ship.fetchall()
+
+    conn_ship.close()
+
     # === 11-05: shipping計算 ===
     normalized = {
         "length_cm": row["length_cm"],
@@ -739,7 +755,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     shipping_fee = calc_min_shipping_fee(
         billable_weight,
         user_id,
-        region_marketplace_id
+        region_marketplace_id,
+        SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
     )
 
     # === 11-06: pricing_rules取得 ===
@@ -910,8 +927,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # --- ▼ 統合 ---
     brand_ng_flag = brand_ng_flag or asin_ng_flag     
-
-    # print(f"[BLACK CHECK] ASIN:{asin} brand_ng_flag:{brand_ng_flag}")  # Blackチェック用
 
     # --- ▼ status判定 ---
     status_value = 'INACTIVE' if brand_ng_flag else 'ACTIVE'
