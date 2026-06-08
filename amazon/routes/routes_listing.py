@@ -1581,25 +1581,16 @@ def move_to_all():
                     quantity = 1           # 出品在庫数量
 
                 # --- ▼ handling_time決定 ▼ ---
-                conn_rule = get_conn("a_pricing_settings.db") 
-                cur_rule = conn_rule.cursor()      
+                rules = get_pricing_master_rule( 
+                    user_id=user_id,    
+                    country_code=country_code 
+                )    
 
-                country_code = country_code.upper()
-
-                cur_rule.execute("""
-                    SELECT default_handling_time
-                    FROM pricing_master_rules
-                    WHERE user_id=%s AND country_code=%s
-                """, (user_id, country_code))
-
-                r = cur_rule.fetchone()
-
-                if r and r["default_handling_time"] and int(r["default_handling_time"]) >= 1:
-                    handling_time = int(r["default_handling_time"]) 
+                if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1: 
+                    handling_time = int(rules["default_handling_time"])                     
                 else:
                     handling_time = strategy_handling_time
                     
-                conn_rule.close()
 
                 now_utc = datetime.utcnow().isoformat()  
 
@@ -1746,25 +1737,15 @@ def bulk_move_to_all():
             quantity = 1 
 
         # --- ▼ handling_time決定 ▼ --- 
-        conn_rule = get_conn("a_pricing_settings.db") 
-        cur_rule = conn_rule.cursor() 
+        rules = get_pricing_master_rule( 
+            user_id=user_id,    
+            country_code=country_code 
+        )  
 
-        country_code_upper = country_code.upper() 
-
-        cur_rule.execute("""
-            SELECT default_handling_time
-            FROM pricing_master_rules
-            WHERE user_id=%s AND country_code=%s
-        """, (user_id, country_code_upper)) 
-
-        r = cur_rule.fetchone() 
-
-        if r and r["default_handling_time"] and int(r["default_handling_time"]) >= 1: 
-            handling_time = int(r["default_handling_time"]) 
-        else: 
-            handling_time = strategy_handling_time 
-
-        conn_rule.close() 
+        if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1: 
+            handling_time = int(rules["default_handling_time"]) 
+        else:
+            handling_time = strategy_handling_time
 
         now_utc = datetime.utcnow().isoformat() 
 

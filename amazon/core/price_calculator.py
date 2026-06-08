@@ -28,7 +28,6 @@ def get_pricing_master_rule(*, user_id: int, country_code: str):
         conn.close()
         return {}
 
-    columns = [desc[0] for desc in cur.description] 
     conn.close()
 
     return dict(row)
