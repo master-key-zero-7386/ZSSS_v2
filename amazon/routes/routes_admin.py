@@ -25,8 +25,7 @@ from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.price_calculator import calculate_listing_price
 from amazon.core.pricing_strategy import decide_listing_price
-from amazon.shipping_calc import shipping_calc
-from amazon.shipping_calc import calc_min_shipping_fee
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result)
 from amazon.constants import BASE_DIR
 import json
 
@@ -807,6 +806,26 @@ def run_region_pricing_debug():
     cfg = cur_cfg.fetchone()
     conn_cfg.close()
 
+    # --- ▼ shipping_rates取得 ▼ ---
+    conn_ship = get_conn("a_shipping_rates.db")
+    cur_ship = conn_ship.cursor()
+
+    cur_ship.execute("""
+        SELECT
+            weight_from_g,
+            weight_to_g,
+            carrier_1_price,
+            carrier_2_price,
+            carrier_3_price
+        FROM shipping_rates
+        WHERE user_id = %s
+        AND marketplace_id = %s
+    """, (user_id, region_marketplace_id))
+
+    SHIPPING_RATE_ROWS = cur_ship.fetchall() 
+
+    conn_ship.close()
+
     padding_cm = cfg["padding_cm"] if cfg else 0
     pack_ratio = cfg["pack_ratio"] if cfg else 1.0
     volum_div = cfg["volumetric_divisor"] if cfg else 5000
@@ -825,15 +844,19 @@ def run_region_pricing_debug():
     }
 
     # === ③ 請求重量算定 ===
-    weight_result = shipping_calc(normalized_dim, shipping_config)
-    billable_weight = weight_result["billable_weight_kg_rounded"]
-
-    # === ④ 送料金額算定 ===
-    shipping_fee = calc_min_shipping_fee(
-        billable_weight,
+    shipping_result = calculate_shipping_result(  
+        normalized_dim,
+        shipping_config,
         user_id,
-        region_marketplace_id
+        region_marketplace_id,
+        SHIPPING_RATE_ROWS
     )
+
+    weight_result = shipping_result["calc_result"]  
+
+    billable_weight = shipping_result["billable_weight"]  
+
+    shipping_fee = shipping_result["shipping_fee"]    
 
     # === HOME通貨取得 ===
     conn_home = get_conn("a_marketplaces.db")

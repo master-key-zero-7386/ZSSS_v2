@@ -23,7 +23,6 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
-# from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
 from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
@@ -654,8 +653,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     else:
         home_price = float(home_price)        
 
-    # home_price = float(home_price)
-
     # === 11-02: tax_mode取得 ===
     conn_mid = get_conn("a_marketplaces_master.db") 
     
@@ -746,17 +743,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         "padding_cm": padding_cm,
         "pack_ratio": pack_ratio,
     }
-
-    # calc_result = shipping_calc(normalized, shipping_config)
-    
-    # billable_weight = calc_result["billable_weight_kg_rounded"]
-
-    # shipping_fee = calc_min_shipping_fee(
-    #     billable_weight,
-    #     user_id,
-    #     region_marketplace_id,
-    #     SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS
-    # )
 
     shipping_result = calculate_shipping_result(
         normalized,
