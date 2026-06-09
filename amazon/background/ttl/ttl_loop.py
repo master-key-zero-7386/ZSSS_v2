@@ -228,6 +228,8 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
+                        print("[CAT_ROW_FOUND]", flush=True)  # チェック完了後削除
+
                         user_id = row_li["user_id"]
 
                         conn_mkt = get_conn("a_marketplaces.db")
@@ -247,6 +249,7 @@ def load_catalog_ttl_targets(db_dir: str):
                             conn_mkt.close()
 
                         country_code = row_mkt["country_code"]
+                        print("[CAT_COUNTRY_OK]", flush=True)  # チェック完了後削除
                         break
 
                 finally:
