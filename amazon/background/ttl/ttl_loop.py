@@ -627,6 +627,8 @@ def load_pricing_ttl_targets(db_dir: str):
         for rc in rows_cache:
             asin = rc["asin"]
             mp = rc["region_marketplace_id"]
+
+            print(f"[TTL_REGION_SCAN] {asin}", flush=True)  # チェック完了後削除
             
             user_id = None  
             country_code = None  
@@ -682,6 +684,7 @@ def load_pricing_ttl_targets(db_dir: str):
                     conn_li.close()
 
             if not user_id or not country_code:
+                print(f"[TTL_REGION_SKIP_USER] {asin}", flush=True)  # チェック完了後削除
                 continue  
 
             api_conf = get_api_conf(user_id, country_code, db_dir)  
