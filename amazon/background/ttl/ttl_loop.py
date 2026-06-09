@@ -75,8 +75,13 @@ def run_ttl_loop(app, db_dir):
             # =================================================================================
 
             try:
+                print("[TTL_STEP_01_BEFORE_CATALOG]", flush=True)  # チェック完了後削除
                 load_catalog_ttl_targets(db_dir)   
+
+                print("[TTL_STEP_02_AFTER_CATALOG]", flush=True)  # チェック完了後削除
                 load_pricing_ttl_targets(db_dir)   
+                print("[TTL_STEP_03_AFTER_PRICING]", flush=True)  # チェック完了後削除
+
 
             except Exception as e:
                 import traceback
