@@ -145,6 +145,8 @@ def load_catalog_ttl_targets(db_dir: str):
 
                 listed_rows = cur_li.fetchall()
 
+                print(f"[CAT_LISTED_ROWS] {len(listed_rows)}", flush=True)  # チェック完了後削除
+
                 columns_li = [desc[0] for desc in cur_li.description] 
 
                 for lr in listed_rows:
@@ -179,6 +181,8 @@ def load_catalog_ttl_targets(db_dir: str):
         # --- ▼ TTLで並び替え（HOME catalog）▼ ---
         tmp = []
 
+        print(f"[CAT_ROWS] {len(rows)}", flush=True)  # チェック完了後削除
+        
         for r in rows:
             asin = r["asin"]
             mp = r["home_marketplace_id"]
