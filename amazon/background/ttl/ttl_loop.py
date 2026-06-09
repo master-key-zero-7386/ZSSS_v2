@@ -642,7 +642,7 @@ def load_pricing_ttl_targets(db_dir: str):
                     conn_li.row_factory = sqlite3.Row 
 
                 try:
-                    cur_li = conn_li.cursor()  
+                    cur_li = conn_li.cursor()   
                     cur_li.execute("""
                         SELECT 
                             user_id,
