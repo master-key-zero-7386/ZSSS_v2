@@ -463,8 +463,6 @@ window.loadalllisting = async function(country_code) {
 
         const savedPage = sessionStorage.getItem("all_current_page");
 
-        console.log("RESTORE PAGE", savedPage); // チェック完了後削除
-
         if (savedPage !== null) {
 
             setTimeout(() => {

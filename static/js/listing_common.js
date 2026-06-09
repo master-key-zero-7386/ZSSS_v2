@@ -92,8 +92,6 @@ window.attachRefreshButtons = function (tableSelector) {
 
                     const table = $("#alllistingtable").DataTable();
 
-                    console.log("SAVE PAGE", table.page()); // チェック完了後削除
-                    
                     sessionStorage.setItem("all_current_page", table.page());
 
                     window.loadalllisting(country_code);
