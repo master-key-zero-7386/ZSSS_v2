@@ -89,8 +89,17 @@ window.attachRefreshButtons = function (tableSelector) {
                 });
 
                 if (currentTab === "all") {
+
+                    const table = $("#alllistingtable").DataTable();
+                    sessionStorage.setItem("all_current_page", table.page());
+
                     window.loadalllisting(country_code);
+
                 } else {
+
+                    const table = $("#prelistingtable").DataTable();
+                    sessionStorage.setItem("pre_current_page", table.page());
+
                     window.loadprelisting(country_code);
                 }
 

@@ -461,6 +461,13 @@ window.loadalllisting = async function(country_code) {
                     ]
             });
 
+        const savedPage = sessionStorage.getItem("all_current_page");
+
+        if (savedPage !== null) {
+            allTable.page(parseInt(savedPage)).draw("page");
+            sessionStorage.removeItem("all_current_page");
+        }
+
         } catch(e) {
             
             return; 
