@@ -514,7 +514,6 @@ def load_pricing_ttl_targets(db_dir: str):
         for rc in rows_cache:
             count += 1
 
-            if count % 100 == 0:
             asin = rc["asin"]
             mp = rc["home_marketplace_id"]
 
