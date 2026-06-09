@@ -593,7 +593,7 @@ def update_offer_filter_rules():
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
-    print(f"[UPDATE_LISTING_PRICE] {country_code} {asin} status={row['status']}",flush=True) # チェック完了後削除
+    print(f"[UPDATE_LISTING_PRICE] {country_code} {asin}", flush=True)  # チェック完了後削除
 
     # === -01: listed_items取得 ===
     db_name = f"a_{country_code.lower()}_listed_items.db" 
