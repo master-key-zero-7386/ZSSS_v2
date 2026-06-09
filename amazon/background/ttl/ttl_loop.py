@@ -188,10 +188,17 @@ def load_catalog_ttl_targets(db_dir: str):
         print(f"[CAT_ROWS] {len(rows)}", flush=True)  # チェック完了後削除
 
         print("[CAT_LOOP_START]", flush=True)  # チェック完了後削除
-        
+
         for r in rows:
+            print("[CAT_ROW_01]", flush=True)  # チェック完了後削除
+
             asin = r["asin"]
+
+            print("[CAT_ROW_02]", flush=True)  # チェック完了後削除
+
             mp = r["home_marketplace_id"]
+
+            print("[CAT_ROW_03]", flush=True)  # チェック完了後削除
 
             user_id = None  
             country_code = None  
