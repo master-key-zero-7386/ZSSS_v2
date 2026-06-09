@@ -820,6 +820,8 @@ def load_pricing_ttl_targets(db_dir: str):
         for r in home_rows:
             record = dict(r)
 
+            print(f"[TTL_HOME] {record.get('asin')}", flush=True)  # チェック完了後削除
+
             checked_count += 1   
 
             user_id = record.get("user_id")  
@@ -845,6 +847,8 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for r in region_rows:
             record = dict(r)
+            
+            print(f"[TTL_REGION] {record.get('asin')}", flush=True) # チェック完了後削除
 
             checked_count += 1 
 
