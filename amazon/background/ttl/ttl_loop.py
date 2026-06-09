@@ -593,6 +593,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 except:
                     pass  # フォーマット不正は通す  
 
+            print(f"[TTL_PICK_HOME] {asin} TTL:{ttl} DAYS:{ttl_days}", flush=True)  # チェック完了後削除
             tmp.append({
                 "asin": asin,
                 "home_marketplace_id": mp,
@@ -703,6 +704,8 @@ def load_pricing_ttl_targets(db_dir: str):
                 except:
                     pass  # フォーマット不正は通す  
 
+
+            print(f"[TTL_PICK_REGION] {asin} TTL:{ttl} DAYS:{ttl_days}", flush=True)  # チェック完了後削除
             tmp.append({
                 "asin": asin,
                 "region_marketplace_id": mp,
