@@ -466,8 +466,11 @@ window.loadalllisting = async function(country_code) {
         console.log("RESTORE PAGE", savedPage); // チェック完了後削除
 
         if (savedPage !== null) {
-            allTable.page(parseInt(savedPage)).draw("page");
-            sessionStorage.removeItem("all_current_page");
+
+            setTimeout(() => {
+                allTable.page(parseInt(savedPage)).draw("page");
+                sessionStorage.removeItem("all_current_page");
+            }, 1000);    
         }
 
         } catch(e) {
