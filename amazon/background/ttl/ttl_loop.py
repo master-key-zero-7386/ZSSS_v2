@@ -23,7 +23,6 @@ from amazon.guard.guard_429 import is_blocked
 from amazon.db import get_conn, DB_MODE
 
 
-
 # ★ 追加オプション：DBの最短TTLだけを見る
 USE_DB_MIN_TTL = True
 
@@ -491,37 +490,37 @@ def load_pricing_ttl_targets(db_dir: str):
         now_utc = datetime.datetime.utcnow()
         now_utc_str = now_utc.isoformat()
 
-        # --- Pricing HOME ---
-        rows = []
+        # # --- Pricing HOME ---
+        # rows = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):    
-            conn_li = get_conn(db_path)
+        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):    
+        #     conn_li = get_conn(db_path)
 
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row 
+        #     if DB_MODE == "sqlite":
+        #         conn_li.execute("PRAGMA journal_mode=WAL")
+        #         conn_li.row_factory = sqlite3.Row 
 
-            try:
-                cur_li = conn_li.cursor()
-                cur_li.execute("""
-                    SELECT
-                        asin,
-                        home_marketplace_id
-                    FROM listed_items
-                """)
+        #     try:
+        #         cur_li = conn_li.cursor()
+        #         cur_li.execute("""
+        #             SELECT
+        #                 asin,
+        #                 home_marketplace_id
+        #             FROM listed_items
+        #         """)
 
-                listed_rows = cur_li.fetchall()
+        #         listed_rows = cur_li.fetchall()
 
-                columns_li = [desc[0] for desc in cur_li.description] 
+        #         columns_li = [desc[0] for desc in cur_li.description] 
 
-                for lr in listed_rows:
-                    rows.append({
-                        "asin": lr["asin"],
-                        "home_marketplace_id": lr["home_marketplace_id"]
-                    })
+        #         for lr in listed_rows:
+        #             rows.append({
+        #                 "asin": lr["asin"],
+        #                 "home_marketplace_id": lr["home_marketplace_id"]
+        #             })
 
-            finally:
-                conn_li.close()
+        #     finally:
+        #         conn_li.close()
 
         # --- ▼ PRICING CACHE 一括取得 ▼ ---
         cur.execute("""
@@ -530,26 +529,33 @@ def load_pricing_ttl_targets(db_dir: str):
                 home_marketplace_id,
                 h_pricing_ttl_at
             FROM pricing_cache
+            ORDER BY h_pricing_ttl_at ASC
         """)
 
         rows_cache = cur.fetchall()
 
-        cache_map = {}
+        # cache_map = {}
 
         columns_cache = [desc[0] for desc in cur.description] 
 
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
+        # for rc in rows_cache:
+        #     rc = dict(zip(columns_cache, rc))
 
-            key = (rc["asin"], rc["home_marketplace_id"])
-            cache_map[key] = rc["h_pricing_ttl_at"]
+        #     key = (rc["asin"], rc["home_marketplace_id"])
+        #     cache_map[key] = rc["h_pricing_ttl_at"]
 
         # --- ▼ TTLで並び替え（HOME PRICING）▼ ---
         tmp = []
        
-        for r in rows:
-            asin = r["asin"]
-            mp = r["home_marketplace_id"]
+        # for r in rows:
+        #     asin = r["asin"]
+        #     mp = r["home_marketplace_id"]
+
+        for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc))
+
+            asin = rc["asin"]
+            mp = rc["home_marketplace_id"]
 
             user_id = None  
             country_code = None  
@@ -612,7 +618,9 @@ def load_pricing_ttl_targets(db_dir: str):
             if not api_conf.get("enable_home_pricing"):
                 continue  
 
-            ttl = cache_map.get((asin, mp))
+            # ttl = cache_map.get((asin, mp))
+
+            ttl = rc["h_pricing_ttl_at"]
 
             ttl_days = api_conf.get("h_pricing_ttl_days")  
 
@@ -636,44 +644,44 @@ def load_pricing_ttl_targets(db_dir: str):
             })  
 
         # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
+        # tmp.sort(key=lambda x: (
+        #     x["ttl"] is not None,
+        #     x["ttl"] or ""
+        # ))
 
         # 上位だけ使う
         home_rows = tmp[:30]  # TTL対象ASIN数の制御
 
         # --- Pricing REGION ---
-        rows = []
+        # rows = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row        
+        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        #     conn_li = get_conn(db_path) 
+        #     if DB_MODE == "sqlite":
+        #         conn_li.execute("PRAGMA journal_mode=WAL")
+        #         conn_li.row_factory = sqlite3.Row        
 
-            try:
-                cur_li = conn_li.cursor()
-                cur_li.execute("""
-                    SELECT
-                        asin,
-                        region_marketplace_id
-                    FROM listed_items
-                """)
+        #     try:
+        #         cur_li = conn_li.cursor()
+        #         cur_li.execute("""
+        #             SELECT
+        #                 asin,
+        #                 region_marketplace_id
+        #             FROM listed_items
+        #         """)
 
-                listed_rows = cur_li.fetchall()
+        #         listed_rows = cur_li.fetchall()
 
-                columns_li = [desc[0] for desc in cur_li.description]  
+        #         columns_li = [desc[0] for desc in cur_li.description]  
 
-                for lr in listed_rows:
-                    rows.append({
-                        "asin": lr["asin"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
-                    })
+        #         for lr in listed_rows:
+        #             rows.append({
+        #                 "asin": lr["asin"],
+        #                 "region_marketplace_id": lr["region_marketplace_id"]
+        #             })
 
-            finally:
-                conn_li.close()
+        #     finally:
+        #         conn_li.close()
 
         # --- ▼ PRICING CACHE 一括取得（REGION）▼ ---
         cur.execute("""
@@ -682,26 +690,33 @@ def load_pricing_ttl_targets(db_dir: str):
                 region_marketplace_id,
                 r_pricing_ttl_at
             FROM pricing_cache
+            ORDER BY r_pricing_ttl_at ASC
         """)
 
         rows_cache = cur.fetchall()
 
-        cache_map = {}
+        # cache_map = {}
 
         columns_cache = [desc[0] for desc in cur.description] 
 
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc)) 
+        # for rc in rows_cache:
+        #     rc = dict(zip(columns_cache, rc)) 
 
-            key = (rc["asin"], rc["region_marketplace_id"])
-            cache_map[key] = rc["r_pricing_ttl_at"]
+        #     key = (rc["asin"], rc["region_marketplace_id"])
+        #     cache_map[key] = rc["r_pricing_ttl_at"]
 
         tmp = []
 
-        for r in rows:
-            asin = r["asin"]
-            mp = r["region_marketplace_id"]
+        # for r in rows:
+        #     asin = r["asin"]
+        #     mp = r["region_marketplace_id"]
 
+        for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc))
+
+            asin = rc["asin"]
+            mp = rc["region_marketplace_id"]
+            
             user_id = None  
             country_code = None  
 
@@ -763,7 +778,9 @@ def load_pricing_ttl_targets(db_dir: str):
             if not api_conf.get("enable_region_pricing"):
                 continue  
 
-            ttl = cache_map.get((asin, mp))
+            # ttl = cache_map.get((asin, mp))
+
+            ttl = rc["r_pricing_ttl_at"]
 
             ttl_days = api_conf.get("r_pricing_ttl_days")  
 
@@ -787,10 +804,10 @@ def load_pricing_ttl_targets(db_dir: str):
             })  
 
         # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
+        # tmp.sort(key=lambda x: (
+        #     x["ttl"] is not None,
+        #     x["ttl"] or ""
+        # ))
 
         # 上位だけ使う
         region_rows = tmp[:30]  # TTL対象ASIN数の制御
