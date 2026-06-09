@@ -20,8 +20,6 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
     if cache and cache["expires_at"] > time.time():
         return cache["access_token"]
 
-    t0 = time.time()  # // チェック完了後削除
-
     payload = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
@@ -30,13 +28,9 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-    print(get_ttl_sleep_sec())  # // チェック完了後削除
-
     time.sleep(get_ttl_sleep_sec())  
 
     response = requests.post(LWA_TOKEN_URL, data=payload, headers=headers)
-
-    print(f"[LWA TOKEN] {time.time()-t0:.3f}s")  # // チェック完了後削除
 
     if response.status_code == 200:
         data = response.json()

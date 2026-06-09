@@ -31,8 +31,10 @@ from amazon.routes.routes_shipping import shipping_bp
 from amazon.routes.routes_oauth import amazon_oauth_bp
 from amazon.routes.routes_blacklist import blacklist_bp
 from amazon.background.first.first_loop import run_first_loop
+from amazon.background.first.first_regioncheck import run_first_regioncheck 
 from amazon.background.ttl.ttl_loop import run_ttl_loop
 from amazon.background.fx.fx_loop import run_fx_loop
+
 
 # ✅ コマンド引数から実行モードを判定（デフォルトは "dev"）
 mode = sys.argv[1] if len(sys.argv) > 1 else "dev"
@@ -76,6 +78,7 @@ app.register_blueprint(api_raw_check_bp) # APIチェック用　
 app.register_blueprint(shipping_bp, url_prefix="/api")
 app.register_blueprint(pricing_v2_bp)
 
+# first loop常駐起動
 def start_first_runner(app):
     if getattr(app, "_first_runner_started", False):
         return
@@ -91,6 +94,23 @@ def start_first_runner(app):
     t.start()
     print("[FIRST] runner STARTED")
 
+# first regioncheck常駐起動
+def start_first_regioncheck_runner(app):
+    if getattr(app, "_first_regioncheck_runner_started", False):
+        return
+
+    app._first_regioncheck_runner_started = True
+    db_dir = app.config.get("DB_DIR")
+
+    t = threading.Thread(
+        target=run_first_regioncheck,
+        args=(app, db_dir),
+        daemon=True
+    )
+    t.start()
+    print("[FIRST_REGIONCHECK] runner STARTED")
+
+# ttl loop常駐起動
 def start_ttl_runner(app):
     if getattr(app, "_ttl_runner_started", False):
         return
@@ -106,6 +126,7 @@ def start_ttl_runner(app):
     t.start()
     print("[TTL] runner STARTED")
 
+# fx loop常駐起動
 def start_fx_runner(app):
     if getattr(app, "_fx_runner_started", False):
         return
@@ -134,6 +155,7 @@ if __name__ == "__main__":
 
     # --- TTL・firstは起動時に1回だけ ---
     start_first_runner(app)
+    start_first_regioncheck_runner(app)
     start_ttl_runner(app)
     start_fx_runner(app)
 
