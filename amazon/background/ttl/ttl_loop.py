@@ -167,7 +167,11 @@ def load_catalog_ttl_targets(db_dir: str):
             FROM catalog_cache
         """)
 
+        print("[CAT_CACHE_SELECT_OK]", flush=True)  # チェック完了後削除
+
         rows_cache = cur.fetchall()
+
+        print(f"[CAT_CACHE_ROWS] {len(rows_cache)}", flush=True)  # チェック完了後削除
 
         columns_cache = [desc[0] for desc in cur.description]
 
@@ -182,7 +186,7 @@ def load_catalog_ttl_targets(db_dir: str):
         tmp = []
 
         print(f"[CAT_ROWS] {len(rows)}", flush=True)  # チェック完了後削除
-        
+
         for r in rows:
             asin = r["asin"]
             mp = r["home_marketplace_id"]
