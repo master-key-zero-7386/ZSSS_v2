@@ -74,16 +74,10 @@ def run_ttl_loop(app, db_dir):
             print(f"[{datetime.datetime.now(JST).strftime('%H:%M:%S')}] [TTL][LOOP][ALIVE]")
             # =================================================================================
 
-            print("[TTL_STEP_00]", flush=True)  # チェック完了後削除
 
             try:
-                print("[TTL_STEP_01_BEFORE_CATALOG]", flush=True)  # チェック完了後削除
                 load_catalog_ttl_targets(db_dir)   
-
-                print("[TTL_STEP_02_AFTER_CATALOG]", flush=True)  # チェック完了後削除
                 load_pricing_ttl_targets(db_dir)   
-                print("[TTL_STEP_03_AFTER_PRICING]", flush=True)  # チェック完了後削除
-
 
             except Exception as e:
                 import traceback
@@ -125,38 +119,38 @@ def load_catalog_ttl_targets(db_dir: str):
         now_utc_str = now_utc.isoformat()
 
         # --- Catalog HOME ---
-        rows = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
+        # rows = []
 
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL") 
-                conn_li.row_factory = sqlite3.Row
+        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        #     conn_li = get_conn(db_path) 
 
-            try:
-                cur_li = conn_li.cursor()
-                cur_li.execute("""
-                    SELECT
-                        asin,
-                        home_marketplace_id
-                    FROM listed_items
-                """)
+        #     if DB_MODE == "sqlite":
+        #         conn_li.execute("PRAGMA journal_mode=WAL") 
+        #         conn_li.row_factory = sqlite3.Row
 
-                listed_rows = cur_li.fetchall()
+        #     try:
+        #         cur_li = conn_li.cursor()
+        #         cur_li.execute("""
+        #             SELECT
+        #                 asin,
+        #                 home_marketplace_id
+        #             FROM listed_items
+        #         """)
 
-                print(f"[CAT_LISTED_ROWS] {len(listed_rows)}", flush=True)  # チェック完了後削除
+        #         listed_rows = cur_li.fetchall()
 
-                columns_li = [desc[0] for desc in cur_li.description] 
 
-                for lr in listed_rows:
-                    rows.append({
-                        "asin": lr["asin"],
-                        "home_marketplace_id": lr["home_marketplace_id"]
-                    })
+        #         columns_li = [desc[0] for desc in cur_li.description] 
 
-            finally:
-                conn_li.close()
+        #         for lr in listed_rows:
+        #             rows.append({
+        #                 "asin": lr["asin"],
+        #                 "home_marketplace_id": lr["home_marketplace_id"]
+        #             })
+
+        #     finally:
+        #         conn_li.close()
 
         # --- ▼ CATALOG CACHE 一括取得 ▼ ---
         cur.execute("""
@@ -165,40 +159,30 @@ def load_catalog_ttl_targets(db_dir: str):
                 home_marketplace_id,
                 h_catalog_ttl_at
             FROM catalog_cache
+            ORDER BY h_catalog_ttl_at ASC
         """)
-
-        print("[CAT_CACHE_SELECT_OK]", flush=True)  # チェック完了後削除
 
         rows_cache = cur.fetchall()
 
-        print(f"[CAT_CACHE_ROWS] {len(rows_cache)}", flush=True)  # チェック完了後削除
-
         columns_cache = [desc[0] for desc in cur.description]
 
-        cache_map = {}
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
+        # cache_map = {}
+        # for rc in rows_cache:
+        #     rc = dict(zip(columns_cache, rc))
 
-            key = (rc["asin"], rc["home_marketplace_id"])
-            cache_map[key] = rc["h_catalog_ttl_at"]
+        #     key = (rc["asin"], rc["home_marketplace_id"])
+        #     cache_map[key] = rc["h_catalog_ttl_at"]
 
         # --- ▼ TTLで並び替え（HOME catalog）▼ ---
         tmp = []
+        
+        # for r in rows:
 
-        print(f"[CAT_ROWS] {len(rows)}", flush=True)  # チェック完了後削除
+        for rc in rows_cache:   
+            rc = dict(zip(columns_cache, rc))
 
-        print("[CAT_LOOP_START]", flush=True)  # チェック完了後削除
-
-        for r in rows:
-            print("[CAT_ROW_01]", flush=True)  # チェック完了後削除
-
-            asin = r["asin"]
-
-            print("[CAT_ROW_02]", flush=True)  # チェック完了後削除
-
-            mp = r["home_marketplace_id"]
-
-            print("[CAT_ROW_03]", flush=True)  # チェック完了後削除
+            asin = rc["asin"]
+            mp = rc["home_marketplace_id"]
 
             user_id = None  
             country_code = None  
@@ -228,8 +212,6 @@ def load_catalog_ttl_targets(db_dir: str):
                     row_li = cur_li.fetchone()
 
                     if row_li:
-                        print("[CAT_ROW_FOUND]", flush=True)  # チェック完了後削除
-
                         user_id = row_li["user_id"]
 
                         conn_mkt = get_conn("a_marketplaces.db")
@@ -249,7 +231,6 @@ def load_catalog_ttl_targets(db_dir: str):
                             conn_mkt.close()
 
                         country_code = row_mkt["country_code"]
-                        print("[CAT_COUNTRY_OK]", flush=True)  # チェック完了後削除
                         break
 
                 finally:
@@ -263,7 +244,9 @@ def load_catalog_ttl_targets(db_dir: str):
             if not api_conf.get("enable_home_catalog"):
                 continue  
 
-            ttl = cache_map.get((asin, mp))
+            # ttl = cache_map.get((asin, mp))
+
+            ttl = rc["h_catalog_ttl_at"]
 
             ttl_days = api_conf.get("h_catalog_ttl_days")  
 
@@ -286,74 +269,84 @@ def load_catalog_ttl_targets(db_dir: str):
                 "country_code": country_code  
             })  
 
+            if len(tmp) >= 5:
+                break            
+
         # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
+        # tmp.sort(key=lambda x: (
+        #     x["ttl"] is not None,
+        #     x["ttl"] or ""
+        # ))
 
         # 上位だけ使う
         home_rows = tmp[:5]  # TTL対象ASIN数の制御
 
         # --- Catalog REGION ---
-        rows = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
+        # rows = []
 
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row 
+        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        #     conn_li = get_conn(db_path) 
 
-            try:
-                cur_li = conn_li.cursor()
-                cur_li.execute("""
-                    SELECT
-                        asin,
-                        region_marketplace_id
-                    FROM listed_items
-                """)
+        #     if DB_MODE == "sqlite":
+        #         conn_li.execute("PRAGMA journal_mode=WAL")
+        #         conn_li.row_factory = sqlite3.Row 
 
-                listed_rows = cur_li.fetchall()
+        #     try:
+        #         cur_li = conn_li.cursor()
+        #         cur_li.execute("""
+        #             SELECT
+        #                 asin,
+        #                 region_marketplace_id
+        #             FROM listed_items
+        #         """)
 
-                columns_li = [desc[0] for desc in cur_li.description]
+        #         listed_rows = cur_li.fetchall()
 
-                for lr in listed_rows:
-                    rows.append({
-                        "asin": lr["asin"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
-                    })
+        #         columns_li = [desc[0] for desc in cur_li.description]
 
-            finally:
-                conn_li.close()
+        #         for lr in listed_rows:
+        #             rows.append({
+        #                 "asin": lr["asin"],
+        #                 "region_marketplace_id": lr["region_marketplace_id"]
+        #             })
+
+        #     finally:
+        #         conn_li.close()
 
         # --- ▼ CATALOG CACHE 一括取得（REGION）▼ ---
+
         cur.execute("""
             SELECT
                 asin,
                 region_marketplace_id,
                 r_catalog_ttl_at
             FROM catalog_cache
+            ORDER BY r_catalog_ttl_at ASC
         """)
 
         rows_cache = cur.fetchall()
 
-        cache_map = {}
+        # cache_map = {}
 
         columns_cache = [desc[0] for desc in cur.description]
 
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc)) 
+        # for rc in rows_cache:
+        #     rc = dict(zip(columns_cache, rc)) 
 
-            key = (rc["asin"], rc["region_marketplace_id"])
-            cache_map[key] = rc["r_catalog_ttl_at"]
+        #     key = (rc["asin"], rc["region_marketplace_id"])
+        #     cache_map[key] = rc["r_catalog_ttl_at"]
 
         # --- ▼ TTLで並び替え（REGION catalog）▼ ---
         tmp = []
 
-        for r in rows:
-            asin = r["asin"]
-            mp = r["region_marketplace_id"]
+        # for r in rows:
+            
+        for rc in rows_cache:
+            rc = dict(zip(columns_cache, rc))
+
+            asin = rc["asin"]
+            mp = rc["region_marketplace_id"]
 
             user_id = None  
             country_code = None  
@@ -415,7 +408,9 @@ def load_catalog_ttl_targets(db_dir: str):
             if not api_conf.get("enable_region_catalog"):
                 continue  
 
-            ttl = cache_map.get((asin, mp))
+            # ttl = cache_map.get((asin, mp))
+
+            ttl = rc["r_catalog_ttl_at"]
 
             ttl_days = api_conf.get("r_catalog_ttl_days")  
 
@@ -438,11 +433,14 @@ def load_catalog_ttl_targets(db_dir: str):
                 "country_code": country_code  
             })  
 
-        # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
+            if len(tmp) >= 5:
+                break      
+                
+        # # 並び替え（古い順）
+        # tmp.sort(key=lambda x: (
+        #     x["ttl"] is not None,
+        #     x["ttl"] or ""
+        # ))
 
         # 上位だけ使う
         region_rows = tmp[:5]  # TTL対象ASIN数の制御
