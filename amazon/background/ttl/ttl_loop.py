@@ -74,6 +74,8 @@ def run_ttl_loop(app, db_dir):
             print(f"[{datetime.datetime.now(JST).strftime('%H:%M:%S')}] [TTL][LOOP][ALIVE]")
             # =================================================================================
 
+            print("[TTL_STEP_00]", flush=True)  # チェック完了後削除
+
             try:
                 print("[TTL_STEP_01_BEFORE_CATALOG]", flush=True)  # チェック完了後削除
                 load_catalog_ttl_targets(db_dir)   
