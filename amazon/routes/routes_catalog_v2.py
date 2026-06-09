@@ -57,7 +57,7 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
     adapter = CatalogAdapterHome(parent_adapter=base)
     result = adapter.get_full_catalog_item(asin)
 
-    print(f"[FIRST CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
+    print(f"[HOME CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
     
     raw = result.get("raw")
 
@@ -147,6 +147,9 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     adapter = CatalogAdapterRegion(parent_adapter=base)
 
     result = adapter.get_full_catalog_item(asin)
+
+    print(f"[REGION CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
+
     raw = result.get("raw")
 
     # === 01-03: NORMALIZE（REGION） ===

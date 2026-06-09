@@ -478,6 +478,8 @@ def load_catalog_ttl_targets(db_dir: str):
 
 # --- ▼ SECTION 04: TTL対象取得（Cacheベース / pricing） ▼ ---
 def load_pricing_ttl_targets(db_dir: str):
+    print("[TTL_PRICING_START]", flush=True)  # チェック完了後削除
+
     conn = get_conn(os.path.join(db_dir, "a_pricing_cache.db"))
 
     if DB_MODE == "sqlite":
@@ -491,37 +493,6 @@ def load_pricing_ttl_targets(db_dir: str):
         now_utc_str = now_utc.isoformat()
 
         # # --- Pricing HOME ---
-        # rows = []
-
-        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):    
-        #     conn_li = get_conn(db_path)
-
-        #     if DB_MODE == "sqlite":
-        #         conn_li.execute("PRAGMA journal_mode=WAL")
-        #         conn_li.row_factory = sqlite3.Row 
-
-        #     try:
-        #         cur_li = conn_li.cursor()
-        #         cur_li.execute("""
-        #             SELECT
-        #                 asin,
-        #                 home_marketplace_id
-        #             FROM listed_items
-        #         """)
-
-        #         listed_rows = cur_li.fetchall()
-
-        #         columns_li = [desc[0] for desc in cur_li.description] 
-
-        #         for lr in listed_rows:
-        #             rows.append({
-        #                 "asin": lr["asin"],
-        #                 "home_marketplace_id": lr["home_marketplace_id"]
-        #             })
-
-        #     finally:
-        #         conn_li.close()
-
         # --- ▼ PRICING CACHE 一括取得 ▼ ---
         cur.execute("""
             SELECT
@@ -531,29 +502,19 @@ def load_pricing_ttl_targets(db_dir: str):
             FROM pricing_cache
             ORDER BY h_pricing_ttl_at ASC
         """)
-
+        
         rows_cache = cur.fetchall()
-
-        # cache_map = {}
 
         columns_cache = [desc[0] for desc in cur.description] 
 
-        # for rc in rows_cache:
-        #     rc = dict(zip(columns_cache, rc))
-
-        #     key = (rc["asin"], rc["home_marketplace_id"])
-        #     cache_map[key] = rc["h_pricing_ttl_at"]
-
         # --- ▼ TTLで並び替え（HOME PRICING）▼ ---
         tmp = []
+        count = 0
        
-        # for r in rows:
-        #     asin = r["asin"]
-        #     mp = r["home_marketplace_id"]
-
         for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
+            count += 1
 
+            if count % 100 == 0:
             asin = rc["asin"]
             mp = rc["home_marketplace_id"]
 
@@ -585,7 +546,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
                     row_li = cur_li.fetchone()
 
-                    if row_li:                      
+                    if row_li:
                         user_id = row_li["user_id"]
 
                         conn_mkt = get_conn("a_marketplaces.db")
@@ -618,8 +579,6 @@ def load_pricing_ttl_targets(db_dir: str):
             if not api_conf.get("enable_home_pricing"):
                 continue  
 
-            # ttl = cache_map.get((asin, mp))
-
             ttl = rc["h_pricing_ttl_at"]
 
             ttl_days = api_conf.get("h_pricing_ttl_days")  
@@ -642,48 +601,13 @@ def load_pricing_ttl_targets(db_dir: str):
                 "user_id": user_id,
                 "country_code": country_code
             })  
-
-        # 並び替え（古い順）
-        # tmp.sort(key=lambda x: (
-        #     x["ttl"] is not None,
-        #     x["ttl"] or ""
-        # ))
+            if len(tmp) >= 30:
+                break            
 
         # 上位だけ使う
         home_rows = tmp[:30]  # TTL対象ASIN数の制御
-        print(f"[HOME_ROWS] {len(home_rows)}", flush=True) # チェック完了後削除
 
         # --- Pricing REGION ---
-        # rows = []
-
-        # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-        #     conn_li = get_conn(db_path) 
-        #     if DB_MODE == "sqlite":
-        #         conn_li.execute("PRAGMA journal_mode=WAL")
-        #         conn_li.row_factory = sqlite3.Row        
-
-        #     try:
-        #         cur_li = conn_li.cursor()
-        #         cur_li.execute("""
-        #             SELECT
-        #                 asin,
-        #                 region_marketplace_id
-        #             FROM listed_items
-        #         """)
-
-        #         listed_rows = cur_li.fetchall()
-
-        #         columns_li = [desc[0] for desc in cur_li.description]  
-
-        #         for lr in listed_rows:
-        #             rows.append({
-        #                 "asin": lr["asin"],
-        #                 "region_marketplace_id": lr["region_marketplace_id"]
-        #             })
-
-        #     finally:
-        #         conn_li.close()
-
         # --- ▼ PRICING CACHE 一括取得（REGION）▼ ---
         cur.execute("""
             SELECT
@@ -696,25 +620,11 @@ def load_pricing_ttl_targets(db_dir: str):
 
         rows_cache = cur.fetchall()
 
-        # cache_map = {}
-
         columns_cache = [desc[0] for desc in cur.description] 
-
-        # for rc in rows_cache:
-        #     rc = dict(zip(columns_cache, rc)) 
-
-        #     key = (rc["asin"], rc["region_marketplace_id"])
-        #     cache_map[key] = rc["r_pricing_ttl_at"]
 
         tmp = []
 
-        # for r in rows:
-        #     asin = r["asin"]
-        #     mp = r["region_marketplace_id"]
-
         for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
-
             asin = rc["asin"]
             mp = rc["region_marketplace_id"]
             
@@ -779,8 +689,6 @@ def load_pricing_ttl_targets(db_dir: str):
             if not api_conf.get("enable_region_pricing"):
                 continue  
 
-            # ttl = cache_map.get((asin, mp))
-
             ttl = rc["r_pricing_ttl_at"]
 
             ttl_days = api_conf.get("r_pricing_ttl_days")  
@@ -804,16 +712,8 @@ def load_pricing_ttl_targets(db_dir: str):
                 "country_code": country_code  
             })  
 
-        # 並び替え（古い順）
-        # tmp.sort(key=lambda x: (
-        #     x["ttl"] is not None,
-        #     x["ttl"] or ""
-        # ))
-
         # 上位だけ使う
         region_rows = tmp[:30]  # TTL対象ASIN数の制御
-        print(f"[REGION_ROWS] {len(region_rows)}", flush=True) # チェック完了後削除
-
 
         # Pricing HOME ▼▼
         checked_count = 0 
@@ -821,8 +721,6 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for r in home_rows:
             record = dict(r)
-
-            print(f"[TTL_HOME] {record.get('asin')}", flush=True)  # チェック完了後削除
 
             checked_count += 1   
 
@@ -849,8 +747,6 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for r in region_rows:
             record = dict(r)
-
-            print(f"[TTL_REGION] {record.get('asin')}", flush=True) # チェック完了後削除
 
             checked_count += 1 
 
