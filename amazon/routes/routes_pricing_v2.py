@@ -593,8 +593,6 @@ def update_offer_filter_rules():
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
-    print(f"[UPDATE_LISTING_PRICE] {country_code} {asin}", flush=True)  # チェック完了後削除
-
     # === -01: listed_items取得 ===
     db_name = f"a_{country_code.lower()}_listed_items.db" 
     listed_db = db_name
@@ -630,7 +628,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     if not row:
         # raise RuntimeError("listed_items row not found")
         return 
-        print(f"[UPDATE_LISTING_PRICE_ROW] {country_code} {asin} STATUS:{row['status']}", flush=True)  # チェック完了後削除
+    print(f"[UPDATE_LISTING_PRICE_ROW] {country_code} {asin} STATUS:{row['status']}", flush=True)  # チェック完了後削除
 
     region_marketplace_id = row["region_marketplace_id"]
     home_price = row["home_price"]    
