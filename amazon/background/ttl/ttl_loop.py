@@ -651,6 +651,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
         # 上位だけ使う
         home_rows = tmp[:30]  # TTL対象ASIN数の制御
+        print(f"[HOME_ROWS] {len(home_rows)}", flush=True) # チェック完了後削除
 
         # --- Pricing REGION ---
         # rows = []
@@ -811,6 +812,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
         # 上位だけ使う
         region_rows = tmp[:30]  # TTL対象ASIN数の制御
+        print(f"[REGION_ROWS] {len(region_rows)}", flush=True) # チェック完了後削除
 
 
         # Pricing HOME ▼▼
@@ -847,7 +849,7 @@ def load_pricing_ttl_targets(db_dir: str):
 
         for r in region_rows:
             record = dict(r)
-            
+
             print(f"[TTL_REGION] {record.get('asin')}", flush=True) # チェック完了後削除
 
             checked_count += 1 
