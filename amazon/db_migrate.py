@@ -605,6 +605,26 @@ def add_unique_indexes():  # UNIQUE制約
                 "ON listed_items(user_id, asin, region_marketplace_id)"
             )
 
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_h_catalog_ttl_at "
+                "ON listed_items(h_catalog_ttl_at)"
+            )
+
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_r_catalog_ttl_at "
+                "ON listed_items(r_catalog_ttl_at)"
+            )
+
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_h_pricing_ttl_at "
+                "ON listed_items(h_pricing_ttl_at)"
+            )
+
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_r_pricing_ttl_at "
+                "ON listed_items(r_pricing_ttl_at)"
+            )
+
         conn2.commit()
         conn2.close()
 
