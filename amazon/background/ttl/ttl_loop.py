@@ -334,55 +334,6 @@ def load_catalog_ttl_targets(db_dir: str):
             user_id = r["user_id"]
             country_code = marketplace_map.get(mp)
 
-            # # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            #     conn_li = get_conn(db_path) 
-            #     if DB_MODE == "sqlite":
-            #         conn_li.execute("PRAGMA journal_mode=WAL")
-            #         conn_li.row_factory = sqlite3.Row
-
-            #     try:
-            #         cur_li = conn_li.cursor()  
-            #         cur_li.execute("""
-            #             SELECT 
-            #                 user_id,
-            #                 region_marketplace_id
-            #             FROM listed_items
-            #             WHERE asin = %s
-            #             AND region_marketplace_id = %s
-            #             LIMIT 1
-            #         """, (
-            #             asin,
-            #             mp
-            #         ))
-
-            #         row_li = cur_li.fetchone()
-
-            #         if row_li:
-            #             user_id = row_li["user_id"]
-
-            #             conn_mkt = get_conn("a_marketplaces.db")
-            #             try:
-            #                 cur_mkt = conn_mkt.cursor()
-
-            #                 cur_mkt.execute("""
-            #                     SELECT country_code
-            #                     FROM marketplaces
-            #                     WHERE marketplace_id = %s
-            #                     LIMIT 1
-            #                 """, (row_li["region_marketplace_id"],))
-
-            #                 row_mkt = cur_mkt.fetchone()
-
-            #             finally:
-            #                 conn_mkt.close()
-
-            #             country_code = row_mkt["country_code"]
-            #             break
-
-            #     finally:
-            #         conn_li.close()
-
             if not user_id or not country_code:
                 continue  
 
