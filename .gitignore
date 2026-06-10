@@ -1,3 +1,7 @@
+# ファイル名：C:\zsss_dev_v2\.gitignore
+# 目的：GIT対象外設定ファイル
+# -------------------------------------
+
 # Python
 __pycache__/
 *.pyc
@@ -32,3 +36,6 @@ Thumbs.db
 
 *-wal
 *-shm
+
+# BAT
+*.bat
