@@ -115,264 +115,117 @@ def load_catalog_ttl_targets(db_dir: str):
     try:
         cur = conn.cursor()
 
-        now_utc = datetime.datetime.utcnow()
-        now_utc_str = now_utc.isoformat()
-
         # --- Catalog HOME ---
-        rows = []
+        tmp = []
 
         for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
+            conn_li = get_conn(db_path)
 
             if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL") 
+                conn_li.execute("PRAGMA journal_mode=WAL")
                 conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
+
                 cur_li.execute("""
                     SELECT
-                        user_id,
-                        asin,
-                        home_marketplace_id,
-                        region_marketplace_id
-                    FROM listed_items
+                        li.user_id,
+                        li.asin,
+                        li.home_marketplace_id,
+                        mp.country_code
+                    FROM listed_items li
+                    INNER JOIN marketplaces mp
+                        ON li.user_id = mp.user_id
+                        AND li.region_marketplace_id = mp.marketplace_id
+                    WHERE mp.enable_home_catalog = 1
+                    AND (
+                        li.h_catalog_ttl_at IS NULL
+                        OR CAST(li.h_catalog_ttl_at AS timestamp) <
+                            (
+                                (NOW() AT TIME ZONE 'UTC')
+                                - (mp.h_catalog_ttl_days * INTERVAL '1 day')
+                            )
+                    )
+                    ORDER BY li.h_catalog_ttl_at
+                    LIMIT 5
                 """)
 
                 listed_rows = cur_li.fetchall()
-
-                columns_li = [desc[0] for desc in cur_li.description] 
+                print("[HOME_CAT_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
-                    rows.append({
-                        "user_id": lr["user_id"],
+
+                    if not lr["user_id"] or not lr["country_code"]:
+                        continue
+
+                    tmp.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
+                        "user_id": lr["user_id"],
+                        "country_code": lr["country_code"]
                     })
 
             finally:
                 conn_li.close()
 
-        # --- ▼ marketplaces 一括取得 ▼ ---
-        conn_mkt = get_conn("a_marketplaces.db")
-        try:
-            cur_mkt = conn_mkt.cursor()
-
-            cur_mkt.execute("""
-                SELECT
-                    marketplace_id,
-                    country_code
-                FROM marketplaces
-            """)
-
-            marketplace_rows = cur_mkt.fetchall()
-
-        finally:
-            conn_mkt.close()
-
-        marketplace_map = {}
-
-        for row in marketplace_rows:
-            marketplace_map[row["marketplace_id"]] = row["country_code"]
-
-        # --- ▼ CATALOG CACHE 一括取得 ▼ ---
-        cur.execute("""
-            SELECT
-                asin,
-                home_marketplace_id,
-                h_catalog_ttl_at
-            FROM catalog_cache
-        """)
-
-        rows_cache = cur.fetchall()
-
-        columns_cache = [desc[0] for desc in cur.description]
-
-        cache_map = {}
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
-
-            key = (rc["asin"], rc["home_marketplace_id"])
-            cache_map[key] = rc["h_catalog_ttl_at"]
-
-        # --- ▼ TTLで並び替え（HOME catalog）▼ ---
-        tmp = []
-
-        for r in rows:
-            asin = r["asin"]
-            mp = r["home_marketplace_id"]
-
-            user_id = r["user_id"]
-            region_marketplace_id = r["region_marketplace_id"]
-            country_code = marketplace_map.get(region_marketplace_id)
-
-            if not user_id or not country_code:
-                continue  
-
-            api_conf = get_api_conf(user_id, country_code, db_dir)  
-
-            if not api_conf.get("enable_home_catalog"):
-                continue  
-
-            ttl = cache_map.get((asin, mp))
-
-            ttl_days = api_conf.get("h_catalog_ttl_days")  
-
-            # --- ▼ TTLフィルタ（期限切れのみtmp投入）▼ ---
-            if ttl is not None:
-                try:
-                    ttl_dt = datetime.datetime.fromisoformat(ttl)
-
-                    if ttl_dt + datetime.timedelta(days=float(ttl_days)) >= now_utc:
-                        continue  
-
-                except:
-                    pass  # フォーマット不正は通す  
-
-            tmp.append({
-                "asin": asin,
-                "home_marketplace_id": mp,
-                "ttl": ttl,
-                "user_id": user_id,  
-                "country_code": country_code  
-            })  
-
-        # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
-
-        # 上位だけ使う
-        home_rows = tmp[:5]  # TTL対象ASIN数の制御
+        home_rows = tmp
 
         # --- Catalog REGION ---
-        rows = []
+        tmp = []
 
         for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
+            conn_li = get_conn(db_path)
 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row 
+                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
+
                 cur_li.execute("""
                     SELECT
-                        user_id,
-                        asin,
-                        region_marketplace_id
-                    FROM listed_items
+                        li.user_id,
+                        li.asin,
+                        li.region_marketplace_id,
+                        mp.country_code
+                    FROM listed_items li
+                    INNER JOIN marketplaces mp
+                        ON li.user_id = mp.user_id
+                        AND li.region_marketplace_id = mp.marketplace_id
+                    WHERE mp.enable_region_catalog = 1
+                    AND (
+                        li.r_catalog_ttl_at IS NULL
+                        OR CAST(li.r_catalog_ttl_at AS timestamp) <
+                            (
+                                (NOW() AT TIME ZONE 'UTC')
+                                - (mp.r_catalog_ttl_days * INTERVAL '1 day')
+                            )
+                    )
+                    ORDER BY li.r_catalog_ttl_at
+                    LIMIT 5
                 """)
 
                 listed_rows = cur_li.fetchall()
-
-                columns_li = [desc[0] for desc in cur_li.description]
+                print("[REGION_CAT_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
-                    rows.append({
-                        "user_id": lr["user_id"],
+
+                    if not lr["user_id"] or not lr["country_code"]:
+                        continue
+
+                    tmp.append({
                         "asin": lr["asin"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
+                        "region_marketplace_id": lr["region_marketplace_id"],
+                        "user_id": lr["user_id"],
+                        "country_code": lr["country_code"]
                     })
 
             finally:
                 conn_li.close()
 
-        # --- ▼ marketplaces 一括取得 ▼ ---
-        conn_mkt = get_conn("a_marketplaces.db")
-        try:
-            cur_mkt = conn_mkt.cursor()
-
-            cur_mkt.execute("""
-                SELECT
-                    marketplace_id,
-                    country_code
-                FROM marketplaces
-            """)
-
-            marketplace_rows = cur_mkt.fetchall()
-
-        finally:
-            conn_mkt.close()
-
-        marketplace_map = {}
-
-        for row in marketplace_rows:
-            marketplace_map[row["marketplace_id"]] = row["country_code"]
-
-        # --- ▼ CATALOG CACHE 一括取得（REGION）▼ ---
-        cur.execute("""
-            SELECT
-                asin,
-                region_marketplace_id,
-                r_catalog_ttl_at
-            FROM catalog_cache
-        """)
-
-        rows_cache = cur.fetchall()
-
-        cache_map = {}
-
-        columns_cache = [desc[0] for desc in cur.description]
-
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc)) 
-
-            key = (rc["asin"], rc["region_marketplace_id"])
-            cache_map[key] = rc["r_catalog_ttl_at"]
-
-        # --- ▼ TTLで並び替え（REGION catalog）▼ ---
-        tmp = []
-
-        for r in rows:
-            asin = r["asin"]
-            mp = r["region_marketplace_id"]
-
-            user_id = r["user_id"]
-            country_code = marketplace_map.get(mp)
-
-            if not user_id or not country_code:
-                continue  
-
-            api_conf = get_api_conf(user_id, country_code, db_dir)  
-
-            if not api_conf.get("enable_region_catalog"):
-                continue  
-
-            ttl = cache_map.get((asin, mp))
-
-            ttl_days = api_conf.get("r_catalog_ttl_days")  
-
-            # --- ▼ TTLフィルタ（期限切れのみtmp投入）▼ ---
-            if ttl is not None:
-                try:
-                    ttl_dt = datetime.datetime.fromisoformat(ttl)
-
-                    if ttl_dt + datetime.timedelta(days=float(ttl_days)) >= now_utc:
-                        continue  
-
-                except:
-                    pass  # フォーマット不正は通す  
-
-            tmp.append({
-                "asin": asin,
-                "region_marketplace_id": mp,
-                "ttl": ttl,
-                "user_id": user_id,  
-                "country_code": country_code  
-            })  
-
-        # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
-
-        # 上位だけ使う
-        region_rows = tmp[:5]  # TTL対象ASIN数の制御
+        region_rows = tmp
 
 
         # Catalog HOME ▼▼
@@ -441,265 +294,117 @@ def load_pricing_ttl_targets(db_dir: str):
     try:
         cur = conn.cursor()
 
-        now_utc = datetime.datetime.utcnow()
-        now_utc_str = now_utc.isoformat()
-
         # --- Pricing HOME ---
-        rows = []
+        tmp = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):    
+        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
             conn_li = get_conn(db_path)
 
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row 
+                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
+
                 cur_li.execute("""
                     SELECT
-                        user_id,
-                        asin,
-                        home_marketplace_id,
-                        region_marketplace_id
-                    FROM listed_items
+                        li.user_id,
+                        li.asin,
+                        li.home_marketplace_id,
+                        mp.country_code
+                    FROM listed_items li
+                    INNER JOIN marketplaces mp
+                        ON li.user_id = mp.user_id
+                        AND li.region_marketplace_id = mp.marketplace_id
+                    WHERE mp.enable_home_pricing = 1
+                    AND (
+                        li.h_pricing_ttl_at IS NULL
+                        OR CAST(li.h_pricing_ttl_at AS timestamp) <
+                            (
+                                (NOW() AT TIME ZONE 'UTC')
+                                - (mp.h_pricing_ttl_days * INTERVAL '1 day')
+                            )
+                    )
+                    ORDER BY li.h_pricing_ttl_at
+                    LIMIT 5
                 """)
 
                 listed_rows = cur_li.fetchall()
-
-                columns_li = [desc[0] for desc in cur_li.description] 
+                print("[HOME_SQL_ROWS]", len(listed_rows), flush=True)  # チェック完了後削除
 
                 for lr in listed_rows:
-                    rows.append({
-                        "user_id": lr["user_id"],
+
+                    if not lr["user_id"] or not lr["country_code"]:
+                        continue
+
+                    tmp.append({
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
+                        "user_id": lr["user_id"],
+                        "country_code": lr["country_code"]
                     })
 
             finally:
                 conn_li.close()
 
-        # --- ▼ marketplaces 一括取得 ▼ ---
-        conn_mkt = get_conn("a_marketplaces.db")
-        try:
-            cur_mkt = conn_mkt.cursor()
-
-            cur_mkt.execute("""
-                SELECT
-                    marketplace_id,
-                    country_code
-                FROM marketplaces
-            """)
-
-            marketplace_rows = cur_mkt.fetchall()
-
-        finally:
-            conn_mkt.close()
-
-        marketplace_map = {}
-
-        for row in marketplace_rows:
-            marketplace_map[row["marketplace_id"]] = row["country_code"]
-
-        # --- ▼ PRICING CACHE 一括取得 ▼ ---
-        cur.execute("""
-            SELECT
-                asin,
-                home_marketplace_id,
-                h_pricing_ttl_at
-            FROM pricing_cache
-        """)
-
-        rows_cache = cur.fetchall()
-
-        cache_map = {}
-
-        columns_cache = [desc[0] for desc in cur.description] 
-
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc))
-
-            key = (rc["asin"], rc["home_marketplace_id"])
-            cache_map[key] = rc["h_pricing_ttl_at"]
-
-        # --- ▼ TTLで並び替え（HOME PRICING）▼ ---
-        tmp = []
-       
-        for r in rows:
-            asin = r["asin"]
-            mp = r["home_marketplace_id"]
-
-            user_id = r["user_id"]
-            region_marketplace_id = r["region_marketplace_id"]
-            country_code = None  
-
-            country_code = marketplace_map.get(region_marketplace_id)
-
-            if not user_id or not country_code:
-                continue  
-
-            api_conf = get_api_conf(user_id, country_code, db_dir)     
-
-            if not api_conf.get("enable_home_pricing"):
-                continue  
-
-            ttl = cache_map.get((asin, mp))
-
-            ttl_days = api_conf.get("h_pricing_ttl_days")  
-
-            # --- ▼ TTLフィルタ（期限切れのみtmp投入）▼ ---
-            if ttl is not None: 
-                try:
-                    ttl_dt = datetime.datetime.fromisoformat(ttl)
-
-                    if ttl_dt + datetime.timedelta(days=float(ttl_days)) >= now_utc:
-                        continue  
-
-                except:
-                    pass  # フォーマット不正は通す  
-
-            tmp.append({
-                "asin": asin,
-                "home_marketplace_id": mp,
-                "ttl": ttl,
-                "user_id": user_id,
-                "country_code": country_code
-            })  
-
-        # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
-
-        # 上位だけ使う
-        home_rows = tmp[:30]  # TTL対象ASIN数の制御
+        home_rows = tmp
 
         # --- Pricing REGION ---
-        rows = []
+        tmp = []
 
         for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-            conn_li = get_conn(db_path) 
+            conn_li = get_conn(db_path)
+
             if DB_MODE == "sqlite":
                 conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row        
+                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
+
                 cur_li.execute("""
                     SELECT
-                        user_id,
-                        asin,
-                        region_marketplace_id
-                    FROM listed_items
+                        li.user_id,
+                        li.asin,
+                        li.region_marketplace_id,
+                        mp.country_code
+                    FROM listed_items li
+                    INNER JOIN marketplaces mp
+                        ON li.user_id = mp.user_id
+                        AND li.region_marketplace_id = mp.marketplace_id
+                    WHERE mp.enable_region_pricing = 1
+                    AND (
+                        li.r_pricing_ttl_at IS NULL
+                        OR CAST(li.r_pricing_ttl_at AS timestamp) <
+                            (
+                                (NOW() AT TIME ZONE 'UTC')
+                                - (mp.r_pricing_ttl_days * INTERVAL '1 day')
+                            )
+                    )
+                    ORDER BY li.r_pricing_ttl_at
+                    LIMIT 30
                 """)
 
                 listed_rows = cur_li.fetchall()
-
-                columns_li = [desc[0] for desc in cur_li.description]  
+                print("[REGION_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
-                    rows.append({
-                        "user_id": lr["user_id"],
+
+                    if not lr["user_id"] or not lr["country_code"]:
+                        continue
+
+                    tmp.append({
                         "asin": lr["asin"],
-                        "region_marketplace_id": lr["region_marketplace_id"]
+                        "region_marketplace_id": lr["region_marketplace_id"],
+                        "user_id": lr["user_id"],
+                        "country_code": lr["country_code"]
                     })
 
             finally:
                 conn_li.close()
 
-        # --- ▼ marketplaces 一括取得 ▼ ---
-        conn_mkt = get_conn("a_marketplaces.db")
-        try:
-            cur_mkt = conn_mkt.cursor()
-
-            cur_mkt.execute("""
-                SELECT
-                    marketplace_id,
-                    country_code
-                FROM marketplaces
-            """)
-
-            marketplace_rows = cur_mkt.fetchall()
-
-        finally:
-            conn_mkt.close()
-
-        marketplace_map = {}
-
-        for row in marketplace_rows:
-            marketplace_map[row["marketplace_id"]] = row["country_code"]
-
-        # --- ▼ PRICING CACHE 一括取得（REGION）▼ ---
-        cur.execute("""
-            SELECT
-                asin,
-                region_marketplace_id,
-                r_pricing_ttl_at
-            FROM pricing_cache
-        """)
-
-        rows_cache = cur.fetchall()
-
-        cache_map = {}
-
-        columns_cache = [desc[0] for desc in cur.description] 
-
-        for rc in rows_cache:
-            rc = dict(zip(columns_cache, rc)) 
-
-            key = (rc["asin"], rc["region_marketplace_id"])
-            cache_map[key] = rc["r_pricing_ttl_at"]
-
-        tmp = []
-
-        for r in rows:
-            asin = r["asin"]
-            mp = r["region_marketplace_id"]
-
-            user_id = r["user_id"]
-            country_code = marketplace_map.get(mp)
-
-            if not user_id or not country_code:
-                continue  
-
-            api_conf = get_api_conf(user_id, country_code, db_dir)  
-
-            if not api_conf.get("enable_region_pricing"):
-                continue  
-
-            ttl = cache_map.get((asin, mp))
-
-            ttl_days = api_conf.get("r_pricing_ttl_days")  
-
-            # --- ▼ TTLフィルタ（期限切れのみtmp投入）▼ ---
-            if ttl is not None:
-                try:
-                    ttl_dt = datetime.datetime.fromisoformat(ttl)
-
-                    if ttl_dt + datetime.timedelta(days=float(ttl_days)) >= now_utc:
-                        continue  
-
-                except:
-                    pass  # フォーマット不正は通す  
-
-            tmp.append({
-                "asin": asin,
-                "region_marketplace_id": mp,
-                "ttl": ttl,
-                "user_id": user_id,  
-                "country_code": country_code  
-            })  
-
-        # 並び替え（古い順）
-        tmp.sort(key=lambda x: (
-            x["ttl"] is not None,
-            x["ttl"] or ""
-        ))
-
-        # 上位だけ使う
-        region_rows = tmp[:30]  # TTL対象ASIN数の制御
+        region_rows = tmp
 
 
         # Pricing HOME ▼▼
