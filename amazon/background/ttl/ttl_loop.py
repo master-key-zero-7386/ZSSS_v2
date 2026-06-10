@@ -209,7 +209,12 @@ def load_catalog_ttl_targets(db_dir: str):
                                 - (mp.r_catalog_ttl_days * INTERVAL '1 day')
                             )
                     )
-                    ORDER BY li.r_catalog_ttl_at
+                    ORDER BY
+                        CASE
+                            WHEN li.r_catalog_ttl_at IS NULL THEN 0
+                            ELSE 1
+                        END,
+                        li.r_catalog_ttl_at
                     LIMIT 5
                 """)
 
@@ -333,7 +338,12 @@ def load_pricing_ttl_targets(db_dir: str):
                                 - (mp.h_pricing_ttl_days * INTERVAL '1 day')
                             )
                     )
-                    ORDER BY li.h_pricing_ttl_at
+                    ORDER BY
+                        CASE
+                            WHEN li.h_pricing_ttl_at IS NULL THEN 0
+                            ELSE 1
+                        END,
+                        li.h_pricing_ttl_at
                     LIMIT 5
                 """)
 
@@ -390,7 +400,12 @@ def load_pricing_ttl_targets(db_dir: str):
                                 - (mp.r_pricing_ttl_days * INTERVAL '1 day')
                             )
                     )
-                    ORDER BY li.r_pricing_ttl_at
+                    ORDER BY
+                        CASE
+                            WHEN li.r_pricing_ttl_at IS NULL THEN 0
+                            ELSE 1
+                        END,
+                        li.r_pricing_ttl_at
                     LIMIT 5
                 """)
 
