@@ -132,8 +132,10 @@ def load_catalog_ttl_targets(db_dir: str):
                 cur_li = conn_li.cursor()
                 cur_li.execute("""
                     SELECT
+                        user_id,
                         asin,
-                        home_marketplace_id
+                        home_marketplace_id,
+                        region_marketplace_id
                     FROM listed_items
                 """)
 
@@ -143,12 +145,36 @@ def load_catalog_ttl_targets(db_dir: str):
 
                 for lr in listed_rows:
                     rows.append({
+                        "user_id": lr["user_id"],
                         "asin": lr["asin"],
-                        "home_marketplace_id": lr["home_marketplace_id"]
+                        "home_marketplace_id": lr["home_marketplace_id"],
+                        "region_marketplace_id": lr["region_marketplace_id"]
                     })
 
             finally:
                 conn_li.close()
+
+        # --- ▼ marketplaces 一括取得 ▼ ---
+        conn_mkt = get_conn("a_marketplaces.db")
+        try:
+            cur_mkt = conn_mkt.cursor()
+
+            cur_mkt.execute("""
+                SELECT
+                    marketplace_id,
+                    country_code
+                FROM marketplaces
+            """)
+
+            marketplace_rows = cur_mkt.fetchall()
+
+        finally:
+            conn_mkt.close()
+
+        marketplace_map = {}
+
+        for row in marketplace_rows:
+            marketplace_map[row["marketplace_id"]] = row["country_code"]
 
         # --- ▼ CATALOG CACHE 一括取得 ▼ ---
         cur.execute("""
@@ -177,57 +203,9 @@ def load_catalog_ttl_targets(db_dir: str):
             asin = r["asin"]
             mp = r["home_marketplace_id"]
 
-            user_id = None  
-            country_code = None  
-
-            # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)): 
-                conn_li = get_conn(db_path)
-                if DB_MODE == "sqlite":
-                    conn_li.execute("PRAGMA journal_mode=WAL")
-                    conn_li.row_factory = sqlite3.Row       
-
-                try:
-                    cur_li = conn_li.cursor()  
-                    cur_li.execute("""
-                        SELECT 
-                            user_id,
-                            region_marketplace_id
-                        FROM listed_items
-                        WHERE asin = %s
-                        AND home_marketplace_id = %s
-                        LIMIT 1
-                    """, (
-                        asin,
-                        mp
-                    ))
-
-                    row_li = cur_li.fetchone()
-
-                    if row_li:
-                        user_id = row_li["user_id"]
-
-                        conn_mkt = get_conn("a_marketplaces.db")
-                        try:
-                            cur_mkt = conn_mkt.cursor()
-
-                            cur_mkt.execute("""
-                                SELECT country_code
-                                FROM marketplaces
-                                WHERE marketplace_id = %s
-                                LIMIT 1
-                            """, (row_li["region_marketplace_id"],))
-
-                            row_mkt = cur_mkt.fetchone()
-
-                        finally:
-                            conn_mkt.close()
-
-                        country_code = row_mkt["country_code"]
-                        break
-
-                finally:
-                    conn_li.close()
+            user_id = r["user_id"]
+            region_marketplace_id = r["region_marketplace_id"]
+            country_code = marketplace_map.get(region_marketplace_id)
 
             if not user_id or not country_code:
                 continue  
@@ -283,6 +261,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 cur_li = conn_li.cursor()
                 cur_li.execute("""
                     SELECT
+                        user_id,
                         asin,
                         region_marketplace_id
                     FROM listed_items
@@ -294,12 +273,35 @@ def load_catalog_ttl_targets(db_dir: str):
 
                 for lr in listed_rows:
                     rows.append({
+                        "user_id": lr["user_id"],
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
                     })
 
             finally:
                 conn_li.close()
+
+        # --- ▼ marketplaces 一括取得 ▼ ---
+        conn_mkt = get_conn("a_marketplaces.db")
+        try:
+            cur_mkt = conn_mkt.cursor()
+
+            cur_mkt.execute("""
+                SELECT
+                    marketplace_id,
+                    country_code
+                FROM marketplaces
+            """)
+
+            marketplace_rows = cur_mkt.fetchall()
+
+        finally:
+            conn_mkt.close()
+
+        marketplace_map = {}
+
+        for row in marketplace_rows:
+            marketplace_map[row["marketplace_id"]] = row["country_code"]
 
         # --- ▼ CATALOG CACHE 一括取得（REGION）▼ ---
         cur.execute("""
@@ -329,57 +331,57 @@ def load_catalog_ttl_targets(db_dir: str):
             asin = r["asin"]
             mp = r["region_marketplace_id"]
 
-            user_id = None  
-            country_code = None  
+            user_id = r["user_id"]
+            country_code = marketplace_map.get(mp)
 
-            # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-                conn_li = get_conn(db_path) 
-                if DB_MODE == "sqlite":
-                    conn_li.execute("PRAGMA journal_mode=WAL")
-                    conn_li.row_factory = sqlite3.Row
+            # # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
+            # for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+            #     conn_li = get_conn(db_path) 
+            #     if DB_MODE == "sqlite":
+            #         conn_li.execute("PRAGMA journal_mode=WAL")
+            #         conn_li.row_factory = sqlite3.Row
 
-                try:
-                    cur_li = conn_li.cursor()  
-                    cur_li.execute("""
-                        SELECT 
-                            user_id,
-                            region_marketplace_id
-                        FROM listed_items
-                        WHERE asin = %s
-                        AND region_marketplace_id = %s
-                        LIMIT 1
-                    """, (
-                        asin,
-                        mp
-                    ))
+            #     try:
+            #         cur_li = conn_li.cursor()  
+            #         cur_li.execute("""
+            #             SELECT 
+            #                 user_id,
+            #                 region_marketplace_id
+            #             FROM listed_items
+            #             WHERE asin = %s
+            #             AND region_marketplace_id = %s
+            #             LIMIT 1
+            #         """, (
+            #             asin,
+            #             mp
+            #         ))
 
-                    row_li = cur_li.fetchone()
+            #         row_li = cur_li.fetchone()
 
-                    if row_li:
-                        user_id = row_li["user_id"]
+            #         if row_li:
+            #             user_id = row_li["user_id"]
 
-                        conn_mkt = get_conn("a_marketplaces.db")
-                        try:
-                            cur_mkt = conn_mkt.cursor()
+            #             conn_mkt = get_conn("a_marketplaces.db")
+            #             try:
+            #                 cur_mkt = conn_mkt.cursor()
 
-                            cur_mkt.execute("""
-                                SELECT country_code
-                                FROM marketplaces
-                                WHERE marketplace_id = %s
-                                LIMIT 1
-                            """, (row_li["region_marketplace_id"],))
+            #                 cur_mkt.execute("""
+            #                     SELECT country_code
+            #                     FROM marketplaces
+            #                     WHERE marketplace_id = %s
+            #                     LIMIT 1
+            #                 """, (row_li["region_marketplace_id"],))
 
-                            row_mkt = cur_mkt.fetchone()
+            #                 row_mkt = cur_mkt.fetchone()
 
-                        finally:
-                            conn_mkt.close()
+            #             finally:
+            #                 conn_mkt.close()
 
-                        country_code = row_mkt["country_code"]
-                        break
+            #             country_code = row_mkt["country_code"]
+            #             break
 
-                finally:
-                    conn_li.close()
+            #     finally:
+            #         conn_li.close()
 
             if not user_id or not country_code:
                 continue  
@@ -505,8 +507,10 @@ def load_pricing_ttl_targets(db_dir: str):
                 cur_li = conn_li.cursor()
                 cur_li.execute("""
                     SELECT
+                        user_id,
                         asin,
-                        home_marketplace_id
+                        home_marketplace_id,
+                        region_marketplace_id
                     FROM listed_items
                 """)
 
@@ -516,12 +520,36 @@ def load_pricing_ttl_targets(db_dir: str):
 
                 for lr in listed_rows:
                     rows.append({
+                        "user_id": lr["user_id"],
                         "asin": lr["asin"],
-                        "home_marketplace_id": lr["home_marketplace_id"]
+                        "home_marketplace_id": lr["home_marketplace_id"],
+                        "region_marketplace_id": lr["region_marketplace_id"]
                     })
 
             finally:
                 conn_li.close()
+
+        # --- ▼ marketplaces 一括取得 ▼ ---
+        conn_mkt = get_conn("a_marketplaces.db")
+        try:
+            cur_mkt = conn_mkt.cursor()
+
+            cur_mkt.execute("""
+                SELECT
+                    marketplace_id,
+                    country_code
+                FROM marketplaces
+            """)
+
+            marketplace_rows = cur_mkt.fetchall()
+
+        finally:
+            conn_mkt.close()
+
+        marketplace_map = {}
+
+        for row in marketplace_rows:
+            marketplace_map[row["marketplace_id"]] = row["country_code"]
 
         # --- ▼ PRICING CACHE 一括取得 ▼ ---
         cur.execute("""
@@ -551,58 +579,11 @@ def load_pricing_ttl_targets(db_dir: str):
             asin = r["asin"]
             mp = r["home_marketplace_id"]
 
-            user_id = None  
+            user_id = r["user_id"]
+            region_marketplace_id = r["region_marketplace_id"]
             country_code = None  
 
-            # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-                conn_li = get_conn(db_path)
-                if DB_MODE == "sqlite":
-                    conn_li.execute("PRAGMA journal_mode=WAL")
-                    conn_li.row_factory = sqlite3.Row
-
-                try:
-                    cur_li = conn_li.cursor()    
-
-                    cur_li.execute("""  
-                        SELECT
-                            user_id,
-                            region_marketplace_id
-                        FROM listed_items
-                        WHERE asin = %s
-                        AND home_marketplace_id = %s
-                        LIMIT 1
-                    """, (
-                        asin,
-                        mp
-                    ))  
-
-                    row_li = cur_li.fetchone()
-
-                    if row_li:                      
-                        user_id = row_li["user_id"]
-
-                        conn_mkt = get_conn("a_marketplaces.db")
-                        try:
-                            cur_mkt = conn_mkt.cursor()
-
-                            cur_mkt.execute("""
-                                SELECT country_code
-                                FROM marketplaces
-                                WHERE marketplace_id = %s
-                                LIMIT 1
-                            """, (row_li["region_marketplace_id"],))
-
-                            row_mkt = cur_mkt.fetchone()
-
-                        finally:
-                            conn_mkt.close()
-
-                        country_code = row_mkt["country_code"]  
-                        break     
-                        
-                finally:
-                    conn_li.close()
+            country_code = marketplace_map.get(region_marketplace_id)
 
             if not user_id or not country_code:
                 continue  
@@ -657,6 +638,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 cur_li = conn_li.cursor()
                 cur_li.execute("""
                     SELECT
+                        user_id,
                         asin,
                         region_marketplace_id
                     FROM listed_items
@@ -668,12 +650,35 @@ def load_pricing_ttl_targets(db_dir: str):
 
                 for lr in listed_rows:
                     rows.append({
+                        "user_id": lr["user_id"],
                         "asin": lr["asin"],
                         "region_marketplace_id": lr["region_marketplace_id"]
                     })
 
             finally:
                 conn_li.close()
+
+        # --- ▼ marketplaces 一括取得 ▼ ---
+        conn_mkt = get_conn("a_marketplaces.db")
+        try:
+            cur_mkt = conn_mkt.cursor()
+
+            cur_mkt.execute("""
+                SELECT
+                    marketplace_id,
+                    country_code
+                FROM marketplaces
+            """)
+
+            marketplace_rows = cur_mkt.fetchall()
+
+        finally:
+            conn_mkt.close()
+
+        marketplace_map = {}
+
+        for row in marketplace_rows:
+            marketplace_map[row["marketplace_id"]] = row["country_code"]
 
         # --- ▼ PRICING CACHE 一括取得（REGION）▼ ---
         cur.execute("""
@@ -702,58 +707,8 @@ def load_pricing_ttl_targets(db_dir: str):
             asin = r["asin"]
             mp = r["region_marketplace_id"]
 
-            user_id = None  
-            country_code = None  
-
-            # --- ▼ listed_items から user_id / country_code 取得 ▼ ---
-            for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
-                conn_li = get_conn(db_path)
-                
-                if DB_MODE == "sqlite":
-                    conn_li.execute("PRAGMA journal_mode=WAL")
-                    conn_li.row_factory = sqlite3.Row 
-
-                try:
-                    cur_li = conn_li.cursor()  
-                    cur_li.execute("""
-                        SELECT 
-                            user_id,
-                            region_marketplace_id
-                        FROM listed_items
-                        WHERE asin = %s
-                        AND region_marketplace_id = %s
-                        LIMIT 1
-                    """, (
-                        asin,
-                        mp
-                    ))
-
-                    row_li = cur_li.fetchone()
-
-                    if row_li:
-                        user_id = row_li["user_id"]  
-
-                        conn_mkt = get_conn("a_marketplaces.db")
-                        try:
-                            cur_mkt = conn_mkt.cursor()
-
-                            cur_mkt.execute("""
-                                SELECT country_code
-                                FROM marketplaces
-                                WHERE marketplace_id = %s
-                                LIMIT 1
-                            """, (row_li["region_marketplace_id"],))
-
-                            row_mkt = cur_mkt.fetchone()
-
-                        finally:
-                            conn_mkt.close()
-
-                        country_code = row_mkt["country_code"]
-                        break                        
-
-                finally:
-                    conn_li.close()
+            user_id = r["user_id"]
+            country_code = marketplace_map.get(mp)
 
             if not user_id or not country_code:
                 continue  
