@@ -214,6 +214,20 @@ class CatalogAdapterHome:
                     """, (
                         now_utc, asin, self.marketplace_id)) 
 
+                # --- listed_items TTL同期 ---
+                cur.execute("""
+                    UPDATE listed_items
+                    SET h_catalog_ttl_at = %s
+                    WHERE user_id = %s
+                    AND asin = %s
+                    AND home_marketplace_id = %s
+                """, (
+                    now_utc,
+                    self.user_id,
+                    asin,
+                    self.marketplace_id
+                ))
+                
                 conn.commit()
 
         finally:

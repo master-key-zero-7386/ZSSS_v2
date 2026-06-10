@@ -36,7 +36,7 @@ def get_conn_old(db_name: str): # 未使用関数 削除保留
 
     return conn
 
-
+# カラム名定義
 ACCOUNT_MASTER_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
@@ -232,6 +232,12 @@ LISTED_ITEMS_COLUMNS = {
     "created_at": "TEXT",                           # 登録TIME
     "updated_at": "TEXT",                           # 更新TIME
 
+        # --- TTL専用日時 ---
+    "h_catalog_ttl_at": "TEXT",                     # TTL更新TIME home catalog
+    "r_catalog_ttl_at": "TEXT",                     # TTL更新TIME region catalog
+
+    "h_pricing_ttl_at": "TEXT",                     # TTL更新TIME home Pricing
+    "r_pricing_ttl_at": "TEXT",                     # TTL更新TIME region Pricing
 }
 
 # # 未使用 --- ▼ listed brand master（出品実績ブランド） ---
@@ -525,7 +531,7 @@ def migrate_db(db_name):
 
 
     conn.close()
-    print(f"[OK] migrated: {db_name}")
+    # print(f"[OK] migrated: {db_name}")
 
 def add_unique_indexes():  # UNIQUE制約
     # --- a_account_master.db ---
@@ -713,7 +719,6 @@ def add_unique_indexes():  # UNIQUE制約
     )
     conn.commit()
     conn.close()
-
 
 
 def add_indexes_listed_items():
