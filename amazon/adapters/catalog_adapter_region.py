@@ -232,8 +232,6 @@ class CatalogAdapterRegion:
                     asin,
                     self.marketplace_id
                 ))
-
-                print("[TTL_SYNC_REGION_CATALOG]", self.user_id, asin, self.marketplace_id, cur.rowcount, flush=True) #// チェック完了後削除
                 
                 conn.commit()
 

@@ -147,7 +147,12 @@ def load_catalog_ttl_targets(db_dir: str):
                                 - (mp.h_catalog_ttl_days * INTERVAL '1 day')
                             )
                     )
-                    ORDER BY li.h_catalog_ttl_at
+                    ORDER BY
+                        CASE
+                            WHEN li.h_catalog_ttl_at IS NULL THEN 0
+                            ELSE 1
+                        END,
+                        li.h_catalog_ttl_at
                     LIMIT 5
                 """)
 
