@@ -152,6 +152,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
+                print("[TTL_TARGET_HOME_CATALOG]", [r["asin"] for r in listed_rows], flush=True)
                 print("[HOME_CAT_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
@@ -208,6 +209,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
+                print("[TTL_TARGET_REGION_CATALOG]", [r["asin"] for r in listed_rows], flush=True)
                 print("[REGION_CAT_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
@@ -331,6 +333,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
+                print("[TTL_TARGET_HOME_PRICING]", [r["asin"] for r in listed_rows], flush=True)
                 print("[HOME_SQL_ROWS]", len(listed_rows), flush=True)  # チェック完了後削除
 
                 for lr in listed_rows:
@@ -383,10 +386,11 @@ def load_pricing_ttl_targets(db_dir: str):
                             )
                     )
                     ORDER BY li.r_pricing_ttl_at
-                    LIMIT 30
+                    LIMIT 5
                 """)
 
                 listed_rows = cur_li.fetchall()
+                print("[TTL_TARGET_REGION_PRICING]", [r["asin"] for r in listed_rows], flush=True)
                 print("[REGION_SQL_ROWS]", len(listed_rows), flush=True)
 
                 for lr in listed_rows:
