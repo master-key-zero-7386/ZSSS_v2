@@ -302,6 +302,8 @@ def _build_listing_row_with_shipping(
 
     catalog_row = CATALOG_CACHE_ROWS.get(row["asin"])
 
+    print(catalog_row["home_raw_json"][:200], flush=True)  # チェック完了後削除
+
     home_rank = None
     home_rank_title = None
 
