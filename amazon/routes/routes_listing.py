@@ -317,6 +317,7 @@ def _build_listing_row_with_shipping(
         )
 
         sales_ranks = home_data.get("salesRanks") or []
+        print(home_data.keys(), flush=True)  # チェック完了後削除
 
         try:
 
@@ -336,6 +337,7 @@ def _build_listing_row_with_shipping(
         )
 
         sales_ranks = region_data.get("salesRanks") or []
+        print(region_data.keys(), flush=True)  # チェック完了後削除
 
         try:
 
