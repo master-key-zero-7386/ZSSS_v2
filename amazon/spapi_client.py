@@ -206,7 +206,7 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
 
         resp = requests.request(method, url, headers=headers, params=params, json=json, timeout=15)
 
-        print(f"[[API RESPONSE]] status:{resp.status_code}")  # コメントアウトのみ可
+        print(f"<< API RESPONSE >> status:{resp.status_code}")  # コメントアウトのみ可
 
     except Exception as e:
         import traceback

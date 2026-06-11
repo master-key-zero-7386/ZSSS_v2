@@ -24,8 +24,6 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 
 # --- ▼ SECTION 01: HOME Catalog 正規更新 ▼ ---
 def update_home_catalog(*, user_id: int, asin: str, country_code: str):
-    # print(f"<<<HOME CATALOG>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")  # チェック用 削除せずコメントアウトで残す
-
     # === 01-1: HOME marketplace_id 確定 ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
     conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
@@ -55,10 +53,7 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
         marketplace_id=home_marketplace_id,
     )
     adapter = CatalogAdapterHome(parent_adapter=base)
-    result = adapter.get_full_catalog_item(asin)
-
-    print(f"[HOME CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
-    
+    result = adapter.get_full_catalog_item(asin)    
     raw = result.get("raw")
 
 
@@ -112,9 +107,6 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 
 # --- ▼ SECTION 01: REGION Catalog 正規更新 ▼ ---
 def update_region_catalog(*, user_id: int, asin: str, country_code: str):
-    # print(f"<<<REGION CATALOG>>> {(datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} ENTER user={user_id} asin={asin} country={country_code}")  # チェック用 削除せずコメントアウトで残す
-    # ↑↑↑↑ 削除してもOK デバグPrint
-
     # === 01-01: REGION marketplace_id 確定 ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
 

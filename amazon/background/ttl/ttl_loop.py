@@ -486,8 +486,13 @@ def load_pricing_ttl_targets(db_dir: str):
 def dispatch_ttl_execution(targets, record, country_code):
     for scope, ttl_type in targets:
         # ----API を叩いたのはなにか確認するためのPrint
-        print("[[ALL:", scope, ttl_type)  # 削除不可 コメントアウトのみ
-        # --------------------------------------------
+        print(f"<<< {scope.upper()} {ttl_type.upper()} >>> "
+            f"{(datetime.datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M:%S')} "
+            f"user={record['user_id']} "
+            f"asin={record['asin']} "
+            f"country={country_code}",
+            flush=True
+        )  # --- 削除不可 コメントアウトのみ ---
         
         # --- HOME / CATALOG ---
         if scope == "home" and ttl_type == "catalog":
