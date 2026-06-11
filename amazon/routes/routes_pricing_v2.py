@@ -322,8 +322,6 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     adapter = PricingAdapterRegion(parent_adapter=base)
     result = adapter.get_full_pricing_item(asin)
 
-    print(f"[REGION PRICING] {asin} source={result.get('source')}")  # チェック完了後削除
-
     raw = result.get("raw")
 
     # === 05-03: NORMALIZE（REGION） ===

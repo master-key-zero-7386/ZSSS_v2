@@ -302,8 +302,6 @@ def _build_listing_row_with_shipping(
 
     catalog_row = CATALOG_CACHE_ROWS.get(row["asin"])
 
-    print(row["asin"], len(catalog_row["home_raw_json"]), flush=True)  # チェック完了後削除　
-
     home_rank = None
     home_rank_title = None
 
@@ -319,7 +317,6 @@ def _build_listing_row_with_shipping(
         )
 
         sales_ranks = home_data.get("salesRanks") or []
-        print(home_data.keys(), flush=True)  # チェック完了後削除
 
         try:
 
@@ -339,7 +336,6 @@ def _build_listing_row_with_shipping(
         )
 
         sales_ranks = region_data.get("salesRanks") or []
-        print(region_data.keys(), flush=True)  # チェック完了後削除
 
         try:
 
@@ -350,10 +346,7 @@ def _build_listing_row_with_shipping(
                 region_rank_title = cls[0].get("title")
 
         except Exception:
-            pass
-
-        print(f"[RANK] {row['asin']} HOME:{home_rank} REGION:{region_rank}", flush=True)  # チェック完了後削除
-        
+            pass        
 
     if cache_row and cache_row["home_offers_json"]:
         home_data = json.loads(cache_row["home_offers_json"])
