@@ -203,12 +203,6 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         finally:
             conn.close()
 
-    # update_listing_price(
-    #     user_id=user_id,
-    #     asin=asin,
-    #     country_code=cc_region,
-    # )
-
     # --- ▼ TTL更新（HOME PRICING） ▼ ---
     conn = get_conn("a_pricing_cache.db") 
     try:

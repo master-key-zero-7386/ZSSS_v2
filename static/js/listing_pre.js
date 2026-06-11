@@ -99,7 +99,7 @@ window.loadprelisting = async function (country_code) {
                     const checked = row.selected ? "checked" : "";
                     const home_host = row.home_marketplace_host;       
                     const region_host = row.marketplace_host;  
-    
+
                     return `
                         <div class="row-toggle-wrap">
                             <input type="checkbox" class="row-select" data-asin="${asin}" ${checked}
@@ -187,17 +187,13 @@ window.loadprelisting = async function (country_code) {
                                     ${row.home_title || ""}
                                 </div>
                                 
-                                <div class="brand-cell">
-                                    HOME:
-                                    ${
-                                        row.is_black_brand
-                                            ? `<span style="color:red !important; font-weight:bold; font-size:18px;">${row.home_brand || ""}</span>`
-                                            : (row.home_brand || "")
-                                    }
+                                <div class="brand-cell" style="font-size:13px; color:#666;">
+                                    <span style="font-weight:bold;">Brand：</span>
+                                    ${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_brand || ""}
+                                    &nbsp;&nbsp;
+                                    ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_brand || ""}
                                 </div>
-                                <div class="region-brand-cell" style="font-size:13px; color:#666;">
-                                    REGION:${row.region_brand}
-                                </div>
+                                
                             </div>
                         </div>
                     `;
@@ -384,7 +380,7 @@ window.loadprelisting = async function (country_code) {
             },
  
             { 
-                title: "更新情報",
+                title: "情　報",
                 data: null,
                 orderable: false,
                 render: function (_data, _type, row) {
