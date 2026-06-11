@@ -187,12 +187,45 @@ window.loadprelisting = async function (country_code) {
                                     ${row.home_title || ""}
                                 </div>
                                 
-                                <div class="brand-cell" style="font-size:13px; color:#666;">
-                                    <span style="font-weight:bold;">Brand：</span>
-                                    ${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_brand || ""}
+                                <div style="font-size:13px; color:#666;">
+                                    <span style="display:inline-block; width:70px; font-weight:bold;">Brand</span>
+                                    ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：
+                                    ${
+                                        row.is_black_brand
+                                            ? `<span style="color:red !important; font-weight:bold;">${row.home_brand || ""}</span>`
+                                            : (row.home_brand || "")
+                                    }
+
                                     &nbsp;&nbsp;
-                                    ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_brand || ""}
+
+                                    ${row.marketplace_host.split(".").pop().toUpperCase()}：
+                                    ${
+                                        row.is_black_brand
+                                            ? `<span style="color:red !important; font-weight:bold;">${row.region_brand || ""}</span>`
+                                            : (row.region_brand || "")
+                                    }
                                 </div>
+
+                                <div style="font-size:13px; color:#666;">
+                                    <span style="display:inline-block; width:70px; font-weight:bold;">RANK</span>
+                                    ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_rank || "-"}
+                                    &nbsp;&nbsp;
+                                    ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_rank || "-"}
+                                </div>
+
+                                <!--
+                                <div style="font-size:13px; color:#666;">
+                                    <span style="display:inline-block; width:70px; font-weight:bold;">Category</span>
+                                    ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_rank_title || "-"}
+                                    &nbsp;&nbsp;
+                                    ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_rank_title || "-"}
+                                </div>  
+                                -->         
+
+                                <div style="font-size:13px; color:#666;">
+                                    <span style="display:inline-block; width:70px; font-weight:bold;">Category</span>
+                                    ：${row.region_rank_title || "-"}
+                                </div>      
                                 
                             </div>
                         </div>

@@ -140,7 +140,6 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
 
     result = adapter.get_full_catalog_item(asin)
 
-    print(f"[REGION CATALOG] {asin} source={result.get('source')}")  # チェック完了後削除
 
     raw = result.get("raw")
 

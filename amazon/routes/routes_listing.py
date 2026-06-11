@@ -245,6 +245,7 @@ def _build_listing_row_with_shipping(
     SHIPPING_CONFIG=None, 
     SHIPPING_RATE_ROWS=None,
     PRICING_CACHE_ROWS=None,
+    CATALOG_CACHE_ROWS=None, 
     MARKETPLACE_HOST=None, 
     HOME_MARKETPLACE_HOST=None, 
     OFFER_FILTER_RULES=None, 
@@ -297,9 +298,58 @@ def _build_listing_row_with_shipping(
         (row.get("region_brand") or "").strip().lower() in black_brand_set
     )
 
-
-    # --- ▼ pricing_cache 取得（offer_json）▼ ---
     cache_row = PRICING_CACHE_ROWS.get(row["asin"])
+
+    catalog_row = CATALOG_CACHE_ROWS.get(row["asin"])
+
+    home_rank = None
+    home_rank_title = None
+
+    region_rank = None
+    region_rank_title = None
+
+    if catalog_row:
+
+        # --- HOME --- # ここを修正
+
+        home_data = json.loads(
+            catalog_row["home_raw_json"] or "{}"
+        )
+
+        sales_ranks = home_data.get("salesRanks") or []
+
+        try:
+
+            cls = sales_ranks[0]["classificationRanks"]
+
+            if cls:
+                home_rank = cls[0].get("rank")
+                home_rank_title = cls[0].get("title")
+
+        except Exception:
+            pass
+
+        # --- REGION --- # ここを修正
+
+        region_data = json.loads(
+            catalog_row["region_raw_json"] or "{}"
+        )
+
+        sales_ranks = region_data.get("salesRanks") or []
+
+        try:
+
+            cls = sales_ranks[0]["classificationRanks"]
+
+            if cls:
+                region_rank = cls[0].get("rank")
+                region_rank_title = cls[0].get("title")
+
+        except Exception:
+            pass
+
+        print(f"[RANK] {row['asin']} HOME:{home_rank} REGION:{region_rank}", flush=True)  # チェック完了後削除
+        
 
     if cache_row and cache_row["home_offers_json"]:
         home_data = json.loads(cache_row["home_offers_json"])
@@ -466,7 +516,12 @@ def _build_listing_row_with_shipping(
         "marketplace_host": marketplace_host,   
 
         "brand_gate_status": brand_gate_status,
-        "brand_gate_reason": brand_gate_reason,  
+        "brand_gate_reason": brand_gate_reason, 
+
+        "home_rank": home_rank,  
+        "home_rank_title": home_rank_title, 
+        "region_rank": region_rank, 
+        "region_rank_title": region_rank_title,          
     }
     
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
@@ -691,7 +746,24 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         for r in cur_cache.fetchall()
     }
 
-    # conn_cfg.close()    
+    conn_cat = get_conn("a_catalog_cache.db")
+    cur_cat = conn_cat.cursor()
+
+    cur_cat.execute("""
+        SELECT
+            asin,
+            home_raw_json,
+            region_raw_json
+        FROM catalog_cache
+        WHERE region_marketplace_id = %s
+    """, (marketplace_id,))
+
+    CATALOG_CACHE_ROWS = {
+        r["asin"]: r
+        for r in cur_cat.fetchall()
+    }
+
+    conn_cat.close()
 
     conn_mst = get_conn("a_marketplaces_master.db")
     cur_mst = conn_mst.cursor()
@@ -777,6 +849,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 SHIPPING_CONFIG=SHIPPING_CONFIG,
                 SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS, 
                 PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
+                CATALOG_CACHE_ROWS=CATALOG_CACHE_ROWS,
                 MARKETPLACE_HOST=MARKETPLACE_HOST, 
                 HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
                 OFFER_FILTER_RULES=OFFER_FILTER_RULES,
@@ -1055,6 +1128,25 @@ def search_listing():
             for r in cur_cache.fetchall()
         }
 
+        conn_cat = get_conn("a_catalog_cache.db")
+        cur_cat = conn_cat.cursor()
+
+        cur_cat.execute("""
+            SELECT
+                asin,
+                home_raw_json,
+                region_raw_json
+            FROM catalog_cache
+            WHERE region_marketplace_id = %s
+        """, (marketplace_id,))
+
+        CATALOG_CACHE_ROWS = {
+            r["asin"]: r
+            for r in cur_cat.fetchall()
+        }
+
+        conn_cat.close()
+
         conn_cache.close()
 
         conn_cfg.close()
@@ -1142,6 +1234,7 @@ def search_listing():
                     SHIPPING_CONFIG=SHIPPING_CONFIG,
                     SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS,
                     PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
+                    CATALOG_CACHE_ROWS=CATALOG_CACHE_ROWS,
                     MARKETPLACE_HOST=MARKETPLACE_HOST,
                     HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
                     OFFER_FILTER_RULES=OFFER_FILTER_RULES,
