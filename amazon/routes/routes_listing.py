@@ -1457,7 +1457,7 @@ def bulk_delete_items():
 
 
             if isinstance(feed_response, dict):
-                print("FEED ID:", feed_response.get("feedId"), flush=True)  # チェック完了後削除
+                print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
 
         # --- DB削除・cache削除（単体Deleteと同じ処理） ---
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -1704,7 +1704,7 @@ def bulk_move_to_all():
 
     for asin in asins:
 
-        print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # チェック完了後削除
+        print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
 
         # --- ▼ 出品用データ取得 ▼ --- 
         # --- ▼ 出品用データ取得 ▼ --- 
@@ -1786,7 +1786,7 @@ def bulk_move_to_all():
         except: 
             pass 
 
-    print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # チェック完了後削除
+    print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
         
     submit_listing_service( 
         user_id, 

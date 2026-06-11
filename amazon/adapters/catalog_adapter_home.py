@@ -76,8 +76,14 @@ class CatalogAdapterHome:
         # === API パラメータ（既存） === 
         params = {
             "marketplaceIds": [self.marketplace_id],
-            "includedData": "attributes,images,summaries"
-        }       
+            "includedData": ",".join([
+                "attributes",      # 商品属性
+                "images",          # 画像一覧
+                "summaries",       # 商品概要
+                "salesRanks",      # ランキング
+                "productTypes",    # 商品タイプ
+            ])
+        }    
 
         # === ③ API 実行＋例外処理追加 ===
         try:  
@@ -87,6 +93,7 @@ class CatalogAdapterHome:
                 host=self.host,
                 params=params
             )  
+
         except Exception as e:  
             raise RuntimeError(f"CatalogItems API request failed: {e}")  
 

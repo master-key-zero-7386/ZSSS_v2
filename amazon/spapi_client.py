@@ -97,8 +97,7 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
 
     # URL とベースヘッダ
     query = urlencode(params or {}, doseq=True, encoding="utf-8", errors="ignore")
-    url = f"{host}{path}" + (f"?{query}" if query else "")
-    
+    url = f"{host}{path}" + (f"?{query}" if query else "")    
     headers = {
         "accept": "application/json",
         "x-amz-access-token": access_token,

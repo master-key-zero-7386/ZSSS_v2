@@ -77,27 +77,24 @@ class CatalogAdapterRegion:
         # === API パラメータ（既存） === 
         params = {
             "marketplaceIds": [self.marketplace_id],
-            "includedData": [
-                "attributes",      # 商品属性（重量 itemWeight、材質、色 など細かな属性）
-                "dimensions",      # 寸法情報（item / package の length, width, height, weight）
-                "images",          # 画像一覧（large / medium / small / hiRes / URL）
-                "identifiers",     # 識別番号（ASIN, JAN, EAN, UPC など）
-                "productTypes",    # 商品カテゴリ（Amazon 内部の商品タイプ分類）
-                "salesRanks",      # カテゴリ別の販売ランキング情報
-                "summaries",       # 要約情報（タイトル itemName、brandName、manufacturer など）
-                "variations",      # バリエーション構成（サイズ違い・色違いなど）
-                "relationships",   # 商品の親子関係・関連商品情報
-            ]
+            "includedData": ",".join([
+                "attributes",      # 商品属性
+                "images",          # 画像一覧
+                "summaries",       # 商品概要
+                "salesRanks",      # ランキング
+                "productTypes",    # 商品タイプ
+            ])
         }
 
         # === ③ API 実行＋例外処理追加 ===
-        try:  
+        try: 
             raw = self.parent.real_signed_request(  
                 method="GET",
                 endpoint=path,
                 host=self.host,
                 params=params
-            )  
+            )
+                
         except Exception as e:  
             raise RuntimeError(f"CatalogItems API request failed: {e}")  
 

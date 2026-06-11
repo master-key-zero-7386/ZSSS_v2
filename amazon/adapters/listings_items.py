@@ -158,7 +158,7 @@ def delete_listings_feed(user_id, country_code, marketplace_id, sku_list):
             "contentType": "application/json"
         }
     )
-    print("FEED_DOC_RESPONSE:", doc, flush=True)   # // チェック完了後削除
+    print("FEED_DOC_RESPONSE:", doc, flush=True)   # 一括処理確認ログ削除NG
 
     doc_data = doc
     feed_document_id = doc_data.get("feedDocumentId")
@@ -220,7 +220,7 @@ def delete_listings_feed(user_id, country_code, marketplace_id, sku_list):
 
     feed_id = feed_submit.get("feedId")
 
-    print("FEED ID:", feed_id, flush=True)  # チェック完了後削除
+    print("FEED ID:", feed_id, flush=True)  # 一括処理確認ログ削除NG
 
     import time
     time.sleep(5)

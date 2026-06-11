@@ -157,8 +157,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
-                print("[TTL_TARGET_HOME_CATALOG]", [r["asin"] for r in listed_rows], flush=True)
-                print("[HOME_CAT_SQL_ROWS]", len(listed_rows), flush=True)
+                print("[HOME_CAT_SQL_ROWS]", len(listed_rows), flush=True) # TTL対象数カウント
 
                 for lr in listed_rows:
 
@@ -219,8 +218,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
-                print("[TTL_TARGET_REGION_CATALOG]", [r["asin"] for r in listed_rows], flush=True)
-                print("[REGION_CAT_SQL_ROWS]", len(listed_rows), flush=True)
+                print("[REGION_CAT_SQL_ROWS]", len(listed_rows), flush=True) # TTL対象数カウント
 
                 for lr in listed_rows:
 
@@ -348,8 +346,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
-                print("[TTL_TARGET_HOME_PRICING]", [r["asin"] for r in listed_rows], flush=True)
-                print("[HOME_SQL_ROWS]", len(listed_rows), flush=True)  # チェック完了後削除
+                print("[HOME_SQL_ROWS]", len(listed_rows), flush=True) # TTL対象数カウント
 
                 for lr in listed_rows:
 
@@ -410,8 +407,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 """)
 
                 listed_rows = cur_li.fetchall()
-                print("[TTL_TARGET_REGION_PRICING]", [r["asin"] for r in listed_rows], flush=True)
-                print("[REGION_SQL_ROWS]", len(listed_rows), flush=True)
+                print("[REGION_SQL_ROWS]", len(listed_rows), flush=True) # TTL対象数カウント
 
                 for lr in listed_rows:
 

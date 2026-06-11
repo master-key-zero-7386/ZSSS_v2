@@ -626,9 +626,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         conn.close()
 
     if not row:
-        # raise RuntimeError("listed_items row not found")
+        
         return 
-    # print(f"[UPDATE_LISTING_PRICE_ROW] {country_code} {asin} STATUS:{row['status']}", flush=True)  # チェック完了後削除
 
     region_marketplace_id = row["region_marketplace_id"]
     home_price = row["home_price"]    
