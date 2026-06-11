@@ -22,9 +22,8 @@ from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
-from amazon.core.price_calculator import calculate_listing_price
 from amazon.core.pricing_strategy import decide_listing_price
-from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config)
+from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
 from amazon.constants import BASE_DIR
 import json
 
