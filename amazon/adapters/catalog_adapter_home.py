@@ -195,6 +195,7 @@ class CatalogAdapterHome:
             # --- 変更がある場合のみUPDATE ---
             old = json.dumps(json.loads(row["home_raw_json"]), sort_keys=True, ensure_ascii=False) if (row and row["home_raw_json"]) else None 
             new = json.dumps(json.loads(home_raw_json), sort_keys=True, ensure_ascii=False) if home_raw_json else None
+            print(asin, flush=True)  # チェック完了後削除
             print(json.loads(home_raw_json).keys(), flush=True)  # チェック完了後削除
 
             if row:
