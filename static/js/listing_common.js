@@ -598,14 +598,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         preSearchClear.addEventListener("click", function () {
+            
 
             presearchInput.value = "";
             preSearchClear.style.display = "none";
             presearchInput.focus();
 
-        });
+            const country_code = document.getElementById("globalRegion")?.value;
+            const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
 
-    } 
+            window.loadprelisting(country_code, infoStatus);
+        });
+    }
     
     // === ▼ 09-04B: ALL 検索クリアボタン ▼ ===
     const allSearchClear = document.getElementById("allListingSearchClear");
@@ -624,8 +628,11 @@ document.addEventListener("DOMContentLoaded", () => {
             allSearchClear.style.display = "none";
             allsearchInput.focus();
 
-        });
+            const country_code = document.getElementById("globalRegion")?.value;
+            const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
 
+            window.loadalllisting(country_code, infoStatus);
+        });
     }    
 
     // === ▼ 09-05: Pre Enter検索 ▼ ===
