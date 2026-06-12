@@ -36,6 +36,36 @@ table.dataTable td:last-child {
 
 document.head.appendChild(style);
 
+// --- ▼ SECTION 00: DataTable共通設定 ▼ ---
+window.getCommonDataTableOptions = function() {
+
+    return {
+
+        pagingType: "simple_numbers",
+        deferRender: false,
+        stateSave: false,
+        autoWidth: false,
+
+        paging: true,
+        pageLength: 100,
+        lengthChange: false,
+
+        searching: true,
+        info: true,
+        scrollX: false,
+
+        dom: '<"top"i p>rt<"bottom"i p>',
+
+        language: {
+            infoEmpty: "0 件中 0 から 0 件を表示",
+            paginate: {
+                previous: "前へ",
+                next: "次へ"
+            }
+        }
+    };
+};
+
 // --- ▼ SECTION 01: 最新取得ボタン生成（pre / all 共通） ▼ ---
 window.attachRefreshButtons = function (tableSelector) {
 
@@ -843,10 +873,10 @@ document.addEventListener("DOMContentLoaded", () => {
 // --- ▼ SECTION 13: Listing共通：ASINセルクリックコピー ▼ --- 
 document.addEventListener("click", function (e) {
 
-    const cell = e.target.closest(".asin-cell"); // ここを修正
-    if (!cell) return; // ここを修正
+    const cell = e.target.closest(".asin-cell"); 
+    if (!cell) return; 
 
-    const asin = cell.textContent.trim(); // ここを修正
+    const asin = cell.textContent.trim(); 
     if (!asin) return;
 
     // --- ▼ クリップボード処理（HTTP / HTTPS 両対応）▼ ---
@@ -858,11 +888,11 @@ document.addEventListener("click", function (e) {
         }).catch(err => {
             console.error("コピー失敗:", err);
         });
-    } else { // ここを追加
+    } else { 
         const tmp = document.createElement("textarea"); 
-        tmp.value = asin; // ここを追加
+        tmp.value = asin; 
         document.body.appendChild(tmp);
-        tmp.select(); // ここを追加
+        tmp.select(); 
         document.execCommand("copy"); 
         document.body.removeChild(tmp); 
 

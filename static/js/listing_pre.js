@@ -22,7 +22,6 @@ window.loadprelisting = async function (country_code) {
 
     // --- ▼ SECTION 03: テーブルが無い場合は生成 ---
     $("#prelistingtable").remove();
-    // if (!document.getElementById("prelistingtable")) {
 
     $("#prelisting").append(
         '<table id="prelistingtable" class="display zsss-listing-table"><thead></thead><tbody></tbody></table>' 
@@ -41,6 +40,8 @@ window.loadprelisting = async function (country_code) {
 
     // --- ▼ SECTION 05: DataTable 再生成 ---
     const preTable = $("#prelistingtable").DataTable({  
+
+        ...window.getCommonDataTableOptions(),
 
         serverSide: true,
         processing: true,
@@ -64,22 +65,23 @@ window.loadprelisting = async function (country_code) {
             });
         },        
 
-        pagingType: "simple_numbers", 
-        deferRender: false,
-        stateSave: false,  
-        // data: data,
-        autoWidth: false,
-        paging: true,
-        pageLength: 100,
-        lengthChange: false,
-        searching: true,
-        info: true,
-        scrollX: false,
-        dom: '<"top"i p>rt<"bottom"i p>',
-        language: {
-            infoEmpty: "0 件中 0 から 0 件を表示",
-            paginate: { previous: "前へ", next: "次へ" },
-        },
+        // pagingType: "simple_numbers", 
+        // deferRender: false,
+        // stateSave: false,  
+        // // data: data,
+        // autoWidth: false,
+        // paging: true,
+        // pageLength: 100,
+        // lengthChange: false,
+        // searching: true,
+        // info: true,
+        // scrollX: false,
+        // dom: '<"top"i p>rt<"bottom"i p>',
+        // language: {
+        //     infoEmpty: "0 件中 0 から 0 件を表示",
+        //     paginate: { previous: "前へ", next: "次へ" },
+        // },
+        
         infoCallback: function(settings, start, end, max, total, pre) {
             return `全 ${total} 件中 ${start} から ${end} 件を表示`; 
         },
