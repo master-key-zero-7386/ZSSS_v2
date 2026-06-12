@@ -33,6 +33,8 @@ window.loadalllisting = async function(country_code) {
     try { 
         allTable = $("#alllistingtable").DataTable({
 
+            ...window.getCommonDataTableOptions(),
+
                 serverSide: true,
                 processing: true,
 
@@ -64,24 +66,24 @@ window.loadalllisting = async function(country_code) {
 
                 },            
 
-                    pagingType: "simple_numbers", 
-                    deferRender: false,
-                    stateSave: false,                  
-                    // data: data,
-                    autoWidth: false,
-                    paging: true,
-                    pageLength: 100,
-                    lengthChange: false,
-                    searching: true,
-                    info: true,
-                    scrollX: false,
-                    // dom: '<"top"i p>rt<"bottom"i p><"clear">',
-                    dom: '<"top"i p>rt<"bottom"i p>', 
-                    language: {
-                        info: "全 _TOTAL_ 件中 _START_ から _END_ 件を表示",
-                        infoEmpty: "0 件中 0 から 0 件を表示",
-                        paginate: { previous: "前へ", next: "次へ" }
-                    },
+                    // pagingType: "simple_numbers", 
+                    // deferRender: false,
+                    // stateSave: false,                  
+                    // // data: data,
+                    // autoWidth: false,
+                    // paging: true,
+                    // pageLength: 100,
+                    // lengthChange: false,
+                    // searching: true,
+                    // info: true,
+                    // scrollX: false,
+                    // // dom: '<"top"i p>rt<"bottom"i p><"clear">',
+                    // dom: '<"top"i p>rt<"bottom"i p>', 
+                    // language: {
+                    //     info: "全 _TOTAL_ 件中 _START_ から _END_ 件を表示",
+                    //     infoEmpty: "0 件中 0 から 0 件を表示",
+                    //     paginate: { previous: "前へ", next: "次へ" }
+                    // },
                     order: [],
                     orderClasses: false,
                     stripeClasses: ["zsss-odd", "zsss-even"],
