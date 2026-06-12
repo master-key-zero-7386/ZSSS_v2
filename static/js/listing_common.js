@@ -62,6 +62,15 @@ window.getCommonDataTableOptions = function() {
                 previous: "前へ",
                 next: "次へ"
             }
+        },
+
+        drawCallback: function() {
+            console.log("DRAW CALLBACK");
+
+            const api = this.api();
+            const info = api.page.info();
+            console.log(info);            
+
         }
     };
 };

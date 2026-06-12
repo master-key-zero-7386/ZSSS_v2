@@ -84,6 +84,7 @@ window.loadalllisting = async function(country_code) {
                     //     infoEmpty: "0 件中 0 から 0 件を表示",
                     //     paginate: { previous: "前へ", next: "次へ" }
                     // },
+                    
                     order: [],
                     orderClasses: false,
                     stripeClasses: ["zsss-odd", "zsss-even"],
