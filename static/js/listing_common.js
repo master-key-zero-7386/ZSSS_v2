@@ -65,12 +65,16 @@ window.getCommonDataTableOptions = function() {
         },
 
         drawCallback: function() {
-            console.log("DRAW CALLBACK");
 
             const api = this.api();
             const info = api.page.info();
-            console.log(info);            
 
+            console.log(
+                "CURRENT:",
+                info.page + 1,
+                "TOTAL:",
+                info.pages
+            );            
         }
     };
 };
