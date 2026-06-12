@@ -69,12 +69,122 @@ window.getCommonDataTableOptions = function() {
             const api = this.api();
             const info = api.page.info();
 
-            console.log(
-                "CURRENT:",
-                info.page + 1,
-                "TOTAL:",
-                info.pages
-            );            
+            const current = info.page + 1;
+            const total = info.pages;
+
+            const container = $(api.table().container());
+            const paginate = container.find(".dataTables_paginate");
+
+            const start = Math.max(1, current - 10);
+            const end = Math.min(total, current + 10);
+
+            let html = '';
+
+            // 前へ
+            if (current > 1) {
+                html += `<a class="paginate_button custom-prev" data-page="${current - 1}">前へ</a>`;
+            } else {
+                html += `<span class="paginate_button disabled">前へ</span>`;
+            }
+
+            // 1ページ
+            html += `<a class="paginate_button ${current === 1 ? 'current' : ''}" data-page="1">1</a>`;
+
+            // 前側 ...
+            if (start > 2) {
+                html += `<span class="ellipsis">...</span>`;
+            }
+
+            // 中央
+            for (let p = start; p <= end; p++) {
+
+                if (p === 1 || p === total) {
+                    continue;
+                }
+
+                html += `
+                    <a
+                        class="paginate_button ${p === current ? 'current' : ''}"
+                        data-page="${p}">
+                        ${p}
+                    </a>
+                `;
+            }
+
+            // 後側 ...
+            if (end < total - 1) {
+                html += `<span class="ellipsis">...</span>`;
+            }
+
+            // 最終ページ
+            if (total > 1) {
+                html += `
+                    <a
+                        class="paginate_button ${current === total ? 'current' : ''}"
+                        data-page="${total}">
+                        ${total}
+                    </a>
+                `;
+            }
+
+            html += `
+                <span style="margin-left:20px;">
+                    Page
+                    <input
+                        type="number"
+                        class="page-jump-input"
+                        min="1"
+                        max="${total}"
+                        style="width:80px;">
+                    <button class="page-jump-btn">
+                        移動
+                    </button>
+                </span>
+            `;
+
+            // 次へ
+            if (current < total) {
+                html += `<a class="paginate_button custom-next" data-page="${current + 1}">次へ</a>`;
+            } else {
+                html += `<span class="paginate_button disabled">次へ</span>`;
+            }
+
+            paginate.html(html);
+
+            paginate.off("click", "a.paginate_button");
+
+            paginate.on("click", "a.paginate_button", function() {
+
+                const page = parseInt($(this).data("page"));
+
+                if (!page) {
+                    return;
+                }
+
+                api.page(page - 1).draw("page");
+
+            });
+
+            paginate.off("click", ".page-jump-btn");
+
+            paginate.on("click", ".page-jump-btn", function() {
+
+                const page = parseInt(
+                    paginate.find(".page-jump-input").val()
+                );
+
+                if (isNaN(page)) {
+                    return;
+                }
+
+                if (page < 1 || page > total) {
+                    return;
+                }
+
+                api.page(page - 1).draw("page");
+
+            });
+
         }
     };
 };
