@@ -753,6 +753,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (action === "move_to_all") {
 
+            if (!confirm(`${selected.length}件を出品対象へ登録します。実行しますか？`)) {
+                return;
+            }
+            
             const country_code = document.getElementById("globalRegion")?.value;
 
             fetch("/listing/bulk_move_to_all", {
