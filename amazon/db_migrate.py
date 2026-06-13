@@ -211,6 +211,7 @@ LISTED_ITEMS_COLUMNS = {
     "region_price": "REAL",                         # REGION価格
     "override_price": "REAL",                       # 出品価格 手動変更用 
     "final_price": "REAL",                          # 最終出品価格
+    "profit_rate": "REAL",                          # 利益率
     "min_price": "REAL",                            # 最低出品価格（計算結果）
     "max_price": "REAL",                            # 最高出品価格（計算結果）   
     "override_tariff_rate": "REAL",                 # 関税率 手動変更用

@@ -314,6 +314,17 @@ window.loadalllisting = async function(country_code) {
                                                 </span>
                                             </div>
 
+                                            <div>
+                                                <span style="display:inline-block; width:90px;">利益率</span>
+                                                ：<span class="disp-ht">
+                                                    ${
+                                                        row.profit_rate != null
+                                                            ? row.profit_rate + "%"
+                                                            : "ー"
+                                                    }
+                                                </span>
+                                            </div>   
+                                                                                        
                                             <div style="display:inline-block; border-bottom:2px solid #1c0cfa;">
                                                 <span style="display:inline-block; width:90px; font-weight:bold;">出品価格</span>
                                                 ：<span class="disp-sale-price" style="
