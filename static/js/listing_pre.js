@@ -177,8 +177,8 @@ window.loadprelisting = async function (country_code) {
                                     ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：
                                     ${
                                         row.is_black_brand
-                                            ? `<span style="color:red !important; font-weight:bold;">${row.home_brand || ""}</span>`
-                                            : (row.home_brand || "")
+                                            ? `<span class="brand-copy" style="color:red !important; font-weight:bold;cursor:pointer;text-decoration:underline;">${row.home_brand || ""}</span>`
+                                            : `<span class="brand-copy" style="color:#007bff;cursor:pointer;text-decoration:underline;">${row.home_brand || ""}</span>`                                  
                                     }
 
                                     &nbsp;&nbsp;
@@ -186,8 +186,8 @@ window.loadprelisting = async function (country_code) {
                                     ${row.marketplace_host.split(".").pop().toUpperCase()}：
                                     ${
                                         row.is_black_brand
-                                            ? `<span style="color:red !important; font-weight:bold;">${row.region_brand || ""}</span>`
-                                            : (row.region_brand || "")
+                                            ? `<span class="brand-copy" style="color:red !important; font-weight:bold;cursor:pointer;text-decoration:underline;">${row.region_brand || ""}</span>`
+                                            : `<span class="brand-copy" style="color:#007bff;cursor:pointer;text-decoration:underline;">${row.region_brand || ""}</span>`
                                     }
                                 </div>
 

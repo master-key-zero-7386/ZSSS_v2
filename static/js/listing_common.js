@@ -1035,6 +1035,49 @@ document.addEventListener("click", function (e) {
     }
 
 });
+
+// --- ▼ SECTION 14: Brandセルクリックコピー ▼ ---
+document.addEventListener("click", function (e) {
+
+    const cell = e.target.closest(".brand-copy");
+    if (!cell) return;
+
+    const brand = cell.textContent.trim();
+    if (!brand) return;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+
+        navigator.clipboard.writeText(brand).then(() => {
+
+            if (window.showCopyNotification) {
+                window.showCopyNotification("ブランドコピー", cell);
+            }
+
+        }).catch(err => {
+
+            console.error("コピー失敗:", err);
+
+        });
+
+    } else {
+
+        const tmp = document.createElement("textarea");
+        tmp.value = brand;
+
+        document.body.appendChild(tmp);
+        tmp.select();
+
+        document.execCommand("copy");
+
+        document.body.removeChild(tmp);
+
+        if (window.showCopyNotification) {
+            window.showCopyNotification("ブランドコピー", cell);
+        }
+
+    }
+
+});
         // === 通知表示処理（右上フェードアウト） ===
         window.showCopyNotification = function (message, targetEl) {
             const rect = targetEl.getBoundingClientRect();
@@ -1062,7 +1105,7 @@ document.addEventListener("click", function (e) {
             }, 600);
         };
 
-// --- ▼ SECTION 14: 行単位オーバーレイ（listing専用・初期定義） ▼ ---
+// --- ▼ SECTION 15: 行単位オーバーレイ（listing専用・初期定義） ▼ ---
 function showRowOverlay(table, asin) {
     const row = table
         .rows()
