@@ -137,9 +137,9 @@ window.getCommonDataTableOptions = function() {
                         max="${total}"
                         style="
                             width:50px;
-                            height:32px;
+                            height:36px;
                             text-align:center;">
-                    <button class="page-jump-btn" style="height:38px;padding:0 10px;">
+                    <button class="page-jump-btn" style="height:36px;padding:0 10px;">
                         移動
                     </button>
                 </span>
