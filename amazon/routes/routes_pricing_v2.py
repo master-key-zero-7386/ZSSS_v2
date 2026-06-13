@@ -86,8 +86,6 @@ def get_asin_blacklist(user_id, region_marketplace_id, country_code):
 # --- ▼ SECTION 02:HOME Pricing 正規更新 ▼ ---
 def update_home_pricing(*, user_id: int, asin: str, country_code: str):
 
-    print("[HOME_PRICING_START]", asin, flush=True) #// チェック完了後削除
-
     # === 02-01: HOME marketplace_id 確定（listed_items基準） ===
     db_name = f"a_{country_code.lower()}_listed_items.db"
     listed_db = db_name
@@ -263,8 +261,6 @@ def run_refresh_now():
             country_code=country_code,
         )
 
-        print("[RUN_REFRESH_END]", asin, flush=True) #// チェック完了後削除
-
         return jsonify({
             "status": "ok"
         })
@@ -294,8 +290,6 @@ def _get_offer_filter_rules(user_id: int, country_code: str):
 
 # --- ▼ SECTION 05:REGION Pricing 正規更新 ▼ ---
 def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_price: float = 0):
-
-    print("[REGION_PRICING_START]", asin, flush=True) #// チェック完了後削除
 
     # === 05-01: REGION marketplace_id 確定（listed_items基準） ===
     db_name = f"a_{country_code.lower()}_listed_items.db"
@@ -595,9 +589,6 @@ def update_offer_filter_rules():
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
-
-    print("[UPDATE_LISTING_PRICE_START]", asin, flush=True) # チェック完了後削除
-
     # === -01: listed_items取得 ===
     db_name = f"a_{country_code.lower()}_listed_items.db" 
     listed_db = db_name
@@ -873,7 +864,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 (profit_amount / float(final_price)) * 100,
                 1
             )
-            print("[PROFIT_RATE]", asin, profit_rate, flush=True) # チェック完了後削除
 
     except Exception:
         profit_rate = None
