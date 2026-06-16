@@ -14,6 +14,7 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import threading
 from amazon.routes.routes_pricing_v2 import delete_listings_item
+from psycopg2.errors import UniqueViolation
 
 blacklist_bp = Blueprint("blacklist_bp", __name__)
 
@@ -634,12 +635,24 @@ def add_blacklist():
 
         conn.commit()
 
+    # except Exception as e:
+    #     if "UNIQUE" in str(e) or "duplicate key" in str(e):
+    #         return jsonify({
+    #             "status": "error",
+    #             "message": "既に存在しています"
+    #         }), 400
+    #     raise
+
+    except UniqueViolation:
+
+        conn.rollback()
+
+        return jsonify({
+            "status": "error",
+            "message": "既に登録されています"
+        })
+
     except Exception as e:
-        if "UNIQUE" in str(e) or "duplicate key" in str(e):
-            return jsonify({
-                "status": "error",
-                "message": "既に存在しています"
-            }), 400
         raise
 
     finally:
