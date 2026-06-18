@@ -18,6 +18,7 @@ Jinja2==3.1.6
 MarkupSafe==3.0.3
 numpy==2.4.4
 pandas==3.0.2
+psycopg2-binary==2.9.12
 PyPDF2==3.0.1
 python-amazon-sp-api==2.1.8
 python-dateutil==2.9.0.post0
