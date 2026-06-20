@@ -40,8 +40,8 @@ from amazon.db import get_account_info
 
 # --- SECTION : SP-API レスポンス処理（JSON変換 & 生データ返却） ---
 def real_signed_request(method, path, params, host, json=None, cfg=None, user_id=None,
-                        client_id=None, client_secret=None, refresh_token=None,
-                        aws_access_key=None, aws_secret_key=None):
+                        client_id=None, client_secret=None, refresh_token=None
+                        ):
                         
     # --- ▼ 429ブロック判定（ユーザー単位） ▼ ---
     if user_id and is_blocked(user_id, "spapi"):
