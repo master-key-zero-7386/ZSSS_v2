@@ -274,14 +274,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!tokenEl || !linkBtn) return;
 
-        // ==== ▼ 連携（Amazon OAuth 開始）===
-        if (!tokenEl.value) {
-            if (!marketplace) return;
+        // 動作安定せずoauth自動連携認証を停止
+        // // ==== ▼ 連携（Amazon OAuth 開始）===
+        // if (!tokenEl.value) {
+        //     if (!marketplace) return;
 
-            window.location.href =
-                `/amazon/oauth/start?marketplace=${encodeURIComponent(marketplace)}&app_type=${countryCode === "HOME" ? "home" : "region"}`;
-            return;
-        }
+        //     window.location.href =
+        //         `/amazon/oauth/start?marketplace=${encodeURIComponent(marketplace)}&app_type=${countryCode === "HOME" ? "home" : "region"}`;
+        //     return;
+        // }
 
         // === ▼ リセット（UIのみ） ===
         tokenEl.value = "";
