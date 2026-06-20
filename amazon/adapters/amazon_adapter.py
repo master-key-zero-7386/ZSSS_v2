@@ -37,14 +37,10 @@ class AmazonAdapter:
         self.host = self.account.get("host")
         self.refresh_token = self.account.get("refresh_token")
         self.locale = self.account.get("locale", "en_US")
-        self.access_key = self.account.get("access_key")
-        self.secret_key = self.account.get("secret_key")
         self.credentials = {
             "refresh_token": self.account.get("refresh_token"),
             "lwa_app_id": self.account.get("lwa_app_id"),
-            "lwa_client_secret": self.account.get("lwa_client_secret"),
-            "aws_access_key": self.account.get("access_key"),
-            "aws_secret_key": self.account.get("secret_key"),
+            "lwa_client_secret": self.account.get("lwa_client_secret")
         }
         self.seller_id = self.account.get("account_seller_id") 
 
@@ -58,7 +54,7 @@ class AmazonAdapter:
         """SP-API共通通信"""
 
         # --- ▼ APIカウンター（SP-API実行直前）▼ ---
-        record_api_usage(              # SECTION 04 を呼ぶだけ
+        record_api_usage(              
             self.user_id,
             self.marketplace_id,
             endpoint
@@ -79,10 +75,6 @@ class AmazonAdapter:
         refresh_token = acct.get("refresh_token") or ""
         host_to_use = acct.get("spapi_host") or acct.get("host") or self.host
 
-        # ✅ AWSキーを直接ここで渡す（環境変数依存を排除）
-        access_key = acct.get("access_key") or self.access_key
-        secret_key = acct.get("secret_key") or self.secret_key
-
         return real_signed_request(
             method=method,
             path=endpoint,
@@ -93,8 +85,6 @@ class AmazonAdapter:
             client_id=client_id,
             client_secret=client_secret,
             refresh_token=refresh_token,
-            aws_access_key=access_key,
-            aws_secret_key=secret_key,
         )
 
     # --- ▼ SECTION 04: Catalog API 統合呼び出し ▼ ---
@@ -146,9 +136,6 @@ if __name__ == "__main__":
     from amazon.adapters.amazon_adapter import AmazonAdapter
     adapter = AmazonAdapter(country_code="JP")
     print(">>> JP marketplace_id =", adapter.marketplace_id)
-
-    # ▼ ここからAWSキー確認テスト追加
-    print(">>> [TEST] AWS Key Check:", adapter.access_key, adapter.secret_key)
 
 # --- ▼ SECTION 07: Amazon OAuth 認可URL生成（HouseTool / Public 共通） ▼ ---
 def build_oauth_authorize_url(
