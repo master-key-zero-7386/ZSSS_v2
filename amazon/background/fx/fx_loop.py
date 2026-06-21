@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 # fx_secret.env を読み込む
-load_dotenv(r"C:\zsss_env\fx_secret.env")  # ←自分のパスに合わせる
+load_dotenv()
 
 FX_API_KEY = os.getenv("FX_API_KEY")
 
