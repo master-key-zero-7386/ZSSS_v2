@@ -64,10 +64,6 @@ window.loadprelisting = async function (country_code) {
             });
         },        
 
-        // infoCallback: function(settings, start, end, max, total, pre) {　
-        //     return `全 ${total} 件中 ${start} から ${end} 件を表示`; 
-        // },
-        
         order: [],
         orderClasses: false,
         stripeClasses: ["zsss-odd", "zsss-even"],
