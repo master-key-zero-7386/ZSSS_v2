@@ -57,6 +57,7 @@ window.getCommonDataTableOptions = function() {
         dom: '<"top"i p>rt<"bottom"i p>',
 
         language: {
+            info: "全 _TOTAL_ 件中 _START_ から _END_ 件を表示",
             infoEmpty: "0 件中 0 から 0 件を表示",
             paginate: {
                 previous: "前へ",
