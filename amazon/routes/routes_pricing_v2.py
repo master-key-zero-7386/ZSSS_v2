@@ -909,6 +909,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # --- ▼ status判定 ---
     inactive_reason = ""
+    raw_min_price = None
+    
     status_value = 'INACTIVE' if brand_ng_flag else 'ACTIVE'
 
     sku = row["sku"]
@@ -1010,6 +1012,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 profit_rate = %s,
                 information_status = %s,
                 inactive_reason = %s,
+                raw_min_price = %s,
                 updated_at = %s
             WHERE user_id = %s
             AND asin = %s
@@ -1018,6 +1021,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             profit_rate,
             status_value,
             inactive_reason,
+            raw_min_price,
             datetime.utcnow().isoformat(),
             user_id,
             asin,

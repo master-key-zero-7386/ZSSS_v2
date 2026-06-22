@@ -209,6 +209,7 @@ LISTED_ITEMS_COLUMNS = {
     # --- 価格・関税（編集UI用） ---
     "home_price": "REAL",                           # HOME仕入価格
     "region_price": "REAL",                         # REGION価格
+    "raw_min_price": "REAL",                        # 最安競合価格
     "override_price": "REAL",                       # 出品価格 手動変更用 
     "final_price": "REAL",                          # 最終出品価格
     "profit_rate": "REAL",                          # 利益率

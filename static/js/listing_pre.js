@@ -290,7 +290,14 @@ window.loadprelisting = async function (country_code) {
                                 ：<span class="disp-ht">
                                     ${row.max_price ? Number(row.max_price).toLocaleString() : "ー"}
                                 </span>
-                            </div>                                               
+                            </div>  
+
+                            <div>
+                                <span style="display:inline-block; width:90px;">最安値</span>
+                                ：<span class="disp-ht">
+                                    ${row.raw_min_price ? Number(row.raw_min_price).toLocaleString() : "ー"}
+                                </span>
+                            </div>
 
                             <div>
                                 <span style="display:inline-block; width:90px;">選択競合価格</span>
