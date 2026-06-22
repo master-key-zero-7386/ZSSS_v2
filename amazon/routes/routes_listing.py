@@ -494,6 +494,7 @@ def _build_listing_row_with_shipping(
         "region_brand": row["region_brand"],
         "region_manufacturer": row["region_manufacturer"],
         "information_status": row["information_status"],
+        "inactive_reason": row["inactive_reason"],
         "listing_status": row["listing_status"],
 
         "updated_at": row["updated_at"],
@@ -659,6 +660,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(region_manufacturer, '') AS region_manufacturer,
             COALESCE(information_status, '') AS information_status,
             COALESCE(listing_status, '') AS listing_status,
+            COALESCE(inactive_reason, '') AS inactive_reason,
             updated_at,
             created_at 
         FROM listed_items

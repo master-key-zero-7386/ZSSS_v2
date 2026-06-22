@@ -896,7 +896,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         brand_list.append(row["region_brand"])
 
     brand_ng_flag = any(
-        bl.lower() in b.lower()
+        bl.lower() == b.lower()
         for b in brand_list
         for bl in brand_ng_list
     )
@@ -905,27 +905,31 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     asin_ng_flag = asin in asin_ng_list 
 
     # --- ▼ 統合 ---
-    brand_ng_flag = brand_ng_flag or asin_ng_flag     
+    brand_ng_flag = brand_ng_flag or asin_ng_flag
 
     # --- ▼ status判定 ---
+    inactive_reason = ""
     status_value = 'INACTIVE' if brand_ng_flag else 'ACTIVE'
 
     sku = row["sku"]
 
     if brand_ng_flag:
         status_value = 'INACTIVE'
+        inactive_reason = "BLACKLIST"
 
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
     elif final_price is None or final_price == 0:
         status_value = 'INACTIVE'
+        inactive_reason = "NO_PRICE"
 
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
     elif max_price and final_price and float(final_price) > float(max_price):
         status_value = 'INACTIVE'
+        inactive_reason = "MAX_PRICE"
 
         if is_listed and row["information_status"] != "INACTIVE":
 
@@ -981,6 +985,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 if float(final_price) > float(max_allowed_price):
 
                     status_value = 'INACTIVE' 
+                    inactive_reason = "COMPETITOR_RATIO"
 
                     if is_listed and row["information_status"] != "INACTIVE":
 
@@ -1004,6 +1009,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             SET final_price = %s,
                 profit_rate = %s,
                 information_status = %s,
+                inactive_reason = %s,
                 updated_at = %s
             WHERE user_id = %s
             AND asin = %s
@@ -1011,6 +1017,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             final_price,
             profit_rate,
             status_value,
+            inactive_reason,
             datetime.utcnow().isoformat(),
             user_id,
             asin,

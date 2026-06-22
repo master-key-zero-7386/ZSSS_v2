@@ -229,6 +229,7 @@ LISTED_ITEMS_COLUMNS = {
     # --- ステータス関連 ---
     "listing_status": "TEXT DEFAULT ''",            # 出品状態 Status
     "deleting_flag": "INTEGER DEFAULT 0",           # 削除状態フラグ：対TTL用
+    "inactive_reason": "TEXT DEFAULT ''",           # INACTIVE理由
 
     "created_at": "TEXT",                           # 登録TIME
     "updated_at": "TEXT",                           # 更新TIME

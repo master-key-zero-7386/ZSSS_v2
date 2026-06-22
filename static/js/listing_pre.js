@@ -56,7 +56,6 @@ window.loadprelisting = async function (country_code) {
             fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
-
                 callback({
                     data: json.pre,
                     recordsTotal: json.total_count,
@@ -254,7 +253,11 @@ window.loadprelisting = async function (country_code) {
                         <div class="listing-base">
                             <div>
                                 <span style="display:inline-block; width:90px;">情報取得</span>
-                                ：<span class="disp-status"><b>${statusLabel}</b></span>
+                                ：<span class="disp-status">
+                                    <b style="color:${statusLabel === 'INACTIVE' ? '#e68b02' : '#3528a7'};">
+                                        ${statusLabel}
+                                    </b>
+                                </span>
                             </div>
 
                             <div>       
@@ -412,7 +415,6 @@ window.loadprelisting = async function (country_code) {
                 data: null,
                 orderable: false,
                 render: function (_data, _type, row) {
-
                     const fmt = (utc, tz) => { 
                         if (!utc) return "-";
                         const d = new Date(utc + "Z");
@@ -423,6 +425,11 @@ window.loadprelisting = async function (country_code) {
                         <div>
                             <div>更新：${fmt(row.updated_at, row.home_timezone)}</div>
                             <div>登録：${fmt(row.created_at, row.home_timezone)}</div>
+                            ${
+                                row.information_status === "INACTIVE" && row.inactive_reason
+                                    ? `<div>理由：${row.inactive_reason}</div>`
+                                    : ""
+                            }                                              
                         </div>
                     `;
                 }

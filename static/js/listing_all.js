@@ -253,7 +253,11 @@ window.loadalllisting = async function(country_code) {
                                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                                                 <div>
                                                     <span style="display:inline-block; width:90px;">情報取得</span>
-                                                    ：<span class="disp-status"><b>${statusLabel}</b></span>
+                                                    ：<span class="disp-status">
+                                                        <b style="color:${statusLabel === 'INACTIVE' ? '#e68b02' : '#3528a7'};">
+                                                            ${statusLabel}
+                                                        </b>
+                                                    </span>
                                                 </div>
 
                                                 <!-- 時期搭載機能 現時点でバグのため一旦停止 
@@ -475,6 +479,11 @@ window.loadalllisting = async function(country_code) {
                                     <div>
                                         <div>更新：${fmt(row.updated_at, row.home_timezone)}</div>
                                         <div>登録：${fmt(row.created_at, row.home_timezone)}</div>
+                                        ${
+                                            row.information_status === "INACTIVE" && row.inactive_reason
+                                                ? `<div>理由：${row.inactive_reason}</div>`
+                                                : ""
+                                        }                                        
                                     </div>
                                 `;
                             }
