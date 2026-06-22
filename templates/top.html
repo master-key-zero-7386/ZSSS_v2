@@ -120,19 +120,27 @@
 
             <input type="file" id="csvFileInput" accept=".csv" style="display:none;" />
             
-            <!-- CSVファイル選択
-            <div class="file-input-row"> -->
-            <div class="file-input-row" style="display:flex; align-items:center;"> 
+            <!-- CSVファイル選択 -->
+            <div class="file-input-row" style="display:flex; align-items:center;">
                 <div class="file-input-wrapper">
+
                     <div class="file-input-row">
                         <input type="text" id="csvFileName" class="file-input-text" placeholder="出品国のCSVファイルを選択してください" readonly />
-                    <button type="button" id="csvUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+                        <button type="button" id="csvUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
 
-                    <button type="button" id="exportListedCsvBtn" class="btn-blue" style="height:36px; margin-left:10px;">CSV Export</button> 
-                    <span style="margin-left:10px; font-size:14px; color:#000000;">※登録済みASIN一覧をCSV出力</span>           
+                        <button type="button" id="exportListedCsvBtn" class="btn-blue" style="height:36px; margin-left:10px;">CSV Export</button>
+
+                        <span style="margin-left:10px; font-size:14px; color:#000000;">※登録済みASIN一覧をCSV出力</span>
                     </div>
+
+                    <div class="file-input-row" style="margin-top:10px;">
+                        <input type="text" id="asinInput" class="file-input-text" placeholder="ASINを入力" style="flex:none; width:250px;"/>
+                        <button type="button" id="asinAddBtn" class="btn-blue" style="height:36px;">ASIN追加</button>
+                    </div>
+
                 </div>
-            </div>    
+            </div>           
+
         
             <!-- 結果表示エリア -->
             <div id="csvResultArea" style="margin-top:20px;">

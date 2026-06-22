@@ -88,18 +88,54 @@ def check_csv():
         # country_code と file を取得
         country_code = request.form.get("country_code")
         file = request.files.get("file")
-        if not file or not country_code:
-            return jsonify({"status": "error", "message": "ファイルまたはリージョンが指定されていません"}), 400
+        asin = request.form.get("asin")
 
-        # uploads/ に一時保存
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(save_path)
+        if not country_code:
+            return jsonify({
+                "status": "error",
+                "message": "リージョンが指定されていません"
+            }), 400
 
-        # CSV 読み込み
-        with open(save_path, newline="", encoding="utf-8") as f:
-            reader = csv.reader(f)
-            asin_list = [row[0].strip() for row in reader if row]
+        # CSV取込
+        if file:
+
+            filename = secure_filename(file.filename)
+            save_path = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(save_path)
+
+            with open(save_path, newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                asin_list = [row[0].strip() for row in reader if row]
+
+            os.remove(save_path)
+
+        # ASIN直接追加
+        elif asin:
+
+            asin = asin.strip().upper()
+
+            asin_list = [asin]
+
+            records = [{
+                "asin": asin,
+                "sku": ""
+            }]
+
+            condition = request.form.get("condition", "NEW001")
+
+            today = datetime.utcnow().strftime("%Y%m%d")
+
+            for rec in records:
+                if not rec["sku"]:
+                    rec["sku"] = f"Z_{country_code.upper()}_{rec['asin']}_{today}_{condition}"
+
+        else:
+
+            return jsonify({
+                "status": "error",
+                "message": "ファイルまたはASINが指定されていません"
+            }), 400
+
 
         # DBチェック結果格納用
         ok_asins = []
@@ -114,21 +150,45 @@ def check_csv():
             if reason:
                 blacklist_asins[asin] = reason
 
+        # --- ▼ 既登録チェック ▼ ---
+        listed_db = os.path.join(
+            db_dir,
+            f"a_{country_code.lower()}_listed_items.db"
+        )
+
+        if os.path.exists(listed_db):
+
+            if DB_MODE == "sqlite":
+                conn = sqlite3.connect(listed_db, timeout=30)
+                conn.execute("PRAGMA journal_mode=WAL")
+            else:
+                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
+            cur = conn.cursor()
+
+            for asin in asin_list:
+                cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
+                if cur.fetchone():
+                    listed_asins.append(asin)
+            conn.close()
+
          # 出品可能ASIN = 全体 − ブラックリスト − 出品済み
         ok_asins = [
             asin for asin in asin_list
-            if asin not in blacklist_asins ]
+            if asin not in blacklist_asins
+            and asin not in listed_asins ]
 
-        # 完全削除
-        os.remove(save_path)
+        # # 完全削除
+        # os.remove(save_path)
 
         return jsonify({
             "status": "success",
             "total_count": len(asin_list),   # ✅ ASIN件数だけでOK
             "ok": [
-                {"asin": asin, "sku": ""}   # SKUは空欄でも良いならこれで
-                for asin in asin_list
-                if asin not in blacklist_asins and asin not in listed_asins
+                {"asin": rec["asin"], "sku": rec["sku"]}
+                for rec in records
+                if rec["asin"] not in blacklist_asins
+                and rec["asin"] not in listed_asins
             ],
             "blacklist": [
                 {"asin": a, "reason": r}

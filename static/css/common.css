@@ -385,8 +385,8 @@ input[type="checkbox"] {
 
 .file-input-text {
   flex: 1;
-  min-width: 300px;
-  height: 60px;
+  min-width: 250px;
+  height: 45px;
   padding: 0 10px;
   border: 1px solid #ccc;
   border-radius: 4px;

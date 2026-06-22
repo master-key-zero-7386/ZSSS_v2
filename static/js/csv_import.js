@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileNameBox = document.getElementById("csvFileName");
     const resultArea = document.getElementById("csvResultArea");
 
+    const asinInput = document.getElementById("asinInput");
+    const asinAddBtn = document.getElementById("asinAddBtn");
+
     // 枠をクリックしたら file input を開く
     if (fileNameBox) {
         fileNameBox.addEventListener("click", () => {
@@ -91,6 +94,81 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
     }
+
+    // ASIN直接UPLOAD
+    if (asinAddBtn) {
+        asinAddBtn.addEventListener("click", () => {
+
+            const asin = asinInput.value.trim().toUpperCase();
+
+            if (!asin) {
+                alert("ASINを入力してください");
+                return;
+            }
+
+            const table = $("#csvOkTable").DataTable();
+
+            const exists = table
+                .rows()
+                .data()
+                .toArray()
+                .some(row => row.asin === asin);
+
+            if (exists) {
+                window.showToast("重複しています", "error");
+                return;
+            }
+
+            const formData = new FormData();
+
+            formData.append("asin", asin);
+            formData.append(
+                "country_code",
+                document.getElementById("globalRegion").value
+            );
+
+            fetch("/csv/check", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+
+                if (data.status === "success") {
+
+                    let okTable = $('#csvOkTable').DataTable();
+                    let listedTable = $('#csvListedTable').DataTable();
+                    let blacklistTable = $('#csvBlacklistTable').DataTable();
+
+                    (data.ok || []).forEach(item => okTable.row.add(item));
+                    (data.listed || []).forEach(item => listedTable.row.add(item));
+                    (data.blacklist || []).forEach(item => blacklistTable.row.add(item));
+
+                    okTable.draw();
+                    listedTable.draw();
+                    blacklistTable.draw();
+                    asinInput.value = "";
+                }
+            })
+            .catch(err => {
+                console.error(err);
+            });
+        });
+    }
+
+    // ASIN Enter追加
+    if (asinInput) {
+
+        asinInput.addEventListener("keypress", (e) => {
+
+            if (e.key === "Enter") {
+
+                e.preventDefault();
+
+                asinAddBtn.click();
+            }
+        });
+    }    
 
     // DataTables 初期化
     $('#csvOkTable').DataTable({
