@@ -1153,8 +1153,6 @@ def search_listing():
 
         conn_cache.close()
 
-        conn_cfg.close()
-
         conn_mst = get_conn("a_marketplaces_master.db")
         cur_mst = conn_mst.cursor()
 
