@@ -164,17 +164,8 @@ def get_shipping_rate_copy_source_list():
         WHERE user_id = %s
         ORDER BY marketplace_id
     """, (user_id,))
-
-    # チェック完了後削除
-    rows = cur.fetchall()
-    print(type(rows))  # チェック完了後削除
-    print(rows)        # チェック完了後削除
-    return jsonify({"status": "debug"})
-
-    marketplace_rows = [r[0] for r in rows]
-
-    # marketplace_rows = [r[0] for r in cur.fetchall()]
-    # marketplace_rows = [r["marketplace_id"] for r in cur.fetchall()]
+    
+    marketplace_rows = [r["marketplace_id"] for r in rows]
 
     conn.close()
 
