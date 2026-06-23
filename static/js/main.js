@@ -140,6 +140,8 @@ window.addEventListener("DOMContentLoaded", () => {
                     window.activeMarketplace =
                         window.marketplaceInfo[globalRegionEl.value];
 
+                    console.log("SAVE COUNTRY", globalRegionEl.value); // チェック完了後削除    
+
                     // ★ 初期選択時も保存
                     localStorage.setItem(
                         "sellingCountryCode",
