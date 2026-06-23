@@ -167,7 +167,9 @@ def get_shipping_rate_copy_source_list():
 
     # チェック完了後削除
     rows = cur.fetchall()
-    print(rows)  # チェック完了後削除
+    print(type(rows))  # チェック完了後削除
+    print(rows)        # チェック完了後削除
+    return jsonify({"status": "debug"})
 
     marketplace_rows = [r[0] for r in rows]
 
