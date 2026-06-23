@@ -140,6 +140,12 @@ window.addEventListener("DOMContentLoaded", () => {
                     window.activeMarketplace =
                         window.marketplaceInfo[globalRegionEl.value];
 
+                    // ★ 初期選択時も保存
+                    localStorage.setItem(
+                        "sellingCountryCode",
+                        globalRegionEl.value
+                    );    
+                                        
                     syncAccountRegionTitle();
 
                     // ★ account 以外でのみイベント発火
