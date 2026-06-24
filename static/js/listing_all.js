@@ -138,7 +138,7 @@ window.loadalllisting = async function(country_code) {
                                                             border-radius:4px;
                                                             background:#f7f1ea;
                                                             cursor:pointer;
-                                                        ">HOME</button>
+                                                        ">${row.home_marketplace_host.split(".").pop().toUpperCase()}</button>
                                                     </a><a href="${region_host}/dp/${asin}" target="_blank" style="text-decoration:none;">
                                                         <button style="
                                                             padding:2px 8px;
@@ -148,7 +148,7 @@ window.loadalllisting = async function(country_code) {
                                                             background:#62c0f7;
                                                             color:#fff;
                                                             cursor:pointer;
-                                                        ">REGION</button>
+                                                        ">${row.marketplace_host.split(".").pop().toUpperCase()}</button>
                                                     </a>
                                                     <span class="brand-gate">
                                                         ${
