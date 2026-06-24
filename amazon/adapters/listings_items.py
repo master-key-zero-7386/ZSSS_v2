@@ -110,13 +110,13 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
 
         brand = row_li["region_brand"] if row_li and row_li["region_brand"] else "UNKNOWN"
 
-        save_brand_gate_result(
-            user_id=user_id,
-            marketplace_id=marketplace_id,
-            brand=brand,
-            status=status,
-            reason=str(errors) if errors else None
-        )
+        # save_brand_gate_result(
+        #     user_id=user_id,
+        #     marketplace_id=marketplace_id,
+        #     brand=brand,
+        #     status=status,
+        #     reason=str(errors) if errors else None
+        # )
 
     except Exception as e:
         print("BrandGate save error:", e)

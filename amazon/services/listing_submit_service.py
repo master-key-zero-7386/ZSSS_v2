@@ -31,13 +31,13 @@ def submit_listing_service(user_id, country_code, marketplace_id, seller_sku, as
 
     status = "NG" if errors else "OK"
 
-    save_brand_gate_result(
-        user_id=user_id,
-        marketplace_id=marketplace_id,
-        brand=brand,
-        status=status,
-        reason=str(errors) if errors else None
-    )
+    # save_brand_gate_result(
+    #     user_id=user_id,
+    #     marketplace_id=marketplace_id,
+    #     brand=brand,
+    #     status=status,
+    #     reason=str(errors) if errors else None
+    # )
 
     return response
 

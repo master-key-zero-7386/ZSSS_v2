@@ -28,6 +28,7 @@ from sp_api.api import Products
 from pathlib import Path
 from auth.routes_auth import login_required
 from amazon.adapters.brand_gate_adapter import BrandGateAdapter
+from amazon.utils.brand_gate_store import save_brand_gate_result
 
 DATA_DIR = os.path.join(BASE_DIR, "data")
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
@@ -216,7 +217,38 @@ def brand_gate_check():
         adapter = BrandGateAdapter(user_id, country_code, marketplace_id)
 
         for asin in asins:
-            result.append(adapter.check(asin))
+
+            # result.append(adapter.check(asin))
+
+            check_result = adapter.check(asin)
+
+            result.append(check_result)
+
+            conn_li = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
+            cur_li = conn_li.cursor()
+
+            cur_li.execute("""
+                SELECT region_brand
+                FROM listed_items
+                WHERE asin = %s
+                AND user_id = %s
+                LIMIT 1
+            """, (asin, user_id))
+
+            row_li = cur_li.fetchone()
+
+            conn_li.close()
+
+            brand = row_li["region_brand"] if row_li and row_li["region_brand"] else "UNKNOWN"
+
+            save_brand_gate_result(
+                user_id=user_id,
+                marketplace_id=marketplace_id,
+                brand=brand,
+                status=check_result["status"],
+                reason=check_result.get("note")
+            )
 
         return jsonify(result)
 

@@ -154,6 +154,7 @@ window.loadprelisting = async function (country_code) {
                                             ${
                                                 row.brand_gate_status === "OK" ? "🟢" :
                                                 row.brand_gate_status === "NG" ? "🔴" :
+                                                row.brand_gate_status === "APPROVAL" ? "🟡" :
                                                 row.brand_gate_status === "UNKNOWN" ? "⚪" :
                                                 "⚪"
                                             }
