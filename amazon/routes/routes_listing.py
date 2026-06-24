@@ -599,6 +599,53 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
+    if sort == "brandgate_ok":
+        query_filter += """
+            AND LOWER(region_brand) IN (
+                SELECT LOWER(brand)
+                FROM brand_gate_result
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+                AND status = 'OK'
+            )
+        """
+        params_base.extend([user_id, marketplace_id])    
+
+    if sort == "brandgate_approval":
+        query_filter += """
+            AND LOWER(region_brand) IN (
+                SELECT LOWER(brand)
+                FROM brand_gate_result
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+                AND status = 'APPROVAL'
+            )
+        """
+        params_base.extend([user_id, marketplace_id])
+
+    if sort == "brandgate_ng":
+        query_filter += """
+            AND LOWER(region_brand) IN (
+                SELECT LOWER(brand)
+                FROM brand_gate_result
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+                AND status = 'NG'
+            )
+        """
+        params_base.extend([user_id, marketplace_id])     
+
+    if sort == "brandgate_unknown":
+        query_filter += """
+            AND LOWER(region_brand) NOT IN (
+                SELECT LOWER(brand)
+                FROM brand_gate_result
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+            )
+        """
+        params_base.extend([user_id, marketplace_id])
+
     # if info_status != "all":
     if info_status == "unfetched":
         query_filter += """
