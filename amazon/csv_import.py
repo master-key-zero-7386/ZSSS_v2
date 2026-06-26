@@ -108,6 +108,17 @@ def check_csv():
                 asin_list = [row[0].strip() for row in reader if row]
 
             os.remove(save_path)
+            
+            records = []
+
+            condition = request.form.get("condition", "NEW001")
+            today = datetime.utcnow().strftime("%Y%m%d")
+
+            for asin in asin_list:
+                records.append({
+                    "asin": asin,
+                    "sku": f"Z_{country_code.upper()}_{asin}_{today}_{condition}"
+                })        
 
         # ASIN直接追加
         elif asin:
@@ -190,10 +201,22 @@ def check_csv():
                 if rec["asin"] not in blacklist_asins
                 and rec["asin"] not in listed_asins
             ],
+
+            # "blacklist": [
+            #     {"asin": a, "reason": r}
+            #     for a, r in blacklist_asins.items()
+            # ],
+
             "blacklist": [
-                {"asin": a, "reason": r}
-                for a, r in blacklist_asins.items()
+                {
+                    "asin": rec["asin"],
+                    "sku": rec["sku"],
+                    "reason": blacklist_asins[rec["asin"]]
+                }
+                for rec in records
+                if rec["asin"] in blacklist_asins
             ],
+
             "listed": [
                 {"asin": asin, "sku": ""}   # 必要ならDBから拾って埋める
                 for asin in listed_asins
