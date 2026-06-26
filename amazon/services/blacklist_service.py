@@ -52,21 +52,30 @@ def is_blacklisted(asin, user_id, country_code, marketplace_id, db_dir):
     return False
 
 # --- ▼ SECTION 02: ブラックリスト理由取得（From：CSV / check） ▼ ---
-def get_blacklist_reason(asin, country_code, db_dir):
+def get_blacklist_reason(asin, user_id, country_code, marketplace_id, db_dir):
 
     blacklist_dir = os.path.join(db_dir, "blacklist")
 
     reasons = []
 
-    # --- allチェック ---
-    all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")
-    if os.path.exists(all_db):
-        conn = get_conn("a_all_blacklist_asin.db")
-        cur = conn.cursor()
-        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = %s", (asin,))
-        if cur.fetchone():
-            reasons.append("All Blacklist")
-        conn.close()
+    # # --- allチェック 未搭載のためコメントアウト ---
+    # all_db = os.path.join(blacklist_dir, "a_all_blacklist_asin.db")
+    # if os.path.exists(all_db):
+    #     conn = get_conn("a_all_blacklist_asin.db")
+    #     cur = conn.cursor()
+    #     cur.execute(
+    #         """
+    #         SELECT 1
+    #         FROM blacklist_asin
+    #         WHERE asin = %s
+    #         AND user_id = %s
+    #         AND region_marketplace_id = %s
+    #         """,
+    #         (asin, user_id, marketplace_id)
+    #     )   
+    #     if cur.fetchone():
+    #         reasons.append("All Blacklist")
+    #     conn.close()
 
     # --- countryチェック ---
     country_db = os.path.join(
@@ -76,7 +85,16 @@ def get_blacklist_reason(asin, country_code, db_dir):
     if os.path.exists(country_db):
         conn = get_conn(f"a_{country_code.lower()}_blacklist_asin.db")
         cur = conn.cursor()
-        cur.execute("SELECT 1 FROM blacklist_asin WHERE asin = %s", (asin,))
+        cur.execute(
+            """
+            SELECT 1
+            FROM blacklist_asin
+            WHERE asin = %s
+            AND user_id = %s
+            AND region_marketplace_id = %s
+            """,
+            (asin, user_id, marketplace_id)
+        )     
         if cur.fetchone():
             reasons.append(f"{country_code.upper()} Blacklist")
         conn.close()

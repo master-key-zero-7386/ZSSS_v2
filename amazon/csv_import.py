@@ -96,6 +96,26 @@ def check_csv():
                 "message": "リージョンが指定されていません"
             }), 400
 
+        # ▼ user_id取得
+        user_id = session.get("user_id")
+
+        # ▼ marketplace_id取得
+        conn_m = get_conn("a_marketplaces.db")
+        cur_m = conn_m.cursor()
+
+        cur_m.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s
+            AND LOWER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code.lower()))
+
+        row_market = cur_m.fetchone()
+        marketplace_id = row_market["marketplace_id"] if row_market else None
+
+        conn_m.close()
+
         # CSV取込
         if file:
 
@@ -156,7 +176,7 @@ def check_csv():
         db_dir = current_app.config.get("DB_DIR")
 
         for asin in asin_list:
-            reason = get_blacklist_reason(asin, country_code, db_dir)
+            reason = get_blacklist_reason(asin, user_id, country_code, marketplace_id, db_dir)
 
             if reason:
                 blacklist_asins[asin] = reason
