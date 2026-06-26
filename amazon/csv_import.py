@@ -108,7 +108,7 @@ def check_csv():
                 asin_list = [row[0].strip() for row in reader if row]
 
             os.remove(save_path)
-            
+
             records = []
 
             condition = request.form.get("condition", "NEW001")
@@ -201,11 +201,6 @@ def check_csv():
                 if rec["asin"] not in blacklist_asins
                 and rec["asin"] not in listed_asins
             ],
-
-            # "blacklist": [
-            #     {"asin": a, "reason": r}
-            #     for a, r in blacklist_asins.items()
-            # ],
 
             "blacklist": [
                 {
