@@ -722,6 +722,9 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     rows = cur.fetchall()
 
+    for r in rows[:10]:
+        print(r["asin"], r["billable_weight_kg"])  # チェック完了後削除    
+
     # --- 件数取得 ---
     cur.execute(f"""
         SELECT COUNT(*) AS count
