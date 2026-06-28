@@ -43,7 +43,7 @@ def calculate_listing_price(
     min_profit_rate: float,                                # 目標利益率（販売額基準％）
     max_profit_rate: float,                                # 最大利益率（販売額基準％）  
     gst_rate: float,                                       # 消費税率（GST/VAT％）
-    tax_mode: str,                                         # 関税計算方式（FOB / CIF）
+    tax_mode: str,                                         # 関税計算方式（FOB / CIF / CIF_EX）
     customs_duty_rate: float,                              # 関税率（％）
     oversea_remittance_fee_rate: float,                    # 海外送金手数料率（％）
     fuel_surcharge_rate: float,                            # 燃油サーチャージ率（％）
@@ -70,17 +70,23 @@ def calculate_listing_price(
     # --- 国際送料補正 ---
     intl_shipping = shipping_fee * (1 + fuel)              # 計算式: 国際送料 = 基本送料 × (1 + 燃油率)
 
-    # --- CIF原価（発送前原価） ---
-    pre = home_price + intl_shipping + packing + outsource # 計算式: CIF原価 = 仕入 + 国際送料 + 梱包費 + 外注費
+    # --- 関税計算用CIF（正式なCIF） ---
+    cif_cost = home_price + intl_shipping                  # 商品代金＋国際送料
+
+    # --- 利益計算用原価（ZSSS独自：経費込み） ---
+    pre = home_price + intl_shipping + packing + outsource # 計算式: 利益計算用原価 = 仕入 + 国際送料 + 梱包費 + 外注費
 
     # --- 関税計算 ---
     if tax_mode == "FOB":
-        duty = home_price * d                              # 計算式: 関税 = 仕入原価 × 関税率（FOB方式）
-    else:
-        duty = pre * d                                     # 計算式: 関税 = CIF原価 × 関税率（CIF方式）
+        duty = home_price * d                              # FOB : 関税 = 仕入原価 × 関税率
+    elif tax_mode == "CIF":
+        duty = cif_cost * d                                # CIF : 関税 = (商品代金＋国際送料) × 関税率 （正式なCIF）
+
+    elif tax_mode == "CIF_EX":                             # 正式なCIFに梱包費・発送外注費を含めた拡張方式 ▼▼ ---
+        duty = pre * d                                     # CIF_EX : 関税 =（商品代金＋国際送料＋梱包費＋発送外注費）× 関税率（ZSSS独自）
 
     # --- 総原価 ---
-    total_cost = pre + duty                                # 計算式: 総原価 = CIF原価 + 関税
+    total_cost = pre + duty                                # 計算式: 総原価 = 原価 + 関税
 
     # --- 最低利益価格 ---
     denom_min = 1 - (r * (1 + g)) - g - m_min - rem        # 計算式: 分母 = 1 - (手数料率 × (1 + 税率)) - 税率 - 最低利益率 - 送金手数料率
@@ -150,9 +156,10 @@ def calculate_listing_price(
         "breakdown": {
             "home_price": home_price,
             "intl_shipping": round(intl_shipping, 2),
+            "pre_cost": round(pre, 2),   
             "packing": packing,
             "outsource": outsource,
-            "cif_cost": round(pre, 2),
+            "cif_cost": round(cif_cost, 2),
             "duty": round(duty, 2),
             "amazon_fee_rate": r,
             "gst_rate": g,

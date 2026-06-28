@@ -892,24 +892,47 @@ def run_region_pricing_debug():
         # === 根拠計算式 ===    
         bd = calc_result["breakdown"]
 
-        bd["cif_formula"] = (
-            f'{bd["cif_cost"]} = '
-            f'{bd["home_price"]} + '
-            f'{bd["intl_shipping"]} + '
-            f'{bd["packing"]} + '
-            f'{bd["outsource"]}'
-        )
+        if tax_mode == "FOB":
+            bd["cif_formula"] = (
+                f'{bd["home_price"]} = '
+                f'{bd["home_price"]}'
+            )
+
+        elif tax_mode == "CIF":
+            bd["cif_formula"] = (
+                f'{bd["cif_cost"]} = '
+                f'{bd["home_price"]} + '
+                f'{bd["intl_shipping"]}'
+            )
+
+        elif tax_mode == "CIF_EX":
+            bd["cif_formula"] = (
+                f'{bd["pre_cost"]} = '
+                f'{bd["home_price"]} + '
+                f'{bd["intl_shipping"]} + '
+                f'{bd["packing"]} + '
+                f'{bd["outsource"]}'
+            )
+
+        if tax_mode == "FOB":
+            duty_base = bd["home_price"]
+
+        elif tax_mode == "CIF":
+            duty_base = bd["cif_cost"]
+
+        elif tax_mode == "CIF_EX":
+            duty_base = bd["pre_cost"]
 
         bd["duty_formula"] = (
             f'{bd["duty"]} = '
-            f'{bd["cif_cost"]} × {bd["customs_duty_rate"] * 100:.2f}%'
+            f'{duty_base} × {bd["customs_duty_rate"] * 100:.2f}%'
         )
 
         bd["total_cost_formula"] = (
             f'{calc_result["total_cost"]} = '
-            f'{bd["cif_cost"]} + '
+            f'{bd["pre_cost"]} + '
             f'{bd["duty"]}'
-        )
+        ) 
 
         denom_min = 1 - (bd["amazon_fee_rate"] * (1 + bd["gst_rate"])) - bd["gst_rate"] - bd["profit_min_rate"] - bd["remittance_rate"]
         bd["pmin_formula"] = (

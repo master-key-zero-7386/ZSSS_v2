@@ -116,7 +116,7 @@ async function runPricingDebug() {
     pricingHtml += `  Outsource      : ${bd.outsource ?? "-"}\n`;
     pricingHtml += `  Packing        : ${bd.packing ?? "-"}\n\n`;
 
-    pricingHtml += `CIF Cost         : ${bd.cif_cost ?? "-"}\n`;
+    pricingHtml += `Duty Base        : ${bd.cif_cost ?? "-"}\n`;
     pricingHtml += `      ${bd.cif_formula ?? ""}\n\n`;                  // 原価計算式  
 
     pricingHtml += `Duty             : ${bd.duty ?? "-"}\n`;
