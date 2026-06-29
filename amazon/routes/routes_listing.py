@@ -2,7 +2,7 @@
 # Copyright (c) 2026 ZSSS
 # All Rights Reserved.
 # ----------------------------------------------------------
-# ファイル名: amazon/routes_listing.py
+# ファイル名: amazon\routes\routes_listing.py
 # 目的: Listing（Pre/ALL）管理API
 #      - ASINとSKUの登録・削除
 #      - HOME/regionのカタログ情報をSP-APIで取得してDBへ反映
@@ -516,6 +516,9 @@ def _build_listing_row_with_shipping(
         "home_marketplace_host": home_marketplace_host,
         "marketplace_host": marketplace_host,   
 
+        "home_country_code": row["home_country_code"],
+        "region_country_code": row["region_country_code"],        
+
         "brand_gate_status": brand_gate_status,
         "brand_gate_reason": brand_gate_reason, 
 
@@ -527,7 +530,7 @@ def _build_listing_row_with_shipping(
     
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
 def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword=""):
-    
+
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -689,6 +692,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         SELECT 
             asin, sku,
             home_marketplace_id,  
+            hm.country_code AS home_country_code,
+            rm.country_code AS region_country_code,
             COALESCE(home_title, '') AS home_title,
             COALESCE(home_brand, '') AS home_brand,
             COALESCE(image_url, '') AS image_url,
@@ -710,20 +715,23 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(information_status, '') AS information_status,
             COALESCE(listing_status, '') AS listing_status,
             COALESCE(inactive_reason, '') AS inactive_reason,
-            updated_at,
-            created_at 
-        FROM listed_items
-        WHERE LOWER(status) = %s
-        AND user_id = %s
+            li.updated_at,
+            li.created_at
+        FROM listed_items li
+
+        LEFT JOIN marketplaces_master hm
+            ON li.home_marketplace_id = hm.marketplace_id
+
+        LEFT JOIN marketplaces_master rm
+            ON li.region_marketplace_id = rm.marketplace_id
+        WHERE LOWER(li.status) = %s
+        AND li.user_id = %s
         {query_filter}
         ORDER BY {order_by}
         LIMIT %s OFFSET %s
     """, params_data)
 
     rows = cur.fetchall()
-
-    for r in rows[:10]:
-        print(r["asin"], r["billable_weight_kg"])  # チェック完了後削除    
 
     # --- 件数取得 ---
     cur.execute(f"""

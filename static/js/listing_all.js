@@ -138,7 +138,7 @@ window.loadalllisting = async function(country_code) {
                                                             border-radius:4px;
                                                             background:#f7f1ea;
                                                             cursor:pointer;
-                                                        ">${row.home_marketplace_host.split(".").pop().toUpperCase()}</button>
+                                                        ">${row.home_country_code}</button>
                                                     </a><a href="${region_host}/dp/${asin}" target="_blank" style="text-decoration:none;">
                                                         <button style="
                                                             padding:2px 8px;
@@ -148,7 +148,7 @@ window.loadalllisting = async function(country_code) {
                                                             background:#62c0f7;
                                                             color:#fff;
                                                             cursor:pointer;
-                                                        ">${row.marketplace_host.split(".").pop().toUpperCase()}</button>
+                                                        ">${row.region_country_code}</button>
                                                     </a>
                                                     <span class="brand-gate">
                                                         ${
@@ -171,7 +171,7 @@ window.loadalllisting = async function(country_code) {
                                             
                                             <div style="font-size:13px; color:#666;">
                                                 <span style="display:inline-block; width:70px; font-weight:bold;">Brand</span>
-                                                ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：
+                                                ：${row.home_country_code}：
                                                 ${
                                                     row.is_black_brand
                                                         ? `<span class="brand-copy" style="color:red !important; font-weight:bold;cursor:pointer;text-decoration:underline;">${row.home_brand || ""}</span>`
@@ -180,7 +180,7 @@ window.loadalllisting = async function(country_code) {
 
                                                 &nbsp;&nbsp;
 
-                                                ${row.marketplace_host.split(".").pop().toUpperCase()}：
+                                                ${row.region_country_code}：
                                                 ${
                                                     row.is_black_brand
                                                         ? `<span class="brand-copy" style="color:red !important; font-weight:bold;cursor:pointer;text-decoration:underline;">${row.region_brand || ""}</span>`
@@ -190,17 +190,17 @@ window.loadalllisting = async function(country_code) {
 
                                             <div style="font-size:13px; color:#666;">
                                                 <span style="display:inline-block; width:70px; font-weight:bold;">RANK</span>
-                                                ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_rank || "-"}
+                                                ：${row.home_country_code}：${row.home_rank || "-"}
                                                 &nbsp;&nbsp;
-                                                ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_rank || "-"}
+                                                ${row.region_country_code}：${row.region_rank || "-"}
                                             </div>
 
                                             <!--
                                             <div style="font-size:13px; color:#666;">
                                                 <span style="display:inline-block; width:70px; font-weight:bold;">Category</span>
-                                                ：${row.home_marketplace_host.split(".").pop().toUpperCase()}：${row.home_rank_title || "-"}
+                                                ：${row.home_country_code}：${row.home_rank_title || "-"}
                                                 &nbsp;&nbsp;
-                                                ${row.marketplace_host.split(".").pop().toUpperCase()}：${row.region_rank_title || "-"}
+                                                ${row.region_country_code}：${row.region_rank_title || "-"}
                                             </div>  
                                             -->         
 
