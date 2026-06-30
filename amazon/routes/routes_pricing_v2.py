@@ -1003,6 +1003,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                
     # === -12: DB更新 ===
     print(asin, final_price, status_value)  # チェック完了後削除
+    print(listed_db)  # チェック完了後削除
 
     conn = get_conn(listed_db)
 
