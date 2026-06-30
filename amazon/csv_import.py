@@ -591,7 +591,7 @@ def import_csv():
                     6,                           # strategy_handling_time
 
                     "pre",                       # status                  3
-                    "",                          # information_status                    
+                    "INACTIVE",                  # information_status                    
                     "",                          # listing_status
 
                     now_utc,                     # created_at              2
