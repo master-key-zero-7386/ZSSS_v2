@@ -432,9 +432,9 @@ window.loadprelisting = async function (country_code) {
                             <div>登録：${fmt(row.created_at, row.home_timezone)}</div>
                             ${
                                 row.information_status === "INACTIVE" && row.inactive_reason
-                                    ? `<div>理由：${row.inactive_reason}</div>`
+                                    ? `<div style="color:#ff9800;font-weight:bold;">理由：${row.inactive_reason}</div>`
                                     : ""
-                            }                                              
+                            }
                         </div>
                     `;
                 }
