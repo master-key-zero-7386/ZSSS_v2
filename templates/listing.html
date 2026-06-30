@@ -159,6 +159,98 @@
     font-size:15px;
 }
 
+/* # --- ▼ SECTION : Pre / ALL 共通 ▼ ---  */
+/* === Listing（Pre / ALL）共通フォント基準 === */
+#prelisting table td,
+#prelisting table th,
+#alllisting table td,
+#alllisting table th {
+  font-family: sans-serif;   /* 基準フォント */
+  font-size: 13px;           /* 基準サイズ */
+  line-height: 1.4;          /* 基準行高 */
+}
+
+/* === Listing（Pre / ALL）セル縦位置統一 === */
+#prelisting table td,
+#alllisting table td {
+  vertical-align: top;
+}
+
+/* === Listing（Pre / ALL）画像カラム表示制御 === */
+#prelisting .image-container,
+#alllisting .image-container {
+  display: inline-flex;
+  width: 120px;
+  height: 120px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#prelisting .image-container img,
+#alllisting .image-container img {
+  max-width: 120px;
+  max-height: 120px;
+  object-fit: contain;
+}
+
+/* === Listing（Pre / ALL）情報取得状態 表示調整 === */
+.listing_base table td {
+  line-height: 1.6;
+}
+
+.listing_base table td > div {
+  margin-bottom: 4px;
+}
+
+.listing_base table td > div:last-child {
+  margin-bottom: 0;
+}
+
+/* ラベルっぽい先頭文字を少し薄く */
+.listing_base table td span:first-child {
+  color: #666;
+}
+
+/* === 出品戦略 編集UI（Pre / ALL 共通） === */
+.strategy-edit-row {
+  display: flex;
+  align-items: center;
+  margin: 6px 0;              /* 行間だけで編集感を出す */
+}
+
+.strategy-edit-row .label {
+  width: 72px;                /* ← ラベル幅固定（UI安定の要） */
+  color: #555;
+}
+
+.strategy-edit-row input[type="number"] {
+  font-size: 12px;
+  border: none;
+  border-bottom: 1px solid #ccc; 
+  background: transparent;
+  width: 110px;               /* ← 数値入力は全て同一幅 */
+  text-align: right;          /* ← 業務UIの基本 */
+  padding: 6px 6px;
+  box-sizing: border-box;
+}
+
+.strategy-edit-row input[type="checkbox"] {
+  transform: translateY(1px); /* 数値inputとの縦位置微調整 */
+}
+
+/* 出品戦略 編集UI：操作ボタン */
+.strategy-edit-actions {
+  margin-top: 8px;
+  display: block;        /* 縦の流れに戻す */
+}
+
+.strategy-edit-actions button {
+  margin-right: 8px;     /* 横並びなら最低限の間隔 */
+}
+
+/* # --- ▲ SECTION : Pre / ALL 共通 ▲ ---  */
+
 </style>
 <div id="prelisting" class="subtab-content">
     <h2>Pre-Listig</h2>

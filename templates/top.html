@@ -81,6 +81,52 @@
   display: none;
 }
 
+/* サイドバー */
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  padding: 24px 10px 15px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+
+  position: relative; 
+
+  /* height: 100vh; */
+  overflow-y: auto;
+}
+
+.sidebar.collapsed + .collapse-handle {
+  left: 0; /* サイドバー閉じたら画面左端 */
+}
+
+/* ハンドル */
+.collapse-handle {
+  position: absolute;
+  top: 20px;/* ← ＜マーク上の位置 */
+  left: 240px; /* ← ＜マーク配置の数値 */
+  width: 18px;
+  height: 232px;/* ← ＜マーク下の位置 */
+  background: #96c4f8;
+  border-radius: 0 5px 5px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  user-select: none;
+  transition: left 0.3s ease;
+  z-index: 10; /* サイドバーより前面 */
+}
+
+.collapse-handle:hover {
+  background: #bbb;
+}
+
+
 
 </style>
 

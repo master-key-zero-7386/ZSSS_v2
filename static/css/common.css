@@ -9,10 +9,32 @@ body {
 }
 
 .main-container {
-    /* max-width: 1200px;  全体最大幅*/
+    /* max-width: 1200px; */
     margin-left: 40px;
     margin-right: 40px;
-    padding: 0px 0px;
+    padding: 0 0 30px 0;
+}
+
+/* メイン表示部分 */
+.main-panel {
+  flex: 1;
+  padding: 0 30px 0 0; /* メニューとパネルの間隔幅 */
+}
+
+.subtab-content {
+    background: none;
+    border: none;
+    padding-left: 30px; /* Dashboardと揃える */
+    padding-top: 10px;
+    padding-bottom: 40px; 
+    margin-top: 0; /* ← ここも必要 */
+}
+
+.top-layout {
+  display: flex;
+  height: 100%;
+  position: relative; /* ハンドル配置の基準 */
+  margin-top: 10px;
 }
 
 h1 {
@@ -22,7 +44,7 @@ h1 {
 .card {
     border: 1px solid #eee;
     border-radius: 14px;
-    padding: 16px;
+    padding: 16px 16px 24px 16px;
     background: #fff;
 }
 
@@ -278,98 +300,6 @@ input[type="checkbox"] {
   background: rgba(255,255,255,.15); /* タブと同じホバー感 */
 }
 
-/* # --- ▼ SECTION : Pre / ALL 共通 ▼ ---  */
-/* === Listing（Pre / ALL）共通フォント基準 === */
-#prelisting table td,
-#prelisting table th,
-#alllisting table td,
-#alllisting table th {
-  font-family: sans-serif;   /* 基準フォント */
-  font-size: 13px;           /* 基準サイズ */
-  line-height: 1.4;          /* 基準行高 */
-}
-
-/* === Listing（Pre / ALL）セル縦位置統一 === */
-#prelisting table td,
-#alllisting table td {
-  vertical-align: top;
-}
-
-/* === Listing（Pre / ALL）画像カラム表示制御 === */
-#prelisting .image-container,
-#alllisting .image-container {
-  display: inline-flex;
-  width: 120px;
-  height: 120px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-#prelisting .image-container img,
-#alllisting .image-container img {
-  max-width: 120px;
-  max-height: 120px;
-  object-fit: contain;
-}
-
-/* === Listing（Pre / ALL）情報取得状態 表示調整 === */
-.listing_base table td {
-  line-height: 1.6;
-}
-
-.listing_base table td > div {
-  margin-bottom: 4px;
-}
-
-.listing_base table td > div:last-child {
-  margin-bottom: 0;
-}
-
-/* ラベルっぽい先頭文字を少し薄く */
-.listing_base table td span:first-child {
-  color: #666;
-}
-
-/* === 出品戦略 編集UI（Pre / ALL 共通） === */
-.strategy-edit-row {
-  display: flex;
-  align-items: center;
-  margin: 6px 0;              /* 行間だけで編集感を出す */
-}
-
-.strategy-edit-row .label {
-  width: 72px;                /* ← ラベル幅固定（UI安定の要） */
-  color: #555;
-}
-
-.strategy-edit-row input[type="number"] {
-  font-size: 12px;
-  border: none;
-  border-bottom: 1px solid #ccc; 
-  background: transparent;
-  width: 110px;               /* ← 数値入力は全て同一幅 */
-  text-align: right;          /* ← 業務UIの基本 */
-  padding: 6px 6px;
-  box-sizing: border-box;
-}
-
-.strategy-edit-row input[type="checkbox"] {
-  transform: translateY(1px); /* 数値inputとの縦位置微調整 */
-}
-
-/* 出品戦略 編集UI：操作ボタン */
-.strategy-edit-actions {
-  margin-top: 8px;
-  display: block;        /* 縦の流れに戻す */
-}
-
-.strategy-edit-actions button {
-  margin-right: 8px;     /* 横並びなら最低限の間隔 */
-}
-
-/* # --- ▲ SECTION : Pre / ALL 共通 ▲ ---  */
-
 .file-input-row {
   display: flex;
   align-items: center;
@@ -391,78 +321,6 @@ input[type="checkbox"] {
   border: 1px solid #ccc;
   border-radius: 4px;
   box-sizing: border-box;
-}
-
-/* === OAuth 戻り・初期表示時のスクロール位置安定化 === */
-#account {
-    scroll-margin-top: 80px;
-}
-
-.top-layout {
-  display: flex;
-  height: 100%;
-  position: relative; /* ハンドル配置の基準 */
-  margin-top: 10px;
-}
-
-/* サイドバー */
-.sidebar {
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
-  padding: 24px 10px 15px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
-
-  position: relative; 
-
-  /* height: 100vh; */
-  overflow-y: auto;
-
-}
-
-/* ハンドル */
-.collapse-handle {
-  position: absolute;
-  top: 20px;/* ← ＜マーク上の位置 */
-  left: 240px; /* ← ＜マーク配置の数値 */
-  width: 18px;
-  height: 232px;/* ← ＜マーク下の位置 */
-  background: #96c4f8;
-  border-radius: 0 5px 5px 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  user-select: none;
-  transition: left 0.3s ease;
-  z-index: 10; /* サイドバーより前面 */
-}
-
-.sidebar.collapsed + .collapse-handle {
-  left: 0; /* サイドバー閉じたら画面左端 */
-}
-
-.collapse-handle:hover {
-  background: #bbb;
-}
-
-/* メイン表示部分 */
-.main-panel {
-  flex: 1;
-  padding: 0 30px 0 0; /* メニューとパネルの間隔幅 */
-}
-
-.subtab-content {
-    background: none;
-    border: none;
-    padding-left: 30px; /* Dashboardと揃える */
-    padding-top: 10px;
-    margin-top: 0; /* ← ここも必要 */
 }
 
 /* Scroll Top Button ↑ */
