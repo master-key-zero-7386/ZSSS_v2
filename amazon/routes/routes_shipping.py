@@ -1,7 +1,10 @@
-# =====================================================
-# ファイル名: amazon/routes_shipping.py
+# ==============================================
+# Copyright (c) 2026 ZSSS
+# All Rights Reserved.
+# ----------------------------------------------
+# ファイル名: amazon\routes\routes_shipping.py
 # 目的：送料表作成-保存
-# =====================================================
+# ==============================================
 
 from flask import Blueprint, request, jsonify, session
 from amazon.adapters.shipping_rates import update_shipping_rates_bulk

@@ -2,7 +2,7 @@
 # Copyright (c) 2026 ZSSS
 # All Rights Reserved.
 # ------------------------------------------------------
-# ファイル名: amazon/routes_admin.py
+# ファイル名: amazon\routes\routes_admin.py
 # 目的: 管理者用PY
 # ======================================================
 

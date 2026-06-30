@@ -2,7 +2,7 @@
 # Copyright (c) 2026 ZSSS
 # All Rights Reserved.
 # ----------------------------------------------------------
-# ファイル名: amazon/routes_pricing_v2.py
+# ファイル名: amazon\routes\routes_pricing_v2.py
 # 目的: pricing用統括ファイル
 # ==========================================================
 

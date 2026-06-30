@@ -2,9 +2,9 @@
 # Copyright (c) 2026 ZSSS
 # All Rights Reserved.
 # ------------------------------------------------------
-# ファイル名: amazon/routes_catalog_v2.py
+# ファイル名: amazon\routes\routes_catalog_v2.py
 # 目的: catalog用統括ファイル（再設計・正テンプレ）
-# =======================================================
+# ======================================================
 
 import os
 import sqlite3
