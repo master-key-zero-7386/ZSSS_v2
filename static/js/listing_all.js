@@ -71,6 +71,16 @@ window.loadalllisting = async function(country_code) {
                     columns: [
                         {
                             data: null,
+                            title: "No.",
+                            className: "col-no",
+                            orderable: false,
+                            render: function (_d, _t, _row, meta) {
+                                return meta.row + meta.settings._iDisplayStart + 1;
+                            }
+                        },
+
+                        {
+                            data: null,
                             title: '<input type="checkbox" id="toggleAllRows"> 商品情報',
                             className: "col-info",
                             orderable: false,
