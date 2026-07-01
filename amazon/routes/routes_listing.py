@@ -450,20 +450,17 @@ def _build_listing_row_with_shipping(
 
         rules["my_seller_id"] = my_seller_id  
 
-        # pricing_rules_adapter = PricingRulesAdapter(rules)
+        pricing_rules_adapter = PricingRulesAdapter(rules)
 
-        pricing_rules_adapter = PricingRulesAdapter(
-            rules,
-            marketplace_id=marketplace_id
-        )
-        
+        # pricing_rules_adapter = PricingRulesAdapter(
+        #     rules,
+        #     marketplace_id=region_marketplace_id
+        # )
         result_offer = pricing_rules_adapter.select_region_price_offer(
             normalized_region
         )
 
         selected_offer = result_offer.get("selected") if result_offer else None
-
-        # print(selected_offer)  # チェック完了後削除
 
         if selected_offer:
             region_shipping_amount = float(
