@@ -7,11 +7,19 @@ profiles/
 chrome_profile/
 logs/
 cache/
+
+.env
+TEST/
+/data/
+/tool_trash/
+_upload/
+uploads/
+tool_trash/
+list/
+
 *.db
 *.sqlite
 *.sqlite3
-.env
-TEST/
 
 # Python
 __pycache__/
@@ -59,6 +67,3 @@ Thumbs.db
 *.txt
 !requirements.txt
 
-/data/
-/log/
-/tool_trash/
