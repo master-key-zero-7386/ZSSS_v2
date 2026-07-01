@@ -1,4 +1,4 @@
-# ファイル名：C:\zsss_dev_v2\.gitignore
+# ファイル名：gitignore
 # 目的：GIT対象外設定ファイル
 # -------------------------------------
 
@@ -47,3 +47,7 @@ Thumbs.db
 *.xlsx
 *.txt
 !requirements.txt
+
+/data/
+/log/
+/tool_trash/
