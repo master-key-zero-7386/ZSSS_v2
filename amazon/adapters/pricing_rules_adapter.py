@@ -203,6 +203,7 @@ class PricingRulesAdapter:
 
     # --- ▼ SECTION 04: Shipping Override判定 ▼ ---
     def _is_shipping_override(self, seller_id, shipping_amount):
+        print("【OVERRIDE】", seller_id, shipping_amount)  # チェック完了後削除
 
         conn = get_conn("a_pricing_settings.db")
         cur = conn.cursor()
