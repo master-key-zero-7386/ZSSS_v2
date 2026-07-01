@@ -821,7 +821,6 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     region_price = None  
 
     if selected_offer:
-        # region_price = selected_offer.get("price_amount")
         price_amount = float(selected_offer.get("price_amount") or 0) 
         shipping_amount = float(selected_offer.get("shipping_amount") or 0) 
 
