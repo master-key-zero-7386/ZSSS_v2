@@ -184,7 +184,6 @@ class PricingRulesAdapter:
             )
 
             if override:
-                print("OVERRIDE", offer.get("seller_id"), price, shipping) # チェック完了後削除
 
                 total = float(price)
             else:
