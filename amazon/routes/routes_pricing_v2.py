@@ -779,7 +779,10 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
             region_offers_json = json.loads(row_cache["region_offers_json"])
             normalized = NormalizedPricingAdapter.normalize_region_offers(None, region_offers_json)           
-            pricing_rules_adapter = PricingRulesAdapter(rules)
+            pricing_rules_adapter = PricingRulesAdapter(
+                rules,
+                marketplace_id=region_marketplace_id
+            )            
             result = pricing_rules_adapter.select_region_price_offer(normalized)
 
             if not result or not result.get("selected"):
@@ -821,10 +824,11 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     region_price = None  
 
     if selected_offer:
-        price_amount = float(selected_offer.get("price_amount") or 0) 
-        shipping_amount = float(selected_offer.get("shipping_amount") or 0) 
+        # price_amount = float(selected_offer.get("price_amount") or 0) 
+        # shipping_amount = float(selected_offer.get("shipping_amount") or 0) 
+        # region_price = price_amount + shipping_amount  
 
-        region_price = price_amount + shipping_amount  
+        region_price = result.get("compare_price")
 
     # === -09: 出品価格決定 ===
     discount_rate = rules.get("discount_rate") or 0   

@@ -109,18 +109,36 @@ def insert_override_seller():
 
     return jsonify({"status": "ok"})
 
-
 # --- ▼ SECTION 03 : 更新 ▼ ---
 @override_seller_bp.route("/update", methods=["POST"])
 def update_override_seller():
 
     data = request.get_json() or {}
 
-    marketplace_id = data.get("marketplace_id")
+    country_code = data.get("country_code")
     seller_id = data.get("seller_id")
     seller_name = data.get("seller_name")
     shipping_amount = data.get("shipping_amount")
     remarks = data.get("remarks")
+
+    conn = get_conn("a_marketplaces_master.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT marketplace_id
+        FROM marketplaces_master
+        WHERE LOWER(country_code)=LOWER(%s)
+        LIMIT 1
+    """, (country_code,))
+
+    row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        return jsonify({"status": "error", "message": "Marketplaceが見つかりません"}), 400
+
+    marketplace_id = row["marketplace_id"]
+    conn.close()
 
     conn = get_conn("a_shipping_override_master.db")
     cur = conn.cursor()

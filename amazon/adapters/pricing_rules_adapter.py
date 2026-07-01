@@ -17,13 +17,10 @@ AMAZON_OFFICIAL_IDS = {
 
 class PricingRulesAdapter:
 
-    # --- ▼ SECTION 01: 初期化（将来の拡張用） ▼ ---
-    def __init__(self, rules: dict | None = None):
-        """
-        rules: pricing_rules（DB）から取得した条件。
-        ※ 現時点では未使用（暫定：最安値のみ）
-        """
-        self.rules = rules or {}  
+    # --- ▼ SECTION 01: 初期化（将来の拡張用） ▼ -
+    def __init__(self, rules: dict | None = None, marketplace_id=None):
+        self.rules = rules or {}
+        self.marketplace_id = marketplace_id
 
     # --- ▼ SECTION 02: HOME 原価確定（フィルタ＋最安決定） ▼ ---
     def select_home_cost_offer(self, normalized_offers: list[dict]):
@@ -181,7 +178,17 @@ class PricingRulesAdapter:
             if price is None:
                 continue
 
-            total = float(price) + float(shipping)
+            override = self._is_shipping_override(
+                offer.get("seller_id"),
+                shipping
+            )
+
+            if override:
+                print("OVERRIDE", offer.get("seller_id"), price, shipping) # チェック完了後削除
+
+                total = float(price)
+            else:
+                total = float(price) + float(shipping)
 
             if min_total is None or total < min_total:
                 min_total = total
@@ -189,9 +196,28 @@ class PricingRulesAdapter:
 
         return {
             "selected": min_offer,
+            "compare_price": min_total,
             "filtered": filtered,
             "filtered_count": len(filtered),
             "total_count": len(normalized_offers),
         }
 
+    # --- ▼ SECTION 04: Shipping Override判定 ▼ ---
+    def _is_shipping_override(self, seller_id, shipping_amount):
 
+        conn = get_conn("a_pricing_settings.db")
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT 1
+            FROM shipping_override_master
+            WHERE marketplace_id = %s
+            AND seller_id = %s
+            AND shipping_amount = %s
+            LIMIT 1
+        """, (self.marketplace_id, seller_id, shipping_amount))
+
+        row = cur.fetchone()
+        conn.close()
+
+        return row is not None
