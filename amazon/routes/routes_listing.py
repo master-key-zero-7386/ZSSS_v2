@@ -252,6 +252,7 @@ def _build_listing_row_with_shipping(
     PRICING_MASTER_RULES=None, 
     ACCOUNT_SELLER_ID=None, 
     BRAND_GATE_MAP=None, 
+    SHIPPING_OVERRIDE_SET=None,
     P_min=None, P_max=None):
 
     # --- shipping_config取得 ---
@@ -454,7 +455,8 @@ def _build_listing_row_with_shipping(
 
         pricing_rules_adapter = PricingRulesAdapter(
             rules,
-            marketplace_id=marketplace_id
+            marketplace_id=marketplace_id,
+            shipping_override_set=SHIPPING_OVERRIDE_SET
         )
         result_offer = pricing_rules_adapter.select_region_price_offer(
             normalized_region
@@ -901,6 +903,22 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     conn_bg.close()    
 
+    conn_ps = get_conn("a_pricing_settings.db")
+    cur_ps = conn_ps.cursor()
+
+    cur_ps.execute("""
+        SELECT seller_id, shipping_amount
+        FROM shipping_override_master
+        WHERE marketplace_id = %s
+    """, (marketplace_id,))
+
+    SHIPPING_OVERRIDE_SET = {
+        (r["seller_id"], float(r["shipping_amount"]))
+        for r in cur_ps.fetchall()
+    }
+
+    conn_ps.close()
+
     for row in rows:
         result.append(
             _build_listing_row_with_shipping(
@@ -909,19 +927,20 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 marketplace_id,
                 country_code,
                 timezone,
-                black_asin_set,     
+                black_asin_set,
                 black_brand_set,
                 RETAIL_SELLER_IDS=RETAIL_SELLER_IDS,
                 SHIPPING_CONFIG=SHIPPING_CONFIG,
-                SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS, 
+                SHIPPING_RATE_ROWS=SHIPPING_RATE_ROWS,
                 PRICING_CACHE_ROWS=PRICING_CACHE_ROWS,
                 CATALOG_CACHE_ROWS=CATALOG_CACHE_ROWS,
-                MARKETPLACE_HOST=MARKETPLACE_HOST, 
+                MARKETPLACE_HOST=MARKETPLACE_HOST,
                 HOME_MARKETPLACE_HOST=HOME_MARKETPLACE_HOST,
                 OFFER_FILTER_RULES=OFFER_FILTER_RULES,
                 PRICING_MASTER_RULES=PRICING_MASTER_RULES,
                 ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
-                BRAND_GATE_MAP=BRAND_GATE_MAP 
+                BRAND_GATE_MAP=BRAND_GATE_MAP,
+                SHIPPING_OVERRIDE_SET=SHIPPING_OVERRIDE_SET
             )
         )
         

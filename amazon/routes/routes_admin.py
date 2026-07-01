@@ -768,8 +768,29 @@ def run_region_pricing_debug():
     # === ルール取得 ===
     rules = get_pricing_master_rule(user_id=user_id, country_code=country_code)
 
-    adapter_rules = PricingRulesAdapter(rules)
-    result_select = adapter_rules.select_region_price_offer(normalized)
+    conn_ps = get_conn("a_pricing_settings.db") 
+    cur_ps = conn_ps.cursor()
+
+    cur_ps.execute("""
+        SELECT seller_id, shipping_amount
+        FROM shipping_override_master
+        WHERE marketplace_id = %s
+    """, (region_marketplace_id,))
+
+    SHIPPING_OVERRIDE_SET = {
+        (r["seller_id"], float(r["shipping_amount"]))
+        for r in cur_ps.fetchall()
+    }
+
+    conn_ps.close()
+
+    adapter_rules = PricingRulesAdapter(
+        rules,
+        marketplace_id=region_marketplace_id, 
+        shipping_override_set=SHIPPING_OVERRIDE_SET
+    )
+
+    result_select = adapter_rules.select_region_price_offer(normalized)    
 
     if not result_select:
         result_select = {"selected": None}

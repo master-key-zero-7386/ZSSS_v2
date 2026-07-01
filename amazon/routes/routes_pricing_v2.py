@@ -775,13 +775,30 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         conn_cache.close()
 
+        conn_ps = get_conn("a_pricing_settings.db") 
+        cur_ps = conn_ps.cursor()
+
+        cur_ps.execute("""
+            SELECT seller_id, shipping_amount
+            FROM shipping_override_master
+            WHERE marketplace_id = %s
+        """, (region_marketplace_id,))
+
+        SHIPPING_OVERRIDE_SET = {
+            (r["seller_id"], float(r["shipping_amount"]))
+            for r in cur_ps.fetchall()
+        }
+
+        conn_ps.close()        
+
         if row_cache and row_cache["region_offers_json"]:
 
             region_offers_json = json.loads(row_cache["region_offers_json"])
             normalized = NormalizedPricingAdapter.normalize_region_offers(None, region_offers_json)           
             pricing_rules_adapter = PricingRulesAdapter(
                 rules,
-                marketplace_id=region_marketplace_id
+                marketplace_id=region_marketplace_id,
+                shipping_override_set=SHIPPING_OVERRIDE_SET
             )            
             result = pricing_rules_adapter.select_region_price_offer(normalized)
 

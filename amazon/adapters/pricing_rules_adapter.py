@@ -18,9 +18,10 @@ AMAZON_OFFICIAL_IDS = {
 class PricingRulesAdapter:
 
     # --- ▼ SECTION 01: 初期化（将来の拡張用） ▼ -
-    def __init__(self, rules: dict | None = None, marketplace_id=None):
+    def __init__(self, rules: dict | None = None, marketplace_id=None, shipping_override_set=None):
         self.rules = rules or {}
         self.marketplace_id = marketplace_id
+        self.shipping_override_set = shipping_override_set or set()
 
     # --- ▼ SECTION 02: HOME 原価確定（フィルタ＋最安決定） ▼ ---
     def select_home_cost_offer(self, normalized_offers: list[dict]):
@@ -203,21 +204,26 @@ class PricingRulesAdapter:
 
     # --- ▼ SECTION 04: Shipping Override判定 ▼ ---
     def _is_shipping_override(self, seller_id, shipping_amount):
-        print("【OVERRIDE】", seller_id, shipping_amount)  # チェック完了後削除
+        print("【OVERRIDE_CHECK】", seller_id, shipping_amount, self.shipping_override_set)  # チェック完了後削除
 
-        conn = get_conn("a_pricing_settings.db")
-        cur = conn.cursor()
+        return (
+            seller_id,
+            float(shipping_amount or 0)
+        ) in self.shipping_override_set          
 
-        cur.execute("""
-            SELECT 1
-            FROM shipping_override_master
-            WHERE marketplace_id = %s
-            AND seller_id = %s
-            AND shipping_amount = %s
-            LIMIT 1
-        """, (self.marketplace_id, seller_id, shipping_amount))
+        # conn = get_conn("a_pricing_settings.db")
+        # cur = conn.cursor()
 
-        row = cur.fetchone()
-        conn.close()
+        # cur.execute("""
+        #     SELECT 1
+        #     FROM shipping_override_master
+        #     WHERE marketplace_id = %s
+        #     AND seller_id = %s
+        #     AND shipping_amount = %s
+        #     LIMIT 1
+        # """, (self.marketplace_id, seller_id, shipping_amount))
 
-        return row is not None
+        # row = cur.fetchone()
+        # conn.close()
+
+        # return row is not None
