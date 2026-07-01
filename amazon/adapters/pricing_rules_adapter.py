@@ -204,26 +204,8 @@ class PricingRulesAdapter:
 
     # --- ▼ SECTION 04: Shipping Override判定 ▼ ---
     def _is_shipping_override(self, seller_id, shipping_amount):
-        print("【OVERRIDE_CHECK】", seller_id, shipping_amount, self.shipping_override_set)  # チェック完了後削除
-
         return (
             seller_id,
             float(shipping_amount or 0)
         ) in self.shipping_override_set          
 
-        # conn = get_conn("a_pricing_settings.db")
-        # cur = conn.cursor()
-
-        # cur.execute("""
-        #     SELECT 1
-        #     FROM shipping_override_master
-        #     WHERE marketplace_id = %s
-        #     AND seller_id = %s
-        #     AND shipping_amount = %s
-        #     LIMIT 1
-        # """, (self.marketplace_id, seller_id, shipping_amount))
-
-        # row = cur.fetchone()
-        # conn.close()
-
-        # return row is not None
