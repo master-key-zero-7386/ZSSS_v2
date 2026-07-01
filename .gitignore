@@ -2,6 +2,17 @@
 # 目的：GIT対象外設定ファイル
 # -------------------------------------
 
+config/
+profiles/
+chrome_profile/
+logs/
+cache/
+*.db
+*.sqlite
+*.sqlite3
+.env
+TEST/
+
 # Python
 __pycache__/
 *.pyc
