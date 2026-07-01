@@ -11,6 +11,8 @@
 
 /* ===== テーブル共通（ここが本体） ===== */
 .admin-page .table-wrapper {
+  max-height: 400px;     /* ←追加 */
+  overflow-y: auto;      /* ←修正 */
   overflow-x: auto;
 }
 
@@ -41,11 +43,7 @@
   border-bottom: 2px solid #007bff;
 }
 
-.admin-page .table-wrapper {
-  max-height: 400px;     /* ←追加 */
-  overflow-y: auto;      /* ←修正 */
-  overflow-x: auto;
-}
+
 
 .admin-page table thead th {
   position: sticky;   /* ←追加 */
@@ -79,13 +77,27 @@
   flex: 1;
   padding: 6px 8px;
 }
+
+.master-description {
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border-left: 4px solid #4a90e2;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.6;
+}
 </style>
 
 <div class="main-container admin-page">
   <h2>Marketplaces 管理</h2>
 
   <div class="card">
-  <h2>Marketplaces Master</h2>    
+  <h2>Marketplaces Master</h2>
+    <div class="master-description">
+        【セラセン】appから LWA：client_id client_secretを取得  access_key/secret_keyは廃止
+    </div>      
+
     <div style="margin-bottom:12px;">
         <button id="btn-add-marketplace" class="btn-blue btn-add">新規追加</button>
     </div>
@@ -118,8 +130,11 @@
   </div>
 
   <div class="card" style="margin-top:20px;">
-    <h2>Amazon Retail Sellers</h2>
-
+  <h2>Amazon Retail Sellers</h2>
+    <div class="master-description">
+        Amazon直売セラーIDを管理します。REGION価格取得時にAmazon直売セラーを判定するために使用します。
+    </div>
+    
     <div style="margin-bottom:12px;">
         <button id="btn-add-amazon-seller" class="btn-blue btn-add">新規追加</button>
     </div>
@@ -141,6 +156,38 @@
       </table>
     </div>
   </div>  
+
+  <div class="card" style="margin-top:20px;">
+      <h2>Shipping Override Sellers</h2>
+
+      <div class="master-description">
+          APIが誤って別途送料を返すセラーを管理します。<br>
+          価格比較時は登録された送料を無視して価格計算を行います。
+      </div>
+
+      <div style="margin-bottom:12px;">
+          <button id="btn-add-override-seller" class="btn-blue btn-add">新規追加</button>
+      </div>
+
+      <div class="table-wrapper" style="max-width:1200px;">
+          <table id="override-seller-table" class="display" style="width:100%;">
+              <thead>
+                  <tr>
+                      <th>No</th>
+                      <th>Seller ID</th>
+                      <th>Seller Name</th>
+                      <th>Shipping</th>
+                      <th>Remarks</th>
+                      <th>Action</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  <!-- AJAXで埋める -->
+              </tbody>
+          </table>
+      </div>
+  </div>  
+
 </div>
 
 

@@ -357,6 +357,16 @@ SHIPPING_CONFIG_COLUMNS = {
     "updated_at": "TEXT"  
 }
 
+# --- ▼ shipping_override_master（別途送料誤判定 セラー除外設定） ---
+SHIPPING_OVERRIDE_MASTER_COLUMNS = {
+    "marketplace_id": "TEXT NOT NULL",
+    "seller_id": "TEXT NOT NULL",
+    "seller_name": "TEXT",    
+    "shipping_amount": "REAL NOT NULL",
+    "remarks": "TEXT",    
+    "updated_at": "TEXT"
+}
+
 # --- ▼ pricing_master_rules（販売側：出品価格算出ルール） ---
 PRICING_MASTER_RULES_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
@@ -466,17 +476,6 @@ def migrate_table(conn, table_name, schema_dict):
     if not existing:
         cols_def = ", ".join([f"{col} {dtype}" for col, dtype in schema_dict.items()])
 
-        # # --- UNIQUE 制約 ---
-        if table_name == "shipping_config":
-            cols_def += ", UNIQUE(user_id, country_code)"
-
-        if table_name == "offer_filter_rules":
-            cols_def += ", UNIQUE(user_id, country_code)"
-
-        if table_name == "pricing_master_rules":
-            cols_def += ", UNIQUE(user_id, country_code)"
-
-
         cur.execute(f"CREATE TABLE IF NOT EXISTS {table_name} ({cols_def})")
         print(f"[CREATE] {table_name}")
         
@@ -530,7 +529,13 @@ def migrate_db(db_name):
     elif base.endswith("_brand_gate_result.db"):
         migrate_table(conn, "brand_gate_result", BRAND_GATE_RESULT_COLUMNS)
     elif base.endswith("_admin_settings.db"):
-        migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS)                   
+        migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS) 
+    elif base.endswith("_shipping_override_master.db"):
+        migrate_table(
+            conn,
+            "shipping_override_master",
+            SHIPPING_OVERRIDE_MASTER_COLUMNS
+        )                  
 
 
     conn.close()
@@ -743,6 +748,37 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
+    # --- a_shipping_override_master.db ---
+    conn = get_conn("a_shipping_override_master.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_override_master_unique "
+        "ON shipping_override_master(marketplace_id, seller_id, shipping_amount)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_pricing_settings.db ---
+    conn = get_conn("a_pricing_settings.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_config_unique "
+        "ON shipping_config(user_id, country_code)"
+    )
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_offer_filter_rules_unique "
+        "ON offer_filter_rules(user_id, country_code)"
+    )
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_master_rules_unique "
+        "ON pricing_master_rules(user_id, country_code)"
+    )
+
+    conn.commit()
+    conn.close()
 
 def add_indexes_listed_items():
     import sqlite3, os
@@ -786,6 +822,7 @@ def main():
         "a_fx.db",
         # "a_brand_master.db",  
         "a_brand_gate_result.db",
+        "a_shipping_override_master.db", 
     ]
 
     for db_file in base_dbs:

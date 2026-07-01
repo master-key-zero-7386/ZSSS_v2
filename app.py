@@ -34,6 +34,7 @@ from amazon.background.first.first_loop import run_first_loop
 from amazon.background.first.first_regioncheck import run_first_regioncheck 
 from amazon.background.ttl.ttl_loop import run_ttl_loop
 from amazon.background.fx.fx_loop import run_fx_loop
+from amazon.routes.routes_override_seller import override_seller_bp
 
 
 # ✅ コマンド引数から実行モードを判定（デフォルトは "dev"）
@@ -72,11 +73,13 @@ app.register_blueprint(csv_import_bp, url_prefix="/csv")
 app.register_blueprint(listing_bp, url_prefix="/listing")
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(account_bp, url_prefix="/account")
+app.register_blueprint(override_seller_bp, url_prefix="/override_seller")
 app.register_blueprint(admin_api_bp, url_prefix="/admin")
 app.register_blueprint(admin_market_bp, url_prefix="/admin_market")
 app.register_blueprint(api_raw_check_bp) # APIチェック用　
 app.register_blueprint(shipping_bp, url_prefix="/api")
 app.register_blueprint(pricing_v2_bp)
+
 
 # first loop常駐起動
 def start_first_runner(app):
@@ -168,6 +171,11 @@ if __name__ == "__main__":
     file_handler.setLevel(logging.ERROR)
     app.logger.addHandler(file_handler)
 
+    # チェック完了後削除
+    for rule in app.url_map.iter_rules():
+        if "override" in rule.rule:
+            print(rule.endpoint, rule.rule, rule.methods)  # チェック完了後削除
+            
     # --- Flaskサーバ起動（これ1回だけ！） ---
     app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
 
