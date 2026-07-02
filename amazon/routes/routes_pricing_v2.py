@@ -951,7 +951,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     elif max_price and final_price and float(final_price) > float(max_price):
         status_value = 'INACTIVE'
-        inactive_reason = "MAX_PRICE"
+        inactive_reason = "Setting MAX_PRICE"
 
         if is_listed and row["information_status"] != "INACTIVE":
 
