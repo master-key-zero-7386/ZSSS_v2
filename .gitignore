@@ -58,6 +58,8 @@ Thumbs.db
 
 # BAT
 *.bat
+!setup_venv.bat
+!update_requirements.bat
 
 # Environment
 .env
