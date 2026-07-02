@@ -1,30 +1,26 @@
 // =====================================================
 // ファイル名: static/js/admin_override_seller.js
-// 目的：別途送料誤判定セラー管理JS
+// 目的：別途送料誤判定セラー管理JS（安全版）
 // =====================================================
 
-// --- ▼ SECTION 01: ▼ ---
-document.addEventListener("DOMContentLoaded", () => {
 
-    console.log("override js loaded");
+window.overrideSellerTable = null;
+
+// --- ▼ SECTION 01: ▼ ---
+// =====================================================
+// DataTable初期化（自動Ajax禁止）
+// =====================================================
+
+function initOverrideSellerTable() {
 
     window.overrideSellerTable = $('#override-seller-table').DataTable({
 
         autoWidth: false,
+        paging: false,
+        searching: false,
+        info: false,
 
-        ajax: {
-            url: "/override_seller/list",
-            type: "POST",
-            contentType: "application/json",
-
-            data: function () {
-                return JSON.stringify({
-                    country_code: window.getCurrentRegion()
-                });
-            },
-
-            dataSrc: "data"
-        },
+        ajax: null, // ★重要：自動通信を完全停止
 
         columns: [
             { data: null, render: (d, t, r, m) => m.row + 1 },
@@ -43,20 +39,262 @@ document.addEventListener("DOMContentLoaded", () => {
                     `;
                 }
             }
-        ],
+        ]
+    });
+}
 
-        paging: false,
-        searching: false,
-        info: false
+
+// =====================================================
+// region待ち（起動順問題対策）
+// =====================================================
+function waitForRegion() {
+    return new Promise(resolve => {
+
+        const check = () => {
+            const region = window.getCurrentRegion?.();
+
+            if (region) {
+                resolve(region);
+                return;
+            }
+
+            setTimeout(check, 50);
+        };
+
+        check();
+    });
+}
+
+
+// =====================================================
+// データ取得（完全手動制御）
+// =====================================================
+async function loadOverrideSellerTable() {
+
+    const region = await waitForRegion();
+
+    const res = await fetch("/override_seller/list", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            country_code: region
+        })
+    });
+
+    const json = await res.json();
+
+    if (!json || !Array.isArray(json.data)) {
+        console.error("Invalid response:", json);
+        return;
+    }
+
+    window.overrideSellerTable.clear();
+    window.overrideSellerTable.rows.add(json.data).draw();
+}
+
+
+// =====================================================
+// 起動処理
+// =====================================================
+document.addEventListener("DOMContentLoaded", async () => {
+
+    console.log("override js loaded");
+
+    initOverrideSellerTable();
+
+    await loadOverrideSellerTable();
+
+    console.log("override ready");
+});
+
+
+// =====================================================
+// 地域変更時の再読み込み
+// =====================================================
+$(document)
+.off("change", "#globalRegion")
+.on("change", "#globalRegion", async function () {
+
+    if (!window.overrideSellerTable) return;
+
+    await loadOverrideSellerTable();
+});
+
+
+// =====================================================
+// 新規追加
+// =====================================================
+$(document)
+.off("click", "#btn-add-override-seller")
+.on("click", "#btn-add-override-seller", function () {
+
+    if ($("#override-seller-table tr.editing").length > 0) {
+        alert("編集中の行があります");
+        return;
+    }
+
+    const row = window.overrideSellerTable.row.add({
+        seller_id: "",
+        seller_name: "",
+        shipping_amount: "",
+        remarks: ""
+    }).draw(false);
+
+    const $tr = $(row.node());
+
+    $tr.addClass("editing new-row");
+
+    $tr.find("td:eq(1)").html(`<input class="edit-seller_id">`);
+    $tr.find("td:eq(2)").html(`<input class="edit-seller_name">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount">`);
+    $tr.find("td:eq(4)").html(`<input class="edit-remarks">`);
+
+    $tr.find("td:last").html(`
+        <button class="btn-blue btn-override-save">保存</button>
+        <button class="btn-override-cancel">キャンセル</button>
+    `);
+});
+
+
+// =====================================================
+// 保存
+// =====================================================
+$(document)
+.off("click", ".btn-override-save")
+.on("click", ".btn-override-save", function () {
+
+    const $tr = $(this).closest("tr");
+
+    fetch("/override_seller/insert", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            country_code: window.getCurrentRegion?.(),
+            seller_id: $tr.find(".edit-seller_id").val(),
+            seller_name: $tr.find(".edit-seller_name").val(),
+            shipping_amount: $tr.find(".edit-shipping_amount").val(),
+            remarks: $tr.find(".edit-remarks").val() // ★ここ修正済み
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== "ok") return alert("失敗");
+        loadOverrideSellerTable();
     });
 });
 
+
+// =====================================================
+// キャンセル（新規）
+// =====================================================
 $(document)
-.off("change", "#globalRegion")
-.on("change", "#globalRegion", function () {
+.off("click", ".btn-override-cancel")
+.on("click", ".btn-override-cancel", function () {
+    loadOverrideSellerTable();
+});
 
-    window.overrideSellerTable.ajax.reload(null, true);
 
+// =====================================================
+// 編集
+// =====================================================
+$(document)
+.off("click", ".btn-override-edit")
+.on("click", ".btn-override-edit", function () {
+
+    const $tr = $(this).closest("tr");
+
+    if ($("#override-seller-table tr.editing").length > 0) {
+        alert("編集中の行があります");
+        return;
+    }
+
+    const data = window.overrideSellerTable.row($tr).data();
+
+    $tr.addClass("editing");
+
+    $tr.find("td:eq(1)").html(`<input class="edit-seller_id" value="${data.seller_id}">`);
+    $tr.find("td:eq(2)").html(`<input class="edit-seller_name" value="${data.seller_name}">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" value="${data.shipping_amount}">`);
+    $tr.find("td:eq(4)").html(`<input class="edit-remarks" value="${data.remarks || ""}">`);
+
+    $tr.find("td:last").html(`
+        <button class="btn-blue btn-override-update">保存</button>
+        <button class="btn-override-cancel-edit">キャンセル</button>
+    `);
+});
+
+
+// =====================================================
+// 更新
+// =====================================================
+$(document)
+.off("click", ".btn-override-update")
+.on("click", ".btn-override-update", function () {
+
+    const $tr = $(this).closest("tr");
+
+    fetch("/override_seller/update", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            country_code: window.getCurrentRegion?.(),
+            seller_id: $tr.find(".edit-seller_id").val(),
+            seller_name: $tr.find(".edit-seller_name").val(),
+            shipping_amount: $tr.find(".edit-shipping_amount").val(),
+            remarks: $tr.find(".edit-remarks").val()
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== "ok") return alert("失敗");
+        loadOverrideSellerTable();
+    });
+});
+
+
+// =====================================================
+// 編集キャンセル
+// =====================================================
+$(document)
+.off("click", ".btn-override-cancel-edit")
+.on("click", ".btn-override-cancel-edit", function () {
+    loadOverrideSellerTable();
+});
+
+
+// =====================================================
+// 削除
+// =====================================================
+$(document)
+.off("click", ".btn-override-delete")
+.on("click", ".btn-override-delete", function () {
+
+    const $tr = $(this).closest("tr");
+    const data = window.overrideSellerTable.row($tr).data();
+
+    if (!confirm("削除しますか？")) return;
+
+    fetch("/override_seller/delete", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            country_code: window.getCurrentRegion?.(),
+            seller_id: data.seller_id
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.status !== "ok") return alert("失敗");
+        loadOverrideSellerTable();
+    });
 });
 
 // --- ▼ SECTION 02: 新規追加 ▼ ---
