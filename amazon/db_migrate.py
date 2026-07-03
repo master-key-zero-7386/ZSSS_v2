@@ -851,77 +851,12 @@ def main():
     # 初期データ
     ensure_fx_settings_initialized()
 
-# PostgreSQL移行誤DB生成処理部分を変更　後に削除
-# def main():
-#     os.makedirs(DB_DIR, exist_ok=True)
-
-#     # 固定DB（国に依存しない）
-#     base_dbs = [
-#         "a_marketplaces_master.db",
-#         "a_marketplaces.db",
-#         "a_account_master.db",
-#         "a_pricing_settings.db",
-#         "a_pricing_cache.db",
-#         "a_user_login_accounts.db",
-#         "a_catalog_cache.db",
-#         "a_api_usage.db",  
-#         "a_shipping_rates.db", 
-#         "a_bg_scan_settings.db",
-#         "a_fx.db",
-#         # "a_brand_master.db",  
-#         "a_brand_gate_result.db",
-#         "a_shipping_override_master.db", 
-#     ]
-
-#     for db_file in base_dbs:
-#         db_path = os.path.join(DB_DIR, db_file)
-#         if not os.path.exists(db_path):
-#             open(db_path, "w").close()
-#         migrate_db(db_file)
-
-#     # ② marketplaces から存在する country_code を取得
-#     conn = get_conn("a_marketplaces.db")
-#     cur = conn.cursor()
-#     cur.execute("SELECT DISTINCT country_code FROM marketplaces")
-#     country_codes = [row["country_code"].lower() for row in cur.fetchall()]
-#     conn.close()
-
-#     # ③ country_code ごとのDBを migrate（ここで listed_items テーブルが作られる）
-#     for country_code in country_codes:
-#         # listed_items（ここが重要）
-#         db_name = f"a_{country_code}_listed_items.db"
-#         db_path = os.path.join(DB_DIR, db_name)
-#         if not os.path.exists(db_path):
-#             open(db_path, "w").close()
-#         migrate_db(db_name)
-
-#         # blacklist_asin
-#         db_name = f"a_{country_code}_blacklist_asin.db"
-#         db_path = os.path.join(DB_DIR, "blacklist", db_name)
-#         if not os.path.exists(db_path):
-#             open(db_path, "w").close()
-#         migrate_db(db_name)
-
-#         # blacklist_brand
-#         db_name = f"a_{country_code}_blacklist_brand.db"
-#         db_path = os.path.join(DB_DIR, "blacklist", db_name)
-#         if not os.path.exists(db_path):
-#             open(db_path, "w").close()
-#         migrate_db(db_name)
-        
-#     # ④ 全テーブル作成が終わってから UNIQUE INDEX を付与
-#     add_unique_indexes()
-
-#     add_indexes_listed_items() 
-
-#     ensure_fx_settings_initialized()
-
 # --- ▼ FX 初期設定挿入 ---
 def ensure_fx_settings_initialized():
     conn = get_conn("a_fx.db")
     cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) FROM fx_settings")
+    cur.execute("SELECT COUNT(*) AS count FROM fx_settings")
     count = cur.fetchone()["count"]
 
     if count == 0:
