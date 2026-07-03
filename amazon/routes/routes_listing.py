@@ -611,6 +611,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 WHEN 'COMPETITOR_RATIO' THEN 2
                 WHEN 'NO_PRICE' THEN 3
                 WHEN 'Setting MAX_PRICE' THEN 4
+                WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 5
                 ELSE 99
             END,
             created_at DESC
