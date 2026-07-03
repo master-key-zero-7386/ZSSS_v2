@@ -20,8 +20,6 @@ def get_override_seller_list():
     data = request.get_json() or {}
     country_code = data.get("country_code")
 
-    print("【OVERRIDE_LIST】", data, country_code)  # チェック完了後削除
-
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
 

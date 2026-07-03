@@ -935,6 +935,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     sku = row["sku"]
 
+    # INACTIVEの理由
+    # --- ▼ ブラックリスト該当 ▼ ---
     if brand_ng_flag:
         status_value = 'INACTIVE'
         inactive_reason = "BLACKLIST"
@@ -942,6 +944,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
+    # --- ▼ 仕入HOEMPric対象なし ▼ ---
     elif final_price is None or final_price == 0:
         status_value = 'INACTIVE'
         inactive_reason = "NO_PRICE"
@@ -949,6 +952,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
+    # --- ▼ Pricing設定のMAX Priceオーバー ▼ ---
     elif max_price and final_price and float(final_price) > float(max_price):
         status_value = 'INACTIVE'
         inactive_reason = "Setting MAX_PRICE"

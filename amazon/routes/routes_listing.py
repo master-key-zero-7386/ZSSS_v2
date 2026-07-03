@@ -602,7 +602,19 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     elif sort == "weight_asc":              # 請求重量
         order_by = "billable_weight_kg ASC"
     elif sort == "weight_desc":
-        order_by = "billable_weight_kg DESC"        
+        order_by = "billable_weight_kg DESC"   
+
+    if info_status == "INACTIVE":
+        order_by = """
+            CASE inactive_reason
+                WHEN 'BLACKLIST' THEN 1
+                WHEN 'COMPETITOR_RATIO' THEN 2
+                WHEN 'NO_PRICE' THEN 3
+                WHEN 'Setting MAX_PRICE' THEN 4
+                ELSE 99
+            END,
+            created_at DESC
+        """       
 
     # --- フィルタ条件 ---
     query_filter = " AND region_marketplace_id = %s"
