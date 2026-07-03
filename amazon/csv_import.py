@@ -380,6 +380,10 @@ def import_csv():
             # --- ▼ 既登録チェック ▼ ---
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
 
+            print("DB_MODE:", DB_MODE) # チェック完了後削除
+            print("listed_db:", listed_db) # チェック完了後削除
+            print("exists:", os.path.exists(listed_db)) # チェック完了後削除        
+
             if os.path.exists(listed_db):
 
                 if DB_MODE == "sqlite":
