@@ -383,19 +383,19 @@ def import_csv():
             print("DB_MODE:", DB_MODE) # チェック完了後削除
             print("listed_db:", listed_db) # チェック完了後削除
             print("exists:", os.path.exists(listed_db)) # チェック完了後削除        
+ 
+            if DB_MODE == "sqlite" and os.path.exists(listed_db):
 
-            if os.path.exists(listed_db):
+                conn = sqlite3.connect(listed_db, timeout=30)
+                conn.execute("PRAGMA journal_mode=WAL")
 
-                if DB_MODE == "sqlite":
-                    conn = sqlite3.connect(listed_db, timeout=30)  # DB移行 分岐対応済（SQLite専用）
-                    conn.execute("PRAGMA journal_mode=WAL")
-                else:
-                    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")                    
                 cur = conn.cursor()
+
                 for asin in asin_list:
                     cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
                     if cur.fetchone():
                         listed_asins.append(asin)
+
                 conn.close()
 
             # ▼ SKU割り振り
