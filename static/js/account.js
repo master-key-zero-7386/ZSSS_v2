@@ -321,48 +321,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (linkBtn) linkBtn.textContent = "連　携";
         }
 
-        // // === ▼ HOME の場合はプルダウンを未確定状態に戻す ===
-        // if (countryCode === "HOME" && homeRegionEl) {
-
-        //     homeSnapshot = {
-        //         country_code: homeRegionEl.value || "",
-        //         display_name: homeRegionEl.options[homeRegionEl.selectedIndex]?.textContent || ""
-        //     };
-        //     isHomeEditing = true;
-
-        //     suppressHomeChange = true;
-
-        //     const cancelBtn = document.getElementById("home_cancel_btn");
-        //     if (cancelBtn) cancelBtn.style.display = "inline-block";
-
-        //     homeRegionEl.disabled = false;
-        //     homeRegionEl.innerHTML = "";
-
-        //     const emptyOpt = document.createElement("option");
-        //     emptyOpt.value = "";
-        //     emptyOpt.textContent = "— HOMEを選択 —";
-        //     homeRegionEl.appendChild(emptyOpt);        
-
-        //     fetch("/account/get_marketplaces_master")
-        //         .then(res => res.json())
-        //         .then(data => {
-        //             if (!Array.isArray(data.regions)) return;
-
-        //             data.regions.forEach(r => {
-        //                 const opt = document.createElement("option");
-        //                 opt.value = r.country_code;
-        //                 opt.textContent = r.display_name;
-        //                 homeRegionEl.appendChild(opt);
-        //             });
-        //         })
-        //         .finally(() => {
-        //         homeRegionEl.value = "";
-        //         suppressHomeChange = false;
-        //         });
-
-        //     localStorage.removeItem("homeCountryCode");
-        // }
-
         if (window.showToast) {
             if (countryCode === "HOME") {
                 window.showToast("HOMEの設定をリセットしました（未保存）", "info");
@@ -391,74 +349,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (linkBtn)   linkBtn.textContent = "リセット";
         if (cancelBtn) cancelBtn.style.display = "none";
     };
-
-    // // --- ▼ SECTION 05: ▼ HOME設定変更キャンセル（UIのみ） ▼ ---
-    // window.cancelHomeEdit = function () {
-    //     if (!isHomeEditing || !homeSnapshot) return;
-
-    //     const homeCountryCodeEl = document.getElementById("homeCountryCode");
-    //     if (!homeCountryCodeEl) return;
-
-    //     suppressHomeChange = true;
-
-    //     // 元の HOME 表示に戻す
-    //     homeCountryCodeEl.innerHTML = "";
-
-    //     const opt = document.createElement("option");
-    //     opt.value = homeSnapshot.country_code;
-    //     opt.textContent = homeSnapshot.display_name;
-    //     homeCountryCodeEl.appendChild(opt);
-
-    //     homeCountryCodeEl.value = homeSnapshot.country_code;
-    //     homeCountryCodeEl.disabled = true;
-
-    //     suppressHomeChange = false;
-
-    //     // 編集状態解除
-    //     isHomeEditing = false;
-    //     homeSnapshot = null;
-
-    //     if (window.showToast) {
-    //         window.showToast("HOME の変更をキャンセルしました", "info");
-    //     }
-    // };
-
-    // // --- ▼ SECTION 06: HOME 編集キャンセル（完全復元） ▼ ===
-    // window.cancelHomeEdit = function () {
-
-    //     if (!isHomeEditing || !homeSnapshot) return;
-
-    //     const homeCountryCodeEl = document.getElementById("homeCountryCode");
-    //     const cancelBtn   = document.getElementById("home_cancel_btn");
-    //     const linkBtn     = document.getElementById("home_link_btn");
-
-    //     // --- ▼ change イベント誤爆防止 ---
-    //     suppressHomeChange = true;
-
-    //     // --- ▼ プルダウン復元 ---
-    //     homeCountryCodeEl.innerHTML = "";
-
-    //     const opt = document.createElement("option");
-    //     opt.value = homeSnapshot.country_code;
-    //     opt.textContent = homeSnapshot.display_name;
-    //     homeCountryCodeEl.appendChild(opt);
-
-    //     homeCountryCodeEl.value = homeSnapshot.country_code;
-    //     homeCountryCodeEl.disabled = true;
-
-    //     // --- ▼ Refresh Token は再取得（DBの状態に戻す） ---
-    //     loadHomeAccount();
-
-    //     // --- ▼ ボタン状態復元 ---
-    //     if (linkBtn) linkBtn.textContent = "リセット";
-    //     if (cancelBtn) cancelBtn.style.display = "none";
-
-    //     // --- ▼ 編集状態解除 ---
-    //     isHomeEditing = false;
-    //     homeSnapshot = null;
-
-    //     suppressHomeChange = false;
-    // };
 
     // --- ▼ SECTION 06: REGION 編集キャンセル（UIのみ） ▼ ---
     window.cancelRegionEdit = function () {

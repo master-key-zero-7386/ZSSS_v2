@@ -44,11 +44,8 @@ def copy_marketplace_from_master(country_code: str, user_id: str):
     if not row_acc:
         raise ValueError(f"[copy_marketplace] account_master に user_id={user_id}, country_code={country_code} がありません")
 
-    # columns_acc = [desc[0] for desc in cur_acc.description] 
-    # acc = dict(zip(columns_acc, row_acc)) 
 
     acc = row_acc 
-
 
     # ------------------------------------------------------------
     # ② marketplaces_master（Amazon各国プリセット情報）
