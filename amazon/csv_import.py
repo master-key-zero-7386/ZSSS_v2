@@ -382,7 +382,9 @@ def import_csv():
 
             print("DB_MODE:", DB_MODE) # チェック完了後削除
             print("listed_db:", listed_db) # チェック完了後削除
-            print("exists:", os.path.exists(listed_db)) # チェック完了後削除        
+            print("exists:", os.path.exists(listed_db)) # チェック完了後削除    
+
+            conn = None 
  
             if DB_MODE == "sqlite" and os.path.exists(listed_db):
 
@@ -409,9 +411,6 @@ def import_csv():
                 asin for asin in asin_list
                 if asin not in blacklist_asins and asin not in listed_asins
             ]
-
-            os.remove(save_path)
-            conn.close()
 
             return jsonify({
                 "status": "success",
