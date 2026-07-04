@@ -394,6 +394,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({
                     id: row_id,
                     country_code: country_code,
+                    target: document.querySelector(".bl-tab.active")?.dataset.tab
                 })
             });
 

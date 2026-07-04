@@ -18,6 +18,7 @@ from datetime import datetime
 import threading
 from amazon.routes.routes_pricing_v2 import delete_listings_item
 from psycopg2.errors import UniqueViolation
+from amazon.services.ttl_stop_service import apply_blacklist, clear_blacklist
 
 blacklist_bp = Blueprint("blacklist_bp", __name__)
 
@@ -638,14 +639,6 @@ def add_blacklist():
 
         conn.commit()
 
-    # except Exception as e:
-    #     if "UNIQUE" in str(e) or "duplicate key" in str(e):
-    #         return jsonify({
-    #             "status": "error",
-    #             "message": "既に存在しています"
-    #         }), 400
-    #     raise
-
     except UniqueViolation:
 
         conn.rollback()
@@ -782,12 +775,14 @@ def apply_blacklist_update(user_id, country_code):
 
         if asin_ng or brand_ng:
 
-            # --- INACTIVE ---
-            cur.execute("""
-                UPDATE listed_items
-                SET information_status = 'INACTIVE'
-                WHERE id = %s
-            """, (row["id"],))
+            # --- ▼ 判定のみ。書き込みはサービスに委譲 ▼ ---
+            apply_blacklist(
+                user_id=user_id,
+                asin=asin,
+                marketplace_id=row["region_marketplace_id"],
+                sku=row["sku"],
+                reason="BLACKLIST"
+            )
 
             if row["status"] == "listed":
                 delete_listings_item(
@@ -798,12 +793,21 @@ def apply_blacklist_update(user_id, country_code):
                 )
 
         else:
-            # --- ACTIVEに戻す（ここ追加） ---
-            cur.execute("""
-                UPDATE listed_items
-                SET information_status = 'ACTIVE'
-                WHERE id = %s
-            """, (row["id"],))            
+            # --- ▼ ブラックリスト理由だった場合のみ解除 ▼ ---
+            if row["inactive_reason"] == "BLACKLIST":
+                clear_blacklist(
+                    user_id=user_id,
+                    asin=asin,
+                    marketplace_id=row["region_marketplace_id"]
+                )
+
+        # else:
+        #     # --- ACTIVEに戻す ---
+        #     cur.execute("""
+        #         UPDATE listed_items
+        #         SET information_status = 'ACTIVE'
+        #         WHERE id = %s
+        #     """, (row["id"],))            
 
     conn.commit()
     conn.close()
