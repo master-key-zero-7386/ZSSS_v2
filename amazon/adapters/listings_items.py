@@ -15,6 +15,20 @@ from amazon.db import get_conn
 
 JST = timezone(timedelta(hours=9))
 
+# --- SECTION 00: logテキスト出力 ---
+LOG_DIR = "logs"  # 保存先フォルダ名(必要に応じて変更してな)
+
+def write_log(message: str):
+    """ログをコンソールに表示しつつ、日付ごとのtxtファイルにも追記する"""
+    print(message, flush=True)
+
+    os.makedirs(LOG_DIR, exist_ok=True)
+    today_str = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y%m%d')
+    log_path = os.path.join(LOG_DIR, f"listing_log_{today_str}.txt")
+
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(message + "\n")
+
 # --- SECTION 01: Listings Items API（From：FIRST / ALL listing） ---
 def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, price, quantity, handling_time):
     adapter = AmazonAdapter(user_id, country_code=None, marketplace_id=marketplace_id)
@@ -71,7 +85,10 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
     # --- 出品APIチェック用 ---
     print(
     f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[LIST {country_code}]] UserID:{user_id} ASIN:{asin} PRICE:{price} QTY:{quantity} HT:{handling_time} SKU:{seller_sku} ",
-    flush=True)    
+    flush=True)  
+    write_log(
+        f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[LIST {country_code}]] UserID:{user_id} ASIN:{asin} PRICE:{price} QTY:{quantity} HT:{handling_time} SKU:{seller_sku} "
+    )      
     # --- 出品APIチェック用 ---ここまで 削除しない
 
     response = adapter.real_signed_request(
