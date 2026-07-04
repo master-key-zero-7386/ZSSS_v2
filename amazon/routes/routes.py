@@ -183,11 +183,29 @@ def index():
     # last_used を空の dict として渡す（テンプレート用）
     last_used = {}
 
+    # --- ▼ LWA認証情報の期限チェック（adminのみ） ---
+    lwa_days_remaining = None
+    is_admin = session.get("is_admin", False)
+
+    if is_admin:
+        conn = get_conn("a_lwa_credentials_log.db")
+        cur = conn.cursor()
+        cur.execute("SELECT updated_at FROM lwa_credentials_log LIMIT 1")
+        row = cur.fetchone()
+        conn.close()
+
+        if row and row["updated_at"]:
+            last_updated = datetime.fromisoformat(row["updated_at"])
+            days_passed = (datetime.utcnow() - last_updated).days
+            lwa_days_remaining = 180 - days_passed
+
     return render_template(
         "index.html",
         country_code=country_code,
         tab=tab,
-        last_used=last_used
+        last_used=last_used,
+        is_admin=is_admin,
+        lwa_days_remaining=lwa_days_remaining
     )
 
 # --- ▼ SECTION 05: Brand Gate Check ▼ ---

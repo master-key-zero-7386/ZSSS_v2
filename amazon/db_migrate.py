@@ -253,6 +253,14 @@ LISTED_ITEMS_COLUMNS = {
 #     "created_at": "TEXT"
 # }
 
+# LWA client_id/client_secret管理DB ---
+LWA_CREDENTIALS_LOG_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "client_id": "TEXT NOT NULL",
+    "client_secret": "TEXT NOT NULL",
+    "updated_at": "TEXT"
+}
+
 MARKETPLACES_COLUMNS = {
     # --- a_account_master.dbからコピー 
     "id": "SERIAL PRIMARY KEY",
@@ -531,11 +539,9 @@ def migrate_db(db_name):
     elif base.endswith("_admin_settings.db"):
         migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS) 
     elif base.endswith("_shipping_override_master.db"):
-        migrate_table(
-            conn,
-            "shipping_override_master",
-            SHIPPING_OVERRIDE_MASTER_COLUMNS
-        )                  
+        migrate_table(conn, "shipping_override_master", SHIPPING_OVERRIDE_MASTER_COLUMNS)    
+    elif base.endswith("_lwa_credentials_log.db"):
+        migrate_table(conn, "lwa_credentials_log", LWA_CREDENTIALS_LOG_COLUMNS)              
 
 
     conn.close()
@@ -822,6 +828,7 @@ def main():
         # "a_brand_master.db",
         "a_brand_gate_result.db",
         "a_shipping_override_master.db",
+        "a_lwa_credentials_log.db",
     ]
 
     # 固定DB migrate

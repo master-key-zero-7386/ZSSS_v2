@@ -98,6 +98,20 @@
         【セラセン】appから LWA：client_id client_secretを取得  access_key/secret_keyは廃止
     </div>      
 
+    <div class="master-description" style="border-left-color:#e67e22;">
+        ⚠️ client_id / client_secret はアプリ全体で共通です。ここで保存すると全マーケットに反映されます。
+    </div>
+
+    <div class="mkt-detail-row">
+        <label>client_id</label>
+        <input type="text" id="global-client-id" style="width:600px;">
+    </div>
+    <div class="mkt-detail-row">
+        <label>client_secret</label>
+        <input type="text" id="global-client-secret" style="width:600px;">
+    </div>
+    <button id="btn-save-global-credentials" class="btn-blue" style="margin-bottom:20px;">全マーケットに反映して保存</button>
+
     <div style="margin-bottom:12px;">
         <button id="btn-add-marketplace" class="btn-blue btn-add">新規追加</button>
     </div>

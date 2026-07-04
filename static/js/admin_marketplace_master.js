@@ -442,6 +442,42 @@ function initMarketplaceMaster() {
             alert('通信エラーが発生しました');
         });
     });
+
+    // --- ▼ SECTIONⅠ 08: LWA Credentials 一括保存 ▼ ---
+    $(document)
+    .off('click', '#btn-save-global-credentials')
+    .on('click', '#btn-save-global-credentials', function () {
+        const clientId = $('#global-client-id').val().trim();
+        const clientSecret = $('#global-client-secret').val().trim();
+
+        if (!clientId || !clientSecret) {
+            alert('client_id と client_secret を入力してください');
+            return;
+        }
+
+        if (!confirm('全マーケットの client_id / client_secret を一括で書き換えます。よろしいですか？')) {
+            return;
+        }
+
+        fetch('/admin/marketplace_master/update_credentials_all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: clientId, client_secret: clientSecret })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.status !== 'ok') {
+                alert(res.message || '保存に失敗しました');
+                return;
+            }
+            alert('全マーケットに反映しました');
+            $('#global-client-id').val('');
+            $('#global-client-secret').val('');
+            window.mktTable.ajax.reload();
+        })
+        .catch(() => alert('通信エラーが発生しました'));
+    });
+    
 }
 
 // --- ▼ SECTIONⅡ : Amazon ID ▼ ---

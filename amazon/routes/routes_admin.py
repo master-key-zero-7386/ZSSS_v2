@@ -113,8 +113,68 @@ def update_marketplace_master():
         except Exception:
             pass
         return jsonify({"status": "error", "message": str(e)}), 500
-        
-# --- ▼ SECTIONⅠ 02: 管理者：Marketplace Master 新規追加（INSERT） ▼ ---
+
+# --- ▼ SECTIONⅠ 02: 管理者：LWA Credentials 一括更新 ▼ ---
+@admin_api_bp.route("/marketplace_master/update_credentials_all", methods=["POST"])
+def update_credentials_all():
+    try:
+        # 管理者チェック
+        if not session.get("is_admin"):
+            return jsonify({"status": "error", "message": "権限なし"}), 403
+
+        data = request.get_json(force=True) or {}
+        client_id = (data.get("client_id") or "").strip()
+        client_secret = (data.get("client_secret") or "").strip()
+
+        if not client_id or not client_secret:
+            return jsonify({"status": "error", "message": "client_id / client_secret 必須"}), 400
+
+        now_utc = datetime.utcnow().isoformat()
+
+        # ① marketplaces_master の全行を一括UPDATE
+        conn1 = get_conn("a_marketplaces_master.db")
+        cur1 = conn1.cursor()
+        cur1.execute("""
+            UPDATE marketplaces_master
+            SET client_id = %s, client_secret = %s, updated_at = %s
+        """, (client_id, client_secret, now_utc))
+        conn1.commit()
+        conn1.close()
+
+        # ② lwa_credentials_log を1行だけ管理(あれば上書き、無ければ作成)
+        conn2 = get_conn("a_lwa_credentials_log.db")
+        cur2 = conn2.cursor()
+
+        cur2.execute("SELECT id FROM lwa_credentials_log LIMIT 1")
+        existing = cur2.fetchone()
+
+        if existing:
+            cur2.execute("""
+                UPDATE lwa_credentials_log
+                SET client_id = %s, client_secret = %s, updated_at = %s
+            """, (client_id, client_secret, now_utc))
+        else:
+            cur2.execute("""
+                INSERT INTO lwa_credentials_log (client_id, client_secret, updated_at)
+                VALUES (%s, %s, %s)
+            """, (client_id, client_secret, now_utc))
+
+        conn2.commit()
+        conn2.close()
+
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            conn1.rollback()
+            conn1.close()
+        except Exception:
+            pass
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTIONⅠ 03: 管理者：Marketplace Master 新規追加（INSERT） ▼ ---
 @admin_api_bp.route("/marketplace_master/insert", methods=["POST"])
 def insert_marketplace_master():
     try:
@@ -210,7 +270,7 @@ def insert_marketplace_master():
             pass
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTIONⅠ 03: 管理者：Marketplace Master 削除（DELETE） ▼ ---
+# --- ▼ SECTIONⅠ 04: 管理者：Marketplace Master 削除（DELETE） ▼ ---
 @admin_api_bp.route("/marketplace_master/delete", methods=["POST"])
 def delete_marketplace_master():
     try:
@@ -243,7 +303,7 @@ def delete_marketplace_master():
             pass
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTIONⅠ 04: 管理者：Amazon Retail 保存（UPDATE） ▼ ---
+# --- ▼ SECTIONⅠ 05: 管理者：Amazon Retail 保存（UPDATE） ▼ ---
 @admin_api_bp.route("/amazon_retail/update", methods=["POST"])
 def update_amazon_retail():
     try:
@@ -289,7 +349,7 @@ def update_amazon_retail():
             pass
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTIONⅠ 05: 管理者：Amazon Retail 新規追加（INSERT） ▼ ---
+# --- ▼ SECTIONⅠ 06: 管理者：Amazon Retail 新規追加（INSERT） ▼ ---
 @admin_api_bp.route("/amazon_retail/insert", methods=["POST"])
 def insert_amazon_retail():
     try:
@@ -342,7 +402,7 @@ def insert_amazon_retail():
             pass
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTIONⅠ 06: 管理者：Amazon Retail 削除（DELETE） ▼ ---
+# --- ▼ SECTIONⅠ 07: 管理者：Amazon Retail 削除（DELETE） ▼ ---
 @admin_api_bp.route("/amazon_retail/delete", methods=["POST"])
 def delete_amazon_retail():
     try:

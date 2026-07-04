@@ -130,7 +130,28 @@
 
 </style>
 
-<!-- ✅ TOPページ ✅ IPアドレス（場所）表示 -->
+<!-- ✅ TOPページ -->
+
+{% if is_admin and lwa_days_remaining is not none and lwa_days_remaining <= 30 %}
+<div style="
+    padding: 12px 20px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    {% if lwa_days_remaining <= 7 %}
+        background: #fdecea; color: #b30000; border: 1px solid #f5c2c0;
+    {% else %}
+        background: #fff8e1; color: #8a6d00; border: 1px solid #ffe08a;
+    {% endif %}
+">
+    {% if lwa_days_remaining <= 7 %}
+        🚨 LWA認証情報の有効期限まで残り{{ lwa_days_remaining }}日です！至急更新してください。
+    {% else %}
+        ⚠️ LWA認証情報の有効期限まで残り{{ lwa_days_remaining }}日です。
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="top-layout">
     <!--左サイドバー  -->
     <div class="sidebar" id="sidebar">

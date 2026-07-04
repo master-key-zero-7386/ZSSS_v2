@@ -167,8 +167,8 @@ def get_lwa_credentials(country_code: str):
     if not row:
         raise ValueError("LWA credentials not found in master DB")
 
-    columns = [desc[0] for desc in cur.description] 
-    row_dict = dict(zip(columns, row))
+    # columns = [desc[0] for desc in cur.description] 
+    # row_dict = dict(zip(columns, row))
 
     return {
         "client_id": row["client_id"],
