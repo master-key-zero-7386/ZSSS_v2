@@ -625,6 +625,33 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         
         return 
 
+    # --- ▼▼▼ カタログ情報チェック(揃うまでACTIVE化しない) ▼▼▼ ---
+    if (
+        row["length_cm"] is None
+        or row["width_cm"] is None
+        or row["height_cm"] is None
+        or row["actual_weight_kg"] is None
+    ):
+        conn = get_conn(listed_db)
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE listed_items
+                SET information_status = 'INACTIVE',
+                    inactive_reason = 'NO_CATALOG'
+                WHERE user_id = %s
+                AND asin = %s
+            """, (user_id, asin))
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "status": "no_catalog_skip",
+            "final_price": None
+        }
+    # --- ▲▲▲ ここまで ▲▲▲ ---        
+
     region_marketplace_id = row["region_marketplace_id"]
     home_price = row["home_price"]    
     if home_price is None:
