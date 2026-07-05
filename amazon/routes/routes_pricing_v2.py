@@ -119,6 +119,44 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     result = adapter.get_full_pricing_item(asin)
     raw = result.get("raw")
 
+    # ★追加: 確定でゴミASINと判断できるケースを検知
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+
+    if errors and any(e.get("code") == "NOT_FOUND" for e in errors):
+        reason = "HOME_PRICE_NOT_FOUND"   # 404: そもそも存在しない
+    else:
+        offers = raw.get("payload", {}).get("Offers", []) if isinstance(raw, dict) else []
+        reason = "HOME_NO_OFFERS" if (not errors and len(offers) == 0) else None  # 200だが出品者0件
+
+    if reason:
+        conn = get_conn(listed_db)
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE listed_items
+                SET information_status = 'INACTIVE',
+                    inactive_reason = %s,
+                    ttl_stop_status = %s,
+                    updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+            """, (
+                reason,
+                1 if reason == "HOME_PRICE_NOT_FOUND" else None,  # ★変更: 404だけ停止、200は継続監視
+                datetime.utcnow().isoformat(),
+                user_id,
+                asin
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "status": reason.lower(),
+            "asin": asin,
+            "country_code": country_code,
+        }    
+
     # === 02-03: NORMALIZE（HOME / 暫定） ===
     normalizer = NormalizedPricingAdapter(parent_adapter=adapter)
     normalized = normalizer.normalize_home_offers(raw)
