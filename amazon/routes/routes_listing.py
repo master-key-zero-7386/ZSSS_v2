@@ -1478,15 +1478,6 @@ def delete_item():
     # status判定（pre / all）
     status = "listed" if (data.get("status") or "").lower() == "all" else "pre"
 
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__))) 
-    db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
-    cache_db = os.path.join(base_dir, "db", "a_pricing_cache.db")
-    catalog_cache_db = os.path.join(base_dir, "db", "a_catalog_cache.db")
-
-    # --- DB存在チェック ---
-    if not os.path.exists(db_file):
-        return jsonify({"status": "error", "message": f"database not found: {db_file}"})
-
     # --- Amazon削除API（ALLのみ） ---
     if status == "listed":
 
@@ -1725,13 +1716,6 @@ def move_to_all():
 
         if not asin:
             return jsonify({"status": "error", "message": "ASINが指定されていません"})
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
-
-        # --- DB存在チェック ---
-        if not os.path.exists(db_file):
-            return jsonify({"status": "error", "message": f"database not found: {db_file}"})
 
         # リトライ付きでロック回避
         max_retry = 5

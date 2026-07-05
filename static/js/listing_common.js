@@ -549,7 +549,7 @@ document.addEventListener("DOMContentLoaded", () => {
         preSearchBtn.addEventListener("click", function () {
 
             const keyword = document.getElementById("preListingSearchInput").value.trim();
-            const detail = document.getElementById("preListingDetailSearch").checked;
+            const detail = document.getElementById("preListingDetailSearch")?.checked || false;
             const country_code = document.getElementById("globalRegion")?.value;
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
 
@@ -565,14 +565,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // === ▼ 09-04: ALL 検索実行 ▼ ===
+    // === ▼ 09-04: ALL 検索実行 ▼ ===　
     const allSearchBtn = document.getElementById("allListingSearchBtn");
 
     if (allSearchBtn) {
         allSearchBtn.addEventListener("click", function () {
 
             const keyword = document.getElementById("allListingSearchInput").value.trim();
-            const detail = document.getElementById("allListingDetailSearch").checked;
+            const detail = document.getElementById("allListingDetailSearch")?.checked || false;
             const country_code = document.getElementById("globalRegion")?.value;
             const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
             
