@@ -46,7 +46,7 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 
     home_marketplace_id = row["home_marketplace_id"]
 
-    # === 01-2: HOME Catalog raw 取得（API） ===
+# === 01-2: HOME Catalog raw 取得（API） ===
     base = AmazonAdapter(
         user_id=user_id,
         country_code=country_code,
@@ -56,6 +56,30 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
     result = adapter.get_full_catalog_item(asin)    
     raw = result.get("raw")
 
+    # ★追加: 404 NOT_FOUND（HOME=仕入先に商品がもう存在しない）を検知
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors and any(e.get("code") == "NOT_FOUND" for e in errors):
+        conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE listed_items
+                SET information_status = 'INACTIVE',
+                    inactive_reason = 'HOME_NOT_FOUND',
+                    ttl_stop_status = 1,
+                    updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+            """, (datetime.utcnow().isoformat(), user_id, asin))
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "status": "home_not_found",
+            "asin": asin,
+            "country_code": country_code,
+        }
 
     # === 01-3: NORMALIZE（HOME） ===
     normalizer = NormalizedCatalogAdapter(parent_adapter=adapter)
