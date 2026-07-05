@@ -491,6 +491,8 @@ def import_csv():
 
             conn_c, cur_c, conn_p, cur_p = insert_cache_record_from_csv_batch() 
 
+            inserted_count = 0 # ← 実際に登録できた件数を数える箱
+
             for asin, sku in zip(asins, skus):
                 if not sku:  
                     sku = f"Z_{country_code}_{asin}_{today}_{condition}"
@@ -598,6 +600,9 @@ def import_csv():
                     now_utc,                     # updated_at                 
                 ))
 
+                if cur.rowcount > 0:             # ← 実際に登録された場合だけ+1
+                    inserted_count += 1                
+
                 # CSV取り込み時点で cache 骨格を同時に作成
                 cur_c.execute("""
                     INSERT INTO catalog_cache (
@@ -660,7 +665,7 @@ def import_csv():
 
             app = current_app._get_current_object()             
 
-            return jsonify({"status": "success", "count": len(asins)})
+            return jsonify({"status": "success", "count": inserted_count})
 
     except Exception as e:
         import traceback

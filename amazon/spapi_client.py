@@ -118,12 +118,6 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
         if not url.startswith("http"):
             url = f"https://{url}"
 
-        # # === latin-1 原因特定用 ===
-        # import chardet
-        # for k, v in headers.items():
-        #     if isinstance(v, str):
-        #         det = chardet.detect(v.encode(errors="ignore"))
-
         from urllib.parse import quote
 
         resp = requests.request(method, url, headers=headers, params=params, json=json, timeout=15)
