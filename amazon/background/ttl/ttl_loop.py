@@ -85,6 +85,17 @@ def run_ttl_loop(app, db_dir):
                 print(e)
                 traceback.print_exc()
 
+                # ★追加：エラー内容をファイルにも記録（CMDのログが流れて消えても後から確認できるように）
+                try:
+                    os.makedirs(os.path.join(db_dir, "logs"), exist_ok=True)
+                    log_path = os.path.join(db_dir, "logs", "ttl_error.log")
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"\n[{datetime.datetime.now(JST).strftime('%Y-%m-%d %H:%M:%S')}] ERROR\n")
+                        f.write(traceback.format_exc())
+                        f.write("\n")
+                except Exception:
+                    pass
+                    
             # --- ▼ TTL進行更新（last_id）▼ ---
             try:
                 conn = get_conn("a_pricing_settings.db")
