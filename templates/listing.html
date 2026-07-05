@@ -127,27 +127,26 @@
 }
 
 
-
-/* Listing 画面 部品共通デザイン（角丸・枠線・フォント） */
-.zsss-listing-control {
+/* 画面 部品共通デザイン（角丸・枠線・フォント） */
+.zsss-control {
     border: 1px solid #ccc;
     border-radius: 6px;
     font-family: sans-serif;
 }
 
-/* Listing 検索バー */
-.listing-search-bar input {
+/* 検索バー */
+.search-bar input {
     width: 500px;
     padding: 10px 10px;
     font-size: 16px;
 }
 
-.listing-search-bar button {
+.search-bar button {
     padding: 6px 10px;
     font-size: 16px;
 }
 
-.listing-search-bar select {
+.search-bar select {
     width: 200px;
     padding: 10px 10px;
     font-size: 16px;
@@ -275,13 +274,13 @@
     <h2>Pre-Listig</h2>
 
     <!-- 検索（Pre） -->
-    <div class="listing-search-bar">
+    <div class="search-bar">
 
         <div style="position:relative; display:inline-block;">
 
             <input id="preListingSearchInput"
                 type="text"
-                class="zsss-listing-control"
+                class="zsss-control"
                 placeholder="ASIN SKU Title Brandで検索"
                 style="padding-right:24px;">
 
@@ -300,7 +299,7 @@
         </div>
 
         <!-- ソートプルダウン（Pre） -->
-        <select id="preListingSort" class="zsss-listing-control">
+        <select id="preListingSort" class="zsss-control">
             <option value="created_desc">登録順 ▼</option>
             <option value="created_asc">登録順 ▲</option>
 
@@ -322,7 +321,7 @@
             <option value="brandgate_unknown">BrandGate 未チェック</option>            
         </select>
 
-        <button id="preListingSearchBtn" class="zsss-listing-control">検　索</button>
+        <button id="preListingSearchBtn" class="zsss-control">検　索</button>
     </div>   
 
     <div id="preInfoStatusFilter" style="margin-top:10px;">
@@ -335,7 +334,7 @@
             <label><input type="radio" name="preInfoStatus" value="unfetched"> 未取得</label>
 
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
-            <select id="preInactiveReason" class="zsss-listing-control" disabled>
+            <select id="preInactiveReason" class="zsss-control" disabled>
                 <option value="all">理由：全て</option>
                 <option value="BLACKLIST">BLACKLIST</option>
                 <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
@@ -349,7 +348,7 @@
     <!-- ▼ 一括操作（Pre） -->
     <div class="listing-bulk-action">
 
-        <select id="bulkActionSelectPre" class="zsss-listing-control">
+        <select id="bulkActionSelectPre" class="zsss-control">
             <option value="" disabled selected hidden>一括操作</option>
             <option value="delete">選択リスト 一括削除</option>
             <option value="move_to_all">選択リスト 一括出品</option>
@@ -357,7 +356,7 @@
             <option value="blacklist" disabled>ブラックリスト追加</option>
         </select>
 
-        <button id="bulkActionRunPre" class="zsss-listing-control" disabled>実　行</button>
+        <button id="bulkActionRunPre" class="zsss-control" disabled>実　行</button>
 
     </div>
 
@@ -368,12 +367,12 @@
     <h2>ALL-Listig</h2>
 
     <!-- 検索（ALL） -->
-    <div class="listing-search-bar">
+    <div class="search-bar">
         <div style="position:relative; display:inline-block;">
 
             <input id="allListingSearchInput"
                 type="text"
-                class="zsss-listing-control"
+                class="zsss-control"
                 placeholder="ASIN SKU Title Brandで検索"
                 style="padding-right:24px;">
 
@@ -392,7 +391,7 @@
         </div>    
 
         <!-- ソートプルダウン（ALL） -->
-        <select id="allListingSort" class="zsss-listing-control">
+        <select id="allListingSort" class="zsss-control">
             <option value="created_desc">登録順 ▼</option>
             <option value="created_asc">登録順 ▲</option>
 
@@ -414,7 +413,7 @@
             <option value="brandgate_unknown">BrandGate 未チェック</option>            
         </select>              
 
-        <button id="allListingSearchBtn" class="zsss-listing-control">検　索</button>
+        <button id="allListingSearchBtn" class="zsss-control">検　索</button>
     </div>   
 
     <!-- <div id="allInfoStatusFilter" style="display:none; margin-top:10px;"> -->
@@ -427,7 +426,7 @@
             <label><input type="radio" name="allInfoStatus" value="INACTIVE"> INACTIVE</label>
 
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
-            <select id="allInactiveReason" class="zsss-listing-control" disabled>
+            <select id="allInactiveReason" class="zsss-control" disabled>
                 <option value="all">理由：全て</option>
                 <option value="BLACKLIST">BLACKLIST</option>
                 <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
@@ -442,14 +441,14 @@
     <!-- ▼ 一括操作（ALL） -->
     <div class="listing-bulk-action">
 
-        <select id="bulkActionSelectAll" class="zsss-listing-control">
+        <select id="bulkActionSelectAll" class="zsss-control">
             <option value="" disabled selected hidden>一括操作</option>
             <option value="delete">選択リスト 一括削除</option>
             <option value="brand_check">選択リスト Brand Gateチェック</option>
             <option value="blacklist" disabled>ブラックリスト追加</option>
         </select>
 
-        <button id="bulkActionRunAll" class="zsss-listing-control" disabled>実　行</button>
+        <button id="bulkActionRunAll" class="zsss-control" disabled>実　行</button>
 
     </div>
 
