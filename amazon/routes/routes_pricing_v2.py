@@ -205,23 +205,26 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
             conn.close()
 
     # --- ▼ TTL更新（HOME PRICING） ▼ ---
-    conn = get_conn("a_pricing_cache.db") 
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE pricing_cache
-            SET h_pricing_ttl_at = %s
-            WHERE asin = %s
-            AND home_marketplace_id = %s
-        """, (
-            datetime.utcnow().isoformat(),
-            asin,
-            home_marketplace_id
-        ))
-        conn.commit()
-    finally:
-        conn.close()    
-
+    # ★修正: 仕入価格が見つからなかった場合（min_offerが無い）はTTL日付を更新しない
+    #        → 次の巡回ですぐ再チェックされるようにする
+    if min_offer:
+        conn = get_conn("a_pricing_cache.db") 
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE pricing_cache
+                SET h_pricing_ttl_at = %s
+                WHERE asin = %s
+                AND home_marketplace_id = %s
+            """, (
+                datetime.utcnow().isoformat(),
+                asin,
+                home_marketplace_id
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+            
     return {
         "status": "ok",
         "asin": asin,
@@ -378,30 +381,35 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
         },
     )
 
-    update_listing_price(
+    price_result = update_listing_price(
         user_id=user_id,
         asin=asin,
         country_code=country_code
     )
 
     # --- ▼ TTL更新（REGION PRICING） ▼ ---
-    conn = get_conn("a_pricing_cache.db") 
+    # ★修正: NO_CATALOG（HOME側の寸法・重量が未取得）だった場合は
+    #        TTL日付を更新しない → 次の巡回（数秒後）ですぐ再チェックされるようにする
+    is_no_catalog = isinstance(price_result, dict) and price_result.get("status") == "no_catalog_skip"
 
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE pricing_cache
-            SET r_pricing_ttl_at = %s
-            WHERE asin = %s
-            AND region_marketplace_id = %s
-        """, (
-            datetime.utcnow().isoformat(),
-            asin,
-            region_marketplace_id
-        ))
-        conn.commit()
-    finally:
-        conn.close()
+    if not is_no_catalog:
+        conn = get_conn("a_pricing_cache.db") 
+
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE pricing_cache
+                SET r_pricing_ttl_at = %s
+                WHERE asin = %s
+                AND region_marketplace_id = %s
+            """, (
+                datetime.utcnow().isoformat(),
+                asin,
+                region_marketplace_id
+            ))
+            conn.commit()
+        finally:
+            conn.close()
 
     return {
         "status": "ok",
