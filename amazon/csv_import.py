@@ -187,30 +187,26 @@ def check_csv():
             f"a_{country_code.lower()}_listed_items.db"
         )
 
-        if os.path.exists(listed_db):
 
-            if DB_MODE == "sqlite":
-                conn = sqlite3.connect(listed_db, timeout=30)
-                conn.execute("PRAGMA journal_mode=WAL")
-            else:
-                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+        if DB_MODE == "sqlite":
+            conn = sqlite3.connect(listed_db, timeout=30)
+            conn.execute("PRAGMA journal_mode=WAL")
+        else:
+            conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
-            cur = conn.cursor()
+        cur = conn.cursor()
 
-            for asin in asin_list:
-                cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
-                if cur.fetchone():
-                    listed_asins.append(asin)
-            conn.close()
+        for asin in asin_list:
+            cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
+            if cur.fetchone():
+                listed_asins.append(asin)
+        conn.close()
 
          # 出品可能ASIN = 全体 − ブラックリスト − 出品済み
         ok_asins = [
             asin for asin in asin_list
             if asin not in blacklist_asins
             and asin not in listed_asins ]
-
-        # # 完全削除
-        # os.remove(save_path)
 
         return jsonify({
             "status": "success",
