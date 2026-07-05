@@ -376,17 +376,30 @@ def import_csv():
             # --- ▼ 既登録チェック ▼ ---
             listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
 
-            print("DB_MODE:", DB_MODE) # チェック完了後削除
-            print("listed_db:", listed_db) # チェック完了後削除
-            print("exists:", os.path.exists(listed_db)) # チェック完了後削除    
-
             conn = None 
  
-            if DB_MODE == "sqlite" and os.path.exists(listed_db):
+            # if DB_MODE == "sqlite" and os.path.exists(listed_db):
 
-                conn = sqlite3.connect(listed_db, timeout=30)
-                conn.execute("PRAGMA journal_mode=WAL")
+            #     conn = sqlite3.connect(listed_db, timeout=30)
+            #     conn.execute("PRAGMA journal_mode=WAL")
 
+            #     cur = conn.cursor()
+
+            #     for asin in asin_list:
+            #         cur.execute("SELECT 1 FROM listed_items WHERE asin = %s", (asin,))
+            #         if cur.fetchone():
+            #             listed_asins.append(asin)
+
+            #     conn.close()
+
+            if DB_MODE == "sqlite":
+                conn = sqlite3.connect(listed_db, timeout=30) if os.path.exists(listed_db) else None
+                if conn:
+                    conn.execute("PRAGMA journal_mode=WAL")
+            else:
+                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+
+            if conn:
                 cur = conn.cursor()
 
                 for asin in asin_list:
