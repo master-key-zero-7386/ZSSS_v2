@@ -557,6 +557,8 @@ def import_csv():
                         %s,%s,%s,
                         %s,%s
                     )
+                    ON CONFLICT (user_id, asin, region_marketplace_id)
+                    DO NOTHING                    
                 """, (
                     session.get("user_id"),      # user_id　　　　　　　　　6
                     asin,                        # asin
