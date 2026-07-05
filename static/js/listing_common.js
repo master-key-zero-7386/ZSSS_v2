@@ -661,8 +661,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const sort = document.getElementById("preListingSort")?.value;
 
         const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
+        const reason = document.getElementById("preInactiveReason")?.value || 'all';
 
-        fetch(`/listing/search_listing?mode=pre&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}`)
+        fetch(`/listing/search_listing?mode=pre&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
         .then(data => {
 
@@ -685,8 +686,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const sort = document.getElementById("allListingSort")?.value;
 
         const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
+        const reason = document.getElementById("allInactiveReason")?.value || 'all';
         
-        fetch(`/listing/search_listing?mode=all&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}`)
+        fetch(`/listing/search_listing?mode=all&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
         .then(data => {
 

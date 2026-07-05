@@ -535,8 +535,7 @@ def _build_listing_row_with_shipping(
     }
     
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword=""):
-
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all"):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -682,6 +681,11 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     elif info_status != "all":
         query_filter += " AND information_status = %s" 
         params_base.append(info_status)
+
+    # --- INACTIVE理由での絞り込み ---
+    if reason and reason != "all":
+        query_filter += " AND inactive_reason = %s"
+        params_base.append(reason)
 
     if keyword:
         query_filter += """
@@ -977,10 +981,11 @@ def get_prelisting():
         sort = request.args.get("sort") or "created_desc"
 
         info_status = request.args.get("info_status") or "all"
+        reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword)
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -1005,10 +1010,11 @@ def get_alllisting():
         sort = request.args.get("sort") or "created_desc" 
 
         info_status = request.args.get("info_status") or "all"
+        reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword)
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason)
         
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -1085,6 +1091,11 @@ def search_listing():
                 query_filter = " AND information_status = %s"
                 params.append(info_status)
 
+            reason = request.args.get("reason") or "all"
+            if reason != "all":
+                query_filter += " AND inactive_reason = %s"
+                params.append(reason)
+
             cur.execute(f"""
                 SELECT *
                 FROM listed_items
@@ -1102,7 +1113,7 @@ def search_listing():
                 {query_filter}
                 ORDER BY created_at DESC
                 LIMIT 200
-            """, params)
+            """, params)            
 
         else:
 
@@ -1118,6 +1129,11 @@ def search_listing():
             if info_status != "all":
                 query_filter = " AND information_status = %s"
                 params.append(info_status)
+
+            reason = request.args.get("reason") or "all"
+            if reason != "all":
+                query_filter += " AND inactive_reason = %s"
+                params.append(reason)
 
             cur.execute(f"""
                 SELECT *

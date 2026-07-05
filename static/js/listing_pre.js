@@ -31,12 +31,35 @@ window.loadprelisting = async function (country_code) {
     document.querySelectorAll('input[name="preInfoStatus"]').forEach(radio => {
         radio.addEventListener("change", () => {
 
+            // --- ▼ INACTIVE選択時だけ理由プルダウンを有効化 ▼ ---
+            const reasonSelect = document.getElementById("preInactiveReason");
+            if (reasonSelect) {
+                if (radio.value === "INACTIVE" && radio.checked) {
+                    reasonSelect.disabled = false;
+                } else {
+                    reasonSelect.disabled = true;
+                    reasonSelect.value = "all"; // 選択を戻す
+                }
+            }
+
             const region = document.getElementById("globalRegion")?.value;
             if (!region) return;
 
             loadprelisting(region);
         });
     });    
+
+    // --- ▼ SECTION 04-2: 理由プルダウン変更時も再読み込み ▼ ---
+    const preReasonSelect = document.getElementById("preInactiveReason");
+    if (preReasonSelect && !preReasonSelect.dataset.bound) {
+        preReasonSelect.addEventListener("change", () => {
+            const region = document.getElementById("globalRegion")?.value;
+            if (!region) return;
+
+            loadprelisting(region);
+        });
+        preReasonSelect.dataset.bound = "1";
+    }   
 
     // --- ▼ SECTION 05: DataTable 再生成 ---
     const preTable = $("#prelistingtable").DataTable({  
@@ -50,10 +73,11 @@ window.loadprelisting = async function (country_code) {
             const sort = document.getElementById("preListingSort")?.value;
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
+            const reason = document.getElementById("preInactiveReason")?.value || 'all';
             // console.log("INPUT VALUE:", keyword); 
             const page = Math.floor((dt.start || 0) / (dt.length || 100)) + 1;  
 
-            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
+            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
                 callback({
@@ -62,7 +86,7 @@ window.loadprelisting = async function (country_code) {
                     recordsFiltered: json.total_count
                 });
             });
-        },        
+        },     
 
         order: [],
         orderClasses: false,

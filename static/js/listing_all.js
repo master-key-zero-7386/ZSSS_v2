@@ -43,10 +43,11 @@ window.loadalllisting = async function(country_code) {
                     const sort = document.getElementById("allListingSort")?.value;
                     const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
                     const keyword = document.querySelector('#allListingSearchInput')?.value || '';
+                    const reason = document.getElementById("allInactiveReason")?.value || 'all';
 
                     const page = Math.floor((dt.start || 0) / (dt.length || 100)) + 1;
                     
-                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&page=${page}&keyword=${encodeURIComponent(keyword)}`)           
+                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
                         .then(res => {
                             
                             return res.json();
@@ -586,6 +587,17 @@ window.loadalllisting = async function(country_code) {
         document.querySelectorAll('input[name="allInfoStatus"]').forEach(radio => {
             radio.addEventListener("change", () => {
 
+                // --- ▼ INACTIVE選択時だけ理由プルダウンを有効化 ▼ ---
+                const reasonSelect = document.getElementById("allInactiveReason");
+                if (reasonSelect) {
+                    if (radio.value === "INACTIVE" && radio.checked) {
+                        reasonSelect.disabled = false;
+                    } else {
+                        reasonSelect.disabled = true;
+                        reasonSelect.value = "all"; // 選択を戻す
+                    }
+                }
+
                 const region = document.getElementById("globalRegion")?.value;
                 if (!region) return;
 
@@ -594,6 +606,18 @@ window.loadalllisting = async function(country_code) {
         });
 
         window._alllisting_info_bind = true;
+    }
+
+    // --- ▼ SECTION 04-2: 理由プルダウン変更時も再読み込み ▼ ---
+    const allReasonSelect = document.getElementById("allInactiveReason");
+    if (allReasonSelect && !allReasonSelect.dataset.bound) {
+        allReasonSelect.addEventListener("change", () => {
+            const region = document.getElementById("globalRegion")?.value;
+            if (!region) return;
+
+            loadalllisting(region);
+        });
+        allReasonSelect.dataset.bound = "1";
     }
 
     window.alllistingLoading = false; 
