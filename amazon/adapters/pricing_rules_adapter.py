@@ -143,7 +143,6 @@ class PricingRulesAdapter:
         filtered = []
 
         for offer in normalized_offers:
-            print(f"[DEBUG-REGION-ALL] seller_id={offer.get('seller_id')!r} is_amazon={offer.get('seller_id') in RETAIL_SELLER_IDS!r} rating={offer.get('rating_percent')!r} count={offer.get('rating_count')!r} price={offer.get('price_amount')!r}")
             # --- 自分除外 ---
             if offer.get("seller_id") == self.rules.get("my_seller_id"):
                 continue
@@ -151,26 +150,20 @@ class PricingRulesAdapter:
             # --- Amazon直売かどうか判定 ---
             is_amazon = offer.get("seller_id") in RETAIL_SELLER_IDS
 
-            # --- 最低評価率 ---
+            # --- 最低評価率（Amazonは無条件通過） ---
             min_rating_percent = self.rules.get("pricing_competitor_min_rating_percent")
-            if min_rating_percent:
+            if min_rating_percent and not is_amazon:
                 rating = offer.get("rating_percent")
                 if rating is None or float(rating) < float(min_rating_percent):
                     continue
-
-            # --- 最低評価数 ---
+            # --- 最低評価数（Amazonは無条件通過） ---
             min_rating_count = self.rules.get("pricing_competitor_min_rating_count") 
-            if min_rating_count:
+            if min_rating_count and not is_amazon:
                 rating_count = offer.get("rating_count")
                 if rating_count is None or int(rating_count) < int(min_rating_count):
                     continue
 
-            filtered.append(offer)
-
-            # --- ▼ DEBUG（確認用・あとで削除）▼ ---
-            print(f"[DEBUG-REGION] seller_id={offer.get('seller_id')!r} is_amazon={is_amazon!r} price={offer.get('price_amount')!r} rating={offer.get('rating_percent')!r}")
-            # --- ▲ DEBUG ここまで ▲ ---
-            
+            filtered.append(offer)          
 
         if not filtered:
             return None
