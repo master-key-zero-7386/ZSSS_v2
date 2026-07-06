@@ -446,7 +446,6 @@ def save_bg_scan_settings():
     scan_limit    = data.get("scan_limit")
     ttl_sleep_sec = data.get("ttl_sleep_sec")
 
-    # ▼ TTL項目別 上限件数
     ttl_limit_home_pricing    = data.get("ttl_limit_home_pricing")
     ttl_limit_region_pricing  = data.get("ttl_limit_region_pricing")
     ttl_limit_home_catalog    = data.get("ttl_limit_home_catalog")
@@ -459,19 +458,21 @@ def save_bg_scan_settings():
         from datetime import datetime
         now = datetime.now().isoformat()
 
+        # --- ▼ id=1の行が無ければ、先に空の行を作る ▼ ---
+        cur.execute("""
+            INSERT INTO bg_scan_settings (id, interval_min, scan_limit, updated_at)
+            SELECT 1, 10, 20, %s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM bg_scan_settings WHERE id = 1
+            )
+        """, (now,))
+
         if interval_min is not None and scan_limit is not None:
             cur.execute("""
                 UPDATE bg_scan_settings
                 SET interval_min = %s, scan_limit = %s, updated_at = %s
                 WHERE id = 1
             """, (float(interval_min), int(scan_limit), now))
-
-        if ttl_sleep_sec is not None:
-            cur.execute("""
-                UPDATE bg_scan_settings
-                SET ttl_sleep_sec = %s, updated_at = %s
-                WHERE id = 1
-            """, (float(ttl_sleep_sec), now))
 
         # ▼ TTL項目別 上限件数を保存
         if ttl_limit_home_pricing is not None:
