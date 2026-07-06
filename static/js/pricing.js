@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadShippingConfigV2(region);
 
       if (window.showToast) {
-        window.showToast("梱包補正設定を保存しました", "success");
+        window.showToast("Pricing設定を保存しました", "success");
       }
 
     } else {
