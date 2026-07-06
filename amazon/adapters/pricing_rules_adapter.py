@@ -5,14 +5,10 @@
 # ファイル名: amazon/adapters/pricing_rules_adapter.py
 # 目的: HOME Price（仕入側） / region Price（販売側）判定条件
 # ======================================================
+
 from amazon.db import get_conn
 from amazon.db_migrate import DB_DIR
-
-# --- Amazon公式IDリスト ---
-AMAZON_OFFICIAL_IDS = {
-    "AN1VRQENFRJN5",   # JP JP
-    "A2K69GP4EI3XWZ",  # AU AU
-}
+from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 
 
 class PricingRulesAdapter:
@@ -41,14 +37,14 @@ class PricingRulesAdapter:
         # # --- HOME国取得（a_marketplaces.db） ---
         home_country = self.rules.get("home_country")
 
+        RETAIL_SELLER_IDS = get_retail_seller_ids()
+
         for offer in normalized_offers:
-            # ここに条件判定を順番に追加していく    
-
             seller_id = offer.get("seller_id")
-
+            
             # --- Amazon直売は評価率・数は無条件通過 ---
             seller_id = offer.get("seller_id")
-            is_amazon = seller_id in AMAZON_OFFICIAL_IDS 
+            is_amazon = seller_id in RETAIL_SELLER_IDS
 
             # --- 予約商品除外 ---
             if self.rules.get("exclude_future_offer") == 1:
@@ -66,26 +62,25 @@ class PricingRulesAdapter:
                     if ships_from_country != home_country:
                         continue
 
-            # --- 最低評価率 ---
+            # --- 最低評価率（Amazonは無条件通過） ---
             min_rating_percent = self.rules.get("min_rating_percent")
             if min_rating_percent and not is_amazon:
                 rating = offer.get("rating_percent")
                 if rating is None or float(rating) < float(min_rating_percent):
                     continue
 
-            # --- 最低評価数 ---
-            min_rating_count = self.rules.get("min_rating_count")
+            # --- 最低評価数（Amazonは無条件通過） ---
+            min_rating_count = self.rules.get("min_rating_count") 
             if min_rating_count and not is_amazon:
                 rating_count = offer.get("rating_count")
                 if rating_count is None or int(rating_count) < int(min_rating_count):
-                    continue                    
+                    continue
 
             # --- 最大出荷日数 ---
             max_handling_days = self.rules.get("max_handling_days")
             handling_days = offer.get("handling_time_days")
-
             seller_id = offer.get("seller_id")
-            is_amazon = seller_id in AMAZON_OFFICIAL_IDS 
+            is_amazon = seller_id in RETAIL_SELLER_IDS
 
             if handling_days is not None:
 
@@ -142,12 +137,18 @@ class PricingRulesAdapter:
         if not normalized_offers:
             return None
 
+        # --- Amazon直売セラーID一覧（管理画面と連動） ---
+        RETAIL_SELLER_IDS = get_retail_seller_ids()
+
         filtered = []
 
         for offer in normalized_offers:
-            # --- 自分除外（ここ追加） ---
+            # --- 自分除外 ---
             if offer.get("seller_id") == self.rules.get("my_seller_id"):
                 continue
+
+            # --- Amazon直売かどうか判定 ---
+            is_amazon = offer.get("seller_id") in RETAIL_SELLER_IDS
 
             # --- 最低評価率 ---
             min_rating_percent = self.rules.get("pricing_competitor_min_rating_percent")
