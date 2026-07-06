@@ -336,15 +336,27 @@
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
             <select id="preInactiveReason" class="zsss-control" disabled>
                 <option value="all">理由：全て</option>
-                <option value="BLACKLIST">BLACKLIST</option>
-                <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
-                <option value="NO_PRICE">NO_PRICE</option>
-                <option value="Setting MAX_PRICE">Setting MAX_PRICE</option>
-                <option value="NO_CATALOG">NO_CATALOG</option>
-                <option value="HOME_NOT_FOUND">HOME_NOT_FOUND</option>
-                <option value="HOME_PRICE_NOT_FOUND">HOME_PRICE_NOT_FOUND</option>
-                <option value="HOME_NO_OFFERS">HOME_NO_OFFERS</option>                
-            </select>            
+
+                <optgroup label="確定NG">
+                    <option value="HOME_NOT_FOUND">HOME_NOT_FOUND</option>
+                    <option value="HOME_PRICE_NOT_FOUND">HOME_PRICE_NOT_FOUND</option>
+                </optgroup>
+
+                <optgroup label="一時的・未確定">
+                    <option value="NO_CATALOG">NO_CATALOG</option>
+                    <option value="HOME_NO_OFFERS">HOME_NO_OFFERS</option>
+                </optgroup>
+
+                <optgroup label="価格戦略">
+                    <option value="NO_PRICE">NO_PRICE</option>
+                    <option value="Setting MAX_PRICE">Setting MAX_PRICE</option>
+                    <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
+                </optgroup>
+
+                <optgroup label="その他">
+                    <option value="BLACKLIST">BLACKLIST</option>
+                </optgroup>
+            </select>         
         </div>        
     </div>   
 
@@ -429,18 +441,29 @@
             <label><input type="radio" name="allInfoStatus" value="INACTIVE"> INACTIVE</label>
 
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
-            <select id="allInactiveReason" class="zsss-control" disabled>
+            <select id="preInactiveReason" class="zsss-control" disabled>
                 <option value="all">理由：全て</option>
-                <option value="BLACKLIST">BLACKLIST</option>
-                <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
-                <option value="NO_PRICE">NO_PRICE</option>
-                <option value="Setting MAX_PRICE">Setting MAX_PRICE</option>
-                <option value="NO_CATALOG">NO_CATALOG</option>
-                <option value="NO_CATALOG">NO_CATALOG</option>
-                <option value="HOME_NOT_FOUND">HOME_NOT_FOUND</option>
-                <option value="HOME_PRICE_NOT_FOUND">HOME_PRICE_NOT_FOUND</option>
-                <option value="HOME_NO_OFFERS">HOME_NO_OFFERS</option>                  
-            </select> 
+
+                <optgroup label="確定NG">
+                    <option value="HOME_NOT_FOUND">HOME_NOT_FOUND</option>
+                    <option value="HOME_PRICE_NOT_FOUND">HOME_PRICE_NOT_FOUND</option>
+                </optgroup>
+
+                <optgroup label="一時的・未確定">
+                    <option value="NO_CATALOG">NO_CATALOG</option>
+                    <option value="HOME_NO_OFFERS">HOME_NO_OFFERS</option>
+                </optgroup>
+
+                <optgroup label="価格戦略">
+                    <option value="NO_PRICE">NO_PRICE</option>
+                    <option value="Setting MAX_PRICE">Setting MAX_PRICE</option>
+                    <option value="COMPETITOR_RATIO">COMPETITOR_RATIO</option>
+                </optgroup>
+
+                <optgroup label="その他">
+                    <option value="BLACKLIST">BLACKLIST</option>
+                </optgroup>
+            </select>
         </div>
     </div>      
 
