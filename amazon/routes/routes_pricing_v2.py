@@ -890,7 +890,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                         SELECT account_seller_id
                         FROM account_master
                         WHERE user_id = %s
-                        AND country_code = %s
+                        AND UPPER(country_code) = UPPER(%s)
                         LIMIT 1
                     """, (user_id, country_code))
 
@@ -898,7 +898,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                     conn_acc.close()
 
                     my_seller_id = acc["account_seller_id"] if acc else None
-                    
+
                     # --- ▼ DEBUG（確認用・あとで削除）▼ ---
                     print(f"[DEBUG] asin={asin} country_code={country_code!r} my_seller_id={my_seller_id!r}")
                     print(f"[DEBUG] all_offer_seller_ids={[o.get('seller_id') for o in normalized]!r}")
