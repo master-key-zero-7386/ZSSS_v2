@@ -1091,21 +1091,27 @@ def search_listing():
                 params.append(reason)
 
             cur.execute(f"""
-                SELECT *
-                FROM listed_items
-                WHERE user_id = %s
-                AND LOWER(status) = %s
+                SELECT li.*,
+                    hm.country_code AS home_country_code,
+                    rm.country_code AS region_country_code
+                FROM listed_items li
+                LEFT JOIN marketplaces_master hm
+                    ON li.home_marketplace_id = hm.marketplace_id
+                LEFT JOIN marketplaces_master rm
+                    ON li.region_marketplace_id = rm.marketplace_id
+                WHERE li.user_id = %s
+                AND LOWER(li.status) = %s
                 AND (
-                    LOWER(asin) LIKE LOWER(%s)
-                    OR LOWER(sku) LIKE LOWER(%s)
-                    OR LOWER(home_title) LIKE LOWER(%s)
-                    OR LOWER(home_brand) LIKE LOWER(%s)
-                    OR LOWER(region_title) LIKE LOWER(%s)
-                    OR LOWER(region_brand) LIKE LOWER(%s)
-                    OR LOWER(region_manufacturer) LIKE LOWER(%s)
+                    LOWER(li.asin) LIKE LOWER(%s)
+                    OR LOWER(li.sku) LIKE LOWER(%s)
+                    OR LOWER(li.home_title) LIKE LOWER(%s)
+                    OR LOWER(li.home_brand) LIKE LOWER(%s)
+                    OR LOWER(li.region_title) LIKE LOWER(%s)
+                    OR LOWER(li.region_brand) LIKE LOWER(%s)
+                    OR LOWER(li.region_manufacturer) LIKE LOWER(%s)
                 )
                 {query_filter}
-                ORDER BY created_at DESC
+                ORDER BY li.created_at DESC
                 LIMIT 200
             """, params)            
 
@@ -1130,13 +1136,19 @@ def search_listing():
                 params.append(reason)
 
             cur.execute(f"""
-                SELECT *
-                FROM listed_items
-                WHERE user_id = %s
-                AND LOWER(status) = %s
-                AND asin LIKE %s
+                SELECT li.*,
+                    hm.country_code AS home_country_code,
+                    rm.country_code AS region_country_code
+                FROM listed_items li
+                LEFT JOIN marketplaces_master hm
+                    ON li.home_marketplace_id = hm.marketplace_id
+                LEFT JOIN marketplaces_master rm
+                    ON li.region_marketplace_id = rm.marketplace_id
+                WHERE li.user_id = %s
+                AND LOWER(li.status) = %s
+                AND li.asin LIKE %s
                 {query_filter}
-                ORDER BY created_at DESC
+                ORDER BY li.created_at DESC
                 LIMIT 200
             """, params)
 
