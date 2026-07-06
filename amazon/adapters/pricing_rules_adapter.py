@@ -143,6 +143,7 @@ class PricingRulesAdapter:
         filtered = []
 
         for offer in normalized_offers:
+            print(f"[DEBUG-REGION-ALL] seller_id={offer.get('seller_id')!r} is_amazon={offer.get('seller_id') in RETAIL_SELLER_IDS!r} rating={offer.get('rating_percent')!r} count={offer.get('rating_count')!r} price={offer.get('price_amount')!r}")
             # --- 自分除外 ---
             if offer.get("seller_id") == self.rules.get("my_seller_id"):
                 continue
@@ -165,6 +166,11 @@ class PricingRulesAdapter:
                     continue
 
             filtered.append(offer)
+
+            # --- ▼ DEBUG（確認用・あとで削除）▼ ---
+            print(f"[DEBUG-REGION] seller_id={offer.get('seller_id')!r} is_amazon={is_amazon!r} price={offer.get('price_amount')!r} rating={offer.get('rating_percent')!r}")
+            # --- ▲ DEBUG ここまで ▲ ---
+            
 
         if not filtered:
             return None
