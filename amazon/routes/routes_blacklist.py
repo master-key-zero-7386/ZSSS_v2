@@ -427,20 +427,61 @@ def update_blacklist():
         cur.execute(f"SELECT {key} FROM {table} WHERE id = %s", (data.get("id"),))
 
     except Exception as e:
-        if "UNIQUE" in str(e) or "duplicate key" in str(e):
-            if table == "blacklist_asin":
-                msg = "同じASINが既に存在しています"
-            else:
-                msg = "同じブランドが既に存在しています"
 
-            return jsonify({
-                "status": "error",
-                "message": msg
-            }), 400
+    # チェック用ここから　チェック完了後削除  
+        conn.rollback()
+
+        # ▼ 調査用：衝突した瞬間のテーブルの中身を全部ログに出す（原因確認のための一時コード）
+        try:
+            debug_conn = get_conn(db_name)
+            debug_cur = debug_conn.cursor()
+            debug_cur.execute(f"""
+                SELECT id, user_id, region_marketplace_id, {key}, note, created_at
+                FROM {table}
+                WHERE user_id = %s
+            """, (user_id,))
+            print("### BLACKLIST UPDATE 衝突 DEBUG ###", flush=True)
+            print("送信内容:", {"id": data.get("id"), "main": main, "note": note}, flush=True)
+            for row in debug_cur.fetchall():
+                print(dict(row), flush=True)
+            debug_conn.close()
+        except Exception:
+            pass
+
+        if table == "blacklist_asin":
+            msg = "同じASINが既に存在しています"
+        else:
+            msg = "同じブランドが既に存在しています"
+
+        return jsonify({
+            "status": "error",
+            "message": msg
+        }), 400
+
+    except Exception as e:
+        conn.rollback()
         raise
 
     finally:
-        conn.close()
+        conn.close()    
+    # チェック用ここまで以下を復元        
+
+    # ↑↑↑↑ 上記削除チェック完了後削除 ここから復元
+    #     if "UNIQUE" in str(e) or "duplicate key" in str(e):
+    #         if table == "blacklist_asin":
+    #             msg = "同じASINが既に存在しています"
+    #         else:
+    #             msg = "同じブランドが既に存在しています"
+
+    #         return jsonify({
+    #             "status": "error",
+    #             "message": msg
+    #         }), 400
+    #     raise
+
+    # finally:
+    #     conn.close()
+    # チェック完了後削除 ここまで復元    
 
     threading.Thread(
         target=apply_blacklist_update,
