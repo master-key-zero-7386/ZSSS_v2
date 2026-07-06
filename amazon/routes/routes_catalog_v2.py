@@ -19,6 +19,7 @@ from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 from amazon.adapters.listed_items_update_adapter import ListedItemsUpdate
 from amazon.guard.guard_429 import is_blocked 
 from amazon.utils.brand_gate_store import save_brand_gate_result
+from amazon.core.price_calculator import shipping_calc, get_shipping_config
 
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "db")  
 
@@ -90,6 +91,27 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
         "image_url":          normalizer._normalize_home_image_url(raw),
     }
     normalized.update(normalizer._normalize_dimensions_weight(raw))
+
+    # --- ▼ 請求重量を「実際の送料設定」で再計算（画面表示と一致させる） ▼ ---
+    if normalized.get("actual_weight_kg") is not None:
+        shipping_config_row = get_shipping_config(user_id) or {}
+
+        calc_result = shipping_calc(
+            {
+                "length_cm": normalized.get("length_cm"),
+                "width_cm": normalized.get("width_cm"),
+                "height_cm": normalized.get("height_cm"),
+                "actual_weight_kg": normalized.get("actual_weight_kg"),
+            },
+            {
+                "volumetric_divisor": shipping_config_row.get("volumetric_divisor", 5000),
+                "padding_cm": shipping_config_row.get("padding_cm", 0),
+                "pack_ratio": shipping_config_row.get("pack_ratio", 0),
+            }
+        )
+
+        normalized["volumetric_weight_kg"] = calc_result["volumetric_weight_kg"]
+        normalized["billable_weight_kg"] = calc_result["billable_weight_kg_rounded"]    
 
     # === 01-4: listed_items 更新（HOME） ===
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
