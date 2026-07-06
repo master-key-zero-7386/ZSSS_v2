@@ -864,10 +864,28 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         conn_ps.close()        
 
+
         if row_cache and row_cache["region_offers_json"]:
 
             region_offers_json = json.loads(row_cache["region_offers_json"])
             normalized = NormalizedPricingAdapter.normalize_region_offers(None, region_offers_json)           
+
+            # --- ▼ 自分ID取得（選定前に渡す・ここを修正） ---
+            conn_acc = get_conn("a_account_master.db") 
+            cur_acc = conn_acc.cursor()
+            cur_acc.execute("""
+                SELECT account_seller_id
+                FROM account_master
+                WHERE user_id = %s
+                AND UPPER(country_code) = UPPER(%s)
+                LIMIT 1
+            """, (user_id, country_code))
+            acc = cur_acc.fetchone()
+            conn_acc.close()
+
+            rules["my_seller_id"] = acc["account_seller_id"] if acc else None
+            # --- ▲ ここまで ▲ ---
+
             pricing_rules_adapter = PricingRulesAdapter(
                 rules,
                 marketplace_id=region_marketplace_id,
@@ -875,41 +893,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             )            
             result = pricing_rules_adapter.select_region_price_offer(normalized)
 
-            if not result or not result.get("selected"):
-                selected_offer = None
-            else:
-                selected_offer = result.get("selected")
-
-                # --- ▼ 自分除外（ここ追加） ---
-                try:
-                    conn_acc = get_conn("a_account_master.db") 
-                    
-                    cur_acc = conn_acc.cursor()
-
-                    cur_acc.execute("""
-                        SELECT account_seller_id
-                        FROM account_master
-                        WHERE user_id = %s
-                        AND UPPER(country_code) = UPPER(%s)
-                        LIMIT 1
-                    """, (user_id, country_code))
-
-                    acc = cur_acc.fetchone()
-                    conn_acc.close()
-
-                    my_seller_id = acc["account_seller_id"] if acc else None
-
-                    # --- ▼ DEBUG（確認用・あとで削除）▼ ---
-                    print(f"[DEBUG] asin={asin} country_code={country_code!r} my_seller_id={my_seller_id!r}")
-                    print(f"[DEBUG] all_offer_seller_ids={[o.get('seller_id') for o in normalized]!r}")
-                    print(f"[DEBUG] selected_seller_id={selected_offer.get('seller_id')!r}")
-                    # --- ▲ DEBUG ここまで ▲ ---                    
-
-                    if my_seller_id and selected_offer.get("seller_id") == my_seller_id:
-                        selected_offer = None             
-
-                except Exception:
-                    selected_offer = None              
+            selected_offer = result.get("selected") if result else None
 
     except Exception:
         selected_offer = None
