@@ -62,9 +62,15 @@ API_USAGE_LOGS_COLUMNS = {
 BG_SCAN_SETTINGS_COLUMNS = {
     "id": "INTEGER PRIMARY KEY",              # 常に1レコード前提（id=1）
     "interval_min": "REAL NOT NULL",          # 巡回間隔（分・小数可）
-    "scan_limit": "INTEGER NOT NULL",         # 1巡回あたりの最大処理件数
+    "scan_limit": "INTEGER NOT NULL",         # FIRST用：1巡回あたりの最大処理件数
     "updated_at": "TEXT",                     
-    "ttl_sleep_sec": "REAL",                  # TTL SleepTIME
+
+        # --- ▼ TTL 項目別 上限件数（新規追加） ▼ ---
+    "ttl_limit_home_pricing": "INTEGER",      # TTL：HOME価格情報の上限件数
+    "ttl_limit_region_pricing": "INTEGER",    # TTL：REGION価格情報の上限件数
+    "ttl_limit_home_catalog": "INTEGER",      # TTL：HOME商品情報の上限件数
+    "ttl_limit_region_catalog": "INTEGER",    # TTL：REGION商品情報の上限件数
+    "ttl_sleep_sec": "REAL",                  # TTL SleepTIME    
 }
 
 

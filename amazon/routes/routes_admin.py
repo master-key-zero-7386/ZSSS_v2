@@ -446,6 +446,12 @@ def save_bg_scan_settings():
     scan_limit    = data.get("scan_limit")
     ttl_sleep_sec = data.get("ttl_sleep_sec")
 
+    # ▼ TTL項目別 上限件数
+    ttl_limit_home_pricing    = data.get("ttl_limit_home_pricing")
+    ttl_limit_region_pricing  = data.get("ttl_limit_region_pricing")
+    ttl_limit_home_catalog    = data.get("ttl_limit_home_catalog")
+    ttl_limit_region_catalog  = data.get("ttl_limit_region_catalog")
+
     try:
         conn = get_conn("a_bg_scan_settings.db")
         cur = conn.cursor()
@@ -466,6 +472,35 @@ def save_bg_scan_settings():
                 SET ttl_sleep_sec = %s, updated_at = %s
                 WHERE id = 1
             """, (float(ttl_sleep_sec), now))
+
+        # ▼ TTL項目別 上限件数を保存
+        if ttl_limit_home_pricing is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_limit_home_pricing = %s, updated_at = %s
+                WHERE id = 1
+            """, (int(ttl_limit_home_pricing), now))
+
+        if ttl_limit_region_pricing is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_limit_region_pricing = %s, updated_at = %s
+                WHERE id = 1
+            """, (int(ttl_limit_region_pricing), now))
+
+        if ttl_limit_home_catalog is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_limit_home_catalog = %s, updated_at = %s
+                WHERE id = 1
+            """, (int(ttl_limit_home_catalog), now))
+
+        if ttl_limit_region_catalog is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_limit_region_catalog = %s, updated_at = %s
+                WHERE id = 1
+            """, (int(ttl_limit_region_catalog), now))            
 
         conn.commit()
         conn.close()
@@ -498,6 +533,10 @@ def get_bg_scan_settings():
             "interval_min": row["interval_min"],
             "scan_limit": row["scan_limit"],
             "ttl_sleep_sec": row["ttl_sleep_sec"],
+            "ttl_limit_home_pricing": row["ttl_limit_home_pricing"],
+            "ttl_limit_region_pricing": row["ttl_limit_region_pricing"],
+            "ttl_limit_home_catalog": row["ttl_limit_home_catalog"],
+            "ttl_limit_region_catalog": row["ttl_limit_region_catalog"],            
         })
 
     except Exception as e:

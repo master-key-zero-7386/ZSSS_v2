@@ -139,6 +139,19 @@ def load_catalog_ttl_targets(db_dir: str):
             try:
                 cur_li = conn_li.cursor()
 
+                # --- ▼ 管理画面で設定したHOME Catalog対象 上限件数を取得 ▼ ---
+                conn_settings = get_conn("a_bg_scan_settings.db")
+                cur_settings = conn_settings.cursor()
+                cur_settings.execute("""
+                    SELECT ttl_limit_home_catalog
+                    FROM bg_scan_settings
+                    WHERE id = 1
+                """)
+                settings_row = cur_settings.fetchone()
+                conn_settings.close()
+
+                ttl_limit_home_pricing = settings_row["ttl_limit_home_catalog"]
+
                 cur_li.execute("""
                     SELECT
                         li.user_id,
@@ -165,8 +178,8 @@ def load_catalog_ttl_targets(db_dir: str):
                             ELSE 1
                         END,
                         li.h_catalog_ttl_at
-                    LIMIT 5
-                """)
+                    LIMIT %s
+                """, (ttl_limit_home_pricing,))
 
                 listed_rows = cur_li.fetchall()
                 print("[HOME_CAT_Target count]", len(listed_rows), flush=True) # TTL対象数カウント
@@ -201,6 +214,19 @@ def load_catalog_ttl_targets(db_dir: str):
             try:
                 cur_li = conn_li.cursor()
 
+                # --- ▼ 管理画面で設定したREGION Catalog対象 上限件数を取得 ▼ ---
+                conn_settings = get_conn("a_bg_scan_settings.db")
+                cur_settings = conn_settings.cursor()
+                cur_settings.execute("""
+                    SELECT ttl_limit_region_catalog
+                    FROM bg_scan_settings
+                    WHERE id = 1
+                """)
+                settings_row = cur_settings.fetchone()
+                conn_settings.close()
+
+                ttl_limit_home_pricing = settings_row["ttl_limit_region_catalog"]
+
                 cur_li.execute("""
                     SELECT
                         li.user_id,
@@ -227,8 +253,8 @@ def load_catalog_ttl_targets(db_dir: str):
                             ELSE 1
                         END,
                         li.r_catalog_ttl_at
-                    LIMIT 5
-                """)
+                    LIMIT %s
+                """, (ttl_limit_home_pricing,))
 
                 listed_rows = cur_li.fetchall()
                 print("[REGION_CAT_Target count]", len(listed_rows), flush=True) # TTL対象数カウント
@@ -330,6 +356,19 @@ def load_pricing_ttl_targets(db_dir: str):
             try:
                 cur_li = conn_li.cursor()
 
+                # --- ▼ 管理画面で設定したHOME Pricing対象 上限件数を取得 ▼ ---
+                conn_settings = get_conn("a_bg_scan_settings.db")
+                cur_settings = conn_settings.cursor()
+                cur_settings.execute("""
+                    SELECT ttl_limit_home_pricing
+                    FROM bg_scan_settings
+                    WHERE id = 1
+                """)
+                settings_row = cur_settings.fetchone()
+                conn_settings.close()
+
+                ttl_limit_home_pricing = settings_row["ttl_limit_home_pricing"]
+
                 cur_li.execute("""
                     SELECT
                         li.user_id,
@@ -356,8 +395,8 @@ def load_pricing_ttl_targets(db_dir: str):
                             ELSE 1
                         END,
                         li.h_pricing_ttl_at
-                    LIMIT 5
-                """)
+                    LIMIT %s
+                """, (ttl_limit_home_pricing,))
 
                 listed_rows = cur_li.fetchall()
                 print("[HOME_Pri_Target count]", len(listed_rows), flush=True) # TTL対象数カウント
@@ -392,6 +431,19 @@ def load_pricing_ttl_targets(db_dir: str):
             try:
                 cur_li = conn_li.cursor()
 
+                # --- ▼ 管理画面で設定したREGION Pricing対象 上限件数を取得 ▼ ---
+                conn_settings = get_conn("a_bg_scan_settings.db")
+                cur_settings = conn_settings.cursor()
+                cur_settings.execute("""
+                    SELECT ttl_limit_region_pricing
+                    FROM bg_scan_settings
+                    WHERE id = 1
+                """)
+                settings_row = cur_settings.fetchone()
+                conn_settings.close()
+
+                ttl_limit_home_pricing = settings_row["ttl_limit_region_pricing"]
+
                 cur_li.execute("""
                     SELECT
                         li.user_id,
@@ -418,8 +470,8 @@ def load_pricing_ttl_targets(db_dir: str):
                             ELSE 1
                         END,
                         li.r_pricing_ttl_at
-                    LIMIT 5
-                """)
+                    LIMIT %s
+                """, (ttl_limit_home_pricing,))
 
                 listed_rows = cur_li.fetchall()
                 print("[REGION_Pri_Target count]", len(listed_rows), flush=True) # TTL対象数カウント

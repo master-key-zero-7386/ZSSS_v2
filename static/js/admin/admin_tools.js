@@ -14,6 +14,12 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("bg_scan_interval_min").value = data.interval_min;
             document.getElementById("bg_scan_limit").value        = data.scan_limit;
             document.getElementById("ttl_sleep_sec").value        = data.ttl_sleep_sec ?? 0.2;
+
+            // ▼ TTL項目別 上限件数を画面に表示
+            document.getElementById("ttl_limit_home_pricing").value   = data.ttl_limit_home_pricing;
+            document.getElementById("ttl_limit_region_pricing").value = data.ttl_limit_region_pricing;
+            document.getElementById("ttl_limit_home_catalog").value   = data.ttl_limit_home_catalog;
+            document.getElementById("ttl_limit_region_catalog").value = data.ttl_limit_region_catalog;
         });
 
   // --- ▼ SECTION 02: ▼ First 巡回設定 保存（時間 + LIMIT） ▼ ---
@@ -70,13 +76,23 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // ▼ 4つの上限件数を取得
+    const homePriceLimit   = Number(document.getElementById("ttl_limit_home_pricing").value);
+    const regionPriceLimit = Number(document.getElementById("ttl_limit_region_pricing").value);
+    const homeCatalogLimit = Number(document.getElementById("ttl_limit_home_catalog").value);
+    const regionCatalogLimit = Number(document.getElementById("ttl_limit_region_catalog").value);
+
     fetch("/admin/save_bg_scan_settings", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        ttl_sleep_sec: ttlVal
+        ttl_sleep_sec: ttlVal,
+        ttl_limit_home_pricing: homePriceLimit,
+        ttl_limit_region_pricing: regionPriceLimit,
+        ttl_limit_home_catalog: homeCatalogLimit,
+        ttl_limit_region_catalog: regionCatalogLimit
       })
     })
     .then(res => res.json())
