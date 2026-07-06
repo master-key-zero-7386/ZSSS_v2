@@ -672,16 +672,6 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    # if info_status != "all":
-    if info_status == "unfetched":
-        query_filter += """
-            AND (
-                information_status IS NULL
-                OR information_status = ''
-                OR information_status = '-'
-            )
-        """  # ここを修正
-
     elif info_status != "all":
         query_filter += " AND information_status = %s" 
         params_base.append(info_status)
