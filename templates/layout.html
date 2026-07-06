@@ -1,11 +1,19 @@
 <!-- layout.html -->
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-mode="{{ zsss_mode }}">
 
 <head>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
     <meta charset="UTF-8">
-    <title>Zero Stock Sales System/Suite Web Tool</title>
+    {% if zsss_mode == 'dev' %}
+    <title>開発用 ZSSS</title>
+    {% elif zsss_mode == 'zsss' %}
+    <title>Zero Stock Sales System</title>
+    {% elif zsss_mode == 'atlas' %}
+    <title>ATLAS</title>
+    {% else %}
+    <title>Zero Stock Sales System</title>
+    {% endif %}
     <base href="/">
 
     <!-- ▼ layout.html 専用スタイル（Logged in 右端固定用） -->
@@ -220,7 +228,15 @@
             </div>
         </div>
 
+        {% if zsss_mode == 'dev' %}
+        <a class="tabs-title" href="/amazon/">開発用 ZSSS</a>
+        {% elif zsss_mode == 'zsss' %}
+        <a class="tabs-title" href="/amazon/">Zero Stock Sales System</a>
+        {% elif zsss_mode == 'atlas' %}
+        <a class="tabs-title" href="/amazon/">ATLAS</a>
+        {% else %}
         <a class="tabs-title" href="/amazon/">ZSSS Web V2</a>
+        {% endif %}
 
         <!-- ✅ DB連動マーケットプレイスプルダウン -->
         <div class="global-region" style="display:inline-block; margin-left:12px;">

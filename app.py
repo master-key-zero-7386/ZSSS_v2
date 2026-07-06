@@ -43,6 +43,7 @@ mode = sys.argv[1] if len(sys.argv) > 1 else "dev"
 # ✅ Flaskアプリ初期化
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config["ZSSS_MODE"] = mode       # ← 追加：どのPC(dev/zsss/atlas)かを保存しておく
 app.config['MAX_FORM_MEMORY_SIZE'] = None
 app.config['MAX_FORM_PARTS'] = 1000000
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
@@ -143,6 +144,11 @@ def start_fx_runner(app):
     t.start()
     print("[FX] runner STARTED")   
 
+# ✅ 追加：すべてのHTMLテンプレートで「今のモード(dev/zsss/atlas)」を使えるようにする
+@app.context_processor
+def inject_zsss_mode():
+    return {"zsss_mode": app.config.get("ZSSS_MODE", "dev")}
+
 
 @app.route("/")
 def index():
@@ -180,7 +186,6 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
 
 
-# TEST # チェック完了後削除
 
 
 
