@@ -519,6 +519,8 @@ def get_bg_scan_settings():
 
         cur.execute("""
             SELECT interval_min, scan_limit, ttl_sleep_sec
+                ttl_limit_home_pricing, ttl_limit_region_pricing,
+                ttl_limit_home_catalog, ttl_limit_region_catalog
             FROM bg_scan_settings
             WHERE id = 1
         """)
