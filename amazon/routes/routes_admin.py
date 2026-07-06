@@ -474,6 +474,13 @@ def save_bg_scan_settings():
                 WHERE id = 1
             """, (float(interval_min), int(scan_limit), now))
 
+        if ttl_sleep_sec is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_sleep_sec = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(ttl_sleep_sec), now))
+            
         # ▼ TTL項目別 上限件数を保存
         if ttl_limit_home_pricing is not None:
             cur.execute("""
