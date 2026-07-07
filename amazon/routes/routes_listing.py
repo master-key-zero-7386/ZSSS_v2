@@ -29,12 +29,12 @@ from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
 from amazon.services.listing_submit_service import bulk_delete_listing_item
-from amazon.services.blacklist_service import is_blacklisted, is_blacklisted_brand
 from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter 
 from amazon.core.price_calculator import get_pricing_master_rule
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
+from amazon.routes.routes_pricing_v2 import get_asin_blacklist, get_brand_blacklist
 
 
 listing_bp = Blueprint("listing_bp", __name__)
@@ -1744,11 +1744,13 @@ def move_to_all():
 
                 # --- ▼ 出品用データ取得 ▼ ---
                 cur.execute("""
-                    SELECT 
+                    SELECT
                         sku,
                         final_price,
                         strategy_quantity,
-                        strategy_handling_time
+                        strategy_handling_time,
+                        home_brand,
+                        region_brand
                     FROM listed_items
                     WHERE asin=%s AND user_id=%s
                 """, (asin, user_id))
@@ -1760,9 +1762,31 @@ def move_to_all():
                     return jsonify({"status": "error", "message": "listing data not found"})
 
                 seller_sku = row["sku"]
-                price = row["final_price"] 
-                strategy_quantity = row["strategy_quantity"] 
-                strategy_handling_time = row["strategy_handling_time"]               
+                price = row["final_price"]
+                strategy_quantity = row["strategy_quantity"]
+                strategy_handling_time = row["strategy_handling_time"]
+
+                # --- ▼ ブラックリストチェック（ASIN / Brand） 出品直前ガード ▼ ---
+                asin_ng_list = get_asin_blacklist(user_id, marketplace_id, country_code)
+                brand_ng_list = get_brand_blacklist(user_id, marketplace_id, country_code)
+
+                brand_candidates = [b for b in (row["home_brand"], row["region_brand"]) if b]
+
+                is_blacklisted_item = (
+                    asin in asin_ng_list
+                    or any(
+                        b.strip().lower() == ng.strip().lower()
+                        for b in brand_candidates
+                        for ng in brand_ng_list
+                    )
+                )
+
+                if is_blacklisted_item:
+                    conn.close()
+                    return jsonify({
+                        "status": "error",
+                        "message": f"ブラックリスト該当のため出品できません（ASIN: {asin}）"
+                    })
 
                 # --- ▼ quantity決定 ▼ ---
                 strategy_quantity = int(strategy_quantity or 0)
@@ -1903,6 +1927,12 @@ def bulk_move_to_all():
 
     adapter = CatalogAdapterRegion(parent_adapter=base)
 
+    # --- ▼ ブラックリストチェック（ASIN / Brand） 出品直前ガード ▼ ---
+    asin_ng_list = get_asin_blacklist(user_id, marketplace_id, country_code)
+    brand_ng_list = get_brand_blacklist(user_id, marketplace_id, country_code)
+
+    blocked_asins = []
+
     for asin in asins:
 
         print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
@@ -1913,7 +1943,9 @@ def bulk_move_to_all():
                 sku,
                 final_price,
                 strategy_quantity,
-                strategy_handling_time
+                strategy_handling_time,
+                home_brand,
+                region_brand
             FROM listed_items
             WHERE asin=%s AND user_id=%s
         """, (asin, user_id))
@@ -1921,6 +1953,22 @@ def bulk_move_to_all():
         row = cur.fetchone()
 
         if not row:
+            continue
+
+        brand_candidates = [b for b in (row["home_brand"], row["region_brand"]) if b]
+
+        is_blacklisted_item = (
+            asin in asin_ng_list
+            or any(
+                b.strip().lower() == ng.strip().lower()
+                for b in brand_candidates
+                for ng in brand_ng_list
+            )
+        )
+
+        if is_blacklisted_item:
+            print(f"[BULK MOVE] SKIP (BLACKLIST) ASIN:{asin}", flush=True)
+            blocked_asins.append(asin)
             continue
 
         seller_sku = row["sku"]
@@ -1994,7 +2042,10 @@ def bulk_move_to_all():
 
     conn.close()
 
-    return jsonify({"status": "success"})
+    return jsonify({
+        "status": "success",
+        "blocked_asins": blocked_asins
+    })
 
 # --- ▼ SECTION 14 ALL 出品戦略 保存処理 ▼ ---
 @listing_bp.route("/update_strategy", methods=["POST"])

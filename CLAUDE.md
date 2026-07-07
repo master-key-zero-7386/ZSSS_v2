@@ -47,11 +47,16 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
 ### `amazon/` — core module
 
 - `routes/` — Flask blueprints, one per feature area (`routes.py` = marketplace/account master,
-  `routes_listing.py`, `routes_pricing_v2.py`, `routes_catalog_v2.py`, `routes_admin.py`,
-  `routes_blacklist.py`, `routes_account.py`, `routes_oauth.py`, `routes_shipping.py`,
-  `routes_override_seller.py`, `routes_status_engine.py`). Background loops call functions in these
-  modules directly (e.g. `update_home_pricing`, `update_region_pricing`, `update_listing_price` from
-  `routes_pricing_v2.py`) rather than going over HTTP.
+  `routes_listing.py`, `routes_pricing_v2.py`, `routes_catalog_v2.py`, `routes_admin.py` (exports
+  both `admin_api_bp` and `admin_market_bp`), `routes_blacklist.py`, `routes_account.py`,
+  `routes_oauth.py`, `routes_shipping.py`, `routes_override_seller.py`). Background loops call
+  functions in these modules directly (e.g. `update_home_pricing`, `update_region_pricing`,
+  `update_listing_price` from `routes_pricing_v2.py`) rather than going over HTTP.
+  `routes_status_engine.py` lives in this folder but is not a blueprint — it's a pure helper
+  (`evaluate_status`) for deriving a listing's ACTIVE/INACTIVE status from pricing rules.
+- `amazon/csv_import.py` (registered as `csv_import_bp`, top-level `amazon/`, not under `routes/`) —
+  CSV → ASIN/SKU import into `listed_items` tables. Assumes `db_migrate.py` has already created the
+  target tables; does not create schema itself.
 - `adapters/` — SP-API request adapters. Consistently split into **HOME** (seller's home
   marketplace, JP) vs **REGION** (the target foreign marketplace) variants, e.g.
   `catalog_adapter_home.py` / `catalog_adapter_region.py`, `pricing_adapter_home.py` /

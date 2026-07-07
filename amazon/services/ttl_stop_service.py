@@ -11,9 +11,9 @@ from amazon.db import get_conn
 
 
 # --- ▼ SECTION 01: BLACKLIST反映（停止処理） ▼ ---
-def apply_blacklist(user_id, asin, marketplace_id, sku, reason):
+def apply_blacklist(user_id, asin, marketplace_id, sku, reason, country_code):
 
-    conn = get_conn("a_listed_items.db")
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
     cur = conn.cursor()
 
     cur.execute("""
@@ -36,9 +36,9 @@ def apply_blacklist(user_id, asin, marketplace_id, sku, reason):
 
 
 # --- ▼ SECTION 02: BLACK解除（復帰処理） ▼ ---
-def clear_blacklist(user_id, asin, marketplace_id):
+def clear_blacklist(user_id, asin, marketplace_id, country_code):
 
-    conn = get_conn("a_listed_items.db")
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
     cur = conn.cursor()
 
     cur.execute("""
@@ -59,9 +59,9 @@ def clear_blacklist(user_id, asin, marketplace_id):
     conn.close()
 
 # --- ▼ SECTION 03: DBに保存 ▼ ---
-def apply_ttl_stop(user_id, asin, marketplace_id, reason, stop_flag=1):
+def apply_ttl_stop(user_id, asin, marketplace_id, reason, country_code, stop_flag=1):
 
-    conn = get_conn("a_listed_items.db")
+    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
     cur = conn.cursor()
 
     cur.execute("""

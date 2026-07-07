@@ -785,7 +785,8 @@ def apply_blacklist_update(user_id, country_code):
                 asin=asin,
                 marketplace_id=row["region_marketplace_id"],
                 sku=row["sku"],
-                reason="BLACKLIST"
+                reason="BLACKLIST",
+                country_code=country_code
             )
 
             if row["status"] == "listed":
@@ -802,7 +803,8 @@ def apply_blacklist_update(user_id, country_code):
                 clear_blacklist(
                     user_id=user_id,
                     asin=asin,
-                    marketplace_id=row["region_marketplace_id"]
+                    marketplace_id=row["region_marketplace_id"],
+                    country_code=country_code
                 )
 
         # else:
