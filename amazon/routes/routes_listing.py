@@ -596,7 +596,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     elif sort == "weight_desc":
         order_by = "billable_weight_kg DESC"   
 
-    if info_status == "INACTIVE":
+    if info_status == "INACTIVE" and sort == "created_desc":
         order_by = """
             CASE
                 WHEN inactive_reason = 'BLACKLIST' THEN 1
