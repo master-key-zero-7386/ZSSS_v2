@@ -1892,14 +1892,22 @@ def bulk_move_to_all():
     except FileNotFoundError:
         return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
 
-    cur = conn.cursor()   
+    cur = conn.cursor()
+
+    # --- ▼ brand取得用アダプター（catalog_cache） ▼ ---
+    base = AmazonAdapter(
+        user_id=user_id,
+        country_code=country_code,
+        marketplace_id=marketplace_id
+    )
+
+    adapter = CatalogAdapterRegion(parent_adapter=base)
 
     for asin in asins:
 
         print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
 
-        # --- ▼ 出品用データ取得 ▼ --- 
-        # --- ▼ 出品用データ取得 ▼ --- 
+        # --- ▼ 出品用データ取得 ▼ ---
         cur.execute("""
             SELECT
                 sku,
@@ -1915,31 +1923,31 @@ def bulk_move_to_all():
         if not row:
             continue
 
-        seller_sku = row["sku"] 
-        price = row["final_price"] 
-        strategy_quantity = row["strategy_quantity"] 
-        strategy_handling_time = row["strategy_handling_time"] 
+        seller_sku = row["sku"]
+        price = row["final_price"]
+        strategy_quantity = row["strategy_quantity"]
+        strategy_handling_time = row["strategy_handling_time"]
 
         # --- ▼ quantity決定 ▼ ---
-        strategy_quantity = int(strategy_quantity or 0) 
+        strategy_quantity = int(strategy_quantity or 0)
 
-        if strategy_quantity >= 1: 
+        if strategy_quantity >= 1:
             quantity = strategy_quantity
-        else: 
-            quantity = 1 
+        else:
+            quantity = 1
 
-        # --- ▼ handling_time決定 ▼ --- 
-        rules = get_pricing_master_rule( 
-            user_id=user_id,    
-            country_code=country_code 
-        )  
+        # --- ▼ handling_time決定 ▼ ---
+        rules = get_pricing_master_rule(
+            user_id=user_id,
+            country_code=country_code
+        )
 
-        if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1: 
-            handling_time = int(rules["default_handling_time"]) 
+        if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1:
+            handling_time = int(rules["default_handling_time"])
         else:
             handling_time = strategy_handling_time
 
-        now_utc = datetime.utcnow().isoformat() 
+        now_utc = datetime.utcnow().isoformat()
 
         cur.execute("""
             UPDATE listed_items
@@ -1947,50 +1955,42 @@ def bulk_move_to_all():
                 status='listed',
                 updated_at=%s
             WHERE asin=%s AND status='pre' AND user_id=%s
-        """, (now_utc, asin, user_id))  
+        """, (now_utc, asin, user_id))
 
-        if cur.rowcount == 0: 
-            continue 
+        if cur.rowcount == 0:
+            continue
 
-    conn.commit()
+        conn.commit()
 
-    # --- ▼ brand取得（catalog_cache） ▼ --- 
-    base = AmazonAdapter( 
-        user_id=user_id, 
-        country_code=country_code, 
-        marketplace_id=marketplace_id 
-    ) 
+        # --- ▼ brand取得（catalog_cache） ▼ ---
+        cache = adapter._get_cached_catalog(asin)
 
-    adapter = CatalogAdapterRegion(parent_adapter=base) 
+        brand = "UNKNOWN"
 
-    cache = adapter._get_cached_catalog(asin) 
+        if cache and cache.get("region_raw_json"):
+            try:
+                data = json.loads(cache["region_raw_json"])
+                brand_list = data.get("attributes", {}).get("brand", [])
 
-    brand = "UNKNOWN" 
+                if brand_list and isinstance(brand_list, list):
+                    brand = brand_list[0].get("value") or "UNKNOWN"
 
-    if cache and cache.get("region_raw_json"): 
-        try: 
-            data = json.loads(cache["region_raw_json"]) 
-            brand_list = data.get("attributes", {}).get("brand", []) 
+            except:
+                pass
 
-            if brand_list and isinstance(brand_list, list): 
-                brand = brand_list[0].get("value") or "UNKNOWN" 
+        print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
 
-        except: 
-            pass 
-
-    print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
-        
-    submit_listing_service( 
-        user_id, 
-        country_code, 
-        marketplace_id, 
-        seller_sku, 
-        asin, 
-        price, 
-        quantity, 
-        handling_time, 
-        brand 
-    ) 
+        submit_listing_service(
+            user_id,
+            country_code,
+            marketplace_id,
+            seller_sku,
+            asin,
+            price,
+            quantity,
+            handling_time,
+            brand
+        )
 
     conn.close()
 
