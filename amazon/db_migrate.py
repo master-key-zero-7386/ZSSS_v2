@@ -435,7 +435,8 @@ SHIPPING_RATES_COLUMNS = {
     "carrier_1_price": "INTEGER DEFAULT 0",
     "carrier_2_price": "INTEGER DEFAULT 0",
     "carrier_3_price": "INTEGER DEFAULT 0",
-
+    "fixed_shipping_price": "INTEGER",    # 固定送料
+    
     "memo": "TEXT",    # 送料を特殊な設定をした場合などのメモ用
 
     "created_at": "TEXT",

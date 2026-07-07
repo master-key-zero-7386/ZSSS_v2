@@ -62,12 +62,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 <td><input type="text" class="carrier-2-price" value="${r.carrier_2_price || ""}"></td>
                 <td><input type="text" class="carrier-3-price" value="${r.carrier_3_price || ""}"></td>
                 <td><input type="text" class="min-price" readonly tabindex="-1"></td>
+                <td><input type="text" class="fixed-shipping-price" value="${r.fixed_shipping_price || ""}"></td>                
                 <td><input type="text" class="memo" value="${r.memo || ""}"></td>
             `;
 
             // --- ▼ ここを修正：Carrier入力時にカンマ除去（入口正規化） ▼ ---
             tr.querySelectorAll(
-                ".carrier-1-price, .carrier-2-price, .carrier-3-price, .memo"
+                ".carrier-1-price, .carrier-2-price, .carrier-3-price, .fixed-shipping-price, .memo"
             ).forEach(input => {
                 input.addEventListener("input", () => {
                     input.value = input.value.replace(/,/g, "");
@@ -88,12 +89,24 @@ document.addEventListener("DOMContentLoaded", function () {
     document.addEventListener("input", function (e) {
         if (!e.target.classList.contains("carrier-1-price") &&
             !e.target.classList.contains("carrier-2-price") &&
-            !e.target.classList.contains("carrier-3-price")) {
+            !e.target.classList.contains("carrier-3-price") &&
+            !e.target.classList.contains("fixed-shipping-price")) {
             return;
         }
 
         const row = e.target.closest("tr");
         if (!row) return;
+
+        // --- ▼ 固定送料が入力されていれば、それを優先して最安値欄に表示 ▼ ---
+        const fixedInput = row.querySelector(".fixed-shipping-price");
+        const fixedValue = parseInt(fixedInput?.value, 10);
+
+        const minInput = row.querySelector(".min-price");
+
+        if (!isNaN(fixedValue) && fixedValue > 0) {
+            minInput.value = fixedValue;
+            return; // Carrier1〜3の計算はスキップ
+        }
 
         const prices = [];
 
@@ -103,8 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!isNaN(v) && v > 0) prices.push(v);
             });
 
-        const minInput = row.querySelector(".min-price");
-        minInput.value = prices.length ? Math.min(...prices) : "";
+        minInput.value = prices.length ?
     });
 
     // --- ▼ SECTION 04: 最安値を全行再計算（描画後用） ▼ ---
@@ -255,7 +267,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
             const tds = tr.querySelectorAll("td");
-            if (tds.length < 7) return;
+            if (tds.length < 8) return;
 
             const weight_from_g = parseInt(tds[0].querySelector("input")?.value, 10);
             const weight_to_g   = parseInt(tds[1].querySelector("input")?.value, 10);
@@ -264,7 +276,10 @@ document.addEventListener("DOMContentLoaded", function () {
             const carrier_2_price = parseInt(tds[3].querySelector("input")?.value || "0", 10);
             const carrier_3_price = parseInt(tds[4].querySelector("input")?.value || "0", 10);
 
-            const memo = tds[6].querySelector("input")?.value || "";
+            const fixedRaw = tds[6].querySelector("input")?.value;            
+            const fixed_shipping_price = fixedRaw ? parseInt(fixedRaw, 10) : null;
+
+            const memo = tds[7].querySelector("input")?.value || "";
 
             rows.push({
                 weight_from_g,
@@ -272,6 +287,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 carrier_1_price,
                 carrier_2_price,
                 carrier_3_price,
+                fixed_shipping_price,
                 memo
             });
         });
@@ -395,6 +411,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     <label style="display:block;"><input type="checkbox" id="copy-col-carrier1" checked> Carrier 1</label>
                     <label style="display:block;"><input type="checkbox" id="copy-col-carrier2"> Carrier 2</label>
                     <label style="display:block;"><input type="checkbox" id="copy-col-carrier3"> Carrier 3</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-fixed"> 固定送料</label>
                 </div>
 
                 <p style="color:#c0392b; font-size:13px;">
@@ -416,11 +433,13 @@ document.addEventListener("DOMContentLoaded", function () {
         const copyCarrier1 = document.getElementById("copy-col-carrier1")?.checked;
         const copyCarrier2 = document.getElementById("copy-col-carrier2")?.checked;
         const copyCarrier3 = document.getElementById("copy-col-carrier3")?.checked;
+        const copyFixed = document.getElementById("copy-col-fixed")?.checked; 
 
-        if (!copyCarrier1 && !copyCarrier2 && !copyCarrier3) {
+        if (!copyCarrier1 && !copyCarrier2 && !copyCarrier3 && !copyFixed) {   // ★条件にも追加
             alert("コピーする列を1つ以上選択してください");
             return;
         }
+
 
         // コピー元マーケットの送料データを取得（既存の「読み込みAPI」を流用。保存はしない）
         const sourceRes = await fetch("/api/shipping-rates/load?marketplace_id=" + encodeURIComponent(sourceCode));
@@ -440,20 +459,21 @@ document.addEventListener("DOMContentLoaded", function () {
         // 画面上の表に、選んだ列だけ反映する（保存はまだしない）
         document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
             const tds = tr.querySelectorAll("td");
-            if (tds.length < 7) return;
+            if (tds.length < 8) return;   // ★列が増えたので7→8に変更
 
             const weightFrom = tds[0].querySelector("input")?.value;
             const weightTo = tds[1].querySelector("input")?.value;
 
             const sourceRow = sourceRowMap.get(`${weightFrom}_${weightTo}`);
-            if (!sourceRow) return; // 対応する重量帯がコピー元になければスキップ
+            if (!sourceRow) return;
 
             if (copyCarrier1) tds[2].querySelector("input").value = sourceRow.carrier_1_price || "";
             if (copyCarrier2) tds[3].querySelector("input").value = sourceRow.carrier_2_price || "";
             if (copyCarrier3) tds[4].querySelector("input").value = sourceRow.carrier_3_price || "";
+            if (copyFixed) tds[6].querySelector("input").value = sourceRow.fixed_shipping_price || "";
         });
 
-        recalcAllMinPrices(); // 最安値欄を再計算
+        recalcAllMinPrices();
 
         showToast("コピーしました。内容を確認して保存してください");
     });    
@@ -468,12 +488,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // ヘッダー行
-        const rows = [["From(g)", "To(g)", "Carrier1", "Carrier2", "Carrier3", "Memo"]];
+        const rows = [["From(g)", "To(g)", "Carrier1", "Carrier2", "Carrier3", "固定送料", "Memo"]];
 
-        // 画面に表示されている今の内容をそのまま集める
         document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
             const tds = tr.querySelectorAll("td");
-            if (tds.length < 7) return;
+            if (tds.length < 8) return;
 
             rows.push([
                 tds[0].querySelector("input")?.value || "",
@@ -481,7 +500,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 tds[2].querySelector("input")?.value || "",
                 tds[3].querySelector("input")?.value || "",
                 tds[4].querySelector("input")?.value || "",
-                tds[6].querySelector("input")?.value || ""
+                tds[6].querySelector("input")?.value || "",  // 固定送料
+                tds[7].querySelector("input")?.value || ""   // メモ
             ]);
         });
 
@@ -537,28 +557,27 @@ document.addEventListener("DOMContentLoaded", function () {
             // 先頭行はヘッダーなので飛ばす
             const dataRows = parsedRows.slice(1);
 
-            // 重量帯(From_To)をキーにして、すぐ探せるようにする
             const csvRowMap = new Map();
             dataRows.forEach(cols => {
-                const [from, to, c1, c2, c3, memo] = cols;
-                csvRowMap.set(`${from}_${to}`, { c1, c2, c3, memo });
+                const [from, to, c1, c2, c3, fixed, memo] = cols;
+                csvRowMap.set(`${from}_${to}`, { c1, c2, c3, fixed, memo });
             });
 
-            // 画面上の表に反映する（この時点ではまだ保存しない）
             document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
                 const tds = tr.querySelectorAll("td");
-                if (tds.length < 7) return;
+                if (tds.length < 8) return;
 
                 const weightFrom = tds[0].querySelector("input")?.value;
                 const weightTo = tds[1].querySelector("input")?.value;
 
                 const csvRow = csvRowMap.get(`${weightFrom}_${weightTo}`);
-                if (!csvRow) return; // CSV側に対応する重量帯が無ければそのまま
+                if (!csvRow) return;
 
                 tds[2].querySelector("input").value = csvRow.c1 || "";
                 tds[3].querySelector("input").value = csvRow.c2 || "";
                 tds[4].querySelector("input").value = csvRow.c3 || "";
-                tds[6].querySelector("input").value = csvRow.memo || "";
+                tds[6].querySelector("input").value = csvRow.fixed || "";
+                tds[7].querySelector("input").value = csvRow.memo || "";
             });
 
             recalcAllMinPrices();
