@@ -211,7 +211,8 @@ def get_shipping_rate(user_id, marketplace_id):
             weight_to_g,
             carrier_1_price,
             carrier_2_price,
-            carrier_3_price
+            carrier_3_price,
+            fixed_shipping_price
         FROM shipping_rates
         WHERE user_id = %s
         AND marketplace_id = %s

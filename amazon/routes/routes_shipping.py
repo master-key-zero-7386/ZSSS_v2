@@ -66,29 +66,34 @@ def load_shipping_rates():
     count = cur.fetchone()["count"]
     mode = "edit" if count > 0 else "new"
 
-    cur.execute("""
-        SELECT
-            weight_from_g,
-            weight_to_g,
-            carrier_1_price,
-            carrier_2_price,
-            carrier_3_price
-        FROM shipping_rates
-        WHERE user_id = %s
-          AND marketplace_id = %s
-        ORDER BY weight_from_g
-    """, (user_id, marketplace_id))
+    cur.execute(
+            """
+            SELECT
+                weight_from_g,
+                weight_to_g,
+                carrier_1_price,
+                carrier_2_price,
+                carrier_3_price,
+                fixed_shipping_price,
+                memo
+            FROM shipping_rates
+            WHERE user_id = %s
+            AND marketplace_id = %s
+            ORDER BY weight_from_g
+        """, (user_id, marketplace_id))
 
-    rows = [
-        {
-            "weight_from_g": r["weight_from_g"],
-            "weight_to_g": r["weight_to_g"],
-            "carrier_1_price": r["carrier_1_price"],
-            "carrier_2_price": r["carrier_2_price"],
-            "carrier_3_price": r["carrier_3_price"],
-        }
-        for r in cur.fetchall()
-    ]
+        rows = [
+            {
+                "weight_from_g": r["weight_from_g"],
+                "weight_to_g": r["weight_to_g"],
+                "carrier_1_price": r["carrier_1_price"],
+                "carrier_2_price": r["carrier_2_price"],
+                "carrier_3_price": r["carrier_3_price"],
+                "fixed_shipping_price": r["fixed_shipping_price"],
+                "memo": r["memo"],
+            }
+            for r in cur.fetchall()
+        ]
     conn.close()
 
     return jsonify({

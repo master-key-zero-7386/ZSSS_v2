@@ -134,17 +134,19 @@ def update_shipping_rates_bulk(user_id: int, marketplace_id: str, rows: list[dic
     conn = get_conn("a_shipping_rates.db")
     cur = conn.cursor()
 
-    # ★ marketplace_id を DB 形式に統一（重要）
     marketplace_id = (marketplace_id or "").upper()
 
     for row in rows:
-        # ★ 数値を必ず int に揃える
         wf = int(row.get("weight_from_g"))
         wt = int(row.get("weight_to_g"))
 
         c1 = int(row.get("carrier_1_price") or 0)
         c2 = int(row.get("carrier_2_price") or 0)
         c3 = int(row.get("carrier_3_price") or 0)
+
+        # --- ▼ 固定送料（空欄ならNULLのまま保存） ▼ ---
+        fixed_raw = row.get("fixed_shipping_price")
+        fixed = int(fixed_raw) if fixed_raw not in (None, "", 0) else None
 
         memo = row.get("memo") or ""
 
@@ -157,6 +159,7 @@ def update_shipping_rates_bulk(user_id: int, marketplace_id: str, rows: list[dic
                 carrier_1_price = %s,
                 carrier_2_price = %s,
                 carrier_3_price = %s,
+                fixed_shipping_price = %s,
                 memo = %s,
                 updated_at = %s
             WHERE
@@ -165,7 +168,7 @@ def update_shipping_rates_bulk(user_id: int, marketplace_id: str, rows: list[dic
                 AND weight_from_g = %s
                 AND weight_to_g = %s
             """,
-            (c1, c2, c3, memo, now_utc, user_id, marketplace_id, wf, wt)
+            (c1, c2, c3, fixed, memo, now_utc, user_id, marketplace_id, wf, wt)
         )
 
     conn.commit()

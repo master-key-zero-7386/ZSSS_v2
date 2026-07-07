@@ -195,16 +195,16 @@ def update_shipping_config():
 # --- ▼ SECTION 06: Shipping 送料算定（表示用・最安） ▼ ---
 def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_id: str, SHIPPING_RATE_ROWS=None) -> float | None:
     """
-    請求重量(kg)から送料表を引き、最安送料を返す（表示用）
+    請求重量(kg)から送料表を引き、送料を返す（価格計算用）
     - DB保存なし
-    - carrier_1/2/3 の最安を返す
+    - 固定送料（fixed_shipping_price）が設定されていればそれを優先
+    - 未設定なら carrier_1/2/3 の最安を返す（従来通り）
     """
     if not billable_weight_kg or billable_weight_kg <= 0:
         return None
 
     SHIPPING_RATE_ROWS = SHIPPING_RATE_ROWS or []  
 
-    # kg -> g
     weight_g = int(round(billable_weight_kg * 1000))
 
     row = None 
@@ -222,6 +222,17 @@ def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_i
     if not row:
         return None
 
+    # --- ▼ 固定送料が設定されていれば、それを最優先で採用 ▼ ---
+    fixed = row.get("fixed_shipping_price")
+    if fixed is not None:
+        try:
+            fixed_value = float(fixed)
+            if fixed_value > 0:
+                return fixed_value
+        except (TypeError, ValueError):
+            pass  # 万一おかしな値でもここでは無視し、下の従来計算にフォールバック
+
+    # --- ▼ 固定送料が無ければ、従来通りCarrier1〜3の最安値 ▼ ---
     prices = [
         float(row["carrier_1_price"]),
         float(row["carrier_2_price"]),
