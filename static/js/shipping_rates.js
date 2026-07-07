@@ -86,38 +86,38 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // --- ▼ SECTION 03: 最安値自動計算（そのままでOK） ▼ ---
-    document.addEventListener("input", function (e) {
-        if (!e.target.classList.contains("carrier-1-price") &&
-            !e.target.classList.contains("carrier-2-price") &&
-            !e.target.classList.contains("carrier-3-price") &&
-            !e.target.classList.contains("fixed-shipping-price")) {
-            return;
-        }
+        document.addEventListener("input", function (e) {
+            if (!e.target.classList.contains("carrier-1-price") &&
+                !e.target.classList.contains("carrier-2-price") &&
+                !e.target.classList.contains("carrier-3-price") &&
+                !e.target.classList.contains("fixed-shipping-price")) {
+                return;
+            }
 
-        const row = e.target.closest("tr");
-        if (!row) return;
+            const row = e.target.closest("tr");
+            if (!row) return;
 
-        // --- ▼ 固定送料が入力されていれば、それを優先して最安値欄に表示 ▼ ---
-        const fixedInput = row.querySelector(".fixed-shipping-price");
-        const fixedValue = parseInt(fixedInput?.value, 10);
+            // --- ▼ 固定送料が入力されていれば、それを優先して最安値欄に表示 ▼ ---
+            const fixedInput = row.querySelector(".fixed-shipping-price");
+            const fixedValue = parseInt(fixedInput?.value, 10);
 
-        const minInput = row.querySelector(".min-price");
+            const minInput = row.querySelector(".min-price");
 
-        if (!isNaN(fixedValue) && fixedValue > 0) {
-            minInput.value = fixedValue;
-            return; // Carrier1〜3の計算はスキップ
-        }
+            if (!isNaN(fixedValue) && fixedValue > 0) {
+                minInput.value = fixedValue;
+                return; // Carrier1〜3の計算はスキップ
+            }
 
-        const prices = [];
+            const prices = [];
 
-        row.querySelectorAll(".carrier-1-price, .carrier-2-price, .carrier-3-price")
-            .forEach(input => {
-                const v = parseInt(input.value, 10);
-                if (!isNaN(v) && v > 0) prices.push(v);
-            });
+            row.querySelectorAll(".carrier-1-price, .carrier-2-price, .carrier-3-price")
+                .forEach(input => {
+                    const v = parseInt(input.value, 10);
+                    if (!isNaN(v) && v > 0) prices.push(v);
+                });
 
-        minInput.value = prices.length ?
-    });
+            minInput.value = prices.length ? Math.min(...prices) : "";
+        });
 
     // --- ▼ SECTION 04: 最安値を全行再計算（描画後用） ▼ ---
     function recalcAllMinPrices() {
