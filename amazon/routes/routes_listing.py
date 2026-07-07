@@ -487,6 +487,7 @@ def _build_listing_row_with_shipping(
         "region_shipping_amount": region_shipping_amount,
         
         "final_price": row["final_price"],
+        "override_price": row["override_price"],
         "profit_rate": row["profit_rate"],
         "min_price": row["min_price"], 
         "max_price": row["max_price"],
@@ -717,6 +718,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(home_price, NULL) AS home_price,
             COALESCE(region_price, NULL) AS region_price,
             COALESCE(final_price, NULL) AS final_price,
+            COALESCE(override_price, NULL) AS override_price,
             COALESCE(profit_rate, NULL) AS profit_rate,
             COALESCE(min_price, NULL) AS min_price,
             COALESCE(max_price, NULL) AS max_price, 

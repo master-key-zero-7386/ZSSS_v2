@@ -251,7 +251,7 @@ window.loadprelisting = async function (country_code) {
             
             {
                 data: null,
-                data: "image_url",                      
+                title: "画像",                      
                 className: "col-ops",
                 orderable: false,
                 defaultContent: "",
@@ -358,42 +358,49 @@ window.loadprelisting = async function (country_code) {
                                             : "ー"
                                     }
                                 </span>
-                            </div>                            
-                            
-                            <div style="display:inline-block; border-bottom:2px solid #1c0cfa;">
-                                <span style="display:inline-block; width:90px; font-weight:bold;">出品価格</span>
-                                ：<span class="disp-sale-price" style="
-                                        font-size:25px;
-                                        font-weight:bold;
-                                        color:${
-                                            (() => {
-                                                const myPrice = Number(row.override_price ?? row.final_price);
-                                                const compPrice =
-                                                    Number(row.region_price || 0)
-                                                    + Number(row.region_shipping_amount || 0);
-
-                                                const isWin =
-                                                    row.region_price == null ||
-                                                    (myPrice <= compPrice);
-
-                                                return isWin ? '#1c0cfa' : '#cec8c8';
-                                            })()
-                                        };
-                                    ">
-                                    ${
-                                        row.override_price
-                                            ?? (row.final_price
-                                                ? Number(row.final_price).toLocaleString()
-                                                : "ー")
-                                    }
-                                </span>
                             </div>
                         </div>
                     `;
                 }
             },
 
-            { title: "ユーザー変更設定", data: "misc", defaultContent: "", orderable: false },
+            {
+                title: "ユーザー変更設定",
+                data: null,
+                orderable: false,
+                render: function (_data, _type, row) {
+                    return `
+                        <div style="display:inline-block; border-bottom:2px solid #1c0cfa;">
+                            <span style="display:inline-block; width:90px; font-weight:bold;">出品価格</span>
+                            ：<span class="disp-sale-price" style="
+                                    font-size:25px;
+                                    font-weight:bold;
+                                    color:${
+                                        (() => {
+                                            const myPrice = Number(row.override_price ?? row.final_price);
+                                            const compPrice =
+                                                Number(row.region_price || 0)
+                                                + Number(row.region_shipping_amount || 0);
+
+                                            const isWin =
+                                                row.region_price == null ||
+                                                (myPrice <= compPrice);
+
+                                            return isWin ? '#1c0cfa' : '#cec8c8';
+                                        })()
+                                    };
+                                ">
+                                ${
+                                    row.override_price
+                                        ?? (row.final_price
+                                            ? Number(row.final_price).toLocaleString()
+                                            : "ー")
+                                }
+                            </span>
+                        </div>
+                    `;
+                }
+            },
             
             {
                 title: "セラー情報",
