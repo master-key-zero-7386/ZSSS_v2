@@ -584,17 +584,17 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     elif sort == "updated_desc":
         order_by = "updated_at DESC"    
     elif sort == "brand_asc":               # ブランド名
-        order_by = "home_brand ASC"
+        order_by = "home_brand ASC NULLS LAST"
     elif sort == "brand_desc":
-        order_by = "home_brand DESC"        
+        order_by = "home_brand DESC NULLS LAST"       
     elif sort == "price_asc":               # 価格
-        order_by = "final_price ASC"
+        order_by = "final_price ASC NULLS LAST"
     elif sort == "price_desc":
-        order_by = "final_price DESC"
+        order_by = "final_price DESC NULLS LAST"
     elif sort == "weight_asc":              # 請求重量
-        order_by = "billable_weight_kg ASC"
+        order_by = "billable_weight_kg ASC NULLS LAST"
     elif sort == "weight_desc":
-        order_by = "billable_weight_kg DESC"   
+        order_by = "billable_weight_kg DESC NULLS LAST"  
 
     if info_status == "INACTIVE" and sort == "created_desc":
         order_by = """
@@ -1025,25 +1025,26 @@ def search_listing():
         detail = request.args.get("detail") == "true"
 
         sort = request.args.get("sort") or "created_desc"  
-
+     
         # 標準ソート登録日順       
-        order_by = "created_at DESC"
+        order_by = "li.created_at DESC"
 
         # ソート種類       
         if sort == "created_asc":               # 登録日
-            order_by = "created_at ASC"
+            order_by = "li.created_at ASC"
         elif sort == "brand_asc":               # ブランド名
-            order_by = "region_brand ASC"
+            order_by = "li.region_brand ASC NULLS LAST"
         elif sort == "brand_desc":
-            order_by = "region_brand DESC"        
+            order_by = "li.region_brand DESC NULLS LAST"        
         elif sort == "price_asc":               # 価格
-            order_by = "final_price ASC"
+            order_by = "li.final_price ASC NULLS LAST"
         elif sort == "price_desc":
-            order_by = "final_price DESC"
+            order_by = "li.final_price DESC NULLS LAST"
         elif sort == "weight_asc":              # 請求重量
-            order_by = "billable_weight_kg ASC"
+            order_by = "li.billable_weight_kg ASC NULLS LAST"
         elif sort == "weight_desc":
-            order_by = "billable_weight_kg DESC"            
+            order_by = "li.billable_weight_kg DESC NULLS LAST"
+          
 
         status_value = "pre" if mode == "pre" else "listed"
         
@@ -1104,7 +1105,7 @@ def search_listing():
                     OR LOWER(li.region_manufacturer) LIKE LOWER(%s)
                 )
                 {query_filter}
-                ORDER BY li.created_at DESC
+                ORDER BY {order_by}
                 LIMIT 200
             """, params)            
 
@@ -1141,7 +1142,7 @@ def search_listing():
                 AND LOWER(li.status) = %s
                 AND li.asin LIKE %s
                 {query_filter}
-                ORDER BY li.created_at DESC
+                ORDER BY {order_by}
                 LIMIT 200
             """, params)
 
