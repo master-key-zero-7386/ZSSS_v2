@@ -14,10 +14,11 @@ from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 class PricingRulesAdapter:
 
     # --- ▼ SECTION 01: 初期化（将来の拡張用） ▼ -
-    def __init__(self, rules: dict | None = None, marketplace_id=None, shipping_override_set=None):
+    def __init__(self, rules: dict | None = None, marketplace_id=None, shipping_override_set=None, retail_seller_ids=None):
         self.rules = rules or {}
         self.marketplace_id = marketplace_id
         self.shipping_override_set = shipping_override_set or set()
+        self.retail_seller_ids = retail_seller_ids 
 
     # --- ▼ SECTION 02: HOME 原価確定（フィルタ＋最安決定） ▼ ---
     def select_home_cost_offer(self, normalized_offers: list[dict]):
@@ -37,7 +38,7 @@ class PricingRulesAdapter:
         # # --- HOME国取得（a_marketplaces.db） ---
         home_country = self.rules.get("home_country")
 
-        RETAIL_SELLER_IDS = get_retail_seller_ids()
+        RETAIL_SELLER_IDS = self.retail_seller_ids if self.retail_seller_ids is not None else get_retail_seller_ids()
 
         for offer in normalized_offers:
             seller_id = offer.get("seller_id")
@@ -138,7 +139,7 @@ class PricingRulesAdapter:
             return None
 
         # --- Amazon直売セラーID一覧（管理画面と連動） ---
-        RETAIL_SELLER_IDS = get_retail_seller_ids()
+        RETAIL_SELLER_IDS = self.retail_seller_ids if self.retail_seller_ids is not None else get_retail_seller_ids()
 
         filtered = []
 

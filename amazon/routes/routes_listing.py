@@ -419,7 +419,7 @@ def _build_listing_row_with_shipping(
 
         rules_home = OFFER_FILTER_RULES 
 
-        pricing_rules_adapter_home = PricingRulesAdapter(rules_home)
+        pricing_rules_adapter_home = PricingRulesAdapter(rules_home, retail_seller_ids=RETAIL_SELLER_IDS)
 
         result_home = pricing_rules_adapter_home.select_home_cost_offer(
             normalized_home
@@ -451,16 +451,9 @@ def _build_listing_row_with_shipping(
 
         rules["my_seller_id"] = my_seller_id  
 
-        # pricing_rules_adapter = PricingRulesAdapter(rules)
+        pricing_rules_adapter = PricingRulesAdapter(rules, marketplace_id=marketplace_id, shipping_override_set=SHIPPING_OVERRIDE_SET, retail_seller_ids=RETAIL_SELLER_IDS)
 
-        pricing_rules_adapter = PricingRulesAdapter(
-            rules,
-            marketplace_id=marketplace_id,
-            shipping_override_set=SHIPPING_OVERRIDE_SET
-        )
-        result_offer = pricing_rules_adapter.select_region_price_offer(
-            normalized_region
-        )
+        result_offer = pricing_rules_adapter.select_region_price_offer(normalized_region        )
 
         selected_offer = result_offer.get("selected") if result_offer else None
 
