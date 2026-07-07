@@ -140,10 +140,15 @@ justify-content:flex-end;
 
     <div class="card">
 
-        <div class="shipping-table-box">   
+        <div class="shipping-table-box">  
             <div class="shipping-actions">
+                <button id="copy-from-other-market" class="btn-blue" style="margin-right:8px;">COPY</button>
+                <button id="export-shipping-csv" class="btn-blue" style="margin-right:8px;">CSV Export</button>
+                <button id="import-shipping-csv-btn" class="btn-blue" style="margin-right:8px;">CSV Import</button>
+                <input type="file" id="import-shipping-csv-input" accept=".csv" style="display:none;">
                 <button id="save-shipping-rates" class="btn-blue">保　存</button>
             </div>
+
             <!-- ★ 表の幅制御用 -->
             <div class="shipping-table-inner">
               

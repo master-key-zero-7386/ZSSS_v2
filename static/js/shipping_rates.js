@@ -354,6 +354,224 @@ document.addEventListener("DOMContentLoaded", function () {
             });
     });
 
+    // --- ▼ SECTION 09: 他マーケットの送料をCarrier列単位でコピー ▼ ---
+    document.getElementById("copy-from-other-market")?.addEventListener("click", async function () {
+
+        const region = document.getElementById("globalRegion")?.value;
+        if (!region) {
+            alert("リージョンが選択されていません");
+            return;
+        }
+
+        // コピー元にできる（＝送料表がすでにある）マーケット一覧を取得
+        const res = await fetch("/api/shipping-rates/copy-source-list");
+        const copySourceData = await res.json();
+
+        const copyOptionsHtml = copySourceData.marketplace_ids
+            .filter(row => row.country_code !== region.toUpperCase())
+            .map(row => `<option value="${row.country_code}">${row.country_code}</option>`)
+            .join("");
+
+        if (!copyOptionsHtml) {
+            alert("コピー元にできる他のマーケットがありません");
+            return;
+        }
+
+        // コピー元マーケット & コピーする列を選んでもらうポップアップ
+        const result = await showConfirmModal({
+            contentHtml: `
+                <h3>他マーケットからコピー</h3>
+                <p>コピー元のマーケットと、コピーするCarrier列を選んでください。</p>
+
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; margin-bottom:4px;">コピー元マーケット</label>
+                    <select id="copy-source-marketplace-existing">
+                        ${copyOptionsHtml}
+                    </select>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; margin-bottom:6px;">コピーする列</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier1" checked> Carrier 1</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier2"> Carrier 2</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier3"> Carrier 3</label>
+                </div>
+
+                <p style="color:#c0392b; font-size:13px;">
+                    ※ ここではまだ保存されません。内容を確認してから「保存」ボタンを押してください。
+                </p>
+
+                <div class="ui-confirm-actions">
+                    <button class="ui-confirm-btn ui-confirm-btn-cancel" data-confirm="cancel">キャンセル</button>
+                    <button class="ui-confirm-btn ui-confirm-btn-primary" data-confirm="copy">コピーする</button>
+                </div>
+            `
+        });
+
+        if (result !== "copy") return;
+
+        const sourceCode = document.getElementById("copy-source-marketplace-existing")?.value;
+        if (!sourceCode) return;
+
+        const copyCarrier1 = document.getElementById("copy-col-carrier1")?.checked;
+        const copyCarrier2 = document.getElementById("copy-col-carrier2")?.checked;
+        const copyCarrier3 = document.getElementById("copy-col-carrier3")?.checked;
+
+        if (!copyCarrier1 && !copyCarrier2 && !copyCarrier3) {
+            alert("コピーする列を1つ以上選択してください");
+            return;
+        }
+
+        // コピー元マーケットの送料データを取得（既存の「読み込みAPI」を流用。保存はしない）
+        const sourceRes = await fetch("/api/shipping-rates/load?marketplace_id=" + encodeURIComponent(sourceCode));
+        const sourceData = await sourceRes.json();
+
+        if (sourceData.status !== "success") {
+            showToast("コピー元データの取得に失敗しました");
+            return;
+        }
+
+        // 重量帯(From/To)をキーにして、コピー元の行をすぐ探せるようにする
+        const sourceRowMap = new Map();
+        sourceData.rows.forEach(r => {
+            sourceRowMap.set(`${r.weight_from_g}_${r.weight_to_g}`, r);
+        });
+
+        // 画面上の表に、選んだ列だけ反映する（保存はまだしない）
+        document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
+            const tds = tr.querySelectorAll("td");
+            if (tds.length < 7) return;
+
+            const weightFrom = tds[0].querySelector("input")?.value;
+            const weightTo = tds[1].querySelector("input")?.value;
+
+            const sourceRow = sourceRowMap.get(`${weightFrom}_${weightTo}`);
+            if (!sourceRow) return; // 対応する重量帯がコピー元になければスキップ
+
+            if (copyCarrier1) tds[2].querySelector("input").value = sourceRow.carrier_1_price || "";
+            if (copyCarrier2) tds[3].querySelector("input").value = sourceRow.carrier_2_price || "";
+            if (copyCarrier3) tds[4].querySelector("input").value = sourceRow.carrier_3_price || "";
+        });
+
+        recalcAllMinPrices(); // 最安値欄を再計算
+
+        showToast("コピーしました。内容を確認して保存してください");
+    });    
+
+    // --- ▼ SECTION 10: 送料表をCSVに書き出す ▼ ---
+    document.getElementById("export-shipping-csv")?.addEventListener("click", function () {
+
+        const region = document.getElementById("globalRegion")?.value;
+        if (!region) {
+            alert("リージョンが選択されていません");
+            return;
+        }
+
+        // ヘッダー行
+        const rows = [["From(g)", "To(g)", "Carrier1", "Carrier2", "Carrier3", "Memo"]];
+
+        // 画面に表示されている今の内容をそのまま集める
+        document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
+            const tds = tr.querySelectorAll("td");
+            if (tds.length < 7) return;
+
+            rows.push([
+                tds[0].querySelector("input")?.value || "",
+                tds[1].querySelector("input")?.value || "",
+                tds[2].querySelector("input")?.value || "",
+                tds[3].querySelector("input")?.value || "",
+                tds[4].querySelector("input")?.value || "",
+                tds[6].querySelector("input")?.value || ""
+            ]);
+        });
+
+        // カンマや改行を含んでもズレないよう、各項目を""で囲む
+        const csv = rows
+            .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        // \uFEFF は Excel で開いた時に文字化けしないためのおまじない
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${region.toUpperCase()}_shipping_rates.csv`;
+        a.click();
+    });
+
+    // --- ▼ SECTION 11: CSVから送料表を取り込む ▼ ---
+    document.getElementById("import-shipping-csv-btn")?.addEventListener("click", function () {
+        // 隠しファイル選択欄を代わりにクリックさせる
+        document.getElementById("import-shipping-csv-input")?.click();
+    });
+
+    document.getElementById("import-shipping-csv-input")?.addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+
+        reader.onload = function (evt) {
+            const text = evt.target.result;
+
+            // --- 簡易CSVパーサー（""で囲まれた項目にも対応） ---
+            const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+            const parsedRows = lines.map(line => {
+                const result = [];
+                let cur = "";
+                let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    const ch = line[i];
+                    if (ch === '"') {
+                        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+                        else { inQuotes = !inQuotes; }
+                    } else if (ch === "," && !inQuotes) {
+                        result.push(cur); cur = "";
+                    } else {
+                        cur += ch;
+                    }
+                }
+                result.push(cur);
+                return result;
+            });
+
+            // 先頭行はヘッダーなので飛ばす
+            const dataRows = parsedRows.slice(1);
+
+            // 重量帯(From_To)をキーにして、すぐ探せるようにする
+            const csvRowMap = new Map();
+            dataRows.forEach(cols => {
+                const [from, to, c1, c2, c3, memo] = cols;
+                csvRowMap.set(`${from}_${to}`, { c1, c2, c3, memo });
+            });
+
+            // 画面上の表に反映する（この時点ではまだ保存しない）
+            document.querySelectorAll("#shipping-rates-body tr").forEach(tr => {
+                const tds = tr.querySelectorAll("td");
+                if (tds.length < 7) return;
+
+                const weightFrom = tds[0].querySelector("input")?.value;
+                const weightTo = tds[1].querySelector("input")?.value;
+
+                const csvRow = csvRowMap.get(`${weightFrom}_${weightTo}`);
+                if (!csvRow) return; // CSV側に対応する重量帯が無ければそのまま
+
+                tds[2].querySelector("input").value = csvRow.c1 || "";
+                tds[3].querySelector("input").value = csvRow.c2 || "";
+                tds[4].querySelector("input").value = csvRow.c3 || "";
+                tds[6].querySelector("input").value = csvRow.memo || "";
+            });
+
+            recalcAllMinPrices();
+
+            showToast("CSVを取り込みました。内容を確認して保存してください");
+
+            // 同じファイルをもう一度選んでも反応するようにリセット
+            e.target.value = "";
+        };
+
+        reader.readAsText(file, "UTF-8");
+    });
+
 }) // "DOMContentLoaded" 終了
 
 
