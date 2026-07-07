@@ -123,6 +123,11 @@ document.addEventListener("DOMContentLoaded", function () {
     function recalcAllMinPrices() {
         document.querySelectorAll("#shipping-rates-body tr").forEach(row => {
 
+            // --- ▼ 固定送料を先にチェック ▼ ---
+            const fixedInput = row.querySelector(".fixed-shipping-price");
+            const fixedValue = parseInt(fixedInput?.value, 10);
+            const hasFixed = !isNaN(fixedValue) && fixedValue > 0;
+
             const carrierInputs = Array.from(
                 row.querySelectorAll(".carrier-1-price, .carrier-2-price, .carrier-3-price")
             );
@@ -136,18 +141,21 @@ document.addEventListener("DOMContentLoaded", function () {
             const minPrice = validValues.length ? Math.min(...validValues) : null;
 
             const minInput = row.querySelector(".min-price");
-            minInput.value = minPrice !== null ? minPrice : "";
 
-            // --- ▼ ここを修正：採用キャリアの視覚強調 ▼ ---
+            // --- ▼ 固定送料があればそれを優先、無ければ今まで通りCarrier最安値 ▼ ---
+            minInput.value = hasFixed ? fixedValue : (minPrice !== null ? minPrice : "");
+
+            // --- ▼ 採用キャリアの視覚強調（固定送料が優先されている時は強調しない） ▼ ---
             carrierInputs.forEach((input, idx) => {
                 const td = input.closest("td");
                 td.classList.remove("shipping-carrier-selected");
+
+                if (hasFixed) return; // 固定送料優先中は強調表示しない
 
                 if (minPrice !== null && values[idx] === minPrice) {
                     td.classList.add("shipping-carrier-selected");
                 }
             });
-            // --- ▲ ここを修正 ▲ ---
         });
     }
 
