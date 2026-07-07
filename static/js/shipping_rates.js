@@ -170,6 +170,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!input.classList.contains("carrier-1-price") &&
             !input.classList.contains("carrier-2-price") &&
             !input.classList.contains("carrier-3-price") &&
+            !input.classList.contains("fixed-shipping-price") &&
             !input.classList.contains("memo"))  {
             return;
         }
