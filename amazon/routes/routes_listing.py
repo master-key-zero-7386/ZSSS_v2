@@ -686,7 +686,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM listed_items
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
-                AND LOWER(status) = 'all'
+                AND LOWER(status) = 'listed'
                 AND region_brand IS NOT NULL
                 AND TRIM(region_brand) <> ''
             )
@@ -701,7 +701,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM listed_items
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
-                AND LOWER(status) = 'all'
+                AND LOWER(status) = 'listed'
                 AND region_brand IS NOT NULL
                 AND TRIM(region_brand) <> ''
             )
@@ -957,7 +957,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         FROM listed_items
         WHERE user_id = %s
         AND region_marketplace_id = %s
-        AND LOWER(status) = 'all'
+        AND LOWER(status) = 'listed'
         AND region_brand IS NOT NULL
         AND TRIM(region_brand) <> ''
     """, (user_id, marketplace_id))
