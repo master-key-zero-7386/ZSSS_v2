@@ -305,7 +305,7 @@
             <option value="created_asc">登録順 ▲</option>
 
             <option value="updated_asc">更新順 ▲</option>
-            <option value="updated_desc">更新順 ▼</option>            
+            <option value="updated_desc">更新順 ▼</option>
 
             <option value="brand_asc">ブランド ▲</option>
             <option value="brand_desc">ブランド ▼</option>
@@ -315,6 +315,11 @@
 
             <option value="weight_asc">重量 ▲</option>
             <option value="weight_desc">重量 ▼</option>
+        </select>
+
+        <!-- 絞り込みプルダウン（Pre） -->
+        <select id="preListingFilter" class="zsss-control">
+            <option value="all">絞り込みなし</option>
 
             <option value="brandgate_ok">BrandGate OK</option>
             <option value="brandgate_approval">BrandGate APPROVAL</option>
@@ -414,8 +419,8 @@
             <option value="created_asc">登録順 ▲</option>
 
             <option value="updated_asc">更新順 ▲</option>
-            <option value="updated_desc">更新順 ▼</option>   
-                        
+            <option value="updated_desc">更新順 ▼</option>
+
             <option value="brand_asc">ブランド ▲</option>
             <option value="brand_desc">ブランド ▼</option>
 
@@ -424,12 +429,17 @@
 
             <option value="weight_asc">重量 ▲</option>
             <option value="weight_desc">重量 ▼</option>
+        </select>
+
+        <!-- 絞り込みプルダウン（ALL） -->
+        <select id="allListingFilter" class="zsss-control">
+            <option value="all">絞り込みなし</option>
 
             <option value="brandgate_ok">BrandGate OK</option>
             <option value="brandgate_approval">BrandGate APPROVAL</option>
             <option value="brandgate_ng">BrandGate NG</option>
-            <option value="brandgate_unknown">BrandGate 未チェック</option>            
-        </select>              
+            <option value="brandgate_unknown">BrandGate 未チェック</option>
+        </select>
 
         <button id="allListingSearchBtn" class="zsss-control">検　索</button>
     </div>   
