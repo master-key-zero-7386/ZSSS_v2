@@ -646,6 +646,17 @@ def add_unique_indexes():  # UNIQUE制約
                 "ON listed_items(r_pricing_ttl_at)"
             )
 
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_listed_items_user_market_status "
+                "ON listed_items(user_id, region_marketplace_id, status)"
+            )
+
+            if DB_MODE == "postgres":
+                cur2.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_listed_items_region_brand_lower "
+                    "ON listed_items(region_marketplace_id, status, (LOWER(TRIM(region_brand))))"
+                )
+
         conn2.commit()
         conn2.close()
 
