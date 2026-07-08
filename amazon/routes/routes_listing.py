@@ -704,6 +704,21 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
+    elif filter_value == "region_single_seller":
+        # --- REGIONセラーが合計1人のみ（メーカー/権利者本人の可能性があり要注意） ---
+        query_filter += """
+            AND asin IN (
+                SELECT pc.asin
+                FROM pricing_cache pc
+                WHERE pc.region_marketplace_id = %s
+                AND pc.region_offers_json IS NOT NULL
+                AND jsonb_array_length(
+                    COALESCE(pc.region_offers_json::jsonb -> 'payload' -> 'Offers', '[]'::jsonb)
+                ) = 1
+            )
+        """
+        params_base.append(marketplace_id)
+
     if info_status != "all":
         query_filter += " AND information_status = %s"
         params_base.append(info_status)
