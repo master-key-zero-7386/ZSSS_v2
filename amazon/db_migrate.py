@@ -92,6 +92,16 @@ BLACKLIST_BRAND_COLUMNS = {
     "created_at": "TEXT"
 }
 
+# --- ▼ 他社ツール出品済みASIN（重複出品防止・一時運用） ---
+EXTERNAL_LISTED_ASIN_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER",
+    "region_marketplace_id": "TEXT",
+    "asin": "TEXT NOT NULL",
+    "note": "TEXT",
+    "created_at": "TEXT"
+}
+
 # # --- BlackList 管理者用カラム ---
 # BLACKLIST_BRAND_COLUMNS = {
 #     "id": "SERIAL PRIMARY KEY",
@@ -512,6 +522,8 @@ def migrate_db(db_name):
         migrate_table(conn, "blacklist_asin", BLACKLIST_ASIN_COLUMNS)
     elif base.endswith("_blacklist_brand.db"):
         migrate_table(conn, "blacklist_brand", BLACKLIST_BRAND_COLUMNS)
+    elif base.endswith("_external_listed_asin.db"):
+        migrate_table(conn, "external_listed_asin", EXTERNAL_LISTED_ASIN_COLUMNS)
     elif base.endswith("_marketplaces.db"):
         migrate_table(conn, "marketplaces", MARKETPLACES_COLUMNS)
     elif base.endswith("_account_master.db"):
@@ -766,7 +778,38 @@ def add_unique_indexes():  # UNIQUE制約
             )
 
         conn2.commit()
-        conn2.close()        
+        conn2.close()
+
+    # --- external_listed_asin UNIQUE（country_code 正） ---
+    for country_code in country_codes:
+        db_name = f"a_{country_code}_external_listed_asin.db"
+        conn2 = get_conn(db_name)
+        cur2 = conn2.cursor()
+
+        # ★ external_listed_asin テーブル存在確認
+        if DB_MODE == "sqlite":
+            cur2.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='external_listed_asin'
+            """)
+
+        elif DB_MODE == "postgres":
+            cur2.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'external_listed_asin'
+            """)
+
+        exists = cur2.fetchone()
+
+        if exists:
+            cur2.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_external_listed_user_asin_unique "
+                "ON external_listed_asin(user_id, region_marketplace_id, asin)"
+            )
+
+        conn2.commit()
+        conn2.close()
 
     # --- a_brand_gate_result.db ---
     conn = get_conn("a_brand_gate_result.db")
@@ -872,6 +915,7 @@ def main():
         migrate_db(f"a_{country_code}_listed_items.db")
         migrate_db(f"a_{country_code}_blacklist_asin.db")
         migrate_db(f"a_{country_code}_blacklist_brand.db")
+        migrate_db(f"a_{country_code}_external_listed_asin.db")
 
     # INDEX
     add_unique_indexes()

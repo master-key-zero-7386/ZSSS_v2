@@ -297,9 +297,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ✅ CSV Export（ZSSS登録ASIN一括CSV出力）
     document.getElementById("exportListedCsvBtn").addEventListener("click", function() {
-        const countryCode = document.getElementById("globalRegion").value; 
+        const countryCode = document.getElementById("globalRegion").value;
         window.location.href = `/csv/export_listed_csv?country_code=${countryCode}`;
-    }); 
+    });
+
+    // ✅ 他社ツール出品済みASIN取込（重複出品防止・一時運用）
+    const externalListedFileInput = document.getElementById("externalListedFileInput");
+    const externalListedFileName = document.getElementById("externalListedFileName");
+    const externalListedUploadBtn = document.getElementById("externalListedUploadBtn");
+    const externalListedResult = document.getElementById("externalListedResult");
+
+    if (externalListedFileName) {
+        externalListedFileName.addEventListener("click", () => {
+            externalListedFileInput.click();
+        });
+    }
+
+    if (externalListedFileInput) {
+        externalListedFileInput.addEventListener("change", (e) => {
+            const fileName = e.target.files.length ? e.target.files[0].name : "";
+            externalListedFileName.value = fileName;
+        });
+    }
+
+    if (externalListedUploadBtn) {
+        externalListedUploadBtn.addEventListener("click", () => {
+            if (!externalListedFileInput.files.length) {
+                alert("CSVファイルを選択してください");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", externalListedFileInput.files[0]);
+            formData.append("country_code", document.getElementById("globalRegion").value);
+
+            if (externalListedResult) externalListedResult.textContent = "";
+
+            fetch("/csv/external_listed_import", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    const msg = `取込完了：${data.import}件追加（合計${data.after}件）`;
+                    if (externalListedResult) externalListedResult.textContent = msg;
+                    window.showToast(msg, "success");
+                    externalListedFileInput.value = "";
+                    externalListedFileName.value = "";
+                } else {
+                    const errMsg = data && data.message ? data.message : "取込に失敗しました";
+                    if (externalListedResult) externalListedResult.textContent = errMsg;
+                    window.showToast(errMsg, "error");
+                }
+            })
+            .catch(err => {
+                console.error("[External Listed ASIN Import] error:", err);
+                window.showToast("エラーが発生しました", "error");
+            });
+        });
+    }
 
 });
 

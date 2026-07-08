@@ -205,8 +205,16 @@
                         <button type="button" id="asinAddBtn" class="btn-blue" style="height:36px;">ASIN追加</button>
                     </div>
 
+                    <!-- 他社ツール出品済みASIN取込（重複出品防止・一時運用） -->
+                    <div class="file-input-row" style="margin-top:10px;">
+                        <input type="file" id="externalListedFileInput" accept=".csv" style="display:none;" />
+                        <input type="text" id="externalListedFileName" class="file-input-text" placeholder="他社ツール出品済みASIN CSV（1列目=ASIN）を選択してください" readonly style="width:340px;" />
+                        <button type="button" id="externalListedUploadBtn" class="btn-blue" style="height:36px;">他社出品ASIN取込</button>
+                        <span id="externalListedResult" style="margin-left:10px; font-size:14px; color:#000000;"></span>
+                    </div>
+
                 </div>
-            </div>           
+            </div>
 
         
             <!-- 結果表示エリア -->

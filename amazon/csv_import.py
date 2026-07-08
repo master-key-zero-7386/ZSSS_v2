@@ -43,6 +43,25 @@ csv_import_bp = Blueprint("csv_import", __name__)
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# --- ▼ 他社ツール出品済みASIN 突合（重複出品防止・一時運用） ▼ ---
+def _get_external_listed_asins(country_code, user_id, marketplace_id, asin_list):
+    if not asin_list:
+        return []
+
+    try:
+        conn = get_conn(f"a_{country_code.lower()}_external_listed_asin.db")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT asin FROM external_listed_asin WHERE user_id = %s AND region_marketplace_id = %s",
+            (user_id, marketplace_id)
+        )
+        external_set = {str(r["asin"]).strip().upper() for r in cur.fetchall()}
+        conn.close()
+    except Exception:
+        return []
+
+    return [a for a in asin_list if a in external_set]
+
 # --- ▼ SECTION 01: CSVアップロード ▼ ---
 @csv_import_bp.route("/upload", methods=["POST"])
 def upload_csv():
@@ -201,6 +220,12 @@ def check_csv():
             if cur.fetchone():
                 listed_asins.append(asin)
         conn.close()
+
+        # --- ▼ 他社ツール出品済みASINチェック ▼ ---
+        listed_asins.extend(
+            a for a in _get_external_listed_asins(country_code, user_id, marketplace_id, asin_list)
+            if a not in listed_asins
+        )
 
          # 出品可能ASIN = 全体 − ブラックリスト − 出品済み
         ok_asins = [
@@ -394,6 +419,12 @@ def import_csv():
                         listed_asins.append(asin)
 
                 conn.close()
+
+            # --- ▼ 他社ツール出品済みASINチェック ▼ ---
+            listed_asins.extend(
+                a for a in _get_external_listed_asins(country_code, user_id, marketplace_id, asin_list)
+                if a not in listed_asins
+            )
 
             # ▼ SKU割り振り
             today = datetime.utcnow().strftime("%Y%m%d") 
@@ -734,4 +765,108 @@ def export_listed_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment;filename={filename}"}
     )
+
+# --- ▼ SECTION 06: 他社ツール出品済みASIN CSV取込（重複出品防止・一時運用） ▼ ---
+@csv_import_bp.route("/external_listed_import", methods=["POST"])
+def import_external_listed_asin():
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "login required"}), 401
+
+        country_code = request.form.get("country_code", "").upper()
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code required"}), 400
+
+        file = request.files.get("file")
+        if not file or file.filename == "":
+            return jsonify({"status": "error", "message": "CSVファイルを選択してください"}), 400
+
+        conn_m = get_conn("a_marketplaces.db")
+        cur_m = conn_m.cursor()
+        cur_m.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND LOWER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code.lower()))
+        row_mp = cur_m.fetchone()
+        conn_m.close()
+
+        if not row_mp:
+            return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+        region_marketplace_id = row_mp["marketplace_id"]
+
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(save_path)
+
+        asin_rows = []
+        with open(save_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            headers = next(reader, None)
+
+            if not headers or headers[0].strip().upper() != "ASIN":
+                os.remove(save_path)
+                return jsonify({
+                    "status": "error",
+                    "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
+                }), 400
+
+            for row in reader:
+                if not row or not row[0].strip():
+                    continue
+                asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
+                note = row[1].strip() if len(row) > 1 and row[1].strip() else ""
+                if asin:
+                    asin_rows.append({"asin": asin, "note": note})
+
+        os.remove(save_path)
+
+        if not asin_rows:
+            return jsonify({"status": "error", "message": "有効なASINがありません"}), 400
+
+        conn = get_conn(f"a_{country_code.lower()}_external_listed_asin.db")
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM external_listed_asin
+            WHERE user_id = %s AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+        before = cur.fetchone()["cnt"]
+
+        now_utc = datetime.utcnow().isoformat()
+
+        try:
+            for r in asin_rows:
+                cur.execute("""
+                    INSERT INTO external_listed_asin (user_id, region_marketplace_id, asin, note, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (user_id, region_marketplace_id, asin)
+                    DO UPDATE SET note = excluded.note
+                """, (user_id, region_marketplace_id, r["asin"], r["note"], now_utc))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return jsonify({"status": "error", "message": "取込に失敗しました", "detail": str(e)}), 500
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM external_listed_asin
+            WHERE user_id = %s AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+        after = cur.fetchone()["cnt"]
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "country_code": country_code,
+            "before": before,
+            "import": after - before,
+            "after": after
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
