@@ -67,7 +67,7 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
                 UPDATE listed_items
                 SET information_status = 'INACTIVE',
                     inactive_reason = 'HOME_NOT_FOUND',
-                    ttl_stop_status = 1,
+                    ttl_stop_status = '1',
                     updated_at = %s
                 WHERE user_id = %s
                 AND asin = %s

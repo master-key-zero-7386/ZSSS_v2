@@ -20,7 +20,7 @@ def apply_blacklist(user_id, asin, marketplace_id, sku, reason, country_code):
         UPDATE listed_items
         SET information_status = 'INACTIVE',
             inactive_reason = %s,
-            ttl_stop_status = 1
+            ttl_stop_status = '1'
         WHERE user_id = %s
         AND asin = %s
         AND region_marketplace_id = %s
