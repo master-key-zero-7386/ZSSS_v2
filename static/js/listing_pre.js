@@ -429,12 +429,24 @@ window.loadprelisting = async function (country_code) {
                                 <div style="color:#f0bc80; font-size:16px;"><span style="display:inline-block; width:40px;">FBM</span>：${row.offer_counts.home_fbm ?? 0}</div>
                             </div>
 
-                            <div>
-                                <div style="font-weight:600; color:#7162f7; font-size:18px;">REGION</div>
-                                <div style="color:#1c0cfa; font-size:16px;"><span style="display:inline-block; width:40px;">Ama</span>：${row.offer_counts.region_amazon ?? 0}</div>
-                                <div style="color:#7162f7; font-size:16px;"><span style="display:inline-block; width:40px;">FBA</span>：${row.offer_counts.region_fba ?? 0}</div>
-                                <div style="color:#7162f7; font-size:16px;"><span style="display:inline-block; width:40px;">FBM</span>：${row.offer_counts.region_fbm ?? 0}</div>
-                            </div>
+                            ${(() => {
+                                const regionTotal =
+                                    (row.offer_counts.region_amazon ?? 0) +
+                                    (row.offer_counts.region_fba ?? 0) +
+                                    (row.offer_counts.region_fbm ?? 0);
+                                const isSingleSeller = regionTotal === 1;
+                                return `
+                                    <div style="${isSingleSeller ? 'border:2px solid #dc3545; border-radius:6px; padding:2px 8px;' : ''}">
+                                        <div style="font-weight:600; color:#7162f7; font-size:18px; display:flex; align-items:center; gap:4px;">
+                                            REGION
+                                            ${isSingleSeller ? '<span style="display:inline-block; padding:1px 6px; font-size:11px; font-weight:600; border-radius:10px; background:#dc3545; color:#fff;" title="REGIONセラーが1人のみです。メーカー・権利者本人の可能性があるため要注意">⚠ 要注意</span>' : ''}
+                                        </div>
+                                        <div style="color:#1c0cfa; font-size:16px;"><span style="display:inline-block; width:40px;">Ama</span>：${row.offer_counts.region_amazon ?? 0}</div>
+                                        <div style="color:#7162f7; font-size:16px;"><span style="display:inline-block; width:40px;">FBA</span>：${row.offer_counts.region_fba ?? 0}</div>
+                                        <div style="color:#7162f7; font-size:16px;"><span style="display:inline-block; width:40px;">FBM</span>：${row.offer_counts.region_fbm ?? 0}</div>
+                                    </div>
+                                `;
+                            })()}
                         </div>
                     `;
                 }
