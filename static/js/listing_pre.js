@@ -184,6 +184,15 @@ window.loadprelisting = async function (country_code) {
                                                 cursor:pointer;
                                             ">${row.region_country_code}</button>
                                         </a>
+                                        <span class="brand-listed-badge">
+                                            ${
+                                                row.brand_listed_before === true ?
+                                                    '<span style="display:inline-block; margin-left:4px; padding:1px 6px; font-size:11px; font-weight:600; border-radius:10px; background:#28a745; color:#fff;" title="このREGIONブランドは出品実績があります">既出品</span>' :
+                                                row.brand_listed_before === false ?
+                                                    '<span style="display:inline-block; margin-left:4px; padding:1px 6px; font-size:11px; font-weight:600; border-radius:10px; background:#dc3545; color:#fff;" title="このREGIONブランドはまだ出品したことがありません。知財権利者からの警告リスクに注意してください">⚠ 未出品</span>' :
+                                                    ''
+                                            }
+                                        </span>
                                         <span class="brand-gate">
                                             ${
                                                 row.brand_gate_status === "OK" ? "🟢" :

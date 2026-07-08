@@ -251,8 +251,9 @@ def _build_listing_row_with_shipping(
     OFFER_FILTER_RULES=None, 
     PRICING_MASTER_RULES=None, 
     ACCOUNT_SELLER_ID=None, 
-    BRAND_GATE_MAP=None, 
+    BRAND_GATE_MAP=None,
     SHIPPING_OVERRIDE_SET=None,
+    LISTED_BRAND_SET=None,
     P_min=None, P_max=None):
 
     # --- shipping_config取得 ---
@@ -407,6 +408,12 @@ def _build_listing_row_with_shipping(
     brand_gate_status = bg_row["status"] if bg_row else None
     brand_gate_reason = bg_row["reason"] if bg_row else None
 
+    # --- ▼ 出品実績ブランド判定（未出品ブランド警告用） ▼ ---
+    if not brand:
+        brand_listed_before = None
+    else:
+        brand_listed_before = brand in (LISTED_BRAND_SET or set())
+
     # --- ▼ HOME送料取得 ▼ ---
     home_shipping_amount = 0
 
@@ -520,7 +527,8 @@ def _build_listing_row_with_shipping(
         "region_country_code": row["region_country_code"],        
 
         "brand_gate_status": brand_gate_status,
-        "brand_gate_reason": brand_gate_reason, 
+        "brand_gate_reason": brand_gate_reason,
+        "brand_listed_before": brand_listed_before,
 
         "home_rank": home_rank,  
         "home_rank_title": home_rank_title, 
@@ -667,8 +675,38 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         params_base.extend([user_id, marketplace_id])
 
     elif info_status != "all":
-        query_filter += " AND information_status = %s" 
+        query_filter += " AND information_status = %s"
         params_base.append(info_status)
+
+    if sort == "brand_listed":
+        query_filter += """
+            AND region_brand IS NOT NULL AND region_brand <> ''
+            AND LOWER(region_brand) IN (
+                SELECT LOWER(region_brand)
+                FROM listed_items
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+                AND LOWER(status) = 'all'
+                AND region_brand IS NOT NULL
+                AND region_brand <> ''
+            )
+        """
+        params_base.extend([user_id, marketplace_id])
+
+    if sort == "brand_unlisted":
+        query_filter += """
+            AND region_brand IS NOT NULL AND region_brand <> ''
+            AND LOWER(region_brand) NOT IN (
+                SELECT LOWER(region_brand)
+                FROM listed_items
+                WHERE user_id = %s
+                AND region_marketplace_id = %s
+                AND LOWER(status) = 'all'
+                AND region_brand IS NOT NULL
+                AND region_brand <> ''
+            )
+        """
+        params_base.extend([user_id, marketplace_id])
 
     # --- INACTIVE理由での絞り込み ---
     if reason and reason != "all":
@@ -908,7 +946,25 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         for r in cur_bg.fetchall()
     }
 
-    conn_bg.close()    
+    conn_bg.close()
+
+    # --- ▼ 出品実績ブランド（未出品ブランド警告用） ▼ ---
+    conn_lb = get_conn("listed_items")
+    cur_lb = conn_lb.cursor()
+
+    cur_lb.execute("""
+        SELECT DISTINCT LOWER(region_brand) AS brand
+        FROM listed_items
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        AND LOWER(status) = 'all'
+        AND region_brand IS NOT NULL
+        AND region_brand <> ''
+    """, (user_id, marketplace_id))
+
+    LISTED_BRAND_SET = {r["brand"] for r in cur_lb.fetchall()}
+
+    conn_lb.close()
 
     conn_ps = get_conn("a_pricing_settings.db")
     cur_ps = conn_ps.cursor()
@@ -947,7 +1003,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 PRICING_MASTER_RULES=PRICING_MASTER_RULES,
                 ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
                 BRAND_GATE_MAP=BRAND_GATE_MAP,
-                SHIPPING_OVERRIDE_SET=SHIPPING_OVERRIDE_SET
+                SHIPPING_OVERRIDE_SET=SHIPPING_OVERRIDE_SET,
+                LISTED_BRAND_SET=LISTED_BRAND_SET
             )
         )
         
