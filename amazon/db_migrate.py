@@ -681,11 +681,17 @@ def add_unique_indexes():  # UNIQUE制約
     conn.close()
 
     # --- a_pricing_cache.db ---
+    # ★修正: (asin, home_marketplace_id) だけだと同一ASINを複数REGIONへ
+    #        出品した場合に1行しか持てず、REGION側のデータが上書きされて
+    #        消える不具合があったため、region_marketplace_id を複合キーに追加
     conn = get_conn("a_pricing_cache.db")
     cur = conn.cursor()
     cur.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_cache_unique "
-        "ON pricing_cache(asin, home_marketplace_id)"
+        "DROP INDEX IF EXISTS idx_pricing_cache_unique"
+    )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_cache_unique_v2 "
+        "ON pricing_cache(asin, home_marketplace_id, region_marketplace_id)"
     )
     conn.commit()
     conn.close()

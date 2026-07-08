@@ -640,9 +640,8 @@ def import_csv():
                     )
                     VALUES (%s, %s, %s, %s, %s)
 
-                    ON CONFLICT (asin, home_marketplace_id)
+                    ON CONFLICT (asin, home_marketplace_id, region_marketplace_id)
                     DO UPDATE SET
-                        region_marketplace_id = EXCLUDED.region_marketplace_id,
                         h_pricing_ttl_at = EXCLUDED.h_pricing_ttl_at,
                         r_pricing_ttl_at = EXCLUDED.r_pricing_ttl_at
                 """, (

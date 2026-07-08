@@ -206,7 +206,7 @@ class PricingAdapterHome:
         finally:
             conn.close()
 
-    # --- ▼ SECTION 05: pricing_cache 初期書込み（既存レコードがあるためUPDATE仕様） ▼ ---
+    # --- ▼ SECTION 05: pricing_cache 初期書込み（HOMEは複数REGION行で共有） ▼ ---
     def _save_pricing_cache(self, asin: str, home_offers_json: str):
         # print("[PRICING HOME]SAVE CACHE CALLED", asin)
         # --- ▼ errors 検知（DB操作より前）▼ ---
@@ -226,21 +226,26 @@ class PricingAdapterHome:
             cur = conn.cursor()
 
             # --- 既存データ取得 ---
+            # ★注: (asin, home_marketplace_id) は複数REGION行に一致しうるが、
+            #      HOMEデータはどのREGIONでも同じ内容を共有する設計のため、
+            #      1件取得できればそれで比較すれば十分
             cur.execute("""
                 SELECT home_offers_json
                 FROM pricing_cache
                 WHERE asin = %s
                 AND home_marketplace_id = %s
+                LIMIT 1
             """, (asin, self.marketplace_id))
 
             row = cur.fetchone()
 
             # --- 変更がある場合のみUPDATE ---
             old = json.dumps(json.loads(row["home_offers_json"]), sort_keys=True, ensure_ascii=False) if (row and row["home_offers_json"]) else None
-            new = json.dumps(json.loads(home_offers_json), sort_keys=True, ensure_ascii=False) if home_offers_json else None  
+            new = json.dumps(json.loads(home_offers_json), sort_keys=True, ensure_ascii=False) if home_offers_json else None
 
             # --- データ変更がある場合のみ更新 ---
             if row:
+                # --- 既存行がある場合は、同ASIN×HOMEの全REGION行へ反映 ---
                 if old != new:
                     cur.execute("""
                         UPDATE pricing_cache
@@ -253,7 +258,7 @@ class PricingAdapterHome:
                             asin = %s
                             AND home_marketplace_id = %s
                     """, (
-                        home_offers_json, now_utc, now_utc, now_utc, asin, self.marketplace_id)) 
+                        home_offers_json, now_utc, now_utc, now_utc, asin, self.marketplace_id))
                 else:
                     cur.execute("""
                         UPDATE pricing_cache
@@ -263,23 +268,38 @@ class PricingAdapterHome:
                             asin = %s
                             AND home_marketplace_id = %s
                     """, (
-                        now_utc, asin, self.marketplace_id)) 
-
-                # --- listed_items TTL同期 ---
+                        now_utc, asin, self.marketplace_id))
+            else:
+                # --- 行が1件も存在しない場合は新規作成（REGIONは未確定のためNULL） ---
                 cur.execute("""
-                    UPDATE listed_items
-                    SET h_pricing_ttl_at = %s
-                    WHERE user_id = %s
-                    AND asin = %s
-                    AND home_marketplace_id = %s
+                    INSERT INTO pricing_cache (
+                        asin,
+                        home_marketplace_id,
+                        home_offers_json,
+                        home_updated_at,
+                        updated_at,
+                        h_pricing_ttl_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (
-                    now_utc,
-                    self.user_id,
-                    asin,
-                    self.marketplace_id
-                ))
-                
-                conn.commit()
+                    asin, self.marketplace_id,
+                    home_offers_json, now_utc, now_utc, now_utc))
+
+            # --- listed_items TTL同期 ---
+            cur.execute("""
+                UPDATE listed_items
+                SET h_pricing_ttl_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+                AND home_marketplace_id = %s
+            """, (
+                now_utc,
+                self.user_id,
+                asin,
+                self.marketplace_id
+            ))
+
+            conn.commit()
 
         finally:
             conn.close()

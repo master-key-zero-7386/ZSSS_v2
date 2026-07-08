@@ -177,6 +177,30 @@ class PricingAdapterRegion:
         )
         db_file = os.path.join(base_dir, "db", "a_pricing_cache.db")
 
+        # --- home_marketplace_id 取得（新規行INSERT時に必要） ---
+        # ★修正: pricing_cacheの一意キーが (asin, home_marketplace_id) のみだと
+        #        同一ASINを複数REGIONへ出品した場合に1行しか持てず、REGION側の
+        #        データが上書きされて消える不具合があったため、
+        #        region_marketplace_id を複合キーに追加し、行が無ければ
+        #        新規INSERTするようにした（従来はUPDATEのみで無言スキップしていた）
+        listed_db = f"a_{self.country_code.lower()}_listed_items.db"
+        conn_l = get_conn(listed_db)
+        try:
+            cur_l = conn_l.cursor()
+            cur_l.execute("""
+                SELECT home_marketplace_id
+                FROM listed_items
+                WHERE user_id = %s
+                AND asin = %s
+                AND region_marketplace_id = %s
+                LIMIT 1
+            """, (self.user_id, asin, self.marketplace_id))
+            row_l = cur_l.fetchone()
+        finally:
+            conn_l.close()
+
+        home_marketplace_id = row_l["home_marketplace_id"] if row_l else None
+
         conn = get_conn("a_pricing_cache.db")
 
         now_utc = datetime.utcnow().isoformat()
@@ -223,22 +247,58 @@ class PricingAdapterRegion:
                             AND region_marketplace_id = %s
                         """,(
                             now_utc, asin, self.marketplace_id))
-
-                # --- listed_items TTL同期 ---
+            else:
+                # --- REGION行が存在しない場合は新規作成 ---
+                # 同ASIN×HOMEで既にHOME側のみ保存された行があれば、その
+                # home_offers_json/home_updated_at を引き継ぐ（次回HOME巡回まで
+                # HOME情報が空欄になる隙間を作らないため）
                 cur.execute("""
-                    UPDATE listed_items
-                    SET r_pricing_ttl_at = %s
-                    WHERE user_id = %s
-                    AND asin = %s
-                    AND region_marketplace_id = %s
-                """, (
-                    now_utc,
-                    self.user_id,
-                    asin,
-                    self.marketplace_id
-                ))
+                    SELECT home_offers_json, home_updated_at
+                    FROM pricing_cache
+                    WHERE asin = %s
+                    AND home_marketplace_id = %s
+                    AND home_offers_json IS NOT NULL
+                    LIMIT 1
+                """, (asin, home_marketplace_id))
+                row_home = cur.fetchone()
 
-                conn.commit()
+                existing_home_offers_json = row_home["home_offers_json"] if row_home else None
+                existing_home_updated_at = row_home["home_updated_at"] if row_home else None
+
+                cur.execute(
+                    """
+                    INSERT INTO pricing_cache (
+                        asin,
+                        home_marketplace_id,
+                        region_marketplace_id,
+                        home_offers_json,
+                        home_updated_at,
+                        region_offers_json,
+                        region_updated_at,
+                        updated_at,
+                        r_pricing_ttl_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        asin, home_marketplace_id, self.marketplace_id,
+                        existing_home_offers_json, existing_home_updated_at,
+                        region_offers_json, now_utc, now_utc, now_utc))
+
+            # --- listed_items TTL同期 ---
+            cur.execute("""
+                UPDATE listed_items
+                SET r_pricing_ttl_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+                AND region_marketplace_id = %s
+            """, (
+                now_utc,
+                self.user_id,
+                asin,
+                self.marketplace_id
+            ))
+
+            conn.commit()
 
         finally:
             conn.close()
