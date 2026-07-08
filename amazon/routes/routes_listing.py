@@ -680,30 +680,30 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     if sort == "brand_listed":
         query_filter += """
-            AND region_brand IS NOT NULL AND region_brand <> ''
-            AND LOWER(region_brand) IN (
-                SELECT LOWER(region_brand)
+            AND region_brand IS NOT NULL AND TRIM(region_brand) <> ''
+            AND LOWER(TRIM(region_brand)) IN (
+                SELECT LOWER(TRIM(region_brand))
                 FROM listed_items
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
                 AND LOWER(status) = 'all'
                 AND region_brand IS NOT NULL
-                AND region_brand <> ''
+                AND TRIM(region_brand) <> ''
             )
         """
         params_base.extend([user_id, marketplace_id])
 
     if sort == "brand_unlisted":
         query_filter += """
-            AND region_brand IS NOT NULL AND region_brand <> ''
-            AND LOWER(region_brand) NOT IN (
-                SELECT LOWER(region_brand)
+            AND region_brand IS NOT NULL AND TRIM(region_brand) <> ''
+            AND LOWER(TRIM(region_brand)) NOT IN (
+                SELECT LOWER(TRIM(region_brand))
                 FROM listed_items
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
                 AND LOWER(status) = 'all'
                 AND region_brand IS NOT NULL
-                AND region_brand <> ''
+                AND TRIM(region_brand) <> ''
             )
         """
         params_base.extend([user_id, marketplace_id])
@@ -953,13 +953,13 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     cur_lb = conn_lb.cursor()
 
     cur_lb.execute("""
-        SELECT DISTINCT LOWER(region_brand) AS brand
+        SELECT DISTINCT LOWER(TRIM(region_brand)) AS brand
         FROM listed_items
         WHERE user_id = %s
         AND region_marketplace_id = %s
         AND LOWER(status) = 'all'
         AND region_brand IS NOT NULL
-        AND region_brand <> ''
+        AND TRIM(region_brand) <> ''
     """, (user_id, marketplace_id))
 
     LISTED_BRAND_SET = {r["brand"] for r in cur_lb.fetchall()}
