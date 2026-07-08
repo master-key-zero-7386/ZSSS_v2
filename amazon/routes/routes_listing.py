@@ -795,6 +795,19 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     total_count = cur.fetchone()["count"]
 
+    # --- ▼ 出品実績ブランド（未出品ブランド警告用） ▼ ---
+    cur.execute("""
+        SELECT DISTINCT LOWER(TRIM(region_brand)) AS brand
+        FROM listed_items
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        AND LOWER(status) = 'listed'
+        AND region_brand IS NOT NULL
+        AND TRIM(region_brand) <> ''
+    """, (user_id, marketplace_id))
+
+    LISTED_BRAND_SET = {r["brand"] for r in cur.fetchall()}
+
     conn.close()
 
     result = []
@@ -947,24 +960,6 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     }
 
     conn_bg.close()
-
-    # --- ▼ 出品実績ブランド（未出品ブランド警告用） ▼ ---
-    conn_lb = get_conn("listed_items")
-    cur_lb = conn_lb.cursor()
-
-    cur_lb.execute("""
-        SELECT DISTINCT LOWER(TRIM(region_brand)) AS brand
-        FROM listed_items
-        WHERE user_id = %s
-        AND region_marketplace_id = %s
-        AND LOWER(status) = 'listed'
-        AND region_brand IS NOT NULL
-        AND TRIM(region_brand) <> ''
-    """, (user_id, marketplace_id))
-
-    LISTED_BRAND_SET = {r["brand"] for r in cur_lb.fetchall()}
-
-    conn_lb.close()
 
     conn_ps = get_conn("a_pricing_settings.db")
     cur_ps = conn_ps.cursor()
