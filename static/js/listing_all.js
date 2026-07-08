@@ -399,7 +399,7 @@ window.loadalllisting = async function(country_code) {
                         },
 
                         {
-                            title: "ユーザー変更設定",
+                            title: "出品価格",
                             data: null,
                             orderable: false,
                             render: function (_data, _type, row) {
