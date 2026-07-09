@@ -782,6 +782,39 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
+        if (action === "refresh") {
+
+            if (!confirm(`${selected.length}件を最新取得します。実行しますか？`)) {
+                return;
+            }
+
+            const country_code = document.getElementById("globalRegion")?.value;
+
+            const runBtn = document.getElementById("bulkActionRunPre");
+            runBtn.disabled = true;
+
+            for (const asin of selected) {
+                try {
+                    await fetch("/run_refresh_now", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ asin, country_code })
+                    });
+                } catch (e) {
+                    console.warn("run_refresh_now failed:", asin, e);
+                }
+            }
+
+            runBtn.disabled = false;
+
+            if (country_code) {
+                window.loadprelisting(country_code);
+            }
+            window.showToast("最新取得完了", "success");
+
+            return;
+        }
+
         if (action === "brand_check") {
 
             const country_code = document.getElementById("globalRegion")?.value;
@@ -889,6 +922,52 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("bulkActionRunAll").addEventListener("click", async function () {
 
         const action = document.getElementById("bulkActionSelectAll").value;
+
+        if (action === "refresh") {
+
+            const country_code = document.getElementById("globalRegion")?.value;
+
+            const asins = [];
+
+            document.querySelectorAll("#alllistingtable .row-select:checked").forEach(cb => {
+                const row = cb.closest("tr");
+                const asin = row.querySelector("strong.asin-cell")?.textContent.trim();
+                if (asin) asins.push(asin);
+            });
+
+            if (asins.length === 0) {
+                alert("選択されていません");
+                return;
+            }
+
+            if (!confirm(`${asins.length}件を最新取得します。実行しますか？`)) {
+                return;
+            }
+
+            const runBtn = document.getElementById("bulkActionRunAll");
+            runBtn.disabled = true;
+
+            for (const asin of asins) {
+                try {
+                    await fetch("/run_refresh_now", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ asin, country_code })
+                    });
+                } catch (e) {
+                    console.warn("run_refresh_now failed:", asin, e);
+                }
+            }
+
+            runBtn.disabled = false;
+
+            if (country_code) {
+                window.loadalllisting(country_code);
+            }
+            window.showToast("最新取得完了", "success");
+
+            return;
+        }
 
         if (action === "brand_check") {
 
