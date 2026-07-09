@@ -867,43 +867,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
             });
 
-            const res = await fetch("/amazon/brand_gate_check", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    asins: selected,
-                    country_code: country_code
-                })
-            });
+            // --- ▼ 1件ずつ実行し、返ってきた順に即時反映 ▼ ---
+            for (const asin of selected) {
 
-            const data = await res.json();
+                const row = document.querySelector(`#prelistingtable .row-select[data-asin="${CSS.escape(asin)}"]`)?.closest("tr");
+                const resultEl = row?.querySelector(".bg-result");
 
-            data.forEach(r => {
+                try {
+                    const res = await fetch("/amazon/brand_gate_check", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            asins: [asin],
+                            country_code: country_code
+                        })
+                    });
 
-                const cb = document.querySelector(`#prelistingtable .row-select[data-asin="${CSS.escape(r.asin)}"]`);
-                const row = cb ? cb.closest("tr") : null; 
+                    const data = await res.json();
+                    const r = data && data[0] ? data[0] : {};
 
-                if (!row) return;
+                    if (!resultEl) continue;
 
-                const resultEl = row.querySelector(".bg-result");
-                if (!resultEl) return;
+                    resultEl.innerText = r.status || "-";
 
-                resultEl.innerText = r.status || "-";
+                    if (r.status === "OK") {
+                        resultEl.style.color = "#28a745";
+                    } else if (r.status === "APPROVAL") {
+                        resultEl.style.color = "#fd7e14";
+                    } else if (r.status) {
+                        resultEl.style.color = "#dc3545";
+                    } else {
+                        resultEl.style.color = "#999";
+                    }
 
-                if (r.status === "OK") {
-                    resultEl.style.color = "#28a745";
-                } else if (r.status === "APPROVAL") {
-                    resultEl.style.color = "#fd7e14";
-                } else if (r.status) {
-                    resultEl.style.color = "#dc3545";
-                } else {
-                    resultEl.style.color = "#999";
+                } catch (e) {
+                    if (resultEl) {
+                        resultEl.innerText = "ERR";
+                        resultEl.style.color = "#dc3545";
+                    }
                 }
-
-            });            
+            }
 
             return;
-        }        
+        }
         
         if (action === "delete") {
 
@@ -1029,40 +1035,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
             });
 
-            const res = await fetch("/amazon/brand_gate_check", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    asins: asins,
-                    country_code: country_code
-                })
-            });
+            // --- ▼ 1件ずつ実行し、返ってきた順に即時反映 ▼ ---
+            for (const asin of asins) {
 
-            const data = await res.json();
+                const row = document.querySelector(`#alllistingtable .row-select[data-asin="${CSS.escape(asin)}"]`)?.closest("tr");
+                const resultEl = row?.querySelector(".bg-result");
 
-            data.forEach(r => {
+                try {
+                    const res = await fetch("/amazon/brand_gate_check", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            asins: [asin],
+                            country_code: country_code
+                        })
+                    });
 
-                const cb = document.querySelector(`#alllistingtable .row-select[data-asin="${CSS.escape(r.asin)}"]`);
-                const row = cb ? cb.closest("tr") : null;
+                    const data = await res.json();
+                    const r = data && data[0] ? data[0] : {};
 
-                if (!row) return;
+                    if (!resultEl) continue;
 
-                const resultEl = row.querySelector(".bg-result");
-                if (!resultEl) return;
+                    resultEl.innerText = r.status || "-";
 
-                resultEl.innerText = r.status || "-";
+                    if (r.status === "OK") {
+                        resultEl.style.color = "#28a745";
+                    } else if (r.status === "APPROVAL") {
+                        resultEl.style.color = "#fd7e14";
+                    } else if (r.status) {
+                        resultEl.style.color = "#dc3545";
+                    } else {
+                        resultEl.style.color = "#999";
+                    }
 
-                if (r.status === "OK") {
-                    resultEl.style.color = "#28a745";
-                } else if (r.status === "APPROVAL") {
-                    resultEl.style.color = "#fd7e14";
-                } else if (r.status) {
-                    resultEl.style.color = "#dc3545";
-                } else {
-                    resultEl.style.color = "#999";
+                } catch (e) {
+                    if (resultEl) {
+                        resultEl.innerText = "ERR";
+                        resultEl.style.color = "#dc3545";
+                    }
                 }
-
-            });
+            }
 
             return;
         }
