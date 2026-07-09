@@ -635,56 +635,105 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     params_base = [status_value, user_id, marketplace_id]
 
     # --- グループ1: ブランドゲート（他グループとAND併用可） ---
+    # brandが実質空("-"/空欄/UNKNOWN)の商品はASIN単位でキャッシュされているため、
+    # 「実ブランドはbrand列で判定／プレースホルダーはasin列で判定」の2系統をORでつなぐ
+    NO_BRAND_SQL = "('', '-', 'unknown')"
+
     if brandgate_filter == "brandgate_ok":
-        query_filter += """
-            AND LOWER(region_brand) IN (
-                SELECT LOWER(brand)
-                FROM brand_gate_result
-                WHERE user_id = %s
-                AND region_marketplace_id = %s
-                AND brand IS NOT NULL
-                AND status = 'OK'
+        query_filter += f"""
+            AND (
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) NOT IN {NO_BRAND_SQL}
+                    AND LOWER(region_brand) IN (
+                        SELECT LOWER(brand) FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND brand IS NOT NULL AND status = 'OK'
+                    )
+                )
+                OR
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) IN {NO_BRAND_SQL}
+                    AND asin IN (
+                        SELECT asin FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND asin IS NOT NULL AND status = 'OK'
+                    )
+                )
             )
         """
-        params_base.extend([user_id, marketplace_id])
+        params_base.extend([user_id, marketplace_id, user_id, marketplace_id])
 
     elif brandgate_filter == "brandgate_approval":
-        query_filter += """
-            AND LOWER(region_brand) IN (
-                SELECT LOWER(brand)
-                FROM brand_gate_result
-                WHERE user_id = %s
-                AND region_marketplace_id = %s
-                AND brand IS NOT NULL
-                AND status = 'APPROVAL'
+        query_filter += f"""
+            AND (
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) NOT IN {NO_BRAND_SQL}
+                    AND LOWER(region_brand) IN (
+                        SELECT LOWER(brand) FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND brand IS NOT NULL AND status = 'APPROVAL'
+                    )
+                )
+                OR
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) IN {NO_BRAND_SQL}
+                    AND asin IN (
+                        SELECT asin FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND asin IS NOT NULL AND status = 'APPROVAL'
+                    )
+                )
             )
         """
-        params_base.extend([user_id, marketplace_id])
+        params_base.extend([user_id, marketplace_id, user_id, marketplace_id])
 
     elif brandgate_filter == "brandgate_ng":
-        query_filter += """
-            AND LOWER(region_brand) IN (
-                SELECT LOWER(brand)
-                FROM brand_gate_result
-                WHERE user_id = %s
-                AND region_marketplace_id = %s
-                AND brand IS NOT NULL
-                AND status = 'NG'
+        query_filter += f"""
+            AND (
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) NOT IN {NO_BRAND_SQL}
+                    AND LOWER(region_brand) IN (
+                        SELECT LOWER(brand) FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND brand IS NOT NULL AND status = 'NG'
+                    )
+                )
+                OR
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) IN {NO_BRAND_SQL}
+                    AND asin IN (
+                        SELECT asin FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND asin IS NOT NULL AND status = 'NG'
+                    )
+                )
             )
         """
-        params_base.extend([user_id, marketplace_id])
+        params_base.extend([user_id, marketplace_id, user_id, marketplace_id])
 
     elif brandgate_filter == "brandgate_unknown":
-        query_filter += """
-            AND LOWER(region_brand) NOT IN (
-                SELECT LOWER(brand)
-                FROM brand_gate_result
-                WHERE user_id = %s
-                AND region_marketplace_id = %s
-                AND brand IS NOT NULL
+        query_filter += f"""
+            AND (
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) NOT IN {NO_BRAND_SQL}
+                    AND LOWER(region_brand) NOT IN (
+                        SELECT LOWER(brand) FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND brand IS NOT NULL
+                    )
+                )
+                OR
+                (
+                    LOWER(TRIM(COALESCE(region_brand, ''))) IN {NO_BRAND_SQL}
+                    AND asin NOT IN (
+                        SELECT asin FROM brand_gate_result
+                        WHERE user_id = %s AND region_marketplace_id = %s
+                        AND asin IS NOT NULL
+                    )
+                )
             )
         """
-        params_base.extend([user_id, marketplace_id])
+        params_base.extend([user_id, marketplace_id, user_id, marketplace_id])
 
     # --- グループ2: 既出品/未出品ブランド（他グループとAND併用可） ---
     if brand_status_filter == "brand_listed":
