@@ -587,6 +587,83 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }    
 
+    // === ▼ 09-04C: Pre 絞込リセット ▼ ===
+    const preResetBtn = document.getElementById("preFilterResetBtn");
+
+    if (preResetBtn) {
+        preResetBtn.addEventListener("click", function () {
+
+            const input = document.getElementById("preListingSearchInput");
+            if (input) input.value = "";
+
+            const clearBtn = document.getElementById("preListingSearchClear");
+            if (clearBtn) clearBtn.style.display = "none";
+
+            const sortEl = document.getElementById("preListingSort");
+            if (sortEl) sortEl.value = "created_desc";
+
+            const brandGateEl = document.getElementById("preBrandGateFilter");
+            if (brandGateEl) brandGateEl.value = "all";
+
+            const regionSellerEl = document.getElementById("preRegionSellerFilter");
+            if (regionSellerEl) regionSellerEl.value = "all";
+
+            const infoAll = document.querySelector('input[name="preInfoStatus"][value="all"]');
+            if (infoAll) infoAll.checked = true;
+
+            const reasonEl = document.getElementById("preInactiveReason");
+            if (reasonEl) {
+                reasonEl.value = "all";
+                reasonEl.disabled = true;
+            }
+
+            const brandStatusAll = document.querySelector('input[name="preBrandStatus"][value="all"]');
+            if (brandStatusAll) brandStatusAll.checked = true;
+
+            const region = document.getElementById("globalRegion")?.value;
+            if (!region) return;
+
+            window.loadprelisting(region);
+        });
+    }
+
+    // === ▼ 09-04D: ALL 絞込リセット ▼ ===
+    const allResetBtn = document.getElementById("allFilterResetBtn");
+
+    if (allResetBtn) {
+        allResetBtn.addEventListener("click", function () {
+
+            const input = document.getElementById("allListingSearchInput");
+            if (input) input.value = "";
+
+            const clearBtn = document.getElementById("allListingSearchClear");
+            if (clearBtn) clearBtn.style.display = "none";
+
+            const sortEl = document.getElementById("allListingSort");
+            if (sortEl) sortEl.value = "created_desc";
+
+            const brandGateEl = document.getElementById("allBrandGateFilter");
+            if (brandGateEl) brandGateEl.value = "all";
+
+            const regionSellerEl = document.getElementById("allRegionSellerFilter");
+            if (regionSellerEl) regionSellerEl.value = "all";
+
+            const infoAll = document.querySelector('input[name="allInfoStatus"][value="all"]');
+            if (infoAll) infoAll.checked = true;
+
+            const reasonEl = document.getElementById("allInactiveReason");
+            if (reasonEl) {
+                reasonEl.value = "all";
+                reasonEl.disabled = true;
+            }
+
+            const region = document.getElementById("globalRegion")?.value;
+            if (!region) return;
+
+            window.loadalllisting(region);
+        });
+    }
+
     // === ▼ 09-04A: Pre 検索クリアボタン ▼ ===
     const preSearchClear = document.getElementById("preListingSearchClear");
 
