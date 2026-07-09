@@ -359,12 +359,6 @@
             <label><input type="radio" name="preInfoStatus" value="ACTIVE"> ACTIVE</label>
             <label><input type="radio" name="preInfoStatus" value="INACTIVE"> INACTIVE</label>
 
-            <span style="margin-left:20px;">既出品/未出品:</span>
-
-            <label><input type="radio" name="preBrandStatus" value="all" checked> 全て</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品のみ</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品のみ</label>
-
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
             <select id="preInactiveReason" class="zsss-control" disabled>
                 <option value="all">理由：全て</option>
@@ -388,7 +382,14 @@
                 <optgroup label="その他">
                     <option value="BLACKLIST">BLACKLIST</option>
                 </optgroup>
-            </select>         
+            </select>  
+
+            <span style="margin-left:20px;">既出品/未出品:</span>
+
+            <label><input type="radio" name="preBrandStatus" value="all" checked> 全て</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品のみ</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品のみ</label>            
+            
         </div>        
     </div>   
 
