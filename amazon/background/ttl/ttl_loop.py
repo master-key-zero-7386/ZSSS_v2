@@ -157,6 +157,7 @@ def load_catalog_ttl_targets(db_dir: str):
                         li.user_id,
                         li.asin,
                         li.home_marketplace_id,
+                        li.inactive_reason,
                         mp.country_code
                     FROM listed_items li
                     INNER JOIN marketplaces mp
@@ -193,7 +194,8 @@ def load_catalog_ttl_targets(db_dir: str):
                         "asin": lr["asin"],
                         "home_marketplace_id": lr["home_marketplace_id"],
                         "user_id": lr["user_id"],
-                        "country_code": lr["country_code"]
+                        "country_code": lr["country_code"],
+                        "was_no_catalog": (lr["inactive_reason"] == "NO_CATALOG")
                     })
 
             finally:
@@ -299,6 +301,7 @@ def load_catalog_ttl_targets(db_dir: str):
                     "sku": None,
                     "home_marketplace_id": record.get("home_marketplace_id"),
                     "region_marketplace_id": None,
+                    "was_no_catalog": record.get("was_no_catalog"),
                 },
                 country_code
             )
@@ -570,10 +573,15 @@ def dispatch_ttl_execution(targets, record, country_code):
                 country_code=country_code,
             )
 
-            # ★追加: カタログ取得で寸法・重量が新たに埋まった場合、
-            #        REGION PRICINGのTTLが来るまで NO_CATALOG 判定が古いまま残ってしまうため、
-            #        ここで即座に再判定して inactive_reason を最新化する
-            if isinstance(catalog_result, dict) and catalog_result.get("status") == "ok":
+            # ★追加: 直前まで NO_CATALOG だった項目だけ、寸法・重量が埋まったことを
+            #        即座に反映するため再判定する（REGION PRICINGのTTLを待たない）。
+            #        通常のカタログ更新（NO_CATALOG以外）まで毎回この重い再計算を挟むと
+            #        TTLループ全体が遅くなるため、対象を限定する。
+            if (
+                record.get("was_no_catalog")
+                and isinstance(catalog_result, dict)
+                and catalog_result.get("status") == "ok"
+            ):
                 update_listing_price(
                     user_id=record["user_id"],
                     asin=record["asin"],
