@@ -249,3 +249,115 @@ def delete_listings_feed(user_id, country_code, marketplace_id, sku_list):
 
     return feed_submit
 
+# --- SECTION 04: Listings Items API Bulk（From：Bulk出品 / Pre listing）：Inventory Feed ---
+def submit_listings_feed(user_id, country_code, marketplace_id, items):
+    """
+    items: [{ "seller_sku": str, "asin": str, "price": float, "quantity": int, "handling_time": int }, ...]
+    """
+    adapter = AmazonAdapter(user_id, country_code=country_code, marketplace_id=marketplace_id)
+
+    # --- 出品Feedチェック用 ---
+    print(
+        f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[LIST FEED {country_code}]] ID:{user_id} MP:{marketplace_id} SELLER:{adapter.account['account_seller_id']} COUNT:{len(items)}", flush=True)
+    # --- 出品Feedチェック用 ---ここまで 削除しない
+
+    # --- ▼ Feed Document 作成 ▼ ---
+    doc = adapter.real_signed_request(
+        "POST",
+        "/feeds/2021-06-30/documents",
+        json={
+            "contentType": "application/json"
+        }
+    )
+    print("FEED_DOC_RESPONSE:", doc, flush=True)   # 一括処理確認ログ削除NG
+
+    feed_document_id = doc.get("feedDocumentId")
+    upload_url = doc.get("url")
+
+    # --- ▼ Feed Body 作成 ▼ ---
+    currency = adapter.account["currency"]
+    messages = []
+    msg_id = 1
+
+    for item in items:
+        messages.append({
+            "messageId": msg_id,
+            "sku": item["seller_sku"],
+            "operationType": "UPDATE",
+            "productType": "PRODUCT",
+            "requirements": "LISTING_OFFER_ONLY",
+            "attributes": {
+                "merchant_suggested_asin": [
+                    {
+                        "value": item["asin"],
+                        "marketplace_id": marketplace_id
+                    }
+                ],
+                "condition_type": [
+                    {
+                        "value": "new_new",
+                        "marketplace_id": marketplace_id
+                    }
+                ],
+                "purchasable_offer": [
+                    {
+                        "marketplace_id": marketplace_id,
+                        "currency": currency,
+                        "our_price": [
+                            {
+                                "schedule": [
+                                    {
+                                        "value_with_tax": float(item["price"])
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "fulfillment_availability": [
+                    {
+                        "fulfillment_channel_code": "DEFAULT",
+                        "quantity": int(item["quantity"]),
+                        "lead_time_to_ship_max_days": int(item["handling_time"])
+                    }
+                ]
+            }
+        })
+
+        msg_id += 1
+
+    feed_body = {
+        "header": {
+            "sellerId": adapter.account["account_seller_id"],
+            "version": "2.0",
+            "issueLocale": "en_US"
+        },
+        "messages": messages
+    }
+
+    # --- ▼ Feed Upload ▼ ---
+    import requests
+
+    requests.put(
+        upload_url,
+        data=json.dumps(feed_body),
+        headers={
+            "Content-Type": "application/json"
+        }
+    )
+
+    # --- ▼ Feed Submit ▼ ---
+    feed_submit = adapter.real_signed_request(
+        "POST",
+        "/feeds/2021-06-30/feeds",
+        json={
+            "feedType": "JSON_LISTINGS_FEED",
+            "marketplaceIds": [marketplace_id],
+            "inputFeedDocumentId": feed_document_id
+        }
+    )
+
+    print("FEED ID:", feed_submit.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
+
+    return feed_submit
+

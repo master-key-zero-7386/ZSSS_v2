@@ -29,6 +29,7 @@ from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
 from amazon.services.listing_submit_service import bulk_delete_listing_item
+from amazon.services.listing_submit_service import bulk_submit_listing_service
 from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter 
 from amazon.core.price_calculator import get_pricing_master_rule
@@ -2017,20 +2018,17 @@ def bulk_move_to_all():
 
     cur = conn.cursor()
 
-    # --- ▼ brand取得用アダプター（catalog_cache） ▼ ---
-    base = AmazonAdapter(
-        user_id=user_id,
-        country_code=country_code,
-        marketplace_id=marketplace_id
-    )
-
-    adapter = CatalogAdapterRegion(parent_adapter=base)
-
     # --- ▼ ブラックリストチェック（ASIN / Brand） 出品直前ガード ▼ ---
     asin_ng_list = get_asin_blacklist(user_id, marketplace_id, country_code)
     brand_ng_list = get_brand_blacklist(user_id, marketplace_id, country_code)
 
+    rules = get_pricing_master_rule(
+        user_id=user_id,
+        country_code=country_code
+    )
+
     blocked_asins = []
+    submit_items = []
 
     for asin in asins:
 
@@ -2084,11 +2082,6 @@ def bulk_move_to_all():
             quantity = 1
 
         # --- ▼ handling_time決定 ▼ ---
-        rules = get_pricing_master_rule(
-            user_id=user_id,
-            country_code=country_code
-        )
-
         if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1:
             handling_time = int(rules["default_handling_time"])
         else:
@@ -2109,37 +2102,33 @@ def bulk_move_to_all():
 
         conn.commit()
 
-        # --- ▼ brand取得（catalog_cache） ▼ ---
-        cache = adapter._get_cached_catalog(asin)
+        if price is None or quantity is None or handling_time is None:
+            print(f"[BULK MOVE] SKIP (MISSING FIELD) ASIN:{asin}", flush=True)
+            continue
 
-        brand = "UNKNOWN"
-
-        if cache and cache.get("region_raw_json"):
-            try:
-                data = json.loads(cache["region_raw_json"])
-                brand_list = data.get("attributes", {}).get("brand", [])
-
-                if brand_list and isinstance(brand_list, list):
-                    brand = brand_list[0].get("value") or "UNKNOWN"
-
-            except:
-                pass
-
-        print(f"[BULK SUBMIT] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
-
-        submit_listing_service(
-            user_id,
-            country_code,
-            marketplace_id,
-            seller_sku,
-            asin,
-            price,
-            quantity,
-            handling_time,
-            brand
-        )
+        submit_items.append({
+            "seller_sku": seller_sku,
+            "asin": asin,
+            "price": price,
+            "quantity": quantity,
+            "handling_time": handling_time,
+        })
 
     conn.close()
+
+    # --- ▼ 出品API（Bulk Feed・1リクエストでまとめて送信） ▼ ---
+    if submit_items:
+        print(f"[BULK SUBMIT FEED] COUNT:{len(submit_items)}", flush=True)  # 一括処理確認ログ削除NG
+
+        feed_response = bulk_submit_listing_service(
+            user_id=user_id,
+            country_code=country_code,
+            marketplace_id=marketplace_id,
+            items=submit_items
+        )
+
+        if isinstance(feed_response, dict):
+            print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
 
     return jsonify({
         "status": "success",

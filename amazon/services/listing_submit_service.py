@@ -6,7 +6,7 @@
 # 目的: 出品ロジック（必須チェック / 出品実行）
 # ==========================================================
 
-from amazon.adapters.listings_items import put_listings_item, delete_listings_item, delete_listings_feed
+from amazon.adapters.listings_items import put_listings_item, delete_listings_item, delete_listings_feed, submit_listings_feed
 from amazon.utils.brand_gate_store import save_brand_gate_result
 
 # --- SECTION 01: Listing Submit Service（From：FIRST / ALL listing） ---
@@ -62,6 +62,15 @@ def bulk_delete_listing_item(user_id, country_code, marketplace_id, sku_list):
     )
 
     return response
+
+# --- SECTION 04: Bulk Listing Submit（From：Bulk出品 / Pre listing） ---
+def bulk_submit_listing_service(user_id, country_code, marketplace_id, items):
+    return submit_listings_feed(
+        user_id,
+        country_code,
+        marketplace_id,
+        items
+    )
 
 
 
