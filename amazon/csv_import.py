@@ -18,13 +18,12 @@ import re
 import csv
 import glob
 import random
-import sqlite3
 import traceback
 
 from datetime import datetime, timedelta
 from collections import Counter
 from threading import Thread
-from amazon.db import get_conn, DB_MODE
+from amazon.db import get_conn
 
 from flask import Blueprint, request, jsonify, session, current_app, Response
 from werkzeug.utils import secure_filename
@@ -201,17 +200,7 @@ def check_csv():
                 blacklist_asins[asin] = reason
 
         # --- ▼ 既登録チェック ▼ ---
-        listed_db = os.path.join(
-            db_dir,
-            f"a_{country_code.lower()}_listed_items.db"
-        )
-
-
-        if DB_MODE == "sqlite":
-            conn = sqlite3.connect(listed_db, timeout=30)
-            conn.execute("PRAGMA journal_mode=WAL")
-        else:
-            conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+        conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
         cur = conn.cursor()
 
@@ -399,16 +388,7 @@ def import_csv():
                     blacklist_asins[asin] = "blacklist"
 
             # --- ▼ 既登録チェック ▼ ---
-            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db") 
-
-            conn = None 
- 
-            if DB_MODE == "sqlite":
-                conn = sqlite3.connect(listed_db, timeout=30) if os.path.exists(listed_db) else None
-                if conn:
-                    conn.execute("PRAGMA journal_mode=WAL")
-            else:
-                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+            conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
             if conn:
                 cur = conn.cursor()
@@ -471,13 +451,7 @@ def import_csv():
             if country_code not in valid_regions:
                 return jsonify({"status": "error", "message": "選択したマーケットプレイスが違います"}), 400
 
-            listed_db = os.path.join(db_dir, f"a_{country_code.lower()}_listed_items.db")
-
-            if DB_MODE == "sqlite":
-                conn = sqlite3.connect(listed_db, timeout=30)  # DB移行 分岐対応済（SQLite専用）
-                conn.execute("PRAGMA journal_mode=WAL")
-            else:
-                conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+            conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
             cur = conn.cursor()
 

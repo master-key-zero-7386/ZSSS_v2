@@ -2,17 +2,13 @@
 # ファイル名: amazon/core/fx_rate.py
 # 目的: FXレート取得
 # ==========================================
-import sqlite3
-from amazon.db import get_conn, DB_MODE
+from amazon.db import get_conn
 
 # --- ▼ SECTION 01: FX取得（HOME → REGION） ▼ ---
 def get_exchange_rate(base_currency: str, target_currency: str):
 
     db_name = "a_fx.db"
-    conn = get_conn(db_name) 
-    if DB_MODE == "sqlite":
-        conn.row_factory = sqlite3.Row
-
+    conn = get_conn(db_name)
     cur = conn.cursor()
 
     cur.execute("""

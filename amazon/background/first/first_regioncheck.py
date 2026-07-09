@@ -8,12 +8,10 @@
 
 import os
 import time
-import sqlite3
 import datetime
 from datetime import timezone, timedelta
-from amazon.db import get_conn, DB_MODE
+from amazon.db import get_conn
 
-from amazon.background.common.background_common import list_listed_dbs
 from amazon.background.common.background_common import api_request_sleep
 
 from amazon.routes.routes_catalog_v2 import update_region_catalog
@@ -35,7 +33,7 @@ def run_first_regioncheck(app, db_dir):
 
             targets = []
 
-            for listed_db in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+            for listed_db in ["listed_items"]:
 
                 conn = get_conn(listed_db)
 

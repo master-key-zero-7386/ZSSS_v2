@@ -8,19 +8,16 @@
 
 import os
 import time
-import sqlite3
 import datetime
 from datetime import timezone, timedelta
 
-from amazon.background.common.background_common import list_listed_dbs
 from amazon.background.ttl.ttl_days import get_account_ttl_days
 from amazon.routes.routes_catalog_v2 import (update_home_catalog, update_region_catalog,)
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing,)
-from amazon.background.common.background_common import api_request_sleep 
+from amazon.background.common.background_common import api_request_sleep
 from amazon.routes.routes_pricing_v2 import update_listing_price
 from amazon.db import get_conn
 from amazon.guard.guard_429 import is_blocked
-from amazon.db import get_conn, DB_MODE
 
 
 
@@ -31,8 +28,6 @@ USE_DB_MIN_TTL = True
 def get_api_conf(user_id, country_code, db_dir):
     db_name = "a_marketplaces.db"
     conn = get_conn(db_name)
-    if DB_MODE == "sqlite":
-        conn.row_factory = sqlite3.Row
 
     try:
         cur = conn.cursor()
@@ -119,22 +114,14 @@ def load_catalog_ttl_targets(db_dir: str):
     cache_db = os.path.join(db_dir, "a_catalog_cache.db")
     conn = get_conn(cache_db)
 
-    if DB_MODE == "sqlite":
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.row_factory = sqlite3.Row
-
     try:
         cur = conn.cursor()
 
         # --- Catalog HOME ---
         tmp = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        for db_path in ["listed_items"]:
             conn_li = get_conn(db_path)
-
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
@@ -206,12 +193,8 @@ def load_catalog_ttl_targets(db_dir: str):
         # --- Catalog REGION ---
         tmp = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        for db_path in ["listed_items"]:
             conn_li = get_conn(db_path)
-
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
@@ -339,22 +322,14 @@ def load_catalog_ttl_targets(db_dir: str):
 def load_pricing_ttl_targets(db_dir: str):
     conn = get_conn(os.path.join(db_dir, "a_pricing_cache.db"))
 
-    if DB_MODE == "sqlite":
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.row_factory = sqlite3.Row 
-
     try:
         cur = conn.cursor()
 
         # --- Pricing HOME ---
         tmp = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        for db_path in ["listed_items"]:
             conn_li = get_conn(db_path)
-
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()
@@ -424,12 +399,8 @@ def load_pricing_ttl_targets(db_dir: str):
         # --- Pricing REGION ---
         tmp = []
 
-        for db_path in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):
+        for db_path in ["listed_items"]:
             conn_li = get_conn(db_path)
-
-            if DB_MODE == "sqlite":
-                conn_li.execute("PRAGMA journal_mode=WAL")
-                conn_li.row_factory = sqlite3.Row
 
             try:
                 cur_li = conn_li.cursor()

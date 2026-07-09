@@ -212,11 +212,9 @@ def update_shipping_config():
 
 # --- ▼ SECTION 07: listed_items 容積重量・請求重量の一括再計算 ▼ ---
 def _recompute_billable_weights(user_id: int, shipping_config: dict) -> int:
-    from amazon.db import get_conn, DB_MODE
-    from amazon.db_migrate import DB_DIR
-    from amazon.background.common.background_common import list_listed_dbs
+    from amazon.db import get_conn
 
-    db_paths = list_listed_dbs(DB_DIR) if DB_MODE == "sqlite" else ["listed_items"]
+    db_paths = ["listed_items"]
 
     updated = 0
 

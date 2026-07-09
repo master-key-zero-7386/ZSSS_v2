@@ -8,12 +8,10 @@
 
 import os
 import time
-import sqlite3
 import datetime
 from datetime import timezone, timedelta
-from amazon.db import get_conn, DB_MODE
+from amazon.db import get_conn
 
-from amazon.background.common.background_common import list_listed_dbs
 from amazon.routes.routes_catalog_v2 import update_home_catalog
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing)
 from amazon.background.common.background_common import api_request_sleep 
@@ -34,30 +32,18 @@ def run_first_loop(app, db_dir):
         while True:
             targets = []
 
-            for listed_db in (["listed_items"] if DB_MODE == "postgres" else list_listed_dbs(db_dir)):  
+            for listed_db in ["listed_items"]:
 
                 conn = get_conn(listed_db)
-
-                if DB_MODE == "sqlite": 
-                    conn.execute("PRAGMA journal_mode=WAL") 
-                    conn.row_factory = sqlite3.Row 
 
                 try:
                     cur = conn.cursor()
 
-                    if DB_MODE == "sqlite": 
-                        cur.execute("""
-                            SELECT name
-                            FROM sqlite_master
-                            WHERE type='table' AND name='listed_items'
-                        """)
-
-                    elif DB_MODE == "postgres": 
-                        cur.execute("""
-                            SELECT table_name
-                            FROM information_schema.tables
-                            WHERE table_name = 'listed_items'
-                        """)
+                    cur.execute("""
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_name = 'listed_items'
+                    """)
 
                     if not cur.fetchone(): continue
 

@@ -8,11 +8,9 @@
 #   　（API取得・算定ロジックは一切持たない）
 # ======================================================
 
-import sqlite3
-from amazon.db import get_conn 
+from amazon.db import get_conn
 import os
 from datetime import datetime, timedelta
-from amazon.db import get_conn, DB_MODE
 
 
 class ListedItemsUpdate:
@@ -21,28 +19,18 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 01: listed_items書き込み（catalog HOME）  ▼ ---
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
-        conn = get_conn(listed_db) 
-        if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL")
+        conn = get_conn(listed_db)
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            if DB_MODE == "sqlite": 
-                cur.execute("""
-                    SELECT name
-                    FROM sqlite_master
-                    WHERE type='table' AND name='listed_items'
-                """)
-
-            elif DB_MODE == "postgres": 
-                cur.execute("""
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_name = 'listed_items'
-                """)
+            cur.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'listed_items'
+            """)
             if not cur.fetchone():
                 return
 
@@ -95,27 +83,17 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 02: listed_items書き込み（catalog REGION）  ▼ ---
     def update_region_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, region: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
-        if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL")
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            if DB_MODE == "sqlite":
-                cur.execute("""
-                    SELECT name
-                    FROM sqlite_master
-                    WHERE type='table' AND name='listed_items'
-                """)
-
-            elif DB_MODE == "postgres":
-                cur.execute("""
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_name = 'listed_items'
-                """)
+            cur.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'listed_items'
+            """)
 
             if not cur.fetchone():
                 return
@@ -149,27 +127,17 @@ class ListedItemsUpdate:
     # --- ▼ SECTION 03: listed_items書き込み（PRICING HOME） ▼ ---
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
-        if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL") 
 
         try:
             cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
             # --- listed_items テーブル存在チェック ---
-            if DB_MODE == "sqlite":
-                cur.execute("""
-                    SELECT name
-                    FROM sqlite_master
-                    WHERE type='table' AND name='listed_items'
-                """)
-
-            elif DB_MODE == "postgres":
-                cur.execute("""
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_name = 'listed_items'
-                """)
+            cur.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_name = 'listed_items'
+            """)
 
             if not cur.fetchone():
                 return
@@ -212,9 +180,7 @@ class ListedItemsUpdate:
 
     # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---  
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
-        conn = get_conn(listed_db) 
-        if DB_MODE == "sqlite":
-            conn.execute("PRAGMA journal_mode=WAL")     
+        conn = get_conn(listed_db)
 
         try:
             cur = conn.cursor()  

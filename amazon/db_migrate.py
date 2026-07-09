@@ -10,7 +10,7 @@ import os
 import sqlite3
 import glob
 
-from amazon.db import get_conn, DB_MODE 
+from amazon.db import get_conn
 
 # DBフォルダ
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db")
@@ -478,19 +478,13 @@ def get_existing_columns(conn, table_name):
     cur = conn.cursor()
 
     try:
+        cur.execute("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = %s
+        """, (table_name,))
 
-        if DB_MODE == "sqlite":
-            cur.execute(f"PRAGMA table_info({table_name})")
-            return [row[1].lower() for row in cur.fetchall()]
-
-        elif DB_MODE == "postgres":
-            cur.execute("""
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = %s
-            """, (table_name,))
-
-            return [row["column_name"].lower() for row in cur.fetchall()] 
+        return [row["column_name"].lower() for row in cur.fetchall()]
 
     except Exception:
         return []
@@ -618,18 +612,11 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ listed_items テーブルが存在するか確認
-        if DB_MODE == "sqlite": 
-            cur2.execute("""
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='listed_items'
-            """)
-
-        elif DB_MODE == "postgres":
-            cur2.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'listed_items'
-            """)
+        cur2.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name = 'listed_items'
+        """)
 
         exists = cur2.fetchone()
 
@@ -664,11 +651,10 @@ def add_unique_indexes():  # UNIQUE制約
                 "ON listed_items(user_id, region_marketplace_id, status)"
             )
 
-            if DB_MODE == "postgres":
-                cur2.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_listed_items_region_brand_lower "
-                    "ON listed_items(region_marketplace_id, status, (LOWER(TRIM(region_brand))))"
-                )
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_listed_items_region_brand_lower "
+                "ON listed_items(region_marketplace_id, status, (LOWER(TRIM(region_brand))))"
+            )
 
         conn2.commit()
         conn2.close()
@@ -726,18 +712,11 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ blacklist_asin テーブル存在確認
-        if DB_MODE == "sqlite": 
-            cur2.execute("""
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='blacklist_asin'
-            """)
-
-        elif DB_MODE == "postgres": 
-            cur2.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'blacklist_asin'
-            """)
+        cur2.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name = 'blacklist_asin'
+        """)
 
         exists = cur2.fetchone()
 
@@ -757,18 +736,11 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ blacklist_brand テーブル存在確認
-        if DB_MODE == "sqlite":
-            cur2.execute("""
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='blacklist_brand'
-            """)
-
-        elif DB_MODE == "postgres": 
-            cur2.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'blacklist_brand'
-            """)
+        cur2.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name = 'blacklist_brand'
+        """)
 
         exists = cur2.fetchone()
 
@@ -788,18 +760,11 @@ def add_unique_indexes():  # UNIQUE制約
         cur2 = conn2.cursor()
 
         # ★ external_listed_asin テーブル存在確認
-        if DB_MODE == "sqlite":
-            cur2.execute("""
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='external_listed_asin'
-            """)
-
-        elif DB_MODE == "postgres":
-            cur2.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_name = 'external_listed_asin'
-            """)
+        cur2.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name = 'external_listed_asin'
+        """)
 
         exists = cur2.fetchone()
 
@@ -820,13 +785,12 @@ def add_unique_indexes():  # UNIQUE制約
         "ON brand_gate_result(user_id, region_marketplace_id, brand)"
     )
 
-    if DB_MODE == "postgres":
-        # --- brandが実質空("-"/空欄/UNKNOWN)の商品はASIN単位でキャッシュするため、brandをNULL許容化 ---
-        cur.execute("ALTER TABLE brand_gate_result ALTER COLUMN brand DROP NOT NULL")
-        cur.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_gate_asin_unique "
-            "ON brand_gate_result(user_id, region_marketplace_id, asin)"
-        )
+    # --- brandが実質空("-"/空欄/UNKNOWN)の商品はASIN単位でキャッシュするため、brandをNULL許容化 ---
+    cur.execute("ALTER TABLE brand_gate_result ALTER COLUMN brand DROP NOT NULL")
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_gate_asin_unique "
+        "ON brand_gate_result(user_id, region_marketplace_id, asin)"
+    )
 
     conn.commit()
     conn.close()

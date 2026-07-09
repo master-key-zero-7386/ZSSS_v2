@@ -7,13 +7,11 @@
 # ==========================================================
 
 import os
-import sqlite3
 import json
 from datetime import datetime
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, session
 from amazon.core.fx_rate import get_exchange_rate
-from amazon.db import DB_MODE  
 
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
@@ -38,7 +36,6 @@ pricing_v2_bp = Blueprint("pricing_v2_bp", __name__)
 
 # --- ▼ SECTION 01: blacklist取得（From：routes_pricing_v2.py） ▼ ---
 def get_brand_blacklist(user_id, region_marketplace_id, country_code):
-    import sqlite3
     db_name = _get_blacklist_db(country_code, "brand")
 
     conn = get_conn(db_name)
@@ -61,7 +58,6 @@ def get_brand_blacklist(user_id, region_marketplace_id, country_code):
     return [r["brand"] for r in rows]
 
 def get_asin_blacklist(user_id, region_marketplace_id, country_code):
-    import sqlite3
     db_name = _get_blacklist_db(country_code, "asin")
 
     conn = get_conn(db_name)
@@ -375,8 +371,6 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
 
     # --- 自分ID取得（ここ追加） ---
     conn_acc = get_conn("a_account_master.db")
-    if DB_MODE == "sqlite":
-        conn_acc.row_factory = sqlite3.Row
     cur_acc = conn_acc.cursor()
 
     cur_acc.execute("""

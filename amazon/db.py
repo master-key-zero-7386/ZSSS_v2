@@ -1,32 +1,19 @@
 # ==========================================
 # ファイル名: amazon/db.py
-# 目的: ZSSSのDB基盤モジュール
-#       - SQLite接続の共通化（get_conn）
+# 目的: ZSSSのDB基盤モジュール（PostgreSQL専用）
+#       - PostgreSQL接続の共通化（get_conn）
 #       - marketplaceマスタ情報の取得
 #       - user_id / country_code / marketplace_id から
 #         SP-API接続情報を取得するための専用モジュール
 # ==========================================
 
 import os
-import sqlite3
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
 
-
-# --- DBディレクトリの決定 ---
-# 優先順位:
-# 1. 環境変数 ZSSS_DB_DIR が指定されていればそれを使用
-# 2. なければ zsss_web/db をデフォルトとする
-
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))  
-DATA_DIR = os.path.join(BASE_DIR, "db")
-os.makedirs(DATA_DIR, exist_ok=True)
-
 load_dotenv()
-
-DB_MODE = os.environ.get("ZSSS_DB_MODE", "sqlite").lower() 
 
 PG_HOST = os.environ.get("PG_HOST")
 PG_PORT = os.environ.get("PG_PORT")
@@ -34,31 +21,7 @@ PG_USER = os.environ.get("PG_USER")
 PG_PASSWORD = os.environ.get("PG_PASSWORD")
 PG_DATABASE = os.environ.get("PG_DATABASE")
 
-# --- ▼ SECTION 01: DBパス解決 ▼ ---
-def _resolve_db_path(db_name):
-
-    if os.path.isabs(db_name): 
-        return db_name
-
-    elif "_blacklist_" in db_name:
-        return os.path.join(DATA_DIR, "blacklist", db_name)
-
-    elif "_seller_list" in db_name:
-        return os.path.join(DATA_DIR, "sellerlist", db_name)
-
-    return os.path.join(DATA_DIR, db_name)
-
-
-# --- ▼ SECTION 02: SQLite接続 ▼ ---
-# SQLite専用接続関数（DB_MODE=sqlite 用）※PostgreSQL移行対象外
-def _get_sqlite_conn(db_path):
-
-    conn = sqlite3.connect(db_path, timeout=10) # ※PostgreSQL移行対象外
-    conn.row_factory = sqlite3.Row
-
-    return conn
-
-# --- ▼ SECTION 03: PostgreSQL接続（準備） ▼ ---
+# --- ▼ SECTION 01: PostgreSQL接続 ▼ ---
 def _get_postgres_conn():
     conn = psycopg2.connect(
         host=PG_HOST,
@@ -67,23 +30,16 @@ def _get_postgres_conn():
         password=PG_PASSWORD,
         dbname=PG_DATABASE,
         client_encoding="UTF8",
-        cursor_factory=RealDictCursor, 
+        cursor_factory=RealDictCursor,
     )
 
-    return conn 
+    return conn
 
-# --- ▼ SECTION 04: 共通接続入口 ▼ ---
+# --- ▼ SECTION 02: 共通接続入口 ▼ ---
+# db_name はテーブル/DB識別用の引数として過去のSQLite分割DB構成から残っているが、
+# PostgreSQLは単一DBに統一しているため接続先の決定には使用しない。
 def get_conn(db_name):
-
-    db_path = _resolve_db_path(db_name)
-
-    if DB_MODE == "sqlite":
-        return _get_sqlite_conn(db_path)
-
-    elif DB_MODE == "postgres":
-        return _get_postgres_conn()
-
-    raise ValueError(f"unsupported DB_MODE: {DB_MODE}")
+    return _get_postgres_conn()
 
 # --- ▼ SECTION 05:アカウント情報取得（user_id + country_code + marketplaces 参照） ▼ ---
 def get_account_info(country_code: str, user_id: str | None = None) -> dict:

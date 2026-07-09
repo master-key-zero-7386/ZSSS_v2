@@ -7,10 +7,9 @@
 # =====================================================
 
 from flask import Blueprint, request, jsonify, session
-import sqlite3
 import os
 import csv
-from amazon.db import get_conn, DB_MODE 
+from amazon.db import get_conn
 from io import TextIOWrapper
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -670,18 +669,7 @@ def add_blacklist():
 # --- ▼ SECTION 10: ブラックリスト即時反映 ▼ ---
 def apply_blacklist_update(user_id, country_code):
 
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "db",
-        f"a_{country_code}_listed_items.db"
-    )
-
-    if DB_MODE == "sqlite":
-        conn = sqlite3.connect(db_path, timeout=10)  # DB移行 分岐対応済（SQLite専用）
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.row_factory = sqlite3.Row 
-    else:
-        conn = get_conn(f"a_{country_code}_listed_items.db")
+    conn = get_conn(f"a_{country_code}_listed_items.db")
 
     cur = conn.cursor()
 
