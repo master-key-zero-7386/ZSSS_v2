@@ -4,9 +4,7 @@
 # ==========================================
 
 import math
-import sqlite3
-from amazon.db_migrate import DB_DIR
-from amazon.db import get_conn 
+from amazon.db import get_conn
 from amazon.shipping_calc import shipping_calc, calc_min_shipping_fee
 
 # --- ▼ SECTION 01: pricing_master_rules 取得 ▼ ---

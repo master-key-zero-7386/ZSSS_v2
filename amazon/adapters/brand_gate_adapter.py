@@ -8,7 +8,6 @@
 
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.db import get_conn
-import sqlite3
 from flask import request, jsonify, session
 
 # --- ▼ SECTION 01: Brand Gate（ブランドゲートチェック） ▼ ---

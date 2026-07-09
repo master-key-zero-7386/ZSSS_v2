@@ -93,24 +93,21 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
 
 ### Database
 
-- `amazon/db.py` is the single connection entry point (`get_conn(db_name)`). It supports two modes
-  via `ZSSS_DB_MODE` in `.env`: `sqlite` (file-per-concern under `db/`, e.g. `a_marketplaces.db`,
-  `a_pricing_cache.db`, `a_<region>_listed_items.db`) or `postgres` (single DB via `PG_HOST` /
-  `PG_PORT` / `PG_USER` / `PG_PASSWORD` / `PG_DATABASE`). **The codebase is mid-migration from SQLite
-  to Postgres** — schema in `db_migrate.py` is written Postgres-style (`SERIAL PRIMARY KEY`) and many
-  queries already use `%s` placeholders (psycopg2 style); `sqlite_to_postgres.py` at the repo root is
-  the one-off migration script. When touching DB code, check `DB_MODE` assumptions rather than
-  assuming SQLite's `?` placeholder style.
-- DB filenames follow an `a_<region>_<purpose>.db` convention (legacy convention from
-  `reference/zsss_webフォルダ構成.txt`: Amazon-related files/scripts are prefixed `a_`, and
-  region-specific CSV/output files are prefixed with the region code, e.g. `AU_...`).
-- `db/` holds live runtime DBs and is gitignored; `db_old/` is a snapshot of the pre-migration SQLite
-  files kept for reference, not used by the app.
-- `_resolve_db_path()` special-cases DB names containing `_blacklist_` (→ `db/blacklist/`) and
-  `_seller_list` (→ `db/sellerlist/`).
+- `amazon/db.py` is the single connection entry point (`get_conn(db_name)`). **The codebase has been
+  fully migrated off SQLite and is Postgres-only** (via `PG_HOST` / `PG_PORT` / `PG_USER` /
+  `PG_PASSWORD` / `PG_DATABASE` in `.env`); `get_conn()` always connects to the single Postgres
+  database and ignores the `db_name` argument's file-path shape — `db_name` (e.g.
+  `"a_marketplaces.db"`, `"a_<region>_listed_items.db"`) is now purely a legacy label kept for call-site
+  readability, not an actual file path. All queries use `%s` placeholders (psycopg2 style). The old
+  SQLite-vs-Postgres dual-mode branching (`ZSSS_DB_MODE`, `_resolve_db_path()`, `_get_sqlite_conn()`)
+  and the one-off `sqlite_to_postgres.py` migration script have been removed now that the migration is
+  complete.
+- DB filenames in `db_name` arguments still follow the legacy `a_<region>_<purpose>.db` naming
+  convention (from `reference/zsss_webフォルダ構成.txt`, back when each concern was a separate SQLite
+  file) purely as a naming convention for readability — they no longer resolve to real files.
+- `db_old/` is a snapshot of the pre-migration SQLite files kept for reference, not used by the app.
 
 ## Environment
 
-`.env` (gitignored) configures: `ZSSS_DB_MODE` (`sqlite`|`postgres`), `PG_HOST`/`PG_PORT`/`PG_USER`/
-`PG_PASSWORD`/`PG_DATABASE`, `FX_API_KEY`. `python-dotenv` loads it in both `amazon/db.py` and
-`amazon/background/fx/fx_loop.py`.
+`.env` (gitignored) configures: `PG_HOST`/`PG_PORT`/`PG_USER`/`PG_PASSWORD`/`PG_DATABASE`,
+`FX_API_KEY`. `python-dotenv` loads it in both `amazon/db.py` and `amazon/background/fx/fx_loop.py`.

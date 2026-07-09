@@ -7,7 +7,7 @@
 # ======================================================
 
 from flask import Blueprint, request, jsonify, session
-import sqlite3, os
+import os
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.admin_settings import save_admin_setting
 from flask import current_app

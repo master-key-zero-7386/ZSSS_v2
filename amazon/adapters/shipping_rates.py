@@ -72,6 +72,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
             FROM shipping_rates
             WHERE user_id = %s
             AND marketplace_id = %s
+            ON CONFLICT (user_id, marketplace_id, weight_from_g, weight_to_g) DO NOTHING
         """, (
             marketplace_id,
             user_id,
@@ -95,6 +96,7 @@ def seed_shipping_rates(user_id: int, marketplace_id: str, copy_from_marketplace
                 carrier_3_price
             )
             VALUES (%s, %s, %s, %s, 0, 0, 0)
+            ON CONFLICT (user_id, marketplace_id, weight_from_g, weight_to_g) DO NOTHING
         """, (user_id, marketplace_id, start_g, end_g))
 
     conn.commit()

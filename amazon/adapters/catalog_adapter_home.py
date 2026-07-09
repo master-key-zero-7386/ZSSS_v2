@@ -10,8 +10,7 @@ from __future__ import annotations
 from typing import Dict, Any
 from datetime import datetime
 import json
-import os
-from amazon.spapi_client import real_signed_request 
+from amazon.spapi_client import real_signed_request
 from amazon.db import get_conn
 import logging
 import requests 
@@ -138,11 +137,6 @@ class CatalogAdapterHome:
         user_id + asin + sku で 1件取得するだけ。
         TTL 判定は行わない。
         """
-        import sqlite3, os
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
-
         conn = get_conn("a_catalog_cache.db")
         try:
             cur = conn.cursor()
@@ -170,11 +164,6 @@ class CatalogAdapterHome:
     # --- ▼ SECTION 05: catalog_cache 初期書込み（既存レコードがあるためUPDATE仕様） ▼ ---
     def _save_catalog_cache(self, asin: str, home_raw_json: str = None):
         # print("[CATALOG HOME] SAVE CACHE CALLED", asin)
-        import sqlite3, os
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
-
         conn = get_conn("a_catalog_cache.db")
 
         now_utc = datetime.utcnow().isoformat()

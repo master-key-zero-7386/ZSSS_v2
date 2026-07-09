@@ -7,7 +7,6 @@
 # ==========================================================
 
 import os
-import sqlite3
 from amazon.db import get_conn
 
 

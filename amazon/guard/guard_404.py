@@ -4,7 +4,6 @@
 # =====================================================
 
 import os
-import sqlite3
 import time
 from amazon.db_migrate import DB_DIR
 from amazon.db import get_conn

@@ -1,21 +1,14 @@
 # ==========================================
 # ファイル名: amazon/admin_settings.py
-# 目的: 管理者設定 
+# 目的: 管理者設定
 # ==========================================
 
-import os
-import sqlite3
+from amazon.db import get_conn
 
 DB_NAME = "a_admin_settings.db"
 
 def _get_conn(base_dir):
-    path = os.path.join(base_dir, DB_NAME)
-
-    if not os.path.exists(path):
-        raise FileNotFoundError(path) 
-
-    conn = get_conn(DB_NAME) 
-    return conn
+    return get_conn(DB_NAME)
 
 
 def save_admin_setting(base_dir, key, value):

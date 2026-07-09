@@ -6,7 +6,6 @@
 # 目的: ttl_stopに関する管理とDB保存
 # ==========================================================
 
-import sqlite3
 from amazon.db import get_conn
 
 

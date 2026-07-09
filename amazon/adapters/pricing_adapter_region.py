@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 import json
-import sqlite3
 import os
 from datetime import datetime, timedelta
 from amazon.adapters.pricing_adapter_home import get_retail_seller_ids

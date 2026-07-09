@@ -6,8 +6,6 @@
 # 目的: アカウント設定・管理者設定専用ルート
 # ===========================================
 
-import os
-import sqlite3
 from flask import Blueprint, jsonify, session, render_template, request
 from auth.routes_auth import login_required
 from amazon.constants import BASE_DIR

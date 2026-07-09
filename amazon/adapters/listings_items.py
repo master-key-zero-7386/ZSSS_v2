@@ -10,7 +10,7 @@ from amazon.adapters.amazon_adapter import AmazonAdapter
 import json
 from datetime import datetime, timezone, timedelta
 from amazon.utils.brand_gate_store import save_brand_gate_result
-import sqlite3, os
+import os
 from amazon.db import get_conn
 
 JST = timezone(timedelta(hours=9))
@@ -107,9 +107,6 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
         status = "NG" if errors else "OK"
 
         # --- brand取得（listed_itemsから） ---
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        db_file = os.path.join(base_dir, "db", f"a_{country_code.lower()}_listed_items.db")
-
         conn_li = get_conn(f"a_{country_code.lower()}_listed_items.db")
 
         cur_li = conn_li.cursor()

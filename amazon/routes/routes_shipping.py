@@ -10,18 +10,11 @@ from flask import Blueprint, request, jsonify, session
 from amazon.adapters.shipping_rates import update_shipping_rates_bulk
 from amazon.adapters.shipping_rates import seed_shipping_rates
 from amazon.db import get_conn
-import sqlite3 
-import os 
 
 shipping_bp = Blueprint("shipping_bp", __name__, url_prefix="/api")
 
 # --- ▼ SECTION 01: marketplace_code → marketplace_id 変換 ▼ ---
 def resolve_marketplace_id(marketplace_code: str):
-    import sqlite3
-    import os
-
-    db_path = os.path.join("db", "a_marketplaces_master.db")
-    
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
     cur.execute(
@@ -184,8 +177,6 @@ def get_shipping_rate_copy_source_list():
     for marketplace_id in marketplace_rows:
 
         try:
-            db_path = os.path.join("db", "a_marketplaces_master.db")
-
             master_conn = get_conn("a_marketplaces_master.db")
 
             master_cur = master_conn.cursor()

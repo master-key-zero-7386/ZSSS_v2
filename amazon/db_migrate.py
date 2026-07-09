@@ -827,29 +827,6 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
-def add_indexes_listed_items():
-    import sqlite3, os
-
-    for file in os.listdir(DB_DIR):
-        if file.endswith("_listed_items.db"):
-            path = os.path.join(DB_DIR, file)
-            conn = sqlite3.connect(path)  # DB移行未対応 保留
-            cur = conn.cursor()
-
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listed_items'") 
-            if not cur.fetchone():
-                conn.close()
-                continue
-
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_user_status ON listed_items(user_id, status)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_asin ON listed_items(asin)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_sku ON listed_items(sku)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_home_brand ON listed_items(home_brand)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_region_brand ON listed_items(region_brand)")
-
-            conn.commit()
-            conn.close()
-
 # --- メイン処理 ---
 def main():
 
@@ -870,6 +847,7 @@ def main():
         "a_brand_gate_result.db",
         "a_shipping_override_master.db",
         "a_lwa_credentials_log.db",
+        "a_admin_settings.db",
     ]
 
     # 固定DB migrate
@@ -893,9 +871,6 @@ def main():
 
     # INDEX
     add_unique_indexes()
-
-    # SQLite専用なので呼ばない
-    # add_indexes_listed_items()
 
     # 初期データ
     ensure_fx_settings_initialized()

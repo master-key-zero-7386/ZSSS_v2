@@ -11,8 +11,7 @@ from typing import Dict, Any
 from datetime import datetime
 from amazon.db import get_conn
 import json
-import os
-from amazon.spapi_client import real_signed_request 
+from amazon.spapi_client import real_signed_request
 import logging
 import requests 
 
@@ -133,11 +132,6 @@ class CatalogAdapterRegion:
 
     # --- ▼ SECTION 04: catalog_cache_region 読み込み ▼ ---
     def _get_cached_catalog(self, asin: str):
-        import sqlite3, os
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
-
         conn = get_conn("a_catalog_cache.db")
 
         try:
@@ -166,10 +160,6 @@ class CatalogAdapterRegion:
     # --- ▼ SECTION 05: catalog_cache region部分の更新 ▼ ---
     def _save_catalog_cache(self, asin: str, region_raw_json: str = None):
         # print("[CATALOG REGION]SAVE CACHE CALLED", asin)
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        db_file = os.path.join(base_dir, "db", "a_catalog_cache.db")
-
         conn = get_conn("a_catalog_cache.db")
 
         now_utc = datetime.utcnow().isoformat()

@@ -7,7 +7,6 @@
 # ======================================================
 
 import os
-import sqlite3
 from datetime import datetime
 from datetime import datetime, timedelta
 from amazon.db import get_conn

@@ -12,7 +12,6 @@
 import requests
 import os
 import json
-import sqlite3
 from amazon.auth.token_manager import get_access_token
 from amazon.db import get_account_info, get_conn
 from amazon.adapters.base_adapter import BaseMarketplaceAdapter as BaseAdapter

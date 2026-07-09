@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify, current_app, session
 import os
 import re
 import json
-import sqlite3
+import psycopg2
 import traceback
 import time
 from datetime import datetime
@@ -2041,11 +2041,9 @@ def move_to_all():
                     "asin": asin
                 })
 
-            except sqlite3.OperationalError as e:
-                if "locked" in str(e).lower():
-                    time.sleep(0.5)
-                    continue
-                raise e
+            except psycopg2.OperationalError as e:
+                time.sleep(0.5)
+                continue
 
         return jsonify({"status": "error", "message": "DBロックが解除されませんでした"})
 

@@ -84,11 +84,7 @@ def run_fx_loop():
 
 # --- ▼ SECTION 03: 最終更新時刻取得 ▼ ---
 def get_last_fx_updated_at():
-    from amazon.db_migrate import DB_DIR
-    import sqlite3
-    import os
-
-    db_name = "a_fx.db" 
+    db_name = "a_fx.db"
     conn = get_conn(db_name) 
     cur = conn.cursor()    
 
@@ -104,11 +100,7 @@ def get_last_fx_updated_at():
 
 # --- ▼ SECTION 04: 更新間隔取得 ▼ ---
 def get_fx_update_interval_hours():
-    from amazon.db_migrate import DB_DIR
-    import sqlite3
-    import os
-
-    db_name = "a_fx.db"  
+    db_name = "a_fx.db"
     conn = get_conn(db_name) 
     cur = conn.cursor()
 
@@ -124,12 +116,7 @@ def get_fx_update_interval_hours():
 
 # --- ▼ SECTION 05: 最終更新時刻更新 ▼ ---
 def update_fx_last_updated_at():
-    from amazon.db_migrate import DB_DIR
-    import sqlite3
-    import os
-    from datetime import datetime
-
-    db_name = "a_fx.db"  
+    db_name = "a_fx.db"
     conn = get_conn(db_name) 
     cur = conn.cursor()
 

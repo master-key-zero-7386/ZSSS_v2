@@ -8,10 +8,9 @@
 
 from __future__ import annotations
 import json
-import sqlite3
 import os
 from datetime import datetime, timedelta
-from amazon.db import get_conn  
+from amazon.db import get_conn
 
 # --- ▼ Amazon Retail Seller ID（DB取得） ▼ ---
 def get_retail_seller_ids():

@@ -17,7 +17,6 @@ import codecs
 import pandas as pd
 import subprocess
 import traceback
-import sqlite3
 from datetime import datetime, timedelta
 from flask import (Blueprint, render_template, request, redirect, url_for, jsonify, send_file, make_response, session)
 from werkzeug.utils import secure_filename
