@@ -41,14 +41,15 @@ window.loadalllisting = async function(country_code) {
                 ajax: function(dt, callback) {
 
                     const sort = document.getElementById("allListingSort")?.value;
-                    const filter = document.getElementById("allListingFilter")?.value || 'all';
+                    const brandgate = document.getElementById("allBrandGateFilter")?.value || 'all';
+                    const regionSeller = document.getElementById("allRegionSellerFilter")?.value || 'all';
                     const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
                     const keyword = document.querySelector('#allListingSearchInput')?.value || '';
                     const reason = document.getElementById("allInactiveReason")?.value || 'all';
 
                     const page = Math.floor((dt.start || 0) / (dt.length || 100)) + 1;
 
-                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&filter=${filter}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
+                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&region_seller=${regionSeller}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
                         .then(res => {
                             
                             return res.json();

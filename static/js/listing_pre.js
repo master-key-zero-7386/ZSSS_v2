@@ -59,7 +59,18 @@ window.loadprelisting = async function (country_code) {
             loadprelisting(region);
         });
         preReasonSelect.dataset.bound = "1";
-    }   
+    }
+
+    // --- ▼ SECTION 04-3: Pre 既出品/未出品 変更時 再読み込み ▼ ---
+    document.querySelectorAll('input[name="preBrandStatus"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+
+            const region = document.getElementById("globalRegion")?.value;
+            if (!region) return;
+
+            loadprelisting(region);
+        });
+    });
 
     // --- ▼ SECTION 05: DataTable 再生成 ---
     const preTable = $("#prelistingtable").DataTable({  
@@ -71,14 +82,16 @@ window.loadprelisting = async function (country_code) {
 
         ajax: function(dt, callback) {
             const sort = document.getElementById("preListingSort")?.value;
-            const filter = document.getElementById("preListingFilter")?.value || 'all';
+            const brandgate = document.getElementById("preBrandGateFilter")?.value || 'all';
+            const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || 'all';
+            const regionSeller = document.getElementById("preRegionSellerFilter")?.value || 'all';
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
             const reason = document.getElementById("preInactiveReason")?.value || 'all';
             // console.log("INPUT VALUE:", keyword);
             const page = Math.floor((dt.start || 0) / (dt.length || 100)) + 1;
 
-            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&filter=${filter}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
+            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&brand_status=${brandStatus}&region_seller=${regionSeller}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
                 callback({

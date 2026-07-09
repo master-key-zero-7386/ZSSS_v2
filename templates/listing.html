@@ -322,25 +322,25 @@
             <option value="weight_desc">重量 ▼</option>
         </select>
 
-        <!-- 絞り込みプルダウン（Pre） -->
-        <select id="preListingFilter" class="zsss-control">
-            <option value="all">絞り込みなし</option>
-
+        <!-- 絞り込み：ブランドゲート（Pre） -->
+        <select id="preBrandGateFilter" class="zsss-control">
+            <option value="all">BrandGate：絞り込みなし</option>
             <option value="brandgate_ok">BrandGate OK</option>
             <option value="brandgate_approval">BrandGate APPROVAL</option>
             <option value="brandgate_ng">BrandGate NG</option>
             <option value="brandgate_unknown">BrandGate 未チェック</option>
+        </select>
 
-            <option value="brand_listed">既出品ブランドのみ</option>
-            <option value="brand_unlisted">未出品ブランドのみ</option>
-
+        <!-- 絞り込み：REGIONセラー数（Pre） -->
+        <select id="preRegionSellerFilter" class="zsss-control">
+            <option value="all">REGIONセラー数：絞り込みなし</option>
             <option value="region_single_seller">REGIONセラー0～1人（要注意）</option>
             <option value="region_two_sellers">REGIONセラー2人のみ</option>
             <option value="region_three_plus_sellers">REGIONセラー3人以上</option>
         </select>
 
         <button id="preListingSearchBtn" class="zsss-control">検　索</button>
-    </div>   
+    </div>
 
     <div id="preInfoStatusFilter" style="margin-top:10px;">
         <div style="display:flex; gap:20px; align-items:center;">
@@ -349,6 +349,12 @@
             <label><input type="radio" name="preInfoStatus" value="all" checked> 全て</label>
             <label><input type="radio" name="preInfoStatus" value="ACTIVE"> ACTIVE</label>
             <label><input type="radio" name="preInfoStatus" value="INACTIVE"> INACTIVE</label>
+
+            <span style="margin-left:20px;">既出品/未出品:</span>
+
+            <label><input type="radio" name="preBrandStatus" value="all" checked> 全て</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品のみ</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品のみ</label>
 
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
             <select id="preInactiveReason" class="zsss-control" disabled>
@@ -441,22 +447,25 @@
             <option value="weight_desc">重量 ▼</option>
         </select>
 
-        <!-- 絞り込みプルダウン（ALL） -->
-        <select id="allListingFilter" class="zsss-control">
-            <option value="all">絞り込みなし</option>
-
+        <!-- 絞り込み：ブランドゲート（ALL） -->
+        <select id="allBrandGateFilter" class="zsss-control">
+            <option value="all">BrandGate：絞り込みなし</option>
             <option value="brandgate_ok">BrandGate OK</option>
             <option value="brandgate_approval">BrandGate APPROVAL</option>
             <option value="brandgate_ng">BrandGate NG</option>
             <option value="brandgate_unknown">BrandGate 未チェック</option>
+        </select>
 
+        <!-- 絞り込み：REGIONセラー数（ALL） -->
+        <select id="allRegionSellerFilter" class="zsss-control">
+            <option value="all">REGIONセラー数：絞り込みなし</option>
             <option value="region_single_seller">REGIONセラー0～1人（要注意）</option>
             <option value="region_two_sellers">REGIONセラー2人のみ</option>
             <option value="region_three_plus_sellers">REGIONセラー3人以上</option>
         </select>
 
         <button id="allListingSearchBtn" class="zsss-control">検　索</button>
-    </div>   
+    </div>
 
     <!-- <div id="allInfoStatusFilter" style="display:none; margin-top:10px;"> -->
     <div id="allInfoStatusFilter" style="margin-top:10px;">

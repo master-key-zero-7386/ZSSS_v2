@@ -538,7 +538,7 @@ def _build_listing_row_with_shipping(
     }
     
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", filter_value="all"):
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -628,7 +628,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
-    if filter_value == "brandgate_ok":
+    # --- グループ1: ブランドゲート（他グループとAND併用可） ---
+    if brandgate_filter == "brandgate_ok":
         query_filter += """
             AND LOWER(region_brand) IN (
                 SELECT LOWER(brand)
@@ -640,7 +641,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "brandgate_approval":
+    elif brandgate_filter == "brandgate_approval":
         query_filter += """
             AND LOWER(region_brand) IN (
                 SELECT LOWER(brand)
@@ -652,7 +653,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "brandgate_ng":
+    elif brandgate_filter == "brandgate_ng":
         query_filter += """
             AND LOWER(region_brand) IN (
                 SELECT LOWER(brand)
@@ -664,7 +665,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "brandgate_unknown":
+    elif brandgate_filter == "brandgate_unknown":
         query_filter += """
             AND LOWER(region_brand) NOT IN (
                 SELECT LOWER(brand)
@@ -675,7 +676,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "brand_listed":
+    # --- グループ2: 既出品/未出品ブランド（他グループとAND併用可） ---
+    if brand_status_filter == "brand_listed":
         query_filter += """
             AND region_brand IS NOT NULL AND TRIM(region_brand) <> ''
             AND LOWER(TRIM(region_brand)) IN (
@@ -690,7 +692,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "brand_unlisted":
+    elif brand_status_filter == "brand_unlisted":
         query_filter += """
             AND region_brand IS NOT NULL AND TRIM(region_brand) <> ''
             AND LOWER(TRIM(region_brand)) NOT IN (
@@ -705,7 +707,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.extend([user_id, marketplace_id])
 
-    elif filter_value == "region_single_seller":
+    # --- グループ3: REGIONセラー数（他グループとAND併用可） ---
+    if region_seller_filter == "region_single_seller":
         # --- REGIONセラーが合計0～1人（メーカー/権利者本人の可能性があり要注意） ---
         query_filter += """
             AND asin IN (
@@ -720,7 +723,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.append(marketplace_id)
 
-    elif filter_value == "region_two_sellers":
+    elif region_seller_filter == "region_two_sellers":
         # --- REGIONセラーが合計2人のみ ---
         query_filter += """
             AND asin IN (
@@ -735,7 +738,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         """
         params_base.append(marketplace_id)
 
-    elif filter_value == "region_three_plus_sellers":
+    elif region_seller_filter == "region_three_plus_sellers":
         # --- REGIONセラーが合計3人以上 ---
         query_filter += """
             AND asin IN (
@@ -1066,14 +1069,16 @@ def get_prelisting():
             return jsonify({"status": "error", "message": "country_code is required"}), 400
 
         sort = request.args.get("sort") or "created_desc"
-        filter_value = request.args.get("filter") or "all"
+        brandgate_filter = request.args.get("brandgate") or "all"
+        brand_status_filter = request.args.get("brand_status") or "all"
+        region_seller_filter = request.args.get("region_seller") or "all"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, filter_value=filter_value)
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -1096,14 +1101,15 @@ def get_alllisting():
             return jsonify({"status": "error", "message": "country_code is required"}), 400
 
         sort = request.args.get("sort") or "created_desc"
-        filter_value = request.args.get("filter") or "all"
+        brandgate_filter = request.args.get("brandgate") or "all"
+        region_seller_filter = request.args.get("region_seller") or "all"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, filter_value=filter_value)
+        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter)
         
         if err:
             return jsonify({"status": "error", "message": err}), 400
