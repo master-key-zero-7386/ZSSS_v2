@@ -663,20 +663,29 @@ document.addEventListener("DOMContentLoaded", () => {
         const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
         const reason = document.getElementById("preInactiveReason")?.value || 'all';
 
+        const table = $.fn.dataTable.isDataTable('#prelistingtable')
+            ? $('#prelistingtable').DataTable()
+            : null;
+
+        if (!table) return;
+
+        table.processing(true);
+
         fetch(`/listing/search_listing?mode=pre&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
         .then(data => {
-
-            const table = $.fn.dataTable.isDataTable('#prelistingtable')
-                ? $('#prelistingtable').DataTable()
-                : null;          
-
-            if (!table) return;
 
             table.clear();
             table.rows.add(data);
             table.draw();
 
+        })
+        .catch(err => {
+            console.error("searchPreListing error:", err);
+            window.showToast?.("検索に失敗しました", "error");
+        })
+        .finally(() => {
+            table.processing(false);
         });
     };
 
@@ -687,20 +696,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const infoStatus = document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all';
         const reason = document.getElementById("allInactiveReason")?.value || 'all';
-        
+
+        const table = $('#alllistingtable').DataTable();
+
+        table.processing(true);
+
         fetch(`/listing/search_listing?mode=all&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
         .then(data => {
-
-            const table = $('#alllistingtable').DataTable();
 
             table.clear();
             table.rows.add(data);
             table.draw();
 
+        })
+        .catch(err => {
+            console.error("searchAllListing error:", err);
+            window.showToast?.("検索に失敗しました", "error");
+        })
+        .finally(() => {
+            table.processing(false);
         });
 
-    };    
+    };
 
     // === ▼ SECTION 10: チェックで実行ボタン有効化 ▼
     document.addEventListener("change", function(e){
