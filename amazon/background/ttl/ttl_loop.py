@@ -564,11 +564,21 @@ def dispatch_ttl_execution(targets, record, country_code):
         
         # --- HOME / CATALOG ---
         if scope == "home" and ttl_type == "catalog":
-            update_home_catalog(
+            catalog_result = update_home_catalog(
                 user_id=record["user_id"],
                 asin=record["asin"],
                 country_code=country_code,
             )
+
+            # ★追加: カタログ取得で寸法・重量が新たに埋まった場合、
+            #        REGION PRICINGのTTLが来るまで NO_CATALOG 判定が古いまま残ってしまうため、
+            #        ここで即座に再判定して inactive_reason を最新化する
+            if isinstance(catalog_result, dict) and catalog_result.get("status") == "ok":
+                update_listing_price(
+                    user_id=record["user_id"],
+                    asin=record["asin"],
+                    country_code=country_code,
+                )
 
         # --- HOME / PRICING ---
         elif scope == "home" and ttl_type == "pricing":
