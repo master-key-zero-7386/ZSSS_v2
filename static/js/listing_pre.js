@@ -457,9 +457,9 @@ window.loadprelisting = async function (country_code) {
                 data: null,
                 orderable: false,
                 render: function (_data, _type, row) {
-                    const len = row.length_cm != null ? parseFloat(row.length_cm).toFixed(3) : "--";
-                    const wid = row.width_cm != null ? parseFloat(row.width_cm).toFixed(3) : "--";
-                    const hei = row.height_cm != null ? parseFloat(row.height_cm).toFixed(3) : "--";
+                    const len = row.length_cm != null ? parseFloat(row.length_cm).toFixed(1) : "--";
+                    const wid = row.width_cm != null ? parseFloat(row.width_cm).toFixed(1) : "--";
+                    const hei = row.height_cm != null ? parseFloat(row.height_cm).toFixed(1) : "--";
                     // --- # ここを修正：実重量は pricing 算定後の値を表示 ---
                     const act = row.actual_weight_kg_corrected != null ? parseFloat(row.actual_weight_kg_corrected).toFixed(3) : "--";
                     const vol = row.volumetric_weight_kg != null ? parseFloat(row.volumetric_weight_kg).toFixed(3) : "--";
