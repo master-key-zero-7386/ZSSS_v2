@@ -34,6 +34,11 @@
     width: 100%;
 }
 
+/* 列幅を超えるコンテンツが隣のセルに重ならないようにする保険 */
+.zsss-listing-table td {
+    overflow: hidden;
+}
+
 /* Listing リスティング ヘッダー分割割合 */
 .zsss-listing-table th:nth-child(1),
 .zsss-listing-table td:nth-child(1) { width: 3%; }  /* No */
