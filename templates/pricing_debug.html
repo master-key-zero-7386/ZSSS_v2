@@ -159,7 +159,9 @@ if (regionFiltered.length > 0 && yourPrice > 0) {
 
     console.log(regionFiltered[0]);  
 
-    const lowest = Number(regionFiltered[0].price_amount) + Number(regionFiltered[0].shipping_amount || 0);
+    const lowestPrice = Number(regionFiltered[0].price_amount);
+    const lowestShip = Number(regionFiltered[0].shipping_amount || 0);
+    const lowest = lowestPrice + lowestShip;
 
     const diff = yourPrice - lowest;
     const percent = (diff / lowest) * 100;
@@ -167,7 +169,7 @@ if (regionFiltered.length > 0 && yourPrice > 0) {
     pricingHtml += `
 Competitor Price Check
     Your Price        : ${yourPrice.toFixed(2)}
-    Competitor Price  : ${lowest.toFixed(2)}
+    Competitor Price  : ${lowest.toFixed(2)} (${lowestPrice.toFixed(2)} + ${lowestShip.toFixed(2)})
     Diff              : ${diff.toFixed(2)} (${percent.toFixed(2)}%)
     Profit if Matched : ${pricing.profit_rate_at_competitor != null
         ? (pricing.profit_rate_at_competitor * 100).toFixed(2)
