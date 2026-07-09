@@ -669,7 +669,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!table) return;
 
-        table.processing(true);
+        const btn = document.getElementById("preListingSearchBtn");
+        const originalLabel = btn ? btn.textContent : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "検索中...";
+        }
 
         fetch(`/listing/search_listing?mode=pre&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
@@ -685,7 +690,10 @@ document.addEventListener("DOMContentLoaded", () => {
             window.showToast?.("検索に失敗しました", "error");
         })
         .finally(() => {
-            table.processing(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
         });
     };
 
@@ -699,7 +707,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const table = $('#alllistingtable').DataTable();
 
-        table.processing(true);
+        const btn = document.getElementById("allListingSearchBtn");
+        const originalLabel = btn ? btn.textContent : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "検索中...";
+        }
 
         fetch(`/listing/search_listing?mode=all&keyword=${encodeURIComponent(keyword)}&detail=${detail}&country_code=${country_code}&sort=${sort}&info_status=${infoStatus}&reason=${reason}`)
         .then(res => res.json())
@@ -715,7 +728,10 @@ document.addEventListener("DOMContentLoaded", () => {
             window.showToast?.("検索に失敗しました", "error");
         })
         .finally(() => {
-            table.processing(false);
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
         });
 
     };
