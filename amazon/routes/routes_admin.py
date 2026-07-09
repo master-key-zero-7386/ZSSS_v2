@@ -17,7 +17,7 @@ from amazon.core.fx_rate import get_exchange_rate
 from amazon.routes.routes_pricing_v2 import update_home_pricing
 from amazon.routes.routes_pricing_v2 import update_region_pricing
 from amazon.db_migrate import DB_DIR
-from amazon.adapters.pricing_adapter_home import PricingAdapterHome
+from amazon.adapters.pricing_adapter_home import PricingAdapterHome, get_retail_seller_ids
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
@@ -821,7 +821,9 @@ def run_home_pricing_debug():
         "status": "ok",
         "offers": raw.get("payload", {}).get("Offers", []),
         "debug": result_select,
-    })    
+        "self_seller_id": base.seller_id,
+        "amazon_seller_ids": get_retail_seller_ids(),
+    })
 
 # --- ▼ SECTIONⅢ 02: REGION Pricing Debug（HOME構造に合わせた純デバッグ） ▼ ---
 @admin_api_bp.route("/run_region_pricing_debug", methods=["POST"])
@@ -1164,8 +1166,10 @@ def run_region_pricing_debug():
             "status": "ok",
             "offers": raw.get("payload", {}).get("Offers", []),
             "debug": result_select,
-            "pricing_result": calc_result, 
+            "pricing_result": calc_result,
             "final_price": final_price,
+            "self_seller_id": base.seller_id,
+            "amazon_seller_ids": get_retail_seller_ids(),
         })
 
 

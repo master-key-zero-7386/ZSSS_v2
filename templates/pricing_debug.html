@@ -78,14 +78,19 @@ async function runPricingDebug() {
     const filtered = (homeData.debug && homeData.debug.filtered) || [];
     const selected = (homeData.debug && homeData.debug.selected) || null;
 
+    const homeMarkers = {
+        selfId: homeData.self_seller_id || null,
+        amazonIds: homeData.amazon_seller_ids || []
+    };
+
     html += "<h4>All Sellers (" + allOffers.length + ")</h4>";
-    html += buildTable(allOffers);
+    html += buildTable(allOffers, homeMarkers);
 
     html += "<h4 style='margin-top:30px;'>Filtered Sellers(" + filtered.length + ")</h4>";
-    html += buildTable(filtered);
+    html += buildTable(filtered, homeMarkers);
 
     html += "<h4 style='margin-top:30px;'>Selected Seller</h4>";
-    html += selected ? buildTable([selected]) : "<p>なし</p>";
+    html += selected ? buildTable([selected], homeMarkers) : "<p>なし</p>";
 
 
     // ===== REGIONセラー情報表示 ② =====
@@ -93,14 +98,19 @@ async function runPricingDebug() {
     const regionFiltered = (regionData.debug && regionData.debug.filtered) || [];
     const regionSelected = (regionData.debug && regionData.debug.selected) || null;
 
+    const regionMarkers = {
+        selfId: regionData.self_seller_id || null,
+        amazonIds: regionData.amazon_seller_ids || []
+    };
+
     regionHtml += "<h4>All Sellers (" + regionOffers.length + ")</h4>";
-    regionHtml += buildTable(regionOffers);
+    regionHtml += buildTable(regionOffers, regionMarkers);
 
     regionHtml += "<h4 style='margin-top:30px;'>Filtered Sellers (" + regionFiltered.length + ")</h4>";
-    regionHtml += buildTable(regionFiltered);
+    regionHtml += buildTable(regionFiltered, regionMarkers);
 
     regionHtml += "<h4 style='margin-top:30px;'>Selected Seller</h4>";
-    regionHtml += regionSelected ? buildTable([regionSelected]) : "<p>なし</p>";
+    regionHtml += regionSelected ? buildTable([regionSelected], regionMarkers) : "<p>なし</p>";
 
     // ===== 価格算定情報表示 ③ =====
     const pricing = regionData.pricing_result || {};
@@ -183,9 +193,12 @@ pricingHtml += `</pre>`;
         "</div>";      
 }
 
-function buildTable(list) {
+function buildTable(list, markers) {
 
     if (!list.length) return "<p>なし</p>";
+
+    const selfId = markers?.selfId || null;
+    const amazonIds = markers?.amazonIds || [];
 
     let html = "<table border='1' cellpadding='5' style='border-collapse:collapse;'>";
     html += "<tr>";
@@ -203,6 +216,7 @@ function buildTable(list) {
 
     list.forEach(o => {
 
+        const sellerId = o.seller_id || o.SellerId;
         const price = o.price_amount || (o.ListingPrice && o.ListingPrice.Amount);
         const ship = o.shipping_amount || (o.Shipping && o.Shipping.Amount) || 0;
         const points = o.points_amount || (o.Points && o.Points.PointsNumber) || 0;
@@ -213,8 +227,21 @@ function buildTable(list) {
         const buybox = o.is_buybox_winner ?? o.IsBuyBoxWinner;
         const fba = o.IsFulfilledByAmazon ?? o.is_fulfilled_by_amazon;
 
-        html += "<tr>";
-        html += "<td>" + (o.seller_id || o.SellerId) + "</td>";
+        const isSelf = !!selfId && sellerId === selfId;
+        const isAmazon = amazonIds.includes(sellerId);
+
+        let rowStyle = "";
+        let badge = "";
+        if (isSelf) {
+            rowStyle = "background:#1c3d1c;";
+            badge = " <span style='padding:1px 6px; font-size:11px; font-weight:600; border-radius:10px; background:#28a745; color:#fff;'>自分</span>";
+        } else if (isAmazon) {
+            rowStyle = "background:#3d2a10;";
+            badge = " <span style='padding:1px 6px; font-size:11px; font-weight:600; border-radius:10px; background:#ff9800; color:#111;'>Amazon</span>";
+        }
+
+        html += "<tr style='" + rowStyle + "'>";
+        html += "<td>" + sellerId + badge + "</td>";
         html += "<td>" + price + "</td>";
         html += "<td>" + ship + "</td>";
         html += "<td>" + points + "</td>";
