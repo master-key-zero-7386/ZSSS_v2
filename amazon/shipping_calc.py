@@ -6,6 +6,7 @@
 
 import time
 import math
+import threading
 from typing import Dict, Optional
 from amazon.routes.routes import amazon_bp
 from flask import request, jsonify
@@ -171,7 +172,7 @@ def update_shipping_config():
         conn = get_conn("a_pricing_settings.db")
         cur = conn.cursor()
 
-        now_utc = datetime.utcnow().isoformat() 
+        now_utc = datetime.utcnow().isoformat()
 
         # upsert（SQLite）
         cur.execute("""
@@ -187,10 +188,84 @@ def update_shipping_config():
         conn.commit()
         conn.close()
 
+        # --- ▼ 既存 listed_items の容積重量・請求重量を新しい設定で再計算 ▼ ---
+        # 保存済みのDB値は情報取得時点の古い設定のままになっており、
+        # ソート（DB値基準）と画面表示（都度再計算）がズレる原因になるため、
+        # 設定変更のたびに既存全件を再計算してDBへ反映する。
+        # Flask開発サーバーはシングルスレッドで動作しているため、件数が多いと
+        # ここで同期実行すると他の全リクエストがブロックされてフリーズして見える。
+        # そのためTTL/FIRSTループと同様にバックグラウンドスレッドで実行する。
+        threading.Thread(
+            target=_recompute_billable_weights,
+            args=(user_id, {
+                "padding_cm": padding_cm if padding_cm is not None else 0.0,
+                "pack_ratio": pack_ratio if pack_ratio is not None else 0.0,
+                "volumetric_divisor": volumetric_divisor if volumetric_divisor is not None else 5000.0,
+            }),
+            daemon=True,
+        ).start()
+
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 07: listed_items 容積重量・請求重量の一括再計算 ▼ ---
+def _recompute_billable_weights(user_id: int, shipping_config: dict) -> int:
+    from amazon.db import get_conn, DB_MODE
+    from amazon.db_migrate import DB_DIR
+    from amazon.background.common.background_common import list_listed_dbs
+
+    db_paths = list_listed_dbs(DB_DIR) if DB_MODE == "sqlite" else ["listed_items"]
+
+    updated = 0
+
+    for db_path in db_paths:
+        conn = get_conn(db_path)
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT asin, region_marketplace_id, length_cm, width_cm, height_cm, actual_weight_kg
+            FROM listed_items
+            WHERE user_id = %s
+            AND length_cm IS NOT NULL
+            AND width_cm IS NOT NULL
+            AND height_cm IS NOT NULL
+        """, (user_id,))
+
+        rows = cur.fetchall()
+
+        for row in rows:
+            normalized = {
+                "length_cm": row["length_cm"],
+                "width_cm": row["width_cm"],
+                "height_cm": row["height_cm"],
+                "actual_weight_kg": row["actual_weight_kg"],
+            }
+
+            calc_result = shipping_calc(normalized, shipping_config)
+
+            cur.execute("""
+                UPDATE listed_items
+                SET volumetric_weight_kg = %s,
+                    billable_weight_kg = %s
+                WHERE user_id = %s
+                AND asin = %s
+                AND region_marketplace_id = %s
+            """, (
+                calc_result["volumetric_weight_kg"],
+                calc_result["billable_weight_kg_rounded"],
+                user_id,
+                row["asin"],
+                row["region_marketplace_id"],
+            ))
+
+            updated += 1
+
+        conn.commit()
+        conn.close()
+
+    return updated
 
 # --- ▼ SECTION 06: Shipping 送料算定（表示用・最安） ▼ ---
 def calc_min_shipping_fee(billable_weight_kg: float, user_id: int, marketplace_id: str, SHIPPING_RATE_ROWS=None) -> float | None:
