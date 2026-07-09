@@ -268,7 +268,8 @@ def brand_gate_check():
                 marketplace_id=marketplace_id,
                 brand=brand,
                 status=check_result["status"],
-                reason=check_result.get("note")
+                reason=check_result.get("note"),
+                asin=asin
             )
 
         return jsonify(result)

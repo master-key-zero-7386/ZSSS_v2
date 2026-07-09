@@ -36,6 +36,7 @@ from amazon.core.price_calculator import get_pricing_master_rule
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 from amazon.routes.routes_pricing_v2 import get_asin_blacklist, get_brand_blacklist
+from amazon.utils.brand_gate_store import NO_BRAND_VALUES
 
 
 listing_bp = Blueprint("listing_bp", __name__)
@@ -251,8 +252,9 @@ def _build_listing_row_with_shipping(
     HOME_MARKETPLACE_HOST=None, 
     OFFER_FILTER_RULES=None, 
     PRICING_MASTER_RULES=None, 
-    ACCOUNT_SELLER_ID=None, 
+    ACCOUNT_SELLER_ID=None,
     BRAND_GATE_MAP=None,
+    ASIN_GATE_MAP=None,
     SHIPPING_OVERRIDE_SET=None,
     LISTED_BRAND_SET=None,
     P_min=None, P_max=None):
@@ -402,9 +404,13 @@ def _build_listing_row_with_shipping(
     home_marketplace_host = HOME_MARKETPLACE_HOST 
 
     # --- ▼ BrandGate取得 ▼ ---
+    # brandが実質空("-"/空欄/UNKNOWN)の商品はブランド単位のキャッシュを共有できないため、ASIN単位で引く
     brand = str(row["region_brand"] or "").strip().lower()
 
-    bg_row = BRAND_GATE_MAP.get(brand) if brand else None
+    if brand and brand not in NO_BRAND_VALUES:
+        bg_row = BRAND_GATE_MAP.get(brand)
+    else:
+        bg_row = (ASIN_GATE_MAP or {}).get(row["asin"])
 
     brand_gate_status = bg_row["status"] if bg_row else None
     brand_gate_reason = bg_row["reason"] if bg_row else None
@@ -636,6 +642,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM brand_gate_result
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
+                AND brand IS NOT NULL
                 AND status = 'OK'
             )
         """
@@ -648,6 +655,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM brand_gate_result
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
+                AND brand IS NOT NULL
                 AND status = 'APPROVAL'
             )
         """
@@ -660,6 +668,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM brand_gate_result
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
+                AND brand IS NOT NULL
                 AND status = 'NG'
             )
         """
@@ -672,6 +681,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 FROM brand_gate_result
                 WHERE user_id = %s
                 AND region_marketplace_id = %s
+                AND brand IS NOT NULL
             )
         """
         params_base.extend([user_id, marketplace_id])
@@ -997,16 +1007,20 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     cur_bg = conn_bg.cursor()
 
     cur_bg.execute("""
-        SELECT brand, status, reason
+        SELECT brand, asin, status, reason
         FROM brand_gate_result
         WHERE user_id = %s
         AND region_marketplace_id = %s
     """, (user_id, marketplace_id))
 
-    BRAND_GATE_MAP = {
-        str(r["brand"]).strip().lower(): r
-        for r in cur_bg.fetchall()
-    }
+    BRAND_GATE_MAP = {}
+    ASIN_GATE_MAP = {}
+
+    for r in cur_bg.fetchall():
+        if r["brand"]:
+            BRAND_GATE_MAP[str(r["brand"]).strip().lower()] = r
+        elif r["asin"]:
+            ASIN_GATE_MAP[r["asin"]] = r
 
     conn_bg.close()
 
@@ -1047,6 +1061,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 PRICING_MASTER_RULES=PRICING_MASTER_RULES,
                 ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
                 BRAND_GATE_MAP=BRAND_GATE_MAP,
+                ASIN_GATE_MAP=ASIN_GATE_MAP,
                 SHIPPING_OVERRIDE_SET=SHIPPING_OVERRIDE_SET,
                 LISTED_BRAND_SET=LISTED_BRAND_SET
             )
@@ -1427,16 +1442,20 @@ def search_listing():
         cur_bg = conn_bg.cursor()
 
         cur_bg.execute("""
-            SELECT brand, status, reason
+            SELECT brand, asin, status, reason
             FROM brand_gate_result
             WHERE user_id = %s
             AND region_marketplace_id = %s
         """, (user_id, marketplace_id))
 
-        BRAND_GATE_MAP = {
-            str(r["brand"]).strip().lower(): r
-            for r in cur_bg.fetchall()
-        }
+        BRAND_GATE_MAP = {}
+        ASIN_GATE_MAP = {}
+
+        for r in cur_bg.fetchall():
+            if r["brand"]:
+                BRAND_GATE_MAP[str(r["brand"]).strip().lower()] = r
+            elif r["asin"]:
+                ASIN_GATE_MAP[r["asin"]] = r
 
         conn_bg.close()
 
@@ -1461,7 +1480,8 @@ def search_listing():
                     OFFER_FILTER_RULES=OFFER_FILTER_RULES,
                     PRICING_MASTER_RULES=PRICING_MASTER_RULES,
                     ACCOUNT_SELLER_ID=ACCOUNT_SELLER_ID,
-                    BRAND_GATE_MAP=BRAND_GATE_MAP
+                    BRAND_GATE_MAP=BRAND_GATE_MAP,
+                    ASIN_GATE_MAP=ASIN_GATE_MAP
                 )
             )
 

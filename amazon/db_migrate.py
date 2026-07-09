@@ -125,6 +125,7 @@ BRAND_GATE_RESULT_COLUMNS = {
     "user_id": "INTEGER",
     "region_marketplace_id": "TEXT",
     "brand": "TEXT NOT NULL",
+    "asin": "TEXT",            # brandが実質空("-"/空欄/UNKNOWN)の商品はASIN単位でキャッシュする
     "status": "TEXT",          # OK / NG
     "reason": "TEXT",          # エラー内容
     "updated_at": "TEXT"
@@ -818,6 +819,15 @@ def add_unique_indexes():  # UNIQUE制約
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_gate_unique "
         "ON brand_gate_result(user_id, region_marketplace_id, brand)"
     )
+
+    if DB_MODE == "postgres":
+        # --- brandが実質空("-"/空欄/UNKNOWN)の商品はASIN単位でキャッシュするため、brandをNULL許容化 ---
+        cur.execute("ALTER TABLE brand_gate_result ALTER COLUMN brand DROP NOT NULL")
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_gate_asin_unique "
+            "ON brand_gate_result(user_id, region_marketplace_id, asin)"
+        )
+
     conn.commit()
     conn.close()
 
