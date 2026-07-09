@@ -75,6 +75,12 @@ class NormalizedCatalogAdapter:
             if isinstance(dims_list, list) and dims_list:
                 pkg_dims = dims_list[0]
 
+        # --- ★追加: package側が無い商品は item_dimensions（商品本体寸法）へフォールバック ---
+        if not pkg_dims and "item_dimensions" in raw_attr:
+            dims_list = raw_attr.get("item_dimensions")
+            if isinstance(dims_list, list) and dims_list:
+                pkg_dims = dims_list[0]
+
         if not pkg_dims:
             dims = raw.get("dimensions", {}) or {}
             pkg_dims = dims.get("package") or dims.get("item")
@@ -120,6 +126,14 @@ class NormalizedCatalogAdapter:
         if "item_package_weight" in raw_attr:
             try:
                 w = raw_attr["item_package_weight"][0]
+                actual_weight = to_kg(w.get("value"), w.get("unit"))
+            except Exception:
+                pass
+
+        # --- ★追加: package側が無い商品は item_weight（商品本体重量）へフォールバック ---
+        if actual_weight is None and "item_weight" in raw_attr:
+            try:
+                w = raw_attr["item_weight"][0]
                 actual_weight = to_kg(w.get("value"), w.get("unit"))
             except Exception:
                 pass
