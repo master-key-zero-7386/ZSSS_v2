@@ -159,7 +159,7 @@ if (regionFiltered.length > 0 && yourPrice > 0) {
 
     console.log(regionFiltered[0]);  
 
-    const lowest = Number(regionFiltered[0].price_amount);
+    const lowest = Number(regionFiltered[0].price_amount) + Number(regionFiltered[0].shipping_amount || 0);
 
     const diff = yourPrice - lowest;
     const percent = (diff / lowest) * 100;
