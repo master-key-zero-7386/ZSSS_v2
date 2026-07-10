@@ -81,6 +81,13 @@
   display: none;
 }
 
+/* サイドバー＋ハンドルのラッパー：スクロールしても画面上部に固定 */
+.sidebar-col {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+}
+
 /* サイドバー */
 .sidebar {
   width: 220px;
@@ -93,12 +100,9 @@
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
   transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
 
-  /* ← 一覧が長くてもサイドバーは画面に固定してスクロールさせない */
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
-  max-height: calc(100vh - 80px);
+  position: relative;
 
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
 }
 
@@ -156,22 +160,25 @@
 {% endif %}
 
 <div class="top-layout">
-    <!--左サイドバー  -->
-    <div class="sidebar" id="sidebar">
-        <button class="sidebar-btn active" data-target="dashboard">Dashboard</button>
-        <button class="sidebar-btn" data-target="csv-import">CSV Import</button>
-        <button class="sidebar-btn" data-target="prelisting">Pre-Listing</button>
-        <button class="sidebar-btn" data-target="alllisting">ALL-Listing</button>
-        <button class="sidebar-btn" data-target="pricing">Pricing</button>
-        
-        <!--▼▼▼ ログアウト（青ボタン・白字） ▼▼▼  -->
-        <button id="logoutBtn" class="sidebar-btn" style="margin-top:40px; background:#2c7be5; color:white;">
-            Log out
-        </button>            
-    </div>
+    <!-- ← サイドバー＋ハンドルをまとめて画面上部に固定（スクロールで流れないように） -->
+    <div class="sidebar-col">
+        <!--左サイドバー  -->
+        <div class="sidebar" id="sidebar">
+            <button class="sidebar-btn active" data-target="dashboard">Dashboard</button>
+            <button class="sidebar-btn" data-target="csv-import">CSV Import</button>
+            <button class="sidebar-btn" data-target="prelisting">Pre-Listing</button>
+            <button class="sidebar-btn" data-target="alllisting">ALL-Listing</button>
+            <button class="sidebar-btn" data-target="pricing">Pricing</button>
 
-    <!-- ✅ サイドバーの外に移動したハンドル  -->
-    <div class="collapse-handle" id="sidebar-collapse">＜</div>
+            <!--▼▼▼ ログアウト（青ボタン・白字） ▼▼▼  -->
+            <button id="logoutBtn" class="sidebar-btn" style="margin-top:40px; background:#2c7be5; color:white;">
+                Log out
+            </button>
+        </div>
+
+        <!-- ✅ サイドバーの外に移動したハンドル  -->
+        <div class="collapse-handle" id="sidebar-collapse">＜</div>
+    </div>
 
     <!-- 右メインパネル -->
     <div class="main-panel">
