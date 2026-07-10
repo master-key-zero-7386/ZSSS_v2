@@ -951,10 +951,13 @@ def upload_report_candidates():
 
     overlap_asins = [asin for asin in listed_asins if asin in sessions_by_asin]
 
+    # --- レポートに行が無いASIN＝セッション0件として扱う ---
+    # （Amazonのビジネスレポートは期間中セッション0件のASINを行として出力しないため、
+    #   「レポートに載っているASINだけ」を対象にすると本来一番見つけたい0件のASINが漏れる）
     candidates = [
-        (asin, sessions_by_asin[asin])
-        for asin in overlap_asins
-        if sessions_by_asin[asin] < threshold
+        (asin, sessions_by_asin.get(asin, 0))
+        for asin in listed_asins
+        if sessions_by_asin.get(asin, 0) < threshold
     ]
 
     now_utc = datetime.utcnow().isoformat()
