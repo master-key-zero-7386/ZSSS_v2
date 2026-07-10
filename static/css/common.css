@@ -32,7 +32,7 @@ body {
 
 .top-layout {
   display: flex;
-  height: 100%;
+  min-height: 100%; /* ← height:100%だとテーブルが長いとき固定(sticky)がその場で途切れるためmin-heightに変更 */
   position: relative; /* ハンドル配置の基準 */
   margin-top: 10px;
 }
