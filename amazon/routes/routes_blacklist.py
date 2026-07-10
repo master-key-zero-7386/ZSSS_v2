@@ -1041,11 +1041,17 @@ def get_report_candidates(country_code):
 
     try:
         cur.execute("""
-            SELECT id, asin, sessions, period_days, checked_at
-            FROM report_candidate_asin
-            WHERE user_id = %s
-            AND region_marketplace_id = %s
-            ORDER BY sessions ASC, checked_at DESC
+            SELECT
+                rc.id, rc.asin, rc.sessions, rc.period_days, rc.checked_at,
+                li.created_at AS listed_created_at
+            FROM report_candidate_asin rc
+            LEFT JOIN listed_items li
+                ON li.user_id = rc.user_id
+                AND li.region_marketplace_id = rc.region_marketplace_id
+                AND li.asin = rc.asin
+            WHERE rc.user_id = %s
+            AND rc.region_marketplace_id = %s
+            ORDER BY rc.sessions ASC, rc.checked_at DESC
         """, (user_id, region_marketplace_id))
 
         rows = [
@@ -1055,6 +1061,7 @@ def get_report_candidates(country_code):
                 "sessions": r["sessions"],
                 "period_days": r["period_days"],
                 "checked_at": r["checked_at"],
+                "listed_created_at": r["listed_created_at"],
             }
             for r in cur.fetchall()
         ]

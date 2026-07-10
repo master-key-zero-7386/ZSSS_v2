@@ -509,10 +509,11 @@ document.addEventListener("DOMContentLoaded", () => {
             autoWidth: false,
             columnDefs: [
                 { orderable: false, targets: 0, width: "5%" },
-                { width: "30%", targets: 1 },
-                { width: "20%", targets: 2 },
-                { width: "20%", targets: 3 },
-                { width: "25%", targets: 4 }
+                { width: "20%", targets: 1 },
+                { width: "15%", targets: 2 },
+                { width: "15%", targets: 3 },
+                { width: "22%", targets: 4 },
+                { width: "23%", targets: 5 }
             ]
         });
     }
@@ -535,6 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 row.asin,
                 row.sessions,
                 `${row.period_days}日`,
+                row.listed_created_at || "-",
                 row.checked_at
             ]).node();
 
