@@ -116,8 +116,9 @@
         .tab-content {
             position: relative;      /* ← 追加 */
             overflow-y: auto;        /* ← 中身だけスクロール */
+            overflow-anchor: none;   /* ← 画像の遅延読込等でサイドバー(sticky)が微妙に上下するのを防止 */
 
-            margin-top: 0 !important; 
+            margin-top: 0 !important;
             padding-top: 0 !important;
             height: calc(100vh - 80px);
             padding-bottom: 40px;

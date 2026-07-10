@@ -81,11 +81,22 @@
   display: none;
 }
 
-/* サイドバー＋ハンドルのラッパー：スクロールしても画面上部に固定 */
+/* サイドバー＋ハンドルのラッパー：画面に完全固定（sticky特有のスクロール中の再計算による微妙な揺れを避けるためfixedを使用） */
 .sidebar-col {
-  position: sticky;
-  top: 0;
-  align-self: flex-start;
+  position: fixed;
+  top: 58px; /* .tabsの高さ48px + top-layoutのmargin-top 10px */
+  left: 0;
+  z-index: 20;
+}
+
+/* サイドバー分の余白を確保（固定表示のサイドバー＋ハンドルとメインパネルが重ならないように） */
+.main-panel {
+  margin-left: 260px; /* サイドバー220px + ハンドル(左端240px,幅18px)の分 */
+  transition: margin-left 0.3s ease;
+}
+
+.top-layout.sidebar-collapsed .main-panel {
+  margin-left: 20px; /* 折りたたみ時は画面左端に来るハンドル(幅18px)の分だけ確保 */
 }
 
 /* サイドバー */
@@ -102,7 +113,7 @@
 
   position: relative;
 
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 58px);
   overflow-y: auto;
 }
 

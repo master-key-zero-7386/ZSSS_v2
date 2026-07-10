@@ -613,9 +613,14 @@ window.addEventListener("DOMContentLoaded", () => {
         collapseHandle.addEventListener("click", () => {
             const sidebar = document.getElementById("sidebar");
             sidebar.classList.toggle("collapsed");
+            const isCollapsed = sidebar.classList.contains("collapsed");
 
             // ＜ と ＞ を切替
-            collapseHandle.textContent = sidebar.classList.contains("collapsed") ? "＞" : "＜";
+            collapseHandle.textContent = isCollapsed ? "＞" : "＜";
+
+            // サイドバーが固定表示(position:fixed)になったため、畳んだ時はメインパネル側の余白も詰める
+            const topLayout = document.querySelector(".top-layout");
+            if (topLayout) topLayout.classList.toggle("sidebar-collapsed", isCollapsed);
         });
     }
 
