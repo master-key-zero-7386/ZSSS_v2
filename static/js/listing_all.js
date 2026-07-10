@@ -61,6 +61,8 @@ window.loadalllisting = async function(country_code) {
                         })
                         .then(json => {
 
+                            window.allGrandTotalCount = json.grand_total_count;
+
                             callback({
                                 data: json.all,
                                 recordsTotal: json.total_count,

@@ -790,7 +790,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     conn_mid.close()
 
     if not row_mid:
-        return None, 0, "marketplace_id not found"
+        return None, 0, 0, "marketplace_id not found"
 
     marketplace_id = row_mid["marketplace_id"]
 
@@ -801,7 +801,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     try:
         conn = get_conn("listed_items") 
     except FileNotFoundError:
-        return None, 0, "DB not found: listed_items" 
+        return None, 0, 0, "DB not found: listed_items"
 
     cur = conn.cursor() 
 
@@ -914,6 +914,17 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     """, params_base)
 
     total_count = cur.fetchone()["count"]
+
+    # --- ▼ 登録総数（絞り込み無視・Pre/ALL全体件数） ▼ ---
+    cur.execute("""
+        SELECT COUNT(*) AS count
+        FROM listed_items
+        WHERE LOWER(status) = %s
+        AND user_id = %s
+        AND region_marketplace_id = %s
+    """, (status_value, user_id, marketplace_id))
+
+    grand_total_count = cur.fetchone()["count"]
 
     # --- ▼ 出品実績ブランド（未出品ブランド警告用） ▼ ---
     cur.execute("""
@@ -1128,7 +1139,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             )
         )
         
-    return result, total_count, None
+    return result, total_count, grand_total_count, None
 
 # --- ▼ SECTION 06: Pre Listing 取得処理 ▼ ---
 @listing_bp.route("/get_prelisting", methods=["GET"])
@@ -1154,12 +1165,12 @@ def get_prelisting():
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
 
-        return jsonify({"status": "success", "pre": rows, "total_count": total_count})
+        return jsonify({"status": "success", "pre": rows, "total_count": total_count, "grand_total_count": grand_total_count})
 
     except Exception as e:
         import traceback
@@ -1185,12 +1196,12 @@ def get_alllisting():
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter)
-        
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter)
+
         if err:
             return jsonify({"status": "error", "message": err}), 400
 
-        return jsonify({"status": "success", "all": rows, "total_count": total_count})
+        return jsonify({"status": "success", "all": rows, "total_count": total_count, "grand_total_count": grand_total_count})
         
 
     except Exception as e:

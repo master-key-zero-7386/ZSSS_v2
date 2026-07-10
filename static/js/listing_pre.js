@@ -108,6 +108,7 @@ window.loadprelisting = async function (country_code) {
             fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&brand_status=${brandStatus}&region_seller=${regionSeller}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
+                window.preGrandTotalCount = json.grand_total_count;
                 callback({
                     data: json.pre,
                     recordsTotal: json.total_count,

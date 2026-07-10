@@ -189,6 +189,26 @@ window.getCommonDataTableOptions = function() {
 
             });
 
+            // --- ▼ 登録総数（絞り込み無視のPre/ALL全体件数）を info 表示末尾に追加 ▼ ---
+            const tableId = api.table().node().id;
+
+            let grandTotal = null;
+            let grandLabel = "";
+
+            if (tableId === "prelistingtable") {
+                grandTotal = window.preGrandTotalCount;
+                grandLabel = "Pre登録総数";
+            } else if (tableId === "alllistingtable") {
+                grandTotal = window.allGrandTotalCount;
+                grandLabel = "ALL登録総数";
+            }
+
+            if (grandTotal !== null && grandTotal !== undefined) {
+                container.find(".dataTables_info").text(function(_i, text) {
+                    return `${text}　（${grandLabel}：${grandTotal.toLocaleString()}）`;
+                });
+            }
+
         }
     };
 };
