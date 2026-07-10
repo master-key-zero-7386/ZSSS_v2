@@ -183,7 +183,9 @@ if __name__ == "__main__":
             print(rule.endpoint, rule.rule, rule.methods)  # チェック完了後削除
             
     # --- Flaskサーバ起動（これ1回だけ！） ---
-    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    # threaded=True: ページ初期表示時に多数のAPIをブラウザが並列で叩くため、
+    # シングルスレッドのままだと1本ずつ直列処理になり待ち時間が積み上がっていた。
+    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False, threaded=True)
 
 
 
