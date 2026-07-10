@@ -911,8 +911,9 @@ def upload_report_candidates():
     try:
         period_days = int(request.form.get("period_days") or 30)
         threshold = int(request.form.get("threshold") or 5)
+        min_days_listed = int(request.form.get("min_days_listed") or 30)
     except (TypeError, ValueError):
-        return jsonify({"status": "error", "message": "period_days / threshold must be numbers"}), 400
+        return jsonify({"status": "error", "message": "period_days / threshold / min_days_listed must be numbers"}), 400
 
     conn_m = get_conn("a_marketplaces.db")
     cur_m = conn_m.cursor()
@@ -936,17 +937,33 @@ def upload_report_candidates():
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
-    # --- 現在出品中のASINだけに絞る ---
+    # --- 現在出品中のASINだけに絞る（登録から日が浅いものは除外） ---
     conn_li = get_conn(f"a_{country_code}_listed_items.db")
     cur_li = conn_li.cursor()
     cur_li.execute("""
-        SELECT asin
+        SELECT asin, created_at
         FROM listed_items
         WHERE user_id = %s
         AND region_marketplace_id = %s
         AND LOWER(status) = 'listed'
     """, (user_id, region_marketplace_id))
-    listed_asins = [r["asin"] for r in cur_li.fetchall()]
+
+    now_dt = datetime.utcnow()
+    listed_asins = []
+
+    for r in cur_li.fetchall():
+        created_at = r["created_at"]
+        try:
+            elapsed_days = (now_dt - datetime.fromisoformat(created_at)).days if created_at else None
+        except ValueError:
+            elapsed_days = None
+
+        # created_atが無い/壊れている場合は対象外にはせず、経過日数チェックはスキップする
+        if elapsed_days is not None and elapsed_days < min_days_listed:
+            continue
+
+        listed_asins.append(r["asin"])
+
     conn_li.close()
 
     overlap_asins = [asin for asin in listed_asins if asin in sessions_by_asin]

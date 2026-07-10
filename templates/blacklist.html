@@ -193,6 +193,13 @@
                     <span id="reportUploadStatus" style="margin-left:10px; font-size:14px;"></span>
                 </div>
 
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                    <label>登録から
+                        <input type="number" id="reportMinDaysListed" value="30" min="0" max="365" style="width:70px; padding:4px;">
+                        日以上経過したASINのみ対象（出品したばかりのASINが低セッション扱いで混ざるのを防止）
+                    </label>
+                </div>
+
                 <div style="margin-bottom:10px;">
                     <button type="button" id="reportRegisterBtn" class="btn-red">選択した候補をブラックリスト登録</button>
                 </div>

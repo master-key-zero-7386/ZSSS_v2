@@ -577,12 +577,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const period_days = parseInt(document.getElementById("reportPeriodDays").value, 10) || 30;
         const threshold = parseInt(document.getElementById("reportThreshold").value, 10) || 0;
+        const min_days_listed = parseInt(document.getElementById("reportMinDaysListed").value, 10) || 0;
 
         const formData = new FormData();
         formData.append("file", reportCsvFileInput.files[0]);
         formData.append("country_code", country_code);
         formData.append("period_days", period_days);
         formData.append("threshold", threshold);
+        formData.append("min_days_listed", min_days_listed);
 
         if (statusEl) statusEl.textContent = "取込中...";
 
