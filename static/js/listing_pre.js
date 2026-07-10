@@ -91,6 +91,11 @@ window.loadprelisting = async function (country_code) {
             // console.log("INPUT VALUE:", keyword);
             const page = Math.floor((dt.start || 0) / (dt.length || 100)) + 1;
 
+            // --- サイドバー切替・タブ切替・リージョン変更等、複数の経路から
+            //     ほぼ同時にloadprelisting()が呼ばれても、通信が完了するまでは
+            //     window.prelistingLoadingをtrueに保つ（重複リクエスト防止）
+            window.prelistingLoading = true;
+
             fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&brand_status=${brandStatus}&region_seller=${regionSeller}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
@@ -99,8 +104,15 @@ window.loadprelisting = async function (country_code) {
                     recordsTotal: json.total_count,
                     recordsFiltered: json.total_count
                 });
+            })
+            .catch(err => {
+                console.error("get_prelisting error:", err);
+                callback({ data: [], recordsTotal: 0, recordsFiltered: 0 });
+            })
+            .finally(() => {
+                window.prelistingLoading = false;
             });
-        },     
+        },
 
         order: [],
         orderClasses: false,
@@ -581,9 +593,7 @@ window.loadprelisting = async function (country_code) {
         window.attachDeleteButtons("#prelistingtable");
     }
 
-    setTimeout(() => {
-        window.prelistingLoading = false;
-    }, 0);
+    // --- window.prelistingLoading は ajax() 内のfetch完了時（.finally）で解除する ---
 };
 
 // =====================================================
