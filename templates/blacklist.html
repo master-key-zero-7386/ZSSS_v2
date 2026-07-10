@@ -172,21 +172,25 @@
             <div id="tab-report" class="bl-tab-content">
                 <h3>レポート分析（低閲覧数ASINの削除候補）</h3>
                 <p style="font-size:12px; color:#666;">
-                    ※ SP-APIのBusiness Reportから、現在選択中のマーケットで出品中のASINごとのセッション数（閲覧数）を取得し、しきい値未満のASINを候補として蓄積します。<br>
+                    ※ セラセンからダウンロードしたビジネスレポート（Detail Page Sales and Traffic）CSVを取り込み、現在選択中のマーケットで出品中のASINのうち、セッション数（閲覧数）がしきい値未満のものを候補として蓄積します。<br>
+                    （SP-APIでの自動取得は「ブランド分析」ロールが必要でブランド未登録アカウントでは使えないため、手動アップロード方式にしています）<br>
                     候補一覧からチェックを付けて「ブラックリスト登録」すると、通常のブラックリストと同じ仕組みで自動的に出品削除されます。
                 </p>
 
+                <input type="file" id="reportCsvFileInput" accept=".csv,.tsv,.txt" style="display:none;" />
+
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                    <label>集計期間：直近
-                        <input type="number" id="reportPeriodDays" value="90" min="7" max="365" style="width:70px; padding:4px;">
-                        日
+                    <input type="text" id="reportCsvFileName" class="file-input-text" placeholder="ビジネスレポートCSVを選択してください" readonly style="width:300px;" />
+                    <label style="margin-left:8px;">集計期間：直近
+                        <input type="number" id="reportPeriodDays" value="30" min="1" max="365" style="width:70px; padding:4px;">
+                        日（レポート内容に合わせて記録用に入力）
                     </label>
                     <label style="margin-left:16px;">しきい値：セッション数
                         <input type="number" id="reportThreshold" value="5" min="0" style="width:70px; padding:4px;">
                         件未満
                     </label>
-                    <button type="button" id="reportAnalyzeBtn" class="btn-blue" style="margin-left:16px;">分析実行</button>
-                    <span id="reportAnalyzeStatus" style="margin-left:10px; font-size:14px;"></span>
+                    <button type="button" id="reportUploadBtn" class="btn-blue" style="margin-left:16px;">取込</button>
+                    <span id="reportUploadStatus" style="margin-left:10px; font-size:14px;"></span>
                 </div>
 
                 <div style="margin-bottom:10px;">

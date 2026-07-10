@@ -9,21 +9,18 @@
 from flask import Blueprint, request, jsonify, session
 import os
 import csv
+import io
 from amazon.db import get_conn
 from io import TextIOWrapper
-from datetime import datetime, timedelta
+from datetime import datetime
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import threading
 from amazon.routes.routes_pricing_v2 import delete_listings_item
 from psycopg2.errors import UniqueViolation
 from amazon.services.ttl_stop_service import apply_blacklist, clear_blacklist
-from amazon.adapters.reports_adapter_region import fetch_sales_and_traffic_sessions
 
 blacklist_bp = Blueprint("blacklist_bp", __name__)
-
-# --- ▼ 低閲覧数ASIN分析：実行状況（ユーザー×国 単位、プロセス内メモリ管理） ▼ ---
-_REPORT_ANALYSIS_STATE = {}
 
 # --- ▼ SECTION 01: country_code 正規チェック ▼ ---
 def _validate_country_code(country_code: str) -> str:
@@ -810,30 +807,112 @@ def apply_blacklist_update(user_id, country_code):
     conn.commit()
     conn.close()
 
-# --- ▼ SECTION 11: 低閲覧数ASIN分析：実行開始 ▼ ---
-@blacklist_bp.post("/blacklist/report_analyze/start")
-def start_report_analyze():
+# --- ▼ SECTION 11: 低閲覧数ASIN分析：ビジネスレポートCSV取込 ▼ ---
+# セラセンから手動DLした「Detail Page Sales and Traffic」レポートを取り込む
+# （GET_SALES_AND_TRAFFIC_REPORTのSP-APIアクセスは「ブランド分析」ロールが必要で、
+#   ブランド登録していないリセラーアカウントでは使えないため手動運用にしている）
+_ASIN_CHILD_HINTS = ["child", "子"]
+_ASIN_PARENT_HINTS = ["parent", "親"]
+_SESSION_INCLUDE_HINTS = ["session", "セッション"]
+_SESSION_EXCLUDE_HINTS = ["percentage", "%", "率", "b2b", "mobile", "モバイル", "browser", "ブラウザ"]
+_SESSION_PREFER_HINTS = ["total", "合計"]
+
+def _find_asin_column(fieldnames):
+    child_col = None
+    generic_col = None
+
+    for h in fieldnames:
+        h_low = (h or "").strip().lower()
+        if "asin" not in h_low:
+            continue
+
+        if any(hint in h_low for hint in _ASIN_CHILD_HINTS):
+            child_col = child_col or h
+        elif any(hint in h_low for hint in _ASIN_PARENT_HINTS):
+            continue  # 親ASINは対象外
+        else:
+            generic_col = generic_col or h
+
+    return child_col or generic_col
+
+def _find_session_column(fieldnames):
+    preferred_col = None
+    fallback_col = None
+
+    for h in fieldnames:
+        h_low = (h or "").strip().lower()
+
+        if not any(hint in h_low for hint in _SESSION_INCLUDE_HINTS):
+            continue
+        if any(hint in h_low for hint in _SESSION_EXCLUDE_HINTS):
+            continue
+
+        if any(hint in h_low for hint in _SESSION_PREFER_HINTS):
+            preferred_col = preferred_col or h
+        else:
+            fallback_col = fallback_col or h
+
+    return preferred_col or fallback_col
+
+def _parse_report_csv(file_storage):
+    raw = file_storage.stream.read().decode("utf-8-sig", errors="ignore")
+
+    try:
+        dialect = csv.Sniffer().sniff(raw.splitlines()[0])
+        delimiter = dialect.delimiter
+    except Exception:
+        delimiter = "\t" if raw.splitlines()[0].count("\t") > raw.splitlines()[0].count(",") else ","
+
+    reader = csv.DictReader(io.StringIO(raw), delimiter=delimiter)
+
+    if not reader.fieldnames:
+        raise ValueError("CSVのヘッダーが読み取れません")
+
+    asin_col = _find_asin_column(reader.fieldnames)
+    session_col = _find_session_column(reader.fieldnames)
+
+    if not asin_col or not session_col:
+        raise ValueError(
+            f"ASIN列（子ASIN）またはセッション数列が見つかりません（検出したヘッダー: {reader.fieldnames}）"
+        )
+
+    sessions_by_asin = {}
+
+    for row in reader:
+        asin = (row.get(asin_col) or "").strip().upper()
+        if not asin:
+            continue
+
+        sessions_raw = (row.get(session_col) or "0").replace(",", "").strip()
+
+        try:
+            sessions = int(float(sessions_raw)) if sessions_raw else 0
+        except ValueError:
+            sessions = 0
+
+        sessions_by_asin[asin] = sessions
+
+    return sessions_by_asin
+
+@blacklist_bp.post("/blacklist/report_candidates/upload")
+def upload_report_candidates():
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"status": "error", "message": "login required"}), 401
 
-    data = request.get_json() or {}
-    country_code = (data.get("country_code") or "").lower()
-
+    country_code = (request.form.get("country_code") or "").lower()
     if not country_code:
         return jsonify({"status": "error", "message": "country_code required"}), 400
 
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        return jsonify({"status": "error", "message": "CSVファイルを選択してください"}), 400
+
     try:
-        period_days = int(data.get("period_days") or 90)
-        threshold = int(data.get("threshold") or 5)
+        period_days = int(request.form.get("period_days") or 30)
+        threshold = int(request.form.get("threshold") or 5)
     except (TypeError, ValueError):
         return jsonify({"status": "error", "message": "period_days / threshold must be numbers"}), 400
-
-    key = (user_id, country_code)
-    state = _REPORT_ANALYSIS_STATE.get(key)
-
-    if state and state.get("running"):
-        return jsonify({"status": "error", "message": "既に分析を実行中です"}), 409
 
     conn_m = get_conn("a_marketplaces.db")
     cur_m = conn_m.cursor()
@@ -852,83 +931,38 @@ def start_report_analyze():
 
     region_marketplace_id = row_mp["marketplace_id"]
 
-    _REPORT_ANALYSIS_STATE[key] = {
-        "running": True,
-        "error": None,
-        "started_at": datetime.utcnow().isoformat(),
-        "finished_at": None,
-        "candidate_count": None,
-    }
+    try:
+        sessions_by_asin = _parse_report_csv(file)
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
-    threading.Thread(
-        target=_run_report_analysis,
-        args=(user_id, country_code, region_marketplace_id, period_days, threshold),
-        daemon=True
-    ).start()
+    # --- 現在出品中のASINだけに絞る ---
+    conn_li = get_conn(f"a_{country_code}_listed_items.db")
+    cur_li = conn_li.cursor()
+    cur_li.execute("""
+        SELECT asin
+        FROM listed_items
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        AND LOWER(status) = 'listed'
+    """, (user_id, region_marketplace_id))
+    listed_asins = [r["asin"] for r in cur_li.fetchall()]
+    conn_li.close()
 
-    return jsonify({"status": "started"})
+    overlap_asins = [asin for asin in listed_asins if asin in sessions_by_asin]
 
-# --- ▼ SECTION 12: 低閲覧数ASIN分析：実行状況取得 ▼ ---
-@blacklist_bp.get("/blacklist/report_analyze/status")
-def get_report_analyze_status():
-    user_id = session.get("user_id")
-    country_code = (request.args.get("country_code") or "").lower()
+    candidates = [
+        (asin, sessions_by_asin[asin])
+        for asin in overlap_asins
+        if sessions_by_asin[asin] < threshold
+    ]
 
-    if not user_id or not country_code:
-        return jsonify({"status": "error", "message": "invalid user or country_code"}), 400
+    now_utc = datetime.utcnow().isoformat()
 
-    state = _REPORT_ANALYSIS_STATE.get((user_id, country_code)) or {
-        "running": False,
-        "error": None,
-        "started_at": None,
-        "finished_at": None,
-        "candidate_count": None,
-    }
-
-    return jsonify({"status": "success", **state})
-
-# --- ▼ SECTION 13: 低閲覧数ASIN分析：バックグラウンド実行本体 ▼ ---
-def _run_report_analysis(user_id, country_code, region_marketplace_id, period_days, threshold):
-    key = (user_id, country_code)
+    conn = get_conn(f"a_{country_code}_report_candidate_asin.db")
+    cur = conn.cursor()
 
     try:
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=period_days)
-
-        rows = fetch_sales_and_traffic_sessions(
-            user_id=user_id,
-            country_code=country_code,
-            marketplace_id=region_marketplace_id,
-            start_date=start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            end_date=end_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        )
-
-        sessions_by_asin = {r["asin"]: r["sessions"] for r in rows}
-
-        # --- 現在出品中のASINだけに絞る ---
-        conn_li = get_conn(f"a_{country_code}_listed_items.db")
-        cur_li = conn_li.cursor()
-        cur_li.execute("""
-            SELECT asin
-            FROM listed_items
-            WHERE user_id = %s
-            AND region_marketplace_id = %s
-            AND status = 'listed'
-        """, (user_id, region_marketplace_id))
-        listed_asins = [r["asin"] for r in cur_li.fetchall()]
-        conn_li.close()
-
-        candidates = [
-            (asin, sessions_by_asin.get(asin, 0))
-            for asin in listed_asins
-            if sessions_by_asin.get(asin, 0) < threshold
-        ]
-
-        now_utc = datetime.utcnow().isoformat()
-
-        conn = get_conn(f"a_{country_code}_report_candidate_asin.db")
-        cur = conn.cursor()
-
         for asin, sessions in candidates:
             cur.execute("""
                 INSERT INTO report_candidate_asin
@@ -940,26 +974,21 @@ def _run_report_analysis(user_id, country_code, region_marketplace_id, period_da
                     period_days = excluded.period_days,
                     checked_at = excluded.checked_at
             """, (user_id, region_marketplace_id, asin, sessions, period_days, now_utc))
-
         conn.commit()
-        conn.close()
-
-        _REPORT_ANALYSIS_STATE[key] = {
-            "running": False,
-            "error": None,
-            "started_at": _REPORT_ANALYSIS_STATE.get(key, {}).get("started_at"),
-            "finished_at": now_utc,
-            "candidate_count": len(candidates),
-        }
-
     except Exception as e:
-        _REPORT_ANALYSIS_STATE[key] = {
-            "running": False,
-            "error": str(e),
-            "started_at": _REPORT_ANALYSIS_STATE.get(key, {}).get("started_at"),
-            "finished_at": datetime.utcnow().isoformat(),
-            "candidate_count": None,
-        }
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": "取込に失敗しました", "detail": str(e)}), 500
+
+    conn.close()
+
+    return jsonify({
+        "status": "success",
+        "matched_asin_count": len(sessions_by_asin),
+        "listed_asin_count": len(listed_asins),
+        "overlap_count": len(overlap_asins),
+        "candidate_count": len(candidates),
+    })
 
 # --- ▼ SECTION 14: 低閲覧数ASIN分析：候補一覧取得 ▼ ---
 @blacklist_bp.get("/blacklist/report_candidates/<country_code>")
