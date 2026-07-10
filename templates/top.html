@@ -93,9 +93,12 @@
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
   transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
 
-  position: relative; 
+  /* ← 一覧が長くてもサイドバーは画面に固定してスクロールさせない */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: calc(100vh - 80px);
 
-  /* height: 100vh; */
   overflow-y: auto;
 }
 
