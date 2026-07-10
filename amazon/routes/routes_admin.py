@@ -440,6 +440,10 @@ def delete_amazon_retail():
 # --- ▼ SECTIONⅡ 01: 管理者：巡回設定 保存（時間 + LIMIT） ▼ ---
 @admin_api_bp.route("/save_bg_scan_settings", methods=["POST"])
 def save_bg_scan_settings():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
     data = request.get_json() or {}
 
     interval_min  = data.get("interval_min")
@@ -521,6 +525,10 @@ def save_bg_scan_settings():
 # --- ▼ SECTIONⅡ 02: 管理者：巡回設定 取得 ▼ ---
 @admin_api_bp.route("/get_bg_scan_settings", methods=["GET"])
 def get_bg_scan_settings():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
     try:
         conn = get_conn("a_bg_scan_settings.db")
         cur = conn.cursor()
@@ -555,6 +563,10 @@ def get_bg_scan_settings():
 # --- ▼ SECTIONⅡ 03: RAW取得（管理者） ▼ ---
 @admin_api_bp.route("/debug/get_raw_by_asin", methods=["GET"])
 def get_raw_by_asin():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
     try:
         asin = request.args.get("asin")
         country_code = (request.args.get("country_code") or "").lower()
@@ -639,6 +651,10 @@ def get_raw_by_asin():
 # --- TTL ID取得 ▼ ---
 @admin_api_bp.route("/debug/get_ttl_state", methods=["GET"])
 def get_ttl_state():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
     try:
         country_code = (request.args.get("country_code") or "").lower()
 
@@ -720,6 +736,10 @@ DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "db", "a_marketplaces.db")
 
 @admin_market_bp.route("/get_marketplaces", methods=["GET"])
 def get_marketplaces():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
     conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
 
@@ -739,6 +759,9 @@ def get_marketplaces():
 # --- ▼ SECTIONⅢ 01: HOME Pricing Debug 実行（From：pricing_debug.html） ▼ ---
 @admin_api_bp.route("/run_home_pricing_debug", methods=["POST"])
 def run_home_pricing_debug():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
 
     data = request.get_json()
     asin = data.get("asin")
@@ -828,6 +851,9 @@ def run_home_pricing_debug():
 # --- ▼ SECTIONⅢ 02: REGION Pricing Debug（HOME構造に合わせた純デバッグ） ▼ ---
 @admin_api_bp.route("/run_region_pricing_debug", methods=["POST"])
 def run_region_pricing_debug():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
 
     data = request.get_json()
     asin = data.get("asin")

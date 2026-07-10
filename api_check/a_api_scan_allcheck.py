@@ -7,7 +7,7 @@
 # =====================================================
 
 import json
-from flask import Blueprint, request, Response
+from flask import Blueprint, request, Response, session, jsonify
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.db import get_conn
 
@@ -19,16 +19,21 @@ api_raw_check_bp = Blueprint(
 
 @api_raw_check_bp.route("/catalog", methods=["GET"])
 def api_raw_catalog_check():
+    # 管理者チェック
+    if not session.get("is_admin"):
+        return jsonify({"status": "error", "message": "権限なし"}), 403
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "login required"}), 401
+
     asin = (request.args.get("asin") or "").strip().upper()
-    ui_country_code = (request.args.get("region") or "").strip().upper()
+    ui_country_code = (request.args.get("country_code") or request.args.get("region") or "").strip().upper()
 
     if not asin or not ui_country_code:
         return {"status": "error", "message": "asin / region required"}, 400
 
-    # ★ HOME固定でAdapter生成（既存ZSSS無影響）
-    adapter = AmazonAdapter(user_id=1)
-
-    # ★ UIで選んだregionから marketplace_id だけ取得
+    # ★ UIで選んだregionから marketplace_id を取得
     conn = get_conn("a_marketplaces.db")
     cur = conn.cursor()
     cur.execute("""
@@ -37,7 +42,7 @@ def api_raw_catalog_check():
         WHERE user_id = %s
           AND UPPER(country_code) = UPPER(%s)
         LIMIT 1
-    """, (1, ui_country_code))
+    """, (user_id, ui_country_code))
     row = cur.fetchone()
     conn.close()
 
@@ -45,6 +50,10 @@ def api_raw_catalog_check():
         return {"status": "error", "message": f"marketplace not found: {ui_country_code}"}, 400
 
     marketplace_id = row["marketplace_id"]
+
+    # ★ 現在ログイン中の管理者のuser_id + marketplace_idでAdapter生成
+    #    （marketplace_idはAmazonAdapterのコンストラクタで必須のため、先に解決してから渡す）
+    adapter = AmazonAdapter(user_id=user_id, marketplace_id=marketplace_id)
 
     # ★ Catalog Items API を1回だけ叩く（画像含む）
     endpoint = f"/catalog/2022-04-01/items/{asin}"

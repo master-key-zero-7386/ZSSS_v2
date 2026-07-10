@@ -42,6 +42,12 @@ csv_import_bp = Blueprint("csv_import", __name__)
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# --- ▼ user_id単位でアップロード先を分離（同名ファイルの衝突・混在を防ぐ） ▼ ---
+def _get_user_upload_dir(user_id):
+    user_dir = os.path.join(UPLOAD_FOLDER, str(user_id))
+    os.makedirs(user_dir, exist_ok=True)
+    return user_dir
+
 # --- ▼ 他社ツール出品済みASIN 突合（重複出品防止・一時運用） ▼ ---
 def _get_external_listed_asins(country_code, user_id, marketplace_id, asin_list):
     if not asin_list:
@@ -65,6 +71,10 @@ def _get_external_listed_asins(country_code, user_id, marketplace_id, asin_list)
 @csv_import_bp.route("/upload", methods=["POST"])
 def upload_csv():
     try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "login required"}), 401
+
         if "file" not in request.files:
             return jsonify({"status": "error", "message": "ファイルが見つかりません"}), 400
 
@@ -74,7 +84,7 @@ def upload_csv():
 
         filename = secure_filename(file.filename)
 
-        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
         file.save(save_path)
 
         # ✅ ヘッダーチェック
@@ -116,6 +126,8 @@ def check_csv():
 
         # ▼ user_id取得
         user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "login required"}), 401
 
         # ▼ marketplace_id取得
         conn_m = get_conn("a_marketplaces.db")
@@ -138,7 +150,7 @@ def check_csv():
         if file:
 
             filename = secure_filename(file.filename)
-            save_path = os.path.join(UPLOAD_FOLDER, filename)
+            save_path = os.path.join(_get_user_upload_dir(user_id), filename)
             file.save(save_path)
 
             with open(save_path, newline="", encoding="utf-8") as f:
@@ -292,8 +304,12 @@ def import_csv():
 
         if mode == "check":
 
-            listed_asins = [] 
-            blacklist_asins = {}   
+            user_id = session.get("user_id")
+            if not user_id:
+                return jsonify({"status": "error", "message": "login required"}), 401
+
+            listed_asins = []
+            blacklist_asins = {}
 
             # ▼ CSVアップロードして仕分け
             file = request.files["file"]
@@ -308,7 +324,7 @@ def import_csv():
                     "message": f"リージョンとファイル名が一致しません（リージョン={country_code}, ファイル={filename})"
                 }), 400
 
-            save_path = os.path.join(UPLOAD_FOLDER, filename)
+            save_path = os.path.join(_get_user_upload_dir(user_id), filename)
             file.save(save_path)
 
             asin_list = []
@@ -773,7 +789,7 @@ def import_external_listed_asin():
         region_marketplace_id = row_mp["marketplace_id"]
 
         filename = secure_filename(file.filename)
-        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
         file.save(save_path)
 
         asin_rows = []

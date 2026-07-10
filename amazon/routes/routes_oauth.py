@@ -50,13 +50,17 @@ def amazon_oauth_callback():
     else:
         TOKEN_URL = "https://api.amazon.com/auth/o2/token"
 
-        lwa = get_lwa_credentials(marketplace) 
+        # --- ▼ redirect_uri は認可時(build_oauth_authorize_url)と必ず一致させる必要があるため、
+        #        固定値ではなく現在のリクエストのホストから同じ方式で動的生成する ▼ ---
+        redirect_uri = request.url_root.rstrip("/") + "/amazon/oauth/callback"
+
+        lwa = get_lwa_credentials(marketplace)
         payload = {
             "grant_type": "authorization_code",
             "code": code,
-            "client_id": lwa["client_id"],  
-            "client_secret": lwa["client_secret"],# OAuth LWA べた書きなので後々変更修正
-            "redirect_uri": "https://bluntly-umbilicate-quentin.ngrok-free.dev/amazon/oauth/callback",
+            "client_id": lwa["client_id"],
+            "client_secret": lwa["client_secret"],
+            "redirect_uri": redirect_uri,
         }
 
         res = requests.post(

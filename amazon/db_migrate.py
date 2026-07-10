@@ -119,6 +119,14 @@ ADMIN_SETTINGS_COLUMNS = {
     "value": "TEXT"
 }
 
+# --- ▼ SECTION : 429ブロック状態（複数プロセス共有用） ▼ ---
+API_BLOCK_STATE_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "endpoint": "TEXT NOT NULL",
+    "blocked_until": "TEXT NOT NULL",
+}
+
 # --- ▼ SECTION ： Bland Gate用 ▼ ---
 BRAND_GATE_RESULT_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
@@ -551,7 +559,9 @@ def migrate_db(db_name):
     elif base.endswith("_brand_gate_result.db"):
         migrate_table(conn, "brand_gate_result", BRAND_GATE_RESULT_COLUMNS)
     elif base.endswith("_admin_settings.db"):
-        migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS) 
+        migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS)
+    elif base.endswith("_api_block_state.db"):
+        migrate_table(conn, "api_block_state", API_BLOCK_STATE_COLUMNS)
     elif base.endswith("_shipping_override_master.db"):
         migrate_table(conn, "shipping_override_master", SHIPPING_OVERRIDE_MASTER_COLUMNS)    
     elif base.endswith("_lwa_credentials_log.db"):
@@ -827,6 +837,16 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
+    # --- a_api_block_state.db ---
+    conn = get_conn("a_api_block_state.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_api_block_state_unique "
+        "ON api_block_state(user_id, endpoint)"
+    )
+    conn.commit()
+    conn.close()
+
 # --- メイン処理 ---
 def main():
 
@@ -848,6 +868,7 @@ def main():
         "a_shipping_override_master.db",
         "a_lwa_credentials_log.db",
         "a_admin_settings.db",
+        "a_api_block_state.db",
     ]
 
     # 固定DB migrate
