@@ -839,10 +839,68 @@ document.addEventListener("DOMContentLoaded", () => {
         const runPre = document.getElementById("bulkActionRunPre");
         const runAll = document.getElementById("bulkActionRunAll");
 
-        if(runPre) runPre.disabled = !hasChecked;
-        if(runAll) runAll.disabled = !hasChecked;
+        const preAction = document.getElementById("bulkActionSelectPre")?.value;
+
+        // --- 「該当ASIN全一括削除」は絞り込み条件全体が対象のため、行選択の有無を問わず実行可 ---
+        if (runPre) runPre.disabled = (preAction === "delete_all_filtered") ? false : !hasChecked;
+        if (runAll) runAll.disabled = !hasChecked;
 
     });
+
+    // --- ▼ Pre 一括操作プルダウン変更時：「該当ASIN全一括削除」選択時は行未選択でも実行可に ▼
+    document.getElementById("bulkActionSelectPre")?.addEventListener("change", function () {
+        const runPre = document.getElementById("bulkActionRunPre");
+        if (!runPre) return;
+
+        if (this.value === "delete_all_filtered") {
+            runPre.disabled = false;
+        } else {
+            const hasChecked = document.querySelectorAll("#prelistingtable .row-select:checked").length > 0;
+            runPre.disabled = !hasChecked;
+        }
+    });
+
+    // --- ▼ 「該当ASIN全一括削除」は誤操作防止のため、何らかの絞り込みが有効な間のみ選択可にする ▼
+    // 絞り込みなし（全件対象）での事故を避けるため、条件が一つも指定されていない場合は
+    // プルダウンの選択肢自体をdisabledにし、実行ボタンも連動して無効化する。
+    // Preタブの一覧が再描画されるたび（検索・各種フィルタ変更・絞込リセット・ページ切替等）に
+    // listing_pre.js の draw イベントから呼び出される。
+    window.getPreFilterState = function () {
+        const brandgate = document.getElementById("preBrandGateFilter")?.value || "all";
+        const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || "all";
+        const regionSeller = document.getElementById("preRegionSellerFilter")?.value || "all";
+        const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || "all";
+        const keyword = document.querySelector('#preListingSearchInput')?.value?.trim() || "";
+        const reason = document.getElementById("preInactiveReason")?.value || "all";
+
+        const hasFilter =
+            !!keyword ||
+            brandgate !== "all" ||
+            brandStatus !== "all" ||
+            regionSeller !== "all" ||
+            infoStatus !== "all" ||
+            reason !== "all";
+
+        return { brandgate, brandStatus, regionSeller, infoStatus, keyword, reason, hasFilter };
+    };
+
+    window.updatePreDeleteAllFilteredState = function () {
+        const option = document.getElementById("bulkDeleteAllFilteredOption");
+        const select = document.getElementById("bulkActionSelectPre");
+        if (!option || !select) return;
+
+        const { hasFilter } = window.getPreFilterState();
+
+        option.disabled = !hasFilter;
+
+        if (!hasFilter && select.value === "delete_all_filtered") {
+            select.value = "";
+            const runPre = document.getElementById("bulkActionRunPre");
+            if (runPre) runPre.disabled = true;
+        }
+    };
+
+    window.updatePreDeleteAllFilteredState();
 
     // --- ▼ SECTION 11: Pre 一括操作 実行 ▼
     document.getElementById("bulkActionRunPre").addEventListener("click", async function () {
@@ -851,6 +909,85 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!action) {
             alert("操作を選択してください");
+            return;
+        }
+
+        // --- ▼ 該当ASIN全一括削除（絞り込み条件に一致する全ページ分を削除） ▼ ---
+        if (action === "delete_all_filtered") {
+
+            // --- 絞り込みなし（全件対象）での誤削除を防止（選択後に絞込を解除された場合の保険） ---
+            const { hasFilter } = window.getPreFilterState();
+            if (!hasFilter) {
+                alert("絞り込み条件を1つ以上指定してから実行してください（全件対象での削除は防止されています）");
+                window.updatePreDeleteAllFilteredState();
+                return;
+            }
+
+            const country_code = document.getElementById("globalRegion")?.value;
+            if (!country_code) {
+                alert("リージョンを選択してください");
+                return;
+            }
+
+            const table = $.fn.dataTable.isDataTable('#prelistingtable')
+                ? $('#prelistingtable').DataTable()
+                : null;
+
+            const totalCount = table ? table.page.info().recordsTotal : 0;
+
+            if (!totalCount) {
+                alert("削除対象がありません");
+                return;
+            }
+
+            if (!confirm(`現在の絞り込み条件に一致する全 ${totalCount} 件を削除します。\nこの操作は元に戻せません。実行しますか？`)) {
+                return;
+            }
+
+            if (!confirm(`最終確認：本当に全 ${totalCount} 件を削除してよろしいですか？`)) {
+                return;
+            }
+
+            const brandgate = document.getElementById("preBrandGateFilter")?.value || 'all';
+            const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || 'all';
+            const regionSeller = document.getElementById("preRegionSellerFilter")?.value || 'all';
+            const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
+            const keyword = document.querySelector('#preListingSearchInput')?.value || '';
+            const reason = document.getElementById("preInactiveReason")?.value || 'all';
+
+            const runBtn = document.getElementById("bulkActionRunPre");
+            runBtn.disabled = true;
+
+            try {
+                const res = await fetch("/listing/bulk_delete_all_pre", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        country_code,
+                        brandgate,
+                        brand_status: brandStatus,
+                        region_seller: regionSeller,
+                        info_status: infoStatus,
+                        keyword,
+                        reason
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.status === "success") {
+                    window.showToast(`${data.deleted_count}件削除しました`, "success");
+                    window.loadprelisting(country_code);
+                } else {
+                    window.showToast(data.message || "削除に失敗しました", "error");
+                }
+            } catch (e) {
+                console.error("bulk_delete_all_pre error:", e);
+                window.showToast("通信エラーが発生しました", "error");
+            } finally {
+                runBtn.disabled = false;
+            }
+
             return;
         }
 

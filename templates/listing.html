@@ -388,8 +388,8 @@
             <span style="margin-left:20px;">既出品/未出品:</span>
 
             <label><input type="radio" name="preBrandStatus" value="all" checked> 全て</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品のみ</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品のみ</label>            
+            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品Brand</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品Brand</label>            
             
         </div>        
     </div>   
@@ -404,6 +404,7 @@
             <option value="brand_check">選択リスト Brand Gateチェック</option>
             <option value="refresh">選択リスト 最新取得</option>
             <option value="blacklist" disabled>ブラックリスト追加</option>
+            <option id="bulkDeleteAllFilteredOption" value="delete_all_filtered" disabled style="color:#dc3545; font-weight:bold;">⚠ 該当ASIN全一括削除（絞込時のみ選択可）</option>
         </select>
 
         <button id="bulkActionRunPre" class="zsss-control" disabled>実　行</button>

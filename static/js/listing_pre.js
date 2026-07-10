@@ -557,15 +557,18 @@ window.loadprelisting = async function (country_code) {
     });
 
     // --- ▼ SECTION 06: DataTable 再描画時にも登録ボタンを再アタッチ
-    preTable.off('draw').on('draw', function () {        
+    preTable.off('draw').on('draw', function () {
         const hasRealRows = $("#prelistingtable tbody tr").toArray().some(
             tr => !$(tr).text().includes("No data")
         );
         if (hasRealRows) {
-            window.attachRefreshButtons("#prelistingtable"); 
+            window.attachRefreshButtons("#prelistingtable");
             window.attachRegisterButtons("#prelistingtable");
             window.attachDeleteButtons("#prelistingtable");
         }
+
+        // --- 絞り込み状態が変わるたび「該当ASIN全一括削除」の選択可否を再判定 ---
+        window.updatePreDeleteAllFilteredState?.();
     });
 
 

@@ -543,94 +543,10 @@ def _build_listing_row_with_shipping(
         "region_rank_title": region_rank_title,          
     }
     
-# --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
-    # --- marketplace_id + timezone取得 ---
-    conn_mid = get_conn("a_marketplaces.db")
-    cur_mid = conn_mid.cursor()
-
-    cur_mid.execute("""
-        SELECT marketplace_id
-        FROM marketplaces
-        WHERE user_id = %s
-        AND LOWER(country_code) = %s
-        LIMIT 1
-    """, (user_id, country_code))
-    row_mid = cur_mid.fetchone()
-
-    cur_mid.execute("""
-        SELECT timezone, country_code
-        FROM marketplaces
-        WHERE user_id = %s
-        AND home_flag = 1
-        LIMIT 1
-    """, (user_id,))
-    row_tz = cur_mid.fetchone()
-
-    HOME_COUNTRY = row_tz["country_code"] if row_tz else None
-
-    conn_mid.close()
-
-    if not row_mid:
-        return None, 0, "marketplace_id not found"
-
-    marketplace_id = row_mid["marketplace_id"]
-
-    timezone = row_tz["timezone"] if row_tz else "UTC"
-
-    db_name = f"a_{country_code.lower()}_listed_items.db"
-
-    try:
-        conn = get_conn("listed_items") 
-    except FileNotFoundError:
-        return None, 0, "DB not found: listed_items" 
-
-    cur = conn.cursor() 
-
-    offset = (page - 1) * limit  
-
-    # 標準ソート登録日順       
-    order_by = "created_at DESC"
-
-    # ソート種類       
-    if sort == "created_asc":               # 登録日
-        order_by = "created_at ASC"
-    elif sort == "updated_asc":             # 更新日
-        order_by = "updated_at ASC"
-    elif sort == "updated_desc":
-        order_by = "updated_at DESC"    
-    elif sort == "brand_asc":               # ブランド名
-        order_by = "home_brand ASC NULLS LAST"
-    elif sort == "brand_desc":
-        order_by = "home_brand DESC NULLS LAST"       
-    elif sort == "price_asc":               # 価格
-        order_by = "final_price ASC NULLS LAST"
-    elif sort == "price_desc":
-        order_by = "final_price DESC NULLS LAST"
-    elif sort == "weight_asc":              # 請求重量
-        order_by = "billable_weight_kg ASC NULLS LAST"
-    elif sort == "weight_desc":
-        order_by = "billable_weight_kg DESC NULLS LAST"  
-
-    if info_status == "INACTIVE" and sort == "created_desc":
-        order_by = """
-            CASE
-                WHEN inactive_reason = 'BLACKLIST' THEN 1
-                WHEN inactive_reason = 'COMPETITOR_RATIO' THEN 2
-                WHEN inactive_reason = 'NO_PRICE' THEN 3
-                WHEN inactive_reason = 'Setting MAX_PRICE' THEN 4
-                WHEN inactive_reason = 'NO_CATALOG' THEN 5
-                WHEN inactive_reason = 'HOME_NOT_FOUND' THEN 6
-                WHEN inactive_reason = 'HOME_PRICE_NOT_FOUND' THEN 7
-                WHEN inactive_reason = 'HOME_NO_OFFERS' THEN 8
-                WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 9                
-                WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 6
-                ELSE 99
-            END,
-            created_at DESC
-        """       
-
-    # --- フィルタ条件 ---
+# --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
+# Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
+# （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -839,17 +755,113 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             f"%{keyword}%",
             f"%{keyword}%",
             f"%{keyword}%",
-            f"%{keyword}%",    
+            f"%{keyword}%",
             f"%{keyword}%"
         ])
+
+    return query_filter, params_base
+
+# --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
+    # --- marketplace_id + timezone取得 ---
+    conn_mid = get_conn("a_marketplaces.db")
+    cur_mid = conn_mid.cursor()
+
+    cur_mid.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+    row_mid = cur_mid.fetchone()
+
+    cur_mid.execute("""
+        SELECT timezone, country_code
+        FROM marketplaces
+        WHERE user_id = %s
+        AND home_flag = 1
+        LIMIT 1
+    """, (user_id,))
+    row_tz = cur_mid.fetchone()
+
+    HOME_COUNTRY = row_tz["country_code"] if row_tz else None
+
+    conn_mid.close()
+
+    if not row_mid:
+        return None, 0, "marketplace_id not found"
+
+    marketplace_id = row_mid["marketplace_id"]
+
+    timezone = row_tz["timezone"] if row_tz else "UTC"
+
+    db_name = f"a_{country_code.lower()}_listed_items.db"
+
+    try:
+        conn = get_conn("listed_items") 
+    except FileNotFoundError:
+        return None, 0, "DB not found: listed_items" 
+
+    cur = conn.cursor() 
+
+    offset = (page - 1) * limit  
+
+    # 標準ソート登録日順       
+    order_by = "created_at DESC"
+
+    # ソート種類       
+    if sort == "created_asc":               # 登録日
+        order_by = "created_at ASC"
+    elif sort == "updated_asc":             # 更新日
+        order_by = "updated_at ASC"
+    elif sort == "updated_desc":
+        order_by = "updated_at DESC"    
+    elif sort == "brand_asc":               # ブランド名
+        order_by = "home_brand ASC NULLS LAST"
+    elif sort == "brand_desc":
+        order_by = "home_brand DESC NULLS LAST"       
+    elif sort == "price_asc":               # 価格
+        order_by = "final_price ASC NULLS LAST"
+    elif sort == "price_desc":
+        order_by = "final_price DESC NULLS LAST"
+    elif sort == "weight_asc":              # 請求重量
+        order_by = "billable_weight_kg ASC NULLS LAST"
+    elif sort == "weight_desc":
+        order_by = "billable_weight_kg DESC NULLS LAST"  
+
+    if info_status == "INACTIVE" and sort == "created_desc":
+        order_by = """
+            CASE
+                WHEN inactive_reason = 'BLACKLIST' THEN 1
+                WHEN inactive_reason = 'COMPETITOR_RATIO' THEN 2
+                WHEN inactive_reason = 'NO_PRICE' THEN 3
+                WHEN inactive_reason = 'Setting MAX_PRICE' THEN 4
+                WHEN inactive_reason = 'NO_CATALOG' THEN 5
+                WHEN inactive_reason = 'HOME_NOT_FOUND' THEN 6
+                WHEN inactive_reason = 'HOME_PRICE_NOT_FOUND' THEN 7
+                WHEN inactive_reason = 'HOME_NO_OFFERS' THEN 8
+                WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 9                
+                WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 6
+                ELSE 99
+            END,
+            created_at DESC
+        """       
+
+    # --- フィルタ条件 ---
+    query_filter, params_base = _build_listing_query_filter(
+        status_value, user_id, marketplace_id,
+        info_status=info_status, reason=reason, keyword=keyword,
+        brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter
+    )
 
     # --- データ取得 ---
     params_data = params_base + [limit, offset]
 
     cur.execute(f"""
-        SELECT 
+        SELECT
             asin, sku,
-            home_marketplace_id,  
+            home_marketplace_id,
             hm.country_code AS home_country_code,
             rm.country_code AS region_country_code,
             COALESCE(home_title, '') AS home_title,
@@ -858,7 +870,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             length_cm,
             width_cm,
             height_cm,
-            actual_weight_kg, 
+            actual_weight_kg,
             volumetric_weight_kg,
             billable_weight_kg,
             COALESCE(home_price, NULL) AS home_price,
@@ -867,7 +879,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(override_price, NULL) AS override_price,
             COALESCE(profit_rate, NULL) AS profit_rate,
             COALESCE(min_price, NULL) AS min_price,
-            COALESCE(max_price, NULL) AS max_price, 
+            COALESCE(max_price, NULL) AS max_price,
             COALESCE(raw_min_price, NULL) AS raw_min_price,
             COALESCE(region_brand, '') AS region_brand,
             COALESCE(region_manufacturer, '') AS region_manufacturer,
@@ -920,7 +932,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     result = []
 
-    black_asin_set = set() 
+    black_asin_set = set()
     black_brand_set = set()  
 
     conn_bl = get_conn("a_all_blacklist_asin.db")
@@ -1880,6 +1892,80 @@ def bulk_delete_items():
         "status": "success",
         "results": results
     })
+
+# --- ▼ SECTION 11-2: 該当ASIN全一括削除（Pre専用／絞り込み条件に一致する全件をDB削除） ▼ ---
+# ALLは出品済み実データのため誤削除リスク回避の観点からPreのみ対応。
+# ページ内チェック選択に依存せず、現在の絞り込み条件（検索キーワード／各種フィルタ）に
+# 一致する全件（複数ページ分）を一括でDB削除する。
+@listing_bp.route("/bulk_delete_all_pre", methods=["POST"])
+def bulk_delete_all_pre():
+    try:
+        data = request.get_json() or {}
+
+        country_code = (data.get("country_code") or "").strip().lower()
+        user_id = session.get("user_id")
+
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code is required"}), 400
+
+        brandgate_filter = data.get("brandgate") or "all"
+        brand_status_filter = data.get("brand_status") or "all"
+        region_seller_filter = data.get("region_seller") or "all"
+        info_status = data.get("info_status") or "all"
+        reason = data.get("reason") or "all"
+        keyword = data.get("keyword") or ""
+
+        # --- marketplace_id取得 ---
+        conn_mid = get_conn("a_marketplaces.db")
+        cur_mid = conn_mid.cursor()
+
+        cur_mid.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s
+            AND LOWER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code))
+        row_mid = cur_mid.fetchone()
+        conn_mid.close()
+
+        if not row_mid:
+            return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+        marketplace_id = row_mid["marketplace_id"]
+
+        # --- Pre一覧取得と同一ロジックで絞り込み条件を再現 ---
+        query_filter, params_base = _build_listing_query_filter(
+            "pre", user_id, marketplace_id,
+            info_status=info_status, reason=reason, keyword=keyword,
+            brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter
+        )
+
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
+
+        cur = conn.cursor()
+
+        cur.execute(f"""
+            DELETE FROM listed_items
+            WHERE LOWER(status) = %s
+            AND user_id = %s
+            {query_filter}
+        """, params_base)
+
+        deleted_count = cur.rowcount
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "success", "deleted_count": deleted_count})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # --- ▼ SECTION 12: Pre → ALL 移動処理 ▼ ---
 @listing_bp.route("/move_to_all", methods=["POST"])
