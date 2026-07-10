@@ -406,7 +406,7 @@ window.loadprelisting = async function (country_code) {
                 render: function (_data, _type, row) {
                     return `
                         <div style="display:inline-block; border-bottom:2px solid #1c0cfa;">
-                            <span style="display:inline-block; width:90px; font-weight:bold;">出品価格</span>
+                            <span style="display:inline-block; width:66px; font-weight:bold;">出品価格</span>
                             ：<span class="disp-sale-price" style="
                                     font-size:25px;
                                     font-weight:bold;
