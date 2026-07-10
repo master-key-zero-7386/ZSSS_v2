@@ -295,9 +295,8 @@
             {{ session.get("user_id") | tojson }}
         </script>            
 
-        <!-- ✅ Listing 系スクリプト -->
-        <script src="{{ url_for('static', filename='js/listing_pre.js') }}"></script>
-        <script src="{{ url_for('static', filename='js/listing_all.js') }}"></script>
+        <!-- listing_pre.js / listing_all.js は layout.html で読み込み済み（ここで再度読み込むと
+             全リスナーが二重登録されていたため削除） -->
 
         <!-- ✅ CSV Import 専用スクリプト -->
         <script src="{{ url_for('static', filename='js/csv_import.js') }}"></script>

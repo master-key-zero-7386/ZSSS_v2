@@ -28,7 +28,12 @@ window.loadprelisting = async function (country_code) {
     );
 
     // --- ▼ SECTION 04: Pre info_status変更時 再読み込み ▼ ---
+    // loadprelisting()が呼ばれるたびにこのforEachが再実行されるため、
+    // dataset.boundで初回のみバインドする（未ガードだと再読み込みのたびにリスナーが増殖していた）
     document.querySelectorAll('input[name="preInfoStatus"]').forEach(radio => {
+        if (radio.dataset.bound) return;
+        radio.dataset.bound = "1";
+
         radio.addEventListener("change", () => {
 
             // --- ▼ INACTIVE選択時だけ理由プルダウンを有効化 ▼ ---
@@ -47,7 +52,7 @@ window.loadprelisting = async function (country_code) {
 
             loadprelisting(region);
         });
-    });    
+    });
 
     // --- ▼ SECTION 04-2: 理由プルダウン変更時も再読み込み ▼ ---
     const preReasonSelect = document.getElementById("preInactiveReason");
@@ -62,7 +67,11 @@ window.loadprelisting = async function (country_code) {
     }
 
     // --- ▼ SECTION 04-3: Pre 既出品/未出品 変更時 再読み込み ▼ ---
+    // こちらも同様にdataset.boundで初回のみバインド
     document.querySelectorAll('input[name="preBrandStatus"]').forEach(radio => {
+        if (radio.dataset.bound) return;
+        radio.dataset.bound = "1";
+
         radio.addEventListener("change", () => {
 
             const region = document.getElementById("globalRegion")?.value;

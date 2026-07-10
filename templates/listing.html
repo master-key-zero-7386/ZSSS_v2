@@ -535,6 +535,7 @@
     <table id="alllistingtable" class="display zsss-listing-table"></table>
 </div>
 
-<script src="{{ url_for('static', filename='js/listing_common.js') }}"></script>
+<!-- listing_common.js は layout.html で読み込み済み（このファイルはtop.html経由でinclude
+     されるフラグメントのため、ここで再度読み込むと全リスナーが二重登録されていた） -->
 
 
