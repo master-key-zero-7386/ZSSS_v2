@@ -209,6 +209,12 @@ window.getCommonDataTableOptions = function() {
                 });
             }
 
+            // --- ▼ 絞り込み・ページ切替でリストの高さが変わってもscrollイベントが
+            //     発火しないため、再描画のたびにスクロールボタンの表示を再評価する ▼ ---
+            if (typeof window.updateScrollButtons === "function") {
+                window.updateScrollButtons();
+            }
+
         }
     };
 };

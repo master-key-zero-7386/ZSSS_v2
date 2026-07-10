@@ -372,6 +372,10 @@ window.addEventListener("DOMContentLoaded", () => {
             if (activeTab) activeTab.classList.add('active');
             if (activeContent) activeContent.classList.add('active');
 
+            if (typeof window.updateScrollButtons === "function") {
+                window.updateScrollButtons();
+            }
+
             // ★ account 表示時：Region Country ＋ SELLING 情報を同期
             if (tabName === "account") {
                 const region = document.getElementById("globalRegion")?.value;
@@ -717,32 +721,40 @@ window.addEventListener("DOMContentLoaded", () => {
         }, 2500);
     };    
 
-    // === ▼ SECTION 10-12: 共通UI：Scroll Top Button ↑ ▼ ===     
+    // === ▼ SECTION 10-12: 共通UI：Scroll Top Button ↑ ▼ ===
+    // タブ切替（.tab-content.active の付け替え）や絞り込みAJAX再描画では
+    // ネイティブのscrollイベントが発火しないため、判定は都度アクティブなタブを
+    // 再取得する関数にまとめ、tab切替後(showView)とDataTable再描画後(drawCallback)
+    // からも呼べるようにする。
     const topBtn = document.getElementById("scrollTopBtn");
     const bottomBtn = document.getElementById("scrollBottomBtn");
 
-    const scrollArea = document.querySelector(".tab-content.active");
+    window.updateScrollButtons = function(){
+        const scrollArea = document.querySelector(".tab-content.active");
+        if (!topBtn || !bottomBtn || !scrollArea) return;
 
-    if(scrollArea){
+        topBtn.style.display = scrollArea.scrollTop > 50 ? "block" : "none";
 
-    scrollArea.addEventListener("scroll", function(){
+        bottomBtn.style.display =
+            scrollArea.scrollTop < scrollArea.scrollHeight - scrollArea.clientHeight - 50
+                ? "block"
+                : "none";
+    };
 
-        if(scrollArea.scrollTop > 50){
-            topBtn.style.display = "block";
-        }else{
-            topBtn.style.display = "none";
-        }
+    // scrollイベントはバブリングしないため、キャプチャフェーズでdocumentに
+    // 仕掛けることで、現在アクティブなタブ内のスクロールを個別バインドなしで拾う
+    document.addEventListener("scroll", window.updateScrollButtons, true);
 
-        if(scrollArea.scrollTop < scrollArea.scrollHeight - scrollArea.clientHeight - 50){
-            bottomBtn.style.display = "block";
-        }else{
-            bottomBtn.style.display = "none";
-        }
-
-    });
-
-    topBtn.onclick = () => scrollArea.scrollTo({top:0,behavior:"smooth"});
-    bottomBtn.onclick = () => scrollArea.scrollTo({top:scrollArea.scrollHeight,behavior:"smooth"});
-
+    if (topBtn) {
+        topBtn.onclick = () => document.querySelector(".tab-content.active")
+            ?.scrollTo({top:0, behavior:"smooth"});
     }
+    if (bottomBtn) {
+        bottomBtn.onclick = () => {
+            const scrollArea = document.querySelector(".tab-content.active");
+            scrollArea?.scrollTo({top:scrollArea.scrollHeight, behavior:"smooth"});
+        };
+    }
+
+    window.updateScrollButtons();
 }); // window.addEventListener("DOMContentLoaded" の終了    
