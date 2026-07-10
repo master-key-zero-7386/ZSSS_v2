@@ -674,6 +674,15 @@ def add_unique_indexes():  # UNIQUE制約
                 "ON listed_items(user_id, region_marketplace_id, status)"
             )
 
+            # ★追加: 一覧取得のメインクエリ（_get_listing_by_status / search_listing）は
+            #        WHERE LOWER(li.status) = %s で比較しているため、上のプレーンな
+            #        status列インデックスは使われず、件数が多いと毎回シーケンシャルスキャンに
+            #        なっていた。LOWER(status)に対応したインデックスを別途用意する。
+            cur2.execute(
+                "CREATE INDEX IF NOT EXISTS idx_listed_items_user_market_status_lower "
+                "ON listed_items(user_id, region_marketplace_id, (LOWER(status)))"
+            )
+
             cur2.execute(
                 "CREATE INDEX IF NOT EXISTS idx_listed_items_region_brand_lower "
                 "ON listed_items(region_marketplace_id, status, (LOWER(TRIM(region_brand))))"
