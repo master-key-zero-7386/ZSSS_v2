@@ -860,3 +860,102 @@ def import_external_listed_asin():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- ▼ SECTION 07: 他社ツール出品済みASIN CSV削除（他社ツール解約・ZSSS一本化用） ▼ ---
+@csv_import_bp.route("/external_listed_delete", methods=["POST"])
+def delete_external_listed_asin():
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "login required"}), 401
+
+        country_code = request.form.get("country_code", "").upper()
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code required"}), 400
+
+        file = request.files.get("file")
+        if not file or file.filename == "":
+            return jsonify({"status": "error", "message": "CSVファイルを選択してください"}), 400
+
+        conn_m = get_conn("a_marketplaces.db")
+        cur_m = conn_m.cursor()
+        cur_m.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND LOWER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code.lower()))
+        row_mp = cur_m.fetchone()
+        conn_m.close()
+
+        if not row_mp:
+            return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+        region_marketplace_id = row_mp["marketplace_id"]
+
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
+        file.save(save_path)
+
+        asin_list = []
+        with open(save_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            headers = next(reader, None)
+
+            if not headers or headers[0].strip().upper() != "ASIN":
+                os.remove(save_path)
+                return jsonify({
+                    "status": "error",
+                    "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
+                }), 400
+
+            for row in reader:
+                if not row or not row[0].strip():
+                    continue
+                asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
+                if asin:
+                    asin_list.append(asin)
+
+        os.remove(save_path)
+
+        if not asin_list:
+            return jsonify({"status": "error", "message": "有効なASINがありません"}), 400
+
+        conn = get_conn(f"a_{country_code.lower()}_external_listed_asin.db")
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM external_listed_asin
+            WHERE user_id = %s AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+        before = cur.fetchone()["cnt"]
+
+        try:
+            cur.execute("""
+                DELETE FROM external_listed_asin
+                WHERE user_id = %s AND region_marketplace_id = %s AND asin = ANY(%s)
+            """, (user_id, region_marketplace_id, asin_list))
+            deleted = cur.rowcount
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return jsonify({"status": "error", "message": "削除に失敗しました", "detail": str(e)}), 500
+
+        cur.execute("""
+            SELECT COUNT(*) AS cnt FROM external_listed_asin
+            WHERE user_id = %s AND region_marketplace_id = %s
+        """, (user_id, region_marketplace_id))
+        after = cur.fetchone()["cnt"]
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "country_code": country_code,
+            "before": before,
+            "deleted": deleted,
+            "after": after
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+

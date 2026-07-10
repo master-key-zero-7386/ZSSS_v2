@@ -148,6 +148,29 @@ textarea {
     cursor: not-allowed;
 }
 
+/* 削除系 赤ボタン */
+.btn-red {
+    background-color: #dc3545;      /* 赤地 */
+    color: white;                   /* 白文字 */
+    border: 1px solid #dc3545;      /* 赤枠 */
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-block;
+    width: auto;
+    line-height: 1;
+}
+
+.btn-red:hover {
+    background-color: #b02a37;
+}
+
+.btn-red:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 .btn-row {
     margin-top: 8px;
     display: flex;

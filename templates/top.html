@@ -213,6 +213,14 @@
                         <span id="externalListedResult" style="margin-left:10px; font-size:14px; color:#000000;"></span>
                     </div>
 
+                    <!-- 他社ツール出品済みASIN削除（他社ツール解約・ZSSS一本化用） -->
+                    <div class="file-input-row" style="margin-top:10px;">
+                        <input type="file" id="externalListedDeleteFileInput" accept=".csv" style="display:none;" />
+                        <input type="text" id="externalListedDeleteFileName" class="file-input-text" placeholder="削除する他社ASIN CSV（1列目=ASIN）を選択してください" readonly style="width:340px;" />
+                        <button type="button" id="externalListedDeleteBtn" class="btn-red" style="height:36px;">他社出品ASIN削除</button>
+                        <span id="externalListedDeleteResult" style="margin-left:10px; font-size:14px; color:#000000;"></span>
+                    </div>
+
                 </div>
             </div>
 

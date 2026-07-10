@@ -358,5 +358,66 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // ✅ 他社ツール出品済みASIN削除（他社ツール解約・ZSSS一本化用）
+    const externalListedDeleteFileInput = document.getElementById("externalListedDeleteFileInput");
+    const externalListedDeleteFileName = document.getElementById("externalListedDeleteFileName");
+    const externalListedDeleteBtn = document.getElementById("externalListedDeleteBtn");
+    const externalListedDeleteResult = document.getElementById("externalListedDeleteResult");
+
+    if (externalListedDeleteFileName) {
+        externalListedDeleteFileName.addEventListener("click", () => {
+            externalListedDeleteFileInput.click();
+        });
+    }
+
+    if (externalListedDeleteFileInput) {
+        externalListedDeleteFileInput.addEventListener("change", (e) => {
+            const fileName = e.target.files.length ? e.target.files[0].name : "";
+            externalListedDeleteFileName.value = fileName;
+        });
+    }
+
+    if (externalListedDeleteBtn) {
+        externalListedDeleteBtn.addEventListener("click", () => {
+            if (!externalListedDeleteFileInput.files.length) {
+                alert("CSVファイルを選択してください");
+                return;
+            }
+
+            if (!confirm("CSVに記載されたASINを他社出品済みリストから削除します。よろしいですか？")) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", externalListedDeleteFileInput.files[0]);
+            formData.append("country_code", document.getElementById("globalRegion").value);
+
+            if (externalListedDeleteResult) externalListedDeleteResult.textContent = "";
+
+            fetch("/csv/external_listed_delete", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    const msg = `削除完了：${data.deleted}件削除（残り${data.after}件）`;
+                    if (externalListedDeleteResult) externalListedDeleteResult.textContent = msg;
+                    window.showToast(msg, "success");
+                    externalListedDeleteFileInput.value = "";
+                    externalListedDeleteFileName.value = "";
+                } else {
+                    const errMsg = data && data.message ? data.message : "削除に失敗しました";
+                    if (externalListedDeleteResult) externalListedDeleteResult.textContent = errMsg;
+                    window.showToast(errMsg, "error");
+                }
+            })
+            .catch(err => {
+                console.error("[External Listed ASIN Delete] error:", err);
+                window.showToast("エラーが発生しました", "error");
+            });
+        });
+    }
+
 });
 
