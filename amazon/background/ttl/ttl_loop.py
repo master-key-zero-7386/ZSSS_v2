@@ -535,57 +535,67 @@ def dispatch_ttl_execution(targets, record, country_code):
             f"country={country_code}",
             flush=True
         )  # --- 削除不可 コメントアウトのみ ---
-        
-        # --- HOME / CATALOG ---
-        if scope == "home" and ttl_type == "catalog":
-            catalog_result = update_home_catalog(
-                user_id=record["user_id"],
-                asin=record["asin"],
-                country_code=country_code,
-            )
 
-            # ★追加: 直前まで NO_CATALOG だった項目だけ、寸法・重量が埋まったことを
-            #        即座に反映するため再判定する（REGION PRICINGのTTLを待たない）。
-            #        通常のカタログ更新（NO_CATALOG以外）まで毎回この重い再計算を挟むと
-            #        TTLループ全体が遅くなるため、対象を限定する。
-            if (
-                record.get("was_no_catalog")
-                and isinstance(catalog_result, dict)
-                and catalog_result.get("status") == "ok"
-            ):
-                update_listing_price(
+        # --- ▼ 1件（1scope）ごとにエラーを隔離。ここで捕まえないと1件のエラーで
+        #        HOME/REGION Catalog/Pricingの残り全件・他3系統が丸ごと止まってしまう ▼ ---
+        try:
+            # --- HOME / CATALOG ---
+            if scope == "home" and ttl_type == "catalog":
+                catalog_result = update_home_catalog(
                     user_id=record["user_id"],
                     asin=record["asin"],
                     country_code=country_code,
                 )
 
-        # --- HOME / PRICING ---
-        elif scope == "home" and ttl_type == "pricing":
-            
-            if not record.get("home_marketplace_id"):
-                continue  
+                # ★追加: 直前まで NO_CATALOG だった項目だけ、寸法・重量が埋まったことを
+                #        即座に反映するため再判定する（REGION PRICINGのTTLを待たない）。
+                #        通常のカタログ更新（NO_CATALOG以外）まで毎回この重い再計算を挟むと
+                #        TTLループ全体が遅くなるため、対象を限定する。
+                if (
+                    record.get("was_no_catalog")
+                    and isinstance(catalog_result, dict)
+                    and catalog_result.get("status") == "ok"
+                ):
+                    update_listing_price(
+                        user_id=record["user_id"],
+                        asin=record["asin"],
+                        country_code=country_code,
+                    )
 
-            update_home_pricing(
-                user_id=record["user_id"],
-                asin=record["asin"],
-                country_code=country_code,
-            )
+            # --- HOME / PRICING ---
+            elif scope == "home" and ttl_type == "pricing":
 
-        # --- REGION / CATALOG ---
-        elif scope == "region" and ttl_type == "catalog":
-            update_region_catalog(
-                user_id=record["user_id"],
-                asin=record["asin"],
-                country_code=country_code,
-            )        
+                if not record.get("home_marketplace_id"):
+                    continue
 
-        # --- REGION / PRICING ---
-        elif scope == "region" and ttl_type == "pricing":
-            update_region_pricing(
-                user_id=record["user_id"],
-                asin=record["asin"],
-                country_code=country_code,
-            )
+                update_home_pricing(
+                    user_id=record["user_id"],
+                    asin=record["asin"],
+                    country_code=country_code,
+                )
+
+            # --- REGION / CATALOG ---
+            elif scope == "region" and ttl_type == "catalog":
+                update_region_catalog(
+                    user_id=record["user_id"],
+                    asin=record["asin"],
+                    country_code=country_code,
+                )
+
+            # --- REGION / PRICING ---
+            elif scope == "region" and ttl_type == "pricing":
+                update_region_pricing(
+                    user_id=record["user_id"],
+                    asin=record["asin"],
+                    country_code=country_code,
+                )
+
+        except Exception as e:
+            import traceback
+            print(f"### TTL DISPATCH ERROR ### scope={scope} ttl_type={ttl_type} "
+                f"user={record['user_id']} asin={record['asin']} country={country_code}: {e}",
+                flush=True)
+            traceback.print_exc()
 
     api_request_sleep()
          
