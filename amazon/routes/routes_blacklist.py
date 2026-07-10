@@ -11,15 +11,19 @@ import os
 import csv
 from amazon.db import get_conn
 from io import TextIOWrapper
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import threading
 from amazon.routes.routes_pricing_v2 import delete_listings_item
 from psycopg2.errors import UniqueViolation
 from amazon.services.ttl_stop_service import apply_blacklist, clear_blacklist
+from amazon.adapters.reports_adapter_region import fetch_sales_and_traffic_sessions
 
 blacklist_bp = Blueprint("blacklist_bp", __name__)
+
+# --- ▼ 低閲覧数ASIN分析：実行状況（ユーザー×国 単位、プロセス内メモリ管理） ▼ ---
+_REPORT_ANALYSIS_STATE = {}
 
 # --- ▼ SECTION 01: country_code 正規チェック ▼ ---
 def _validate_country_code(country_code: str) -> str:
@@ -801,8 +805,282 @@ def apply_blacklist_update(user_id, country_code):
         #         UPDATE listed_items
         #         SET information_status = 'ACTIVE'
         #         WHERE id = %s
-        #     """, (row["id"],))            
+        #     """, (row["id"],))
 
     conn.commit()
     conn.close()
+
+# --- ▼ SECTION 11: 低閲覧数ASIN分析：実行開始 ▼ ---
+@blacklist_bp.post("/blacklist/report_analyze/start")
+def start_report_analyze():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "login required"}), 401
+
+    data = request.get_json() or {}
+    country_code = (data.get("country_code") or "").lower()
+
+    if not country_code:
+        return jsonify({"status": "error", "message": "country_code required"}), 400
+
+    try:
+        period_days = int(data.get("period_days") or 90)
+        threshold = int(data.get("threshold") or 5)
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "period_days / threshold must be numbers"}), 400
+
+    key = (user_id, country_code)
+    state = _REPORT_ANALYSIS_STATE.get(key)
+
+    if state and state.get("running"):
+        return jsonify({"status": "error", "message": "既に分析を実行中です"}), 409
+
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
+    _REPORT_ANALYSIS_STATE[key] = {
+        "running": True,
+        "error": None,
+        "started_at": datetime.utcnow().isoformat(),
+        "finished_at": None,
+        "candidate_count": None,
+    }
+
+    threading.Thread(
+        target=_run_report_analysis,
+        args=(user_id, country_code, region_marketplace_id, period_days, threshold),
+        daemon=True
+    ).start()
+
+    return jsonify({"status": "started"})
+
+# --- ▼ SECTION 12: 低閲覧数ASIN分析：実行状況取得 ▼ ---
+@blacklist_bp.get("/blacklist/report_analyze/status")
+def get_report_analyze_status():
+    user_id = session.get("user_id")
+    country_code = (request.args.get("country_code") or "").lower()
+
+    if not user_id or not country_code:
+        return jsonify({"status": "error", "message": "invalid user or country_code"}), 400
+
+    state = _REPORT_ANALYSIS_STATE.get((user_id, country_code)) or {
+        "running": False,
+        "error": None,
+        "started_at": None,
+        "finished_at": None,
+        "candidate_count": None,
+    }
+
+    return jsonify({"status": "success", **state})
+
+# --- ▼ SECTION 13: 低閲覧数ASIN分析：バックグラウンド実行本体 ▼ ---
+def _run_report_analysis(user_id, country_code, region_marketplace_id, period_days, threshold):
+    key = (user_id, country_code)
+
+    try:
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=period_days)
+
+        rows = fetch_sales_and_traffic_sessions(
+            user_id=user_id,
+            country_code=country_code,
+            marketplace_id=region_marketplace_id,
+            start_date=start_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            end_date=end_date.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
+
+        sessions_by_asin = {r["asin"]: r["sessions"] for r in rows}
+
+        # --- 現在出品中のASINだけに絞る ---
+        conn_li = get_conn(f"a_{country_code}_listed_items.db")
+        cur_li = conn_li.cursor()
+        cur_li.execute("""
+            SELECT asin
+            FROM listed_items
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+            AND status = 'listed'
+        """, (user_id, region_marketplace_id))
+        listed_asins = [r["asin"] for r in cur_li.fetchall()]
+        conn_li.close()
+
+        candidates = [
+            (asin, sessions_by_asin.get(asin, 0))
+            for asin in listed_asins
+            if sessions_by_asin.get(asin, 0) < threshold
+        ]
+
+        now_utc = datetime.utcnow().isoformat()
+
+        conn = get_conn(f"a_{country_code}_report_candidate_asin.db")
+        cur = conn.cursor()
+
+        for asin, sessions in candidates:
+            cur.execute("""
+                INSERT INTO report_candidate_asin
+                    (user_id, region_marketplace_id, asin, sessions, period_days, checked_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, region_marketplace_id, asin)
+                DO UPDATE SET
+                    sessions = excluded.sessions,
+                    period_days = excluded.period_days,
+                    checked_at = excluded.checked_at
+            """, (user_id, region_marketplace_id, asin, sessions, period_days, now_utc))
+
+        conn.commit()
+        conn.close()
+
+        _REPORT_ANALYSIS_STATE[key] = {
+            "running": False,
+            "error": None,
+            "started_at": _REPORT_ANALYSIS_STATE.get(key, {}).get("started_at"),
+            "finished_at": now_utc,
+            "candidate_count": len(candidates),
+        }
+
+    except Exception as e:
+        _REPORT_ANALYSIS_STATE[key] = {
+            "running": False,
+            "error": str(e),
+            "started_at": _REPORT_ANALYSIS_STATE.get(key, {}).get("started_at"),
+            "finished_at": datetime.utcnow().isoformat(),
+            "candidate_count": None,
+        }
+
+# --- ▼ SECTION 14: 低閲覧数ASIN分析：候補一覧取得 ▼ ---
+@blacklist_bp.get("/blacklist/report_candidates/<country_code>")
+def get_report_candidates(country_code):
+    user_id = session.get("user_id")
+    country_code = (country_code or "").lower()
+
+    if not user_id or not country_code:
+        return jsonify({"status": "error", "message": "invalid user or country_code"}), 400
+
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
+    conn = get_conn(f"a_{country_code}_report_candidate_asin.db")
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT id, asin, sessions, period_days, checked_at
+            FROM report_candidate_asin
+            WHERE user_id = %s
+            AND region_marketplace_id = %s
+            ORDER BY sessions ASC, checked_at DESC
+        """, (user_id, region_marketplace_id))
+
+        rows = [
+            {
+                "id": r["id"],
+                "asin": r["asin"],
+                "sessions": r["sessions"],
+                "period_days": r["period_days"],
+                "checked_at": r["checked_at"],
+            }
+            for r in cur.fetchall()
+        ]
+    finally:
+        conn.close()
+
+    return jsonify({"status": "success", "country_code": country_code, "count": len(rows), "rows": rows})
+
+# --- ▼ SECTION 15: 低閲覧数ASIN分析：選択ASINをブラックリスト登録 ▼ ---
+@blacklist_bp.post("/blacklist/report_candidates/register")
+def register_report_candidates():
+    data = request.get_json() or {}
+
+    user_id = session.get("user_id")
+    country_code = (data.get("country_code") or "").lower()
+    asins = data.get("asins") or []
+
+    if not user_id or not country_code or not asins:
+        return jsonify({"status": "error", "message": "invalid request"}), 400
+
+    conn_m = get_conn("a_marketplaces.db")
+    cur_m = conn_m.cursor()
+    cur_m.execute("""
+        SELECT marketplace_id
+        FROM marketplaces
+        WHERE user_id = %s
+        AND LOWER(country_code) = %s
+        LIMIT 1
+    """, (user_id, country_code))
+    row_mp = cur_m.fetchone()
+    conn_m.close()
+
+    if not row_mp:
+        return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+    region_marketplace_id = row_mp["marketplace_id"]
+
+    now_utc = datetime.utcnow().isoformat()
+
+    conn = get_conn(_get_blacklist_db(country_code, "asin"))
+    cur = conn.cursor()
+
+    try:
+        for asin in asins:
+            cur.execute("""
+                INSERT INTO blacklist_asin (user_id, region_marketplace_id, asin, note, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, region_marketplace_id, asin)
+                DO UPDATE SET note = excluded.note
+            """, (user_id, region_marketplace_id, asin, "レポート最適化", now_utc))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": "登録に失敗しました", "detail": str(e)}), 500
+
+    conn.close()
+
+    # --- 候補一覧からは削除（登録済みのため） ---
+    conn_c = get_conn(f"a_{country_code}_report_candidate_asin.db")
+    cur_c = conn_c.cursor()
+    cur_c.execute("""
+        DELETE FROM report_candidate_asin
+        WHERE user_id = %s
+        AND region_marketplace_id = %s
+        AND asin = ANY(%s)
+    """, (user_id, region_marketplace_id, asins))
+    conn_c.commit()
+    conn_c.close()
+
+    threading.Thread(
+        target=apply_blacklist_update,
+        args=(user_id, country_code),
+        daemon=True
+    ).start()
+
+    return jsonify({"status": "ok", "registered": len(asins)})
  

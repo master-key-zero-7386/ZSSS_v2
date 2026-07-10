@@ -126,6 +126,7 @@
             <div class="bl-tabs">
                 <button class="bl-tab active" data-tab="brand">Brand</button>
                 <button class="bl-tab" data-tab="asin">ASIN</button>
+                <button class="bl-tab" data-tab="report">レポート分析</button>
             </div>
 
             <!-- 追加フォーム -->
@@ -166,8 +167,47 @@
                     <tbody></tbody>
                 </table>
             </div>
-        </div>    
-    </div>     
+
+            <!-- ▼ 低閲覧数ASIN分析（削除候補） -->
+            <div id="tab-report" class="bl-tab-content">
+                <h3>レポート分析（低閲覧数ASINの削除候補）</h3>
+                <p style="font-size:12px; color:#666;">
+                    ※ SP-APIのBusiness Reportから、現在選択中のマーケットで出品中のASINごとのセッション数（閲覧数）を取得し、しきい値未満のASINを候補として蓄積します。<br>
+                    候補一覧からチェックを付けて「ブラックリスト登録」すると、通常のブラックリストと同じ仕組みで自動的に出品削除されます。
+                </p>
+
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                    <label>集計期間：直近
+                        <input type="number" id="reportPeriodDays" value="90" min="7" max="365" style="width:70px; padding:4px;">
+                        日
+                    </label>
+                    <label style="margin-left:16px;">しきい値：セッション数
+                        <input type="number" id="reportThreshold" value="5" min="0" style="width:70px; padding:4px;">
+                        件未満
+                    </label>
+                    <button type="button" id="reportAnalyzeBtn" class="btn-blue" style="margin-left:16px;">分析実行</button>
+                    <span id="reportAnalyzeStatus" style="margin-left:10px; font-size:14px;"></span>
+                </div>
+
+                <div style="margin-bottom:10px;">
+                    <button type="button" id="reportRegisterBtn" class="btn-red">選択した候補をブラックリスト登録</button>
+                </div>
+
+                <table id="reportCandidateTable" class="display">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="reportSelectAll"></th>
+                            <th>ASIN</th>
+                            <th>セッション数</th>
+                            <th>集計期間</th>
+                            <th>チェック日時</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
 </div> <!-- ✅ Blacklist タブの閉じタグ -->
 

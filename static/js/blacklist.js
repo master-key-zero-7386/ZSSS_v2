@@ -176,6 +176,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 clearInterval(interval);
                 loadBrandList();
                 loadAsinList();
+                loadReportCandidates();
+                checkReportAnalyzeStatus();
             }
         }, 200);
 
@@ -184,7 +186,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("globalRegion")?.addEventListener("change", () => {
         loadBrandList();
         loadAsinList();
-    });    
+        loadReportCandidates();
+        checkReportAnalyzeStatus();
+    });
 
     // --- ▼ SECTION 04: Brand一覧取得 ▼ ---
     async function loadBrandList() {
@@ -271,12 +275,24 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => {
                 if (btn.dataset.tab === "brand") {
                     brandTable.columns.adjust();
-                } else {
+                } else if (btn.dataset.tab === "asin") {
                     $('#asinTable').DataTable().columns.adjust();
+                } else if (btn.dataset.tab === "report" && reportCandidateTable) {
+                    reportCandidateTable.columns.adjust();
                 }
             }, 50);
-            const input = document.getElementById("newMain");
-            input.placeholder = btn.dataset.tab === "brand" ? "Brand" : "ASIN";
+
+            const commonForm = document.getElementById("commonForm");
+
+            if (btn.dataset.tab === "report") {
+                if (commonForm) commonForm.style.display = "none";
+                loadReportCandidates();
+                checkReportAnalyzeStatus();
+            } else {
+                if (commonForm) commonForm.style.display = "flex";
+                const input = document.getElementById("newMain");
+                input.placeholder = btn.dataset.tab === "brand" ? "Brand" : "ASIN";
+            }
         });
     });
 
@@ -482,6 +498,163 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => toast.remove(), 300);
         }, 2000);
     }
+
+    // --- ▼ SECTION 08: レポート分析（低閲覧数ASIN削除候補） ▼ ---
+    let reportCandidateTable = null;
+    const reportCandidateTableEl = document.getElementById("reportCandidateTable");
+
+    if (reportCandidateTableEl) {
+        reportCandidateTable = $('#reportCandidateTable').DataTable({
+            pageLength: 100,
+            scrollY: "500px",
+            scrollCollapse: true,
+            paging: true,
+            autoWidth: false,
+            columnDefs: [
+                { orderable: false, targets: 0, width: "5%" },
+                { width: "30%", targets: 1 },
+                { width: "20%", targets: 2 },
+                { width: "20%", targets: 3 },
+                { width: "25%", targets: 4 }
+            ]
+        });
+    }
+
+    let reportPollTimer = null;
+
+    async function loadReportCandidates() {
+        const el = document.getElementById("globalRegion");
+        const country_code = el ? el.value : null;
+        if (!country_code || !reportCandidateTable) return;
+
+        const res = await fetch(`/blacklist/report_candidates/${country_code}`);
+        const data = await res.json();
+
+        const rows = data.rows || [];
+
+        reportCandidateTable.clear();
+
+        rows.forEach(row => {
+            const node = reportCandidateTable.row.add([
+                `<input type="checkbox" class="report-candidate-check">`,
+                row.asin,
+                row.sessions,
+                `${row.period_days}日`,
+                row.checked_at
+            ]).node();
+
+            node.dataset.asin = row.asin;
+        });
+
+        reportCandidateTable.draw();
+    }
+
+    async function checkReportAnalyzeStatus() {
+        const el = document.getElementById("globalRegion");
+        const country_code = el ? el.value : null;
+        const statusEl = document.getElementById("reportAnalyzeStatus");
+        if (!country_code) return;
+
+        const res = await fetch(`/blacklist/report_analyze/status?country_code=${country_code}`);
+        const data = await res.json();
+
+        if (data.running) {
+            if (statusEl) statusEl.textContent = "分析中...（数分かかる場合があります）";
+
+            if (!reportPollTimer) {
+                reportPollTimer = setInterval(checkReportAnalyzeStatus, 5000);
+            }
+            return;
+        }
+
+        if (reportPollTimer) {
+            clearInterval(reportPollTimer);
+            reportPollTimer = null;
+        }
+
+        if (data.error) {
+            if (statusEl) statusEl.textContent = `分析エラー: ${data.error}`;
+        } else if (data.finished_at) {
+            if (statusEl) statusEl.textContent = `分析完了（候補 ${data.candidate_count}件）`;
+            loadReportCandidates();
+        } else if (statusEl) {
+            statusEl.textContent = "";
+        }
+    }
+
+    document.getElementById("reportAnalyzeBtn")?.addEventListener("click", async () => {
+        const el = document.getElementById("globalRegion");
+        const country_code = el ? el.value : null;
+
+        if (!country_code) {
+            alert("リージョンが取得できません");
+            return;
+        }
+
+        const period_days = parseInt(document.getElementById("reportPeriodDays").value, 10) || 90;
+        const threshold = parseInt(document.getElementById("reportThreshold").value, 10) || 0;
+
+        const res = await fetch("/blacklist/report_analyze/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_code, period_days, threshold })
+        });
+
+        const data = await res.json();
+
+        if (data.status !== "started") {
+            alert(data.message || "分析開始に失敗しました");
+            return;
+        }
+
+        checkReportAnalyzeStatus();
+    });
+
+    document.getElementById("reportSelectAll")?.addEventListener("change", (e) => {
+        document.querySelectorAll(".report-candidate-check").forEach(cb => {
+            cb.checked = e.target.checked;
+        });
+    });
+
+    document.getElementById("reportRegisterBtn")?.addEventListener("click", async () => {
+        const el = document.getElementById("globalRegion");
+        const country_code = el ? el.value : null;
+
+        if (!country_code) {
+            alert("リージョンが取得できません");
+            return;
+        }
+
+        const asins = [];
+        document.querySelectorAll("#reportCandidateTable tbody tr").forEach(tr => {
+            const cb = tr.querySelector(".report-candidate-check");
+            if (cb && cb.checked) asins.push(tr.dataset.asin);
+        });
+
+        if (!asins.length) {
+            alert("登録するASINを選択してください");
+            return;
+        }
+
+        if (!confirm(`選択した${asins.length}件をブラックリストに登録します。\nよろしいですか？`)) return;
+
+        const res = await fetch("/blacklist/report_candidates/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ country_code, asins })
+        });
+
+        const data = await res.json();
+
+        if (data.status !== "ok") {
+            alert(data.message || "登録に失敗しました");
+            return;
+        }
+
+        showToast(`${data.registered}件をブラックリストに登録しました`);
+        loadReportCandidates();
+        loadAsinList();
+    });
 
 }); // DOMC終了
  

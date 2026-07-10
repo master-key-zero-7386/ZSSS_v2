@@ -102,6 +102,17 @@ EXTERNAL_LISTED_ASIN_COLUMNS = {
     "created_at": "TEXT"
 }
 
+# --- ▼ 低閲覧数ASIN削除候補（Business Reportセッション数分析） ---
+REPORT_CANDIDATE_ASIN_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER",
+    "region_marketplace_id": "TEXT",
+    "asin": "TEXT NOT NULL",
+    "sessions": "INTEGER",
+    "period_days": "INTEGER",
+    "checked_at": "TEXT"
+}
+
 # # --- BlackList 管理者用カラム ---
 # BLACKLIST_BRAND_COLUMNS = {
 #     "id": "SERIAL PRIMARY KEY",
@@ -527,6 +538,8 @@ def migrate_db(db_name):
         migrate_table(conn, "blacklist_brand", BLACKLIST_BRAND_COLUMNS)
     elif base.endswith("_external_listed_asin.db"):
         migrate_table(conn, "external_listed_asin", EXTERNAL_LISTED_ASIN_COLUMNS)
+    elif base.endswith("_report_candidate_asin.db"):
+        migrate_table(conn, "report_candidate_asin", REPORT_CANDIDATE_ASIN_COLUMNS)
     elif base.endswith("_marketplaces.db"):
         migrate_table(conn, "marketplaces", MARKETPLACES_COLUMNS)
     elif base.endswith("_account_master.db"):
@@ -787,6 +800,30 @@ def add_unique_indexes():  # UNIQUE制約
         conn2.commit()
         conn2.close()
 
+    # --- report_candidate_asin UNIQUE（country_code 正） ---
+    for country_code in country_codes:
+        db_name = f"a_{country_code}_report_candidate_asin.db"
+        conn2 = get_conn(db_name)
+        cur2 = conn2.cursor()
+
+        # ★ report_candidate_asin テーブル存在確認
+        cur2.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_name = 'report_candidate_asin'
+        """)
+
+        exists = cur2.fetchone()
+
+        if exists:
+            cur2.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_report_candidate_user_asin_unique "
+                "ON report_candidate_asin(user_id, region_marketplace_id, asin)"
+            )
+
+        conn2.commit()
+        conn2.close()
+
     # --- a_brand_gate_result.db ---
     conn = get_conn("a_brand_gate_result.db")
     cur = conn.cursor()
@@ -889,6 +926,7 @@ def main():
         migrate_db(f"a_{country_code}_blacklist_asin.db")
         migrate_db(f"a_{country_code}_blacklist_brand.db")
         migrate_db(f"a_{country_code}_external_listed_asin.db")
+        migrate_db(f"a_{country_code}_report_candidate_asin.db")
 
     # INDEX
     add_unique_indexes()
