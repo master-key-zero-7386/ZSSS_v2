@@ -30,7 +30,7 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
 
     time.sleep(get_ttl_sleep_sec())  
 
-    response = requests.post(LWA_TOKEN_URL, data=payload, headers=headers)
+    response = requests.post(LWA_TOKEN_URL, data=payload, headers=headers, timeout=15)
 
     if response.status_code == 200:
         data = response.json()
