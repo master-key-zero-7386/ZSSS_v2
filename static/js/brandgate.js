@@ -138,35 +138,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const asins = targetRows.map(tr => tr.children[0]?.textContent.trim());
 
-        const res = await fetch("/amazon/extract_brand", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                asins,
-                country_code: document.getElementById("globalRegion")?.value
-            })
-        });
+        try {
+            const res = await fetch("/amazon/extract_brand", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    asins,
+                    country_code: document.getElementById("globalRegion")?.value
+                })
+            });
 
-        const data = await res.json();
+            if (!res.ok) {
+                window.showToast?.("Brand抽出に失敗しました", "error");
+                return;
+            }
 
-        data.forEach(b => {
-            const t = bgcAllData.find(x => x.asin === b.asin);
-            if (t) t.brand = b.brand || ""; 
-        });        
+            const data = await res.json();
 
-        const tbodyBrand = document.querySelector("#bgc-brand-table tbody");
+            data.forEach(b => {
+                const t = bgcAllData.find(x => x.asin === b.asin);
+                if (t) t.brand = b.brand || "";
+            });
 
-        tbodyBrand.innerHTML = "";
+            const tbodyBrand = document.querySelector("#bgc-brand-table tbody");
 
-        data.forEach(r => {
-            const tr = document.createElement("tr");
+            tbodyBrand.innerHTML = "";
 
-            tr.innerHTML = `
-                <td>${r.asin}</td>
-                <td>${r.brand || ""}</td>
-            `;
+            data.forEach(r => {
+                const tr = document.createElement("tr");
 
-            tbodyBrand.appendChild(tr);
-        });
+                tr.innerHTML = `
+                    <td>${r.asin}</td>
+                    <td>${r.brand || ""}</td>
+                `;
+
+                tbodyBrand.appendChild(tr);
+            });
+        } catch (e) {
+            console.error("extract_brand error:", e);
+            window.showToast?.("通信エラーが発生しました", "error");
+        }
     });    
 });

@@ -14,7 +14,7 @@ from amazon.db import get_conn
 
 from amazon.routes.routes_catalog_v2 import update_home_catalog
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing)
-from amazon.background.common.background_common import api_request_sleep 
+from amazon.background.common.background_common import get_ttl_sleep_sec
 from amazon.routes.routes_pricing_v2 import update_listing_price
 
 
@@ -77,7 +77,10 @@ def run_first_loop(app, db_dir):
                 time.sleep(FIRST_LOOP_SLEEP_SEC)
                 continue
 
-            for t in targets: 
+            # --- ASIN間Sleep秒数はサイクル中変わらないため、ASINごとにDB再取得せず1回だけ取得 ---
+            api_sleep_sec = get_ttl_sleep_sec()
+
+            for t in targets:
                 try:                   
                     conn_mkt = get_conn("a_marketplaces.db") 
                     cur_mkt = conn_mkt.cursor() 
@@ -120,8 +123,8 @@ def run_first_loop(app, db_dir):
                     # update_region_pricing(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)  
 
 
-                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region) 
-                    api_request_sleep()         
+                    update_listing_price(user_id=t["user_id"], asin=t["asin"], country_code=cc_region)
+                    time.sleep(api_sleep_sec)
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 
                     # --- ★ SUCCESS判定：pricing_cacheにrawが入っていれば即0 ---

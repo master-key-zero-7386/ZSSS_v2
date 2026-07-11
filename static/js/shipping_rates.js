@@ -32,7 +32,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     shippingRatesMode = data.mode;
                     renderShippingRowsFromDB(data.rows);
                     saveBtn.textContent = (data.mode === "new") ? "新規作成" : "保　存";
+                } else {
+                    window.showToast?.("送料設定の取得に失敗しました", "error");
                 }
+            })
+            .catch(err => {
+                console.error("shipping-rates/load error:", err);
+                window.showToast?.("送料設定の取得に失敗しました", "error");
             });
     }
 
@@ -211,8 +217,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (shippingRatesMode === "new") {
 
-            const res = await fetch("/api/shipping-rates/copy-source-list");
-            const copySourceData = await res.json();
+            let copySourceData;
+            try {
+                const res = await fetch("/api/shipping-rates/copy-source-list");
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                copySourceData = await res.json();
+            } catch (e) {
+                console.error("copy-source-list error:", e);
+                window.showToast?.("コピー元一覧の取得に失敗しました", "error");
+                return;
+            }
 
             const copyOptionsHtml = copySourceData.marketplace_ids
                 .filter(row => row.country_code !== region.toUpperCase())
@@ -258,7 +272,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 body: JSON.stringify({
                     marketplace_id: region,
                     copy_from_marketplace_id: document.getElementById("copy-source-marketplace")?.value || ""
-                }) 
+                })
             })
             .then(res => res.json())
             .then(data => {
@@ -266,7 +280,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     document.dispatchEvent(
                         new CustomEvent("zsss:regionChanged", { detail: { region } })
                     );
+                } else {
+                    window.showToast?.("送料表の作成に失敗しました", "error");
                 }
+            })
+            .catch(err => {
+                console.error("shipping-rates/init error:", err);
+                window.showToast?.("送料表の作成に失敗しました", "error");
             });
 
             return;
@@ -371,11 +391,18 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch("/api/shipping-rates/load?marketplace_id=" + encodeURIComponent(region))
             .then(r => r.json())
             .then(data => {
-                if (data.status !== "success") return;
+                if (data.status !== "success") {
+                    window.showToast?.("送料設定の取得に失敗しました", "error");
+                    return;
+                }
 
                 shippingRatesMode = data.mode;
                 renderShippingRowsFromDB(data.rows);
                 saveBtn.textContent = (data.mode === "new") ? "新規作成" : "保　存";
+            })
+            .catch(err => {
+                console.error("shipping-rates/load (regionChanged) error:", err);
+                window.showToast?.("送料設定の取得に失敗しました", "error");
             });
     });
 
@@ -389,8 +416,16 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // コピー元にできる（＝送料表がすでにある）マーケット一覧を取得
-        const res = await fetch("/api/shipping-rates/copy-source-list");
-        const copySourceData = await res.json();
+        let copySourceData;
+        try {
+            const res = await fetch("/api/shipping-rates/copy-source-list");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            copySourceData = await res.json();
+        } catch (e) {
+            console.error("copy-source-list error:", e);
+            window.showToast?.("コピー元一覧の取得に失敗しました", "error");
+            return;
+        }
 
         const copyOptionsHtml = copySourceData.marketplace_ids
             .filter(row => row.country_code !== region.toUpperCase())
@@ -451,8 +486,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
         // コピー元マーケットの送料データを取得（既存の「読み込みAPI」を流用。保存はしない）
-        const sourceRes = await fetch("/api/shipping-rates/load?marketplace_id=" + encodeURIComponent(sourceCode));
-        const sourceData = await sourceRes.json();
+        let sourceData;
+        try {
+            const sourceRes = await fetch("/api/shipping-rates/load?marketplace_id=" + encodeURIComponent(sourceCode));
+            sourceData = await sourceRes.json();
+        } catch (e) {
+            console.error("shipping-rates/load (copy source) error:", e);
+            showToast("通信エラーが発生しました");
+            return;
+        }
 
         if (sourceData.status !== "success") {
             showToast("コピー元データの取得に失敗しました");

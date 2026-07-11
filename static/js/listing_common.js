@@ -1139,13 +1139,27 @@ document.addEventListener("DOMContentLoaded", () => {
                     country_code: country_code
                 })
             })
-            .then(res => res.json())
-            .then(data => {
+            .then(async res => {
+                const data = await res.json().catch(() => ({}));
+
+                if (!res.ok || data.status === "error") {
+                    window.showToast(`登録に失敗しました: ${data.message || res.status}`, "error");
+                    return;
+                }
 
                 if (country_code) {
                     window.loadprelisting(country_code);
                 }
-                window.showToast("登録完了", "success"); 
+
+                if (data.blocked_asins && data.blocked_asins.length > 0) {
+                    window.showToast(`${data.blocked_asins.length}件はブラックリストのためスキップされました`, "warning");
+                } else {
+                    window.showToast("登録完了", "success");
+                }
+            })
+            .catch(e => {
+                console.error("bulk_move_to_all error:", e);
+                window.showToast("通信エラーが発生しました", "error");
             });
         }
 
@@ -1160,14 +1174,24 @@ document.addEventListener("DOMContentLoaded", () => {
             const runBtn = document.getElementById("bulkActionRunPre");
             runBtn.disabled = true;
 
+            let failedCount = 0;
+
             for (const asin of selected) {
                 try {
-                    await fetch("/run_refresh_now", {
+                    const res = await fetch("/run_refresh_now", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ asin, country_code })
                     });
+
+                    const json = await res.json().catch(() => ({}));
+
+                    if (!res.ok || json.status === "error") {
+                        failedCount++;
+                        console.error("run_refresh_now failed:", asin, res.status, json.message);
+                    }
                 } catch (e) {
+                    failedCount++;
                     console.warn("run_refresh_now failed:", asin, e);
                 }
             }
@@ -1177,7 +1201,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (country_code) {
                 window.loadprelisting(country_code);
             }
-            window.showToast("最新取得完了", "success");
+
+            if (failedCount > 0) {
+                window.showToast(`${failedCount}/${selected.length}件の最新取得に失敗しました`, "error");
+            } else {
+                window.showToast("最新取得完了", "success");
+            }
 
             return;
         }
@@ -1253,41 +1282,59 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            await fetch("/listing/bulk_delete_items", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    items: selected.map(asin => {
-                        const el = document.querySelector(`#prelistingtable .row-select[data-asin="${CSS.escape(asin)}"]`);
-                        if (!el) return null;
+            try {
+                const res = await fetch("/listing/bulk_delete_items", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        items: selected.map(asin => {
+                            const el = document.querySelector(`#prelistingtable .row-select[data-asin="${CSS.escape(asin)}"]`);
+                            if (!el) return null;
 
-                        const row = el.closest("tr");
+                            const row = el.closest("tr");
 
-                        const sku = row.querySelector(".sku-cell")?.textContent.trim();
-                        
-                        return {
-                            sku: sku,
-                            country_code: country_code
-                        };
+                            const sku = row.querySelector(".sku-cell")?.textContent.trim();
 
-                    }).filter(x => x !== null),
-                    status: "pre"
-                })
-            });
- 
-            const table = $('#prelistingtable').DataTable();
+                            return {
+                                sku: sku,
+                                country_code: country_code
+                            };
 
-            document.querySelectorAll("#prelistingtable .row-select:checked").forEach(cb => {
-                table.row($(cb).closest("tr")).remove();
-            });
+                        }).filter(x => x !== null),
+                        status: "pre"
+                    })
+                });
 
-            table.draw();            
+                const data = await res.json().catch(() => ({}));
+                const failed = (data.results || []).filter(r => r.status === "error");
 
-            if (country_code) {
-                window.loadprelisting(country_code);
+                if (!res.ok || data.status === "error") {
+                    window.showToast(`削除に失敗しました: ${data.message || res.status}`, "error");
+                    return;
+                }
+
+                const table = $('#prelistingtable').DataTable();
+
+                document.querySelectorAll("#prelistingtable .row-select:checked").forEach(cb => {
+                    table.row($(cb).closest("tr")).remove();
+                });
+
+                table.draw();
+
+                if (country_code) {
+                    window.loadprelisting(country_code);
+                }
+
+                if (failed.length > 0) {
+                    window.showToast(`${failed.length}件の削除に失敗しました`, "error");
+                } else {
+                    window.showToast("削除完了", "success");
+                }
+            } catch (e) {
+                console.error("bulk_delete_items error:", e);
+                window.showToast("通信エラーが発生しました", "error");
             }
-            window.showToast("削除完了", "success");
-        }   
+        }
 
     });    
 
@@ -1320,14 +1367,24 @@ document.addEventListener("DOMContentLoaded", () => {
             const runBtn = document.getElementById("bulkActionRunAll");
             runBtn.disabled = true;
 
+            let failedCount = 0;
+
             for (const asin of asins) {
                 try {
-                    await fetch("/run_refresh_now", {
+                    const res = await fetch("/run_refresh_now", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ asin, country_code })
                     });
+
+                    const json = await res.json().catch(() => ({}));
+
+                    if (!res.ok || json.status === "error") {
+                        failedCount++;
+                        console.error("run_refresh_now failed:", asin, res.status, json.message);
+                    }
                 } catch (e) {
+                    failedCount++;
                     console.warn("run_refresh_now failed:", asin, e);
                 }
             }
@@ -1337,7 +1394,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (country_code) {
                 window.loadalllisting(country_code);
             }
-            window.showToast("最新取得完了", "success");
+
+            if (failedCount > 0) {
+                window.showToast(`${failedCount}/${asins.length}件の最新取得に失敗しました`, "error");
+            } else {
+                window.showToast("最新取得完了", "success");
+            }
 
             return;
         }
@@ -1449,21 +1511,36 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }        
 
-        await fetch("/listing/bulk_delete_items", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ items, status: "listed" })
-        });
+        try {
+            const res = await fetch("/listing/bulk_delete_items", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ items, status: "listed" })
+            });
 
-        const table = $('#alllistingtable').DataTable();   
-        const currentPage = table.page();                  
+            const data = await res.json().catch(() => ({}));
+            const failed = (data.results || []).filter(r => r.status === "error");
 
-        if (country_code) {
-            window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all');
+            if (!res.ok || data.status === "error") {
+                window.showToast(`削除に失敗しました: ${data.message || res.status}`, "error");
+                return;
+            }
+
+            if (country_code) {
+                window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all');
+            }
+
+            if (failed.length > 0) {
+                window.showToast(`${failed.length}件の削除に失敗しました`, "error");
+            } else {
+                window.showToast("削除完了", "success");
+            }
+        } catch (e) {
+            console.error("bulk_delete_items error:", e);
+            window.showToast("通信エラーが発生しました", "error");
         }
-        window.showToast("削除完了", "success");
     });
 
 });

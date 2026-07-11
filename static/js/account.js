@@ -5,8 +5,14 @@
 document.addEventListener("DOMContentLoaded", async () => {
 
     // --- ▼ OAuth結果受信処理（最優先） ▼ ---
-    const oauthRes = await fetch("/amazon/oauth/result");
-    const oauthData = await oauthRes.json();
+    let oauthData = null;
+
+    try {
+        const oauthRes = await fetch("/amazon/oauth/result");
+        oauthData = await oauthRes.json();
+    } catch (err) {
+        console.error("[ACCOUNT] oauth/result load failed:", err);
+    }
 
     if (oauthData && oauthData.status === "ok") {
         if (oauthData.app_type === "home") {
@@ -76,7 +82,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     fetch("/account/get_marketplaces_master")
         .then(res => res.json())
         .then(data => {
-            if (!Array.isArray(data.regions)) return;
+            if (!Array.isArray(data.regions)) {
+                window.showToast?.("マーケットプレイス一覧の取得に失敗しました", "error");
+                return;
+            }
 
             homeCountryCodeEl.innerHTML = "";
 
@@ -99,7 +108,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             // ★ DOM反映後に HOME確定状態を判定させる（重要）
             setTimeout(() => {
                 loadHomeAccount();
-            }, 0);            
+            }, 0);
+        })
+        .catch(err => {
+            console.error("[ACCOUNT] get_marketplaces_master failed:", err);
+            window.showToast?.("マーケットプレイス一覧の取得に失敗しました", "error");
         });
 
     // --- ▼ SECTION 02: HOME変更時（警告 → OKなら削除 → HOME再設定）▼ ---
@@ -139,11 +152,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.getElementById("home_refresh_token").value = "";
 
         // ▼ 旧HOME削除API
-        await fetch("/account/delete_home_account", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({})
-        });
+        try {
+            const res = await fetch("/account/delete_home_account", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({})
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || data.status === "error") {
+                window.showToast?.(`HOME削除に失敗しました: ${data.message || res.status}`, "error");
+            }
+        } catch (e) {
+            console.error("[ACCOUNT] delete_home_account failed:", e);
+            window.showToast?.("通信エラーが発生しました", "error");
+        }
 
         // ▼ 再読み込み
         loadHomeAccount();

@@ -54,7 +54,10 @@ $(document).ready(function () {
         fetch("/account/api-usage-summary")
             .then(res => res.json())
             .then(res => {
-                if (res.status !== "ok") return;
+                if (res.status !== "ok") {
+                    window.showToast?.("API使用状況の取得に失敗しました", "error");
+                    return;
+                }
 
                 const data = res.data || {};
                 let html = "";
@@ -127,8 +130,12 @@ $(document).ready(function () {
 
                 const updatedEl = document.getElementById("api-counter-updated-at");
                 if (updatedEl) updatedEl.textContent = new Date().toLocaleString();
+            })
+            .catch(err => {
+                console.error("api-usage-summary error:", err);
+                window.showToast?.("API使用状況の取得に失敗しました", "error");
             });
 
-    });    
+    });
 });
 

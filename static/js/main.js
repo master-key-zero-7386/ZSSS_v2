@@ -100,6 +100,12 @@ window.addEventListener("DOMContentLoaded", () => {
             .then(res => res.json())
             .then(markets => {
 
+                if (!Array.isArray(markets)) {
+                    console.error("[ERR] load marketplaces: unexpected response", markets);
+                    window.showToast?.("マーケットプレイス一覧の取得に失敗しました。再読み込みしてください", "error");
+                    return;
+                }
+
                 globalRegionEl.innerHTML = "";
                 const enabled = window.ZSSS_ENABLED_COUNTRY_CODES || [];
                 const enabledLower = enabled.map(r => r.toLowerCase());
@@ -172,7 +178,10 @@ window.addEventListener("DOMContentLoaded", () => {
                 });
 
             })
-            .catch(err => console.error("[ERR] load marketplaces:", err));
+            .catch(err => {
+                console.error("[ERR] load marketplaces:", err);
+                window.showToast?.("マーケットプレイス一覧の取得に失敗しました。再読み込みしてください", "error");
+            });
     }
 
     // === ▼ SECTION 10-02: グローバル初期化（account以外） ▼ ===   

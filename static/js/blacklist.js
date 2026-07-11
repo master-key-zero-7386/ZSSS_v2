@@ -194,8 +194,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const country_code = el ? el.value : null;
         if (!country_code) return;
 
-        const res = await fetch(`/blacklist/brand/${country_code}`);
-        const data = await res.json();
+        let data;
+        try {
+            const res = await fetch(`/blacklist/brand/${country_code}`);
+            data = await res.json();
+        } catch (e) {
+            console.error("blacklist/brand load error:", e);
+            showToast("ブランド一覧の取得に失敗しました");
+            return;
+        }
 
         const rows = data.rows || [];
         const table = brandTable;
@@ -229,8 +236,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const country_code = el ? el.value : null;
         if (!country_code) return;
 
-        const res = await fetch(`/blacklist/asin/${country_code}`);
-        const data = await res.json();
+        let data;
+        try {
+            const res = await fetch(`/blacklist/asin/${country_code}`);
+            data = await res.json();
+        } catch (e) {
+            console.error("blacklist/asin load error:", e);
+            showToast("ASIN一覧の取得に失敗しました");
+            return;
+        }
 
         const rows = data.rows || [];
         const table = $('#asinTable').DataTable();
@@ -399,19 +413,31 @@ document.addEventListener("DOMContentLoaded", () => {
             const el = document.getElementById("globalRegion");
             const country_code = el ? el.value : null;
 
-            await fetch("/blacklist/delete", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    id: row_id,
-                    country_code: country_code,
-                    target: document.querySelector(".bl-tab.active")?.dataset.tab
-                })
-            });
+            try {
+                const res = await fetch("/blacklist/delete", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        id: row_id,
+                        country_code: country_code,
+                        target: document.querySelector(".bl-tab.active")?.dataset.tab
+                    })
+                });
 
-            $(tr).closest('table').DataTable().row(tr).remove().draw(false);
+                const data = await res.json().catch(() => ({}));
+
+                if (!res.ok || data.status === "error") {
+                    showToast(`削除に失敗しました: ${data.message || res.status}`);
+                    return;
+                }
+
+                $(tr).closest('table').DataTable().row(tr).remove().draw(false);
+            } catch (e) {
+                console.error("blacklist delete error:", e);
+                showToast("通信エラーが発生しました");
+            }
         }
 
     });
@@ -523,8 +549,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const country_code = el ? el.value : null;
         if (!country_code || !reportCandidateTable) return;
 
-        const res = await fetch(`/blacklist/report_candidates/${country_code}`);
-        const data = await res.json();
+        let data;
+        try {
+            const res = await fetch(`/blacklist/report_candidates/${country_code}`);
+            data = await res.json();
+        } catch (e) {
+            console.error("blacklist/report_candidates load error:", e);
+            showToast("低セッションASIN一覧の取得に失敗しました");
+            return;
+        }
 
         const rows = data.rows || [];
 

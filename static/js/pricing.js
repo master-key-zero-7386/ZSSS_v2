@@ -280,14 +280,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- ▼ SECTION 08: HOME通貨表示更新（UI出品価格算定 通貨表示用） ▼ ---
   async function updateHomeCurrencyUnit() {
-      const res = await fetch(`/pricing/get_home_currency?user_id=${ZSSS_USER_ID}`);
-      const json = await res.json();
+      try {
+          const res = await fetch(`/pricing/get_home_currency?user_id=${ZSSS_USER_ID}`);
+          const json = await res.json();
 
-      if (!json.currency) return;
+          if (!json.currency) return;
 
-      document.querySelectorAll(".home_currency_unit").forEach(el => {
-          el.textContent = json.currency;
-      });
+          document.querySelectorAll(".home_currency_unit").forEach(el => {
+              el.textContent = json.currency;
+          });
+      } catch (e) {
+          console.error("get_home_currency error:", e);
+      }
   }
 
   // --- ▼ SECTION 09: 保存ボタン処理 ▼ ---  

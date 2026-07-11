@@ -1853,36 +1853,30 @@ def bulk_delete_items():
     if not items:
         return jsonify({"status": "success", "results": []}) 
 
-    country_code = (items[0].get("country_code") or "").strip().lower()    
+    country_code = (items[0].get("country_code") or "").strip().lower()
 
-    db_name = f"a_{country_code}_listed_items.db" 
+    db_name = f"a_{country_code}_listed_items.db"
 
-    try:
-        conn = get_conn(db_name)  
-    except FileNotFoundError:
-        return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500  
+    # --- deleting_flag一括セット（フィード送信前のガード。1件ずつではなくANY(%s)でまとめて1クエリ） ---
+    flag_skus = [(item.get("sku") or "").strip() for item in items]
+    flag_skus = [s for s in flag_skus if s]
 
-    cur = conn.cursor()  
+    if flag_skus:
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
 
-    for item in items:
-        sku = (item.get("sku") or "").strip()
-
-        if not sku:
-            continue
-
+        cur = conn.cursor()
         cur.execute("""
             UPDATE listed_items
             SET deleting_flag = 1
-            WHERE sku = %s
-        """, (sku,))
-
-    conn.commit()
-    conn.close()  
+            WHERE sku = ANY(%s)
+        """, (flag_skus,))
+        conn.commit()
+        conn.close()
 
     results = []
-
-    if not items:
-        return jsonify({"status": "success", "results": results})
 
     # --- country_codeごとに sku_list をまとめる ---
     country_sku_map = {}
@@ -1900,10 +1894,11 @@ def bulk_delete_items():
 
         sku = (sku or "").strip()
 
-        if country_code not in country_sku_map:
-            country_sku_map[country_code] = []
+        # ★sku無しはスキップ（以前はここが空skuで「user_id全件削除」に落ちる危険な分岐だった）
+        if not sku:
+            continue
 
-        country_sku_map[country_code].append(sku)
+        country_sku_map.setdefault(country_code, []).append(sku)
 
     # --- Bulk処理（Feed + DB削除） ---
     for country_code, sku_list in country_sku_map.items():
@@ -1937,48 +1932,38 @@ def bulk_delete_items():
             if isinstance(feed_response, dict):
                 print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
 
-        # --- DB削除・cache削除（単体Deleteと同じ処理） ---
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        db_file = os.path.join(base_dir, "db", f"a_{country_code}_listed_items.db")
-
+        # --- DB削除（1件ずつではなくANY(%s)でまとめて1クエリ） ---
         db_name = f"a_{country_code}_listed_items.db"
 
         try:
-            conn = get_conn(db_name) 
+            conn = get_conn(db_name)
         except FileNotFoundError:
-            continue 
+            for sku in sku_list:
+                results.append({"sku": sku, "status": "error", "message": f"database not found: {db_name}"})
+            continue
 
-        cur = conn.cursor() 
+        cur = conn.cursor()
 
-        for sku in sku_list:
-            try:
-                if sku:
-                    cur.execute("""
-                        DELETE FROM listed_items
-                        WHERE sku=%s AND user_id=%s
-                    """, (sku, user_id))
-                else:
-                    cur.execute("""
-                        DELETE FROM listed_items
-                        WHERE user_id=%s
-                    """, (user_id,))
+        try:
+            cur.execute("""
+                DELETE FROM listed_items
+                WHERE sku = ANY(%s) AND user_id=%s
+            """, (sku_list, user_id))
+            conn.commit()
 
+            for sku in sku_list:
                 print(f"[DB DELETE COMPLETE] SKU: {sku}", flush=True)
-                results.append({
-                    "sku": sku,
-                    "status": "ok"
-                })
+                results.append({"sku": sku, "status": "ok"})
 
-            except Exception as e:
-                print(f"[DB DELETE ERROR] SKU: {sku} → {e}", flush=True)
-                results.append({
-                    "sku": sku,
-                    "status": "error",
-                    "message": str(e)
-                })
+        except Exception as e:
+            conn.rollback()
+            print(f"[DB DELETE ERROR] country={country_code} → {e}", flush=True)
 
-        conn.commit()
-        conn.close()   
+            for sku in sku_list:
+                results.append({"sku": sku, "status": "error", "message": str(e)})
+
+        finally:
+            conn.close()
 
     return jsonify({
         "status": "success",
@@ -2281,24 +2266,34 @@ def bulk_move_to_all():
     blocked_asins = []
     submit_items = []
 
+    if not asins:
+        conn.close()
+        return jsonify({"status": "success", "blocked_asins": blocked_asins})
+
+    # --- ▼ 出品用データを1件ずつではなくANY(%s)でまとめて1クエリ取得 ▼ ---
+    cur.execute("""
+        SELECT
+            asin,
+            sku,
+            final_price,
+            strategy_quantity,
+            strategy_handling_time,
+            home_brand,
+            region_brand
+        FROM listed_items
+        WHERE asin = ANY(%s) AND user_id=%s
+    """, (asins, user_id))
+
+    rows_by_asin = {r["asin"]: r for r in cur.fetchall()}
+
+    candidate_data = {}
+    to_activate = []
+
     for asin in asins:
 
         print(f"[BULK MOVE] ASIN:{asin}", flush=True)  # 一括処理確認ログ削除NG
 
-        # --- ▼ 出品用データ取得 ▼ ---
-        cur.execute("""
-            SELECT
-                sku,
-                final_price,
-                strategy_quantity,
-                strategy_handling_time,
-                home_brand,
-                region_brand
-            FROM listed_items
-            WHERE asin=%s AND user_id=%s
-        """, (asin, user_id))
-
-        row = cur.fetchone()
+        row = rows_by_asin.get(asin)
 
         if not row:
             continue
@@ -2319,25 +2314,29 @@ def bulk_move_to_all():
             blocked_asins.append(asin)
             continue
 
-        seller_sku = row["sku"]
-        price = row["final_price"]
-        strategy_quantity = row["strategy_quantity"]
-        strategy_handling_time = row["strategy_handling_time"]
-
         # --- ▼ quantity決定 ▼ ---
-        strategy_quantity = int(strategy_quantity or 0)
-
-        if strategy_quantity >= 1:
-            quantity = strategy_quantity
-        else:
-            quantity = 1
+        strategy_quantity = int(row["strategy_quantity"] or 0)
+        quantity = strategy_quantity if strategy_quantity >= 1 else 1
 
         # --- ▼ handling_time決定 ▼ ---
         if rules and rules.get("default_handling_time") and int(rules["default_handling_time"]) >= 1:
             handling_time = int(rules["default_handling_time"])
         else:
-            handling_time = strategy_handling_time
+            handling_time = row["strategy_handling_time"]
 
+        candidate_data[asin] = {
+            "seller_sku": row["sku"],
+            "price": row["final_price"],
+            "quantity": quantity,
+            "handling_time": handling_time,
+        }
+        to_activate.append(asin)
+
+    # --- ▼ ステータス一括更新（1件ずつではなくANY(%s)でまとめて1クエリ。
+    #        RETURNINGで実際にpre→listedへ遷移できたASINだけ受け取る） ▼ ---
+    activated_asins = set()
+
+    if to_activate:
         now_utc = datetime.utcnow().isoformat()
 
         cur.execute("""
@@ -2345,27 +2344,33 @@ def bulk_move_to_all():
             SET
                 status='listed',
                 updated_at=%s
-            WHERE asin=%s AND status='pre' AND user_id=%s
-        """, (now_utc, asin, user_id))
+            WHERE asin = ANY(%s) AND status='pre' AND user_id=%s
+            RETURNING asin
+        """, (now_utc, to_activate, user_id))
 
-        if cur.rowcount == 0:
-            continue
-
+        activated_asins = {r["asin"] for r in cur.fetchall()}
         conn.commit()
 
-        if price is None or quantity is None or handling_time is None:
+    conn.close()
+
+    for asin in to_activate:
+
+        if asin not in activated_asins:
+            continue
+
+        info = candidate_data[asin]
+
+        if info["price"] is None or info["quantity"] is None or info["handling_time"] is None:
             print(f"[BULK MOVE] SKIP (MISSING FIELD) ASIN:{asin}", flush=True)
             continue
 
         submit_items.append({
-            "seller_sku": seller_sku,
+            "seller_sku": info["seller_sku"],
             "asin": asin,
-            "price": price,
-            "quantity": quantity,
-            "handling_time": handling_time,
+            "price": info["price"],
+            "quantity": info["quantity"],
+            "handling_time": info["handling_time"],
         })
-
-    conn.close()
 
     # --- ▼ 出品API（Bulk Feed・1リクエストでまとめて送信） ▼ ---
     if submit_items:

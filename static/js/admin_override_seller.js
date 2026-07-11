@@ -73,20 +73,28 @@ async function loadOverrideSellerTable() {
 
     const region = await waitForRegion();
 
-    const res = await fetch("/override_seller/list", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            country_code: region
-        })
-    });
+    let json;
+    try {
+        const res = await fetch("/override_seller/list", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                country_code: region
+            })
+        });
 
-    const json = await res.json();
+        json = await res.json();
+    } catch (e) {
+        console.error("override_seller/list error:", e);
+        window.showToast?.("送料誤判定セラー一覧の取得に失敗しました", "error");
+        return;
+    }
 
     if (!json || !Array.isArray(json.data)) {
         console.error("Invalid response:", json);
+        window.showToast?.("送料誤判定セラー一覧の取得に失敗しました", "error");
         return;
     }
 
@@ -353,6 +361,10 @@ $(document)
     .then(res => {
         if (res.status !== "ok") return alert("失敗");
         window.overrideSellerTable.ajax.reload(null, false);
+    })
+    .catch(err => {
+        console.error("override_seller/insert error:", err);
+        alert("通信エラーが発生しました");
     });
 });
 
@@ -414,6 +426,10 @@ $(document)
     .then(res => {
         if (res.status !== "ok") return alert("失敗");
         window.overrideSellerTable.ajax.reload(null, false);
+    })
+    .catch(err => {
+        console.error("override_seller/update error:", err);
+        alert("通信エラーが発生しました");
     });
 });
 
@@ -448,5 +464,9 @@ $(document)
     .then(res => {
         if (res.status !== "ok") return alert("失敗");
         window.overrideSellerTable.ajax.reload(null, false);
+    })
+    .catch(err => {
+        console.error("override_seller/delete error:", err);
+        alert("通信エラーが発生しました");
     });
 });
