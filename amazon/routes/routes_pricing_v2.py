@@ -8,6 +8,7 @@
 
 import os
 import json
+import traceback
 from datetime import datetime
 from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, session
@@ -303,6 +304,8 @@ def run_refresh_now():
         })
 
     except Exception as e:
+
+        traceback.print_exc()
 
         return jsonify({
             "status": "error",

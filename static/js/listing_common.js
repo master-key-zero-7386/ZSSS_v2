@@ -260,7 +260,7 @@ window.attachRefreshButtons = function (tableSelector) {
 
             try {
 
-                await fetch("/run_refresh_now", {
+                const res = await fetch("/run_refresh_now", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
@@ -270,6 +270,14 @@ window.attachRefreshButtons = function (tableSelector) {
                         country_code: country_code
                     })
                 });
+
+                const json = await res.json().catch(() => ({}));
+
+                if (!res.ok || json.status === "error") {
+                    console.error("run_refresh_now failed:", res.status, json.message);
+                    window.showToast?.(`最新取得失敗: ${json.message || res.status}`, "error");
+                    return;
+                }
 
                 if (currentTab === "all") {
 
@@ -289,7 +297,8 @@ window.attachRefreshButtons = function (tableSelector) {
 
             } catch (e) {
 
-                alert("最新取得失敗");
+                console.error("run_refresh_now error:", e);
+                window.showToast?.("通信エラーが発生しました", "error");
 
             } finally {
 
