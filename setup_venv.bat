@@ -2,9 +2,9 @@
 
 cd /d %~dp0
 
-python -m venv C:\python_env\venv
+python -m venv "%~dp0..\python_env\venv"
 
-call C:\python_env\venv\Scripts\activate
+call "%~dp0..\python_env\venv\Scripts\activate"
 
 python -m pip install --upgrade pip
 

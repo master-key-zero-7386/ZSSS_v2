@@ -2,7 +2,7 @@
 
 cd /d %~dp0
 
-call C:\python_env\venv\Scripts\activate
+call "%~dp0..\python_env\venv\Scripts\activate"
 
 python -m pip freeze > requirements.txt
 

@@ -15,7 +15,7 @@ linter/formatter config in the repo.
 ## Running the app
 
 ```bash
-# one-time setup (creates C:\python_env\venv and installs requirements.txt)
+# one-time setup (creates ..\python_env\venv, i.e. a sibling of the repo folder, and installs requirements.txt)
 setup_venv.bat
 
 # run the dev server (activates the venv, then `python app.py`)
