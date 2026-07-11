@@ -239,13 +239,17 @@ def add_listing():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-def _compute_catalog_progress(first_try_count, catalog_row, cache_row):
+def _compute_catalog_progress(first_try_count, row):
+    # --- ▼ catalog_cache/pricing_cache はASIN単位の共有キャッシュのため、
+    #     「他のリスティングが取得済み」でも"done"になってしまい、
+    #     このlisted_items行自体へのUPDATEが未完了でも見分けがつかない。
+    #     そのため判定はlisted_items自身の値を見る ▼ ---
     try_count = first_try_count if first_try_count is not None else 0
 
-    has_home_catalog = bool(catalog_row and catalog_row.get("home_raw_json"))
-    has_region_catalog = bool(catalog_row and catalog_row.get("region_raw_json"))
-    has_home_pricing = bool(cache_row and cache_row.get("home_offers_json"))
-    has_region_pricing = bool(cache_row and cache_row.get("region_offers_json"))
+    has_home_catalog = bool((row.get("home_title") or "").strip())
+    has_region_catalog = bool((row.get("region_title") or "").strip())
+    has_home_pricing = row.get("home_price") is not None
+    has_region_pricing = row.get("region_price") is not None
 
     def home_leg(has_data):
         if has_data:
@@ -568,7 +572,7 @@ def _build_listing_row_with_shipping(
         "region_rank_title": region_rank_title,
 
         "catalog_progress": _compute_catalog_progress(
-            row.get("first_try_count"), catalog_row, cache_row
+            row.get("first_try_count"), row
         ),
     }
     
@@ -913,6 +917,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(raw_min_price, NULL) AS raw_min_price,
             COALESCE(region_brand, '') AS region_brand,
             COALESCE(region_manufacturer, '') AS region_manufacturer,
+            COALESCE(region_title, '') AS region_title,
             COALESCE(information_status, '') AS information_status,
             COALESCE(listing_status, '') AS listing_status,
             COALESCE(inactive_reason, '') AS inactive_reason,
