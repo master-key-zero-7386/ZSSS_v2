@@ -7,15 +7,11 @@ function renderCatalogProgress(progress) {
     if (!progress) return "ー";
     const icon = (state) => state === "done" ? "✅" : state === "failed" ? "❌" : "⏳";
     const label = (state) => state === "done" ? "取得済み" : state === "failed" ? "未取得（リトライ終了）" : "処理待ち";
-    const parts = [
-        ["HOME📦", progress.home_catalog],
-        ["HOME💰", progress.home_pricing],
-        ["REGION📦", progress.region_catalog],
-        ["REGION💰", progress.region_pricing],
-    ];
-    return parts.map(([tag, state]) =>
-        `<span title="${tag}: ${label(state)}" style="margin-right:6px;">${tag}${icon(state)}</span>`
-    ).join("");
+    const line = (tag, catalogState, pricingState) => `
+        <div>${tag}：<span title="Catalog: ${label(catalogState)}">Catalog${icon(catalogState)}</span>　/　<span title="Pricing: ${label(pricingState)}">Pricing${icon(pricingState)}</span></div>
+    `;
+    return line("HOME", progress.home_catalog, progress.home_pricing)
+        + line("REGION", progress.region_catalog, progress.region_pricing);
 }
 
 window.loadalllisting = async function(country_code) {
