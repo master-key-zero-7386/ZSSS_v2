@@ -986,41 +986,54 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
 
     SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id)
 
-    conn_cache = get_conn("a_pricing_cache.db")
-    cur_cache = conn_cache.cursor()
+    # --- ページに表示する分（rows）のASINだけに絞る ---
+    # 以前はmarketplace全件（8000〜20000件規模）を毎回丸ごと読んでいたが、
+    # 実際に使うのはこのページ分（最大limit件）のみのため、asin=ANY(%s)で絞り込む
+    page_asins = [r["asin"] for r in rows]
 
-    cur_cache.execute("""
-        SELECT
-            asin,
-            home_offers_json,
-            region_offers_json
-        FROM pricing_cache
-        WHERE region_marketplace_id = %s
-    """, (marketplace_id,))
+    PRICING_CACHE_ROWS = {}
+    CATALOG_CACHE_ROWS = {}
 
-    PRICING_CACHE_ROWS = {
-        r["asin"]: r
-        for r in cur_cache.fetchall()
-    }
+    if page_asins:
+        conn_cache = get_conn("a_pricing_cache.db")
+        cur_cache = conn_cache.cursor()
 
-    conn_cat = get_conn("a_catalog_cache.db")
-    cur_cat = conn_cat.cursor()
+        cur_cache.execute("""
+            SELECT
+                asin,
+                home_offers_json,
+                region_offers_json
+            FROM pricing_cache
+            WHERE region_marketplace_id = %s
+            AND asin = ANY(%s)
+        """, (marketplace_id, page_asins))
 
-    cur_cat.execute("""
-        SELECT
-            asin,
-            home_raw_json,
-            region_raw_json
-        FROM catalog_cache
-        WHERE region_marketplace_id = %s
-    """, (marketplace_id,))
+        PRICING_CACHE_ROWS = {
+            r["asin"]: r
+            for r in cur_cache.fetchall()
+        }
 
-    CATALOG_CACHE_ROWS = {
-        r["asin"]: r
-        for r in cur_cat.fetchall()
-    }
+        conn_cache.close()
 
-    conn_cat.close()
+        conn_cat = get_conn("a_catalog_cache.db")
+        cur_cat = conn_cat.cursor()
+
+        cur_cat.execute("""
+            SELECT
+                asin,
+                home_raw_json,
+                region_raw_json
+            FROM catalog_cache
+            WHERE region_marketplace_id = %s
+            AND asin = ANY(%s)
+        """, (marketplace_id, page_asins))
+
+        CATALOG_CACHE_ROWS = {
+            r["asin"]: r
+            for r in cur_cat.fetchall()
+        }
+
+        conn_cat.close()
 
     conn_mst = get_conn("a_marketplaces_master.db")
     cur_mst = conn_mst.cursor()
@@ -1480,43 +1493,52 @@ def search_listing():
         
         SHIPPING_RATE_ROWS = get_shipping_rate(user_id, marketplace_id)        
 
-        conn_cache = get_conn("a_pricing_cache.db")
-        cur_cache = conn_cache.cursor()
+        # --- 検索結果（rows、最大200件）のASINだけに絞る（marketplace全件走査を回避） ---
+        page_asins = [r["asin"] for r in rows]
 
-        cur_cache.execute("""
-            SELECT
-                asin,
-                home_offers_json,
-                region_offers_json
-            FROM pricing_cache
-            WHERE region_marketplace_id = %s
-        """, (marketplace_id,))
+        PRICING_CACHE_ROWS = {}
+        CATALOG_CACHE_ROWS = {}
 
-        PRICING_CACHE_ROWS = {
-            r["asin"]: r
-            for r in cur_cache.fetchall()
-        }
+        if page_asins:
+            conn_cache = get_conn("a_pricing_cache.db")
+            cur_cache = conn_cache.cursor()
 
-        conn_cat = get_conn("a_catalog_cache.db")
-        cur_cat = conn_cat.cursor()
+            cur_cache.execute("""
+                SELECT
+                    asin,
+                    home_offers_json,
+                    region_offers_json
+                FROM pricing_cache
+                WHERE region_marketplace_id = %s
+                AND asin = ANY(%s)
+            """, (marketplace_id, page_asins))
 
-        cur_cat.execute("""
-            SELECT
-                asin,
-                home_raw_json,
-                region_raw_json
-            FROM catalog_cache
-            WHERE region_marketplace_id = %s
-        """, (marketplace_id,))
+            PRICING_CACHE_ROWS = {
+                r["asin"]: r
+                for r in cur_cache.fetchall()
+            }
 
-        CATALOG_CACHE_ROWS = {
-            r["asin"]: r
-            for r in cur_cat.fetchall()
-        }
+            conn_cache.close()
 
-        conn_cat.close()
+            conn_cat = get_conn("a_catalog_cache.db")
+            cur_cat = conn_cat.cursor()
 
-        conn_cache.close()
+            cur_cat.execute("""
+                SELECT
+                    asin,
+                    home_raw_json,
+                    region_raw_json
+                FROM catalog_cache
+                WHERE region_marketplace_id = %s
+                AND asin = ANY(%s)
+            """, (marketplace_id, page_asins))
+
+            CATALOG_CACHE_ROWS = {
+                r["asin"]: r
+                for r in cur_cat.fetchall()
+            }
+
+            conn_cat.close()
 
         conn_mst = get_conn("a_marketplaces_master.db")
         cur_mst = conn_mst.cursor()

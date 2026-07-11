@@ -718,6 +718,11 @@ def add_unique_indexes():  # UNIQUE制約
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_cache_unique "
         "ON catalog_cache(asin, home_marketplace_id)"
     )
+    # --- listing一覧のWHERE region_marketplace_id=%sが全表スキャンになっていたため追加 ---
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_catalog_cache_region_mp "
+        "ON catalog_cache(region_marketplace_id)"
+    )
     conn.commit()
     conn.close()
 
@@ -733,6 +738,11 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_cache_unique_v2 "
         "ON pricing_cache(asin, home_marketplace_id, region_marketplace_id)"
+    )
+    # --- 複合UNIQUEはregion_marketplace_idが末尾のため単独WHERE検索に使えない → 単独索引を追加 ---
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pricing_cache_region_mp "
+        "ON pricing_cache(region_marketplace_id)"
     )
     conn.commit()
     conn.close()

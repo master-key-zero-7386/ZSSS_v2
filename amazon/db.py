@@ -8,7 +8,9 @@
 # ==========================================
 
 import os
+import atexit
 import psycopg2
+from psycopg2 import pool as _pg_pool
 from pathlib import Path
 from dotenv import load_dotenv
 from psycopg2.extras import RealDictCursor
@@ -21,25 +23,63 @@ PG_USER = os.environ.get("PG_USER")
 PG_PASSWORD = os.environ.get("PG_PASSWORD")
 PG_DATABASE = os.environ.get("PG_DATABASE")
 
-# --- ▼ SECTION 01: PostgreSQL接続 ▼ ---
-def _get_postgres_conn():
-    conn = psycopg2.connect(
-        host=PG_HOST,
-        port=PG_PORT,
-        user=PG_USER,
-        password=PG_PASSWORD,
-        dbname=PG_DATABASE,
-        client_encoding="UTF8",
-        cursor_factory=RealDictCursor,
-    )
+# --- ▼ SECTION 01: PostgreSQL接続プール ▼ ---
+# get_conn()がリクエスト/バックグラウンドループのたびに毎回新規TCP接続していたのを
+# プール化。Flaskはthreaded=True、バックグラウンドスレッドも複数同時稼働するため
+# スレッドセーフなThreadedConnectionPoolを使用。
+_POOL = _pg_pool.ThreadedConnectionPool(
+    minconn=2,
+    maxconn=20,
+    host=PG_HOST,
+    port=PG_PORT,
+    user=PG_USER,
+    password=PG_PASSWORD,
+    dbname=PG_DATABASE,
+    client_encoding="UTF8",
+    cursor_factory=RealDictCursor,
+)
 
-    return conn
+atexit.register(_POOL.closeall)
+
+# --- ▼ SECTION 01-1: プール貸出用ラッパー ▼ ---
+# 呼び出し側は今まで通り conn.cursor() / conn.commit() / conn.close() を呼ぶだけでよい。
+# close() だけをプール返却に差し替え、それ以外は__getattr__で本物のconnectionへ委譲する。
+class _PooledConnection:
+    def __init__(self, conn):
+        self._conn = conn
+        self._returned = False
+
+    def close(self):
+        if self._returned:
+            return
+        self._returned = True
+
+        try:
+            # --- 借用中に例外でcommit/rollbackされないまま返却されるのを防ぐ ---
+            if not self._conn.closed:
+                self._conn.rollback()
+            _POOL.putconn(self._conn)
+        except Exception:
+            try:
+                _POOL.putconn(self._conn, close=True)
+            except Exception:
+                pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __del__(self):
+        # --- close()し忘れ（例外パスなど）でもGC時にプールへ返却されるようにする保険 ---
+        try:
+            self.close()
+        except Exception:
+            pass
 
 # --- ▼ SECTION 02: 共通接続入口 ▼ ---
 # db_name はテーブル/DB識別用の引数として過去のSQLite分割DB構成から残っているが、
 # PostgreSQLは単一DBに統一しているため接続先の決定には使用しない。
 def get_conn(db_name):
-    return _get_postgres_conn()
+    return _PooledConnection(_POOL.getconn())
 
 # --- ▼ SECTION 05:アカウント情報取得（user_id + country_code + marketplaces 参照） ▼ ---
 def get_account_info(country_code: str, user_id: str | None = None) -> dict:
