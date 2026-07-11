@@ -3,6 +3,21 @@
 // Pre-Listing 専用処理（初期ロード・JP情報補完など）
 // =====================================================
 
+function renderCatalogProgress(progress) {
+    if (!progress) return "ー";
+    const icon = (state) => state === "done" ? "✅" : state === "failed" ? "❌" : "⏳";
+    const label = (state) => state === "done" ? "取得済み" : state === "failed" ? "未取得（リトライ終了）" : "処理待ち";
+    const parts = [
+        ["HOME📦", progress.home_catalog],
+        ["HOME💰", progress.home_pricing],
+        ["REGION📦", progress.region_catalog],
+        ["REGION💰", progress.region_pricing],
+    ];
+    return parts.map(([tag, state]) =>
+        `<span title="${tag}: ${label(state)}" style="margin-right:6px;">${tag}${icon(state)}</span>`
+    ).join("");
+}
+
 window.loadprelisting = async function (country_code) {
 
     // --- ▼ SECTION 01: 二重実行防止ロック ---
@@ -337,7 +352,7 @@ window.loadprelisting = async function (country_code) {
                                 </span>
                             </div>
 
-                            <div>       
+                            <div>
                                 <span style="display:inline-block; width:90px;">仕入価格</span>
                                 ：<span class="disp-home-price">
                                     ${
@@ -528,6 +543,7 @@ window.loadprelisting = async function (country_code) {
                         <div>
                             <div>更新：${fmt(row.updated_at, row.home_timezone)}</div>
                             <div>登録：${fmt(row.created_at, row.home_timezone)}</div>
+                            <div>取得状況：${renderCatalogProgress(row.catalog_progress)}</div>
                             ${
                                 row.information_status === "INACTIVE" && row.inactive_reason
                                     ? `<div style="color:#ff9800;font-weight:bold;">理由：${row.inactive_reason}</div>`

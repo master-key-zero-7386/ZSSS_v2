@@ -239,6 +239,31 @@ def add_listing():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+def _compute_catalog_progress(first_try_count, catalog_row, cache_row):
+    try_count = first_try_count if first_try_count is not None else 0
+
+    has_home_catalog = bool(catalog_row and catalog_row.get("home_raw_json"))
+    has_region_catalog = bool(catalog_row and catalog_row.get("region_raw_json"))
+    has_home_pricing = bool(cache_row and cache_row.get("home_offers_json"))
+    has_region_pricing = bool(cache_row and cache_row.get("region_offers_json"))
+
+    def home_leg(has_data):
+        if has_data:
+            return "done"
+        return "pending" if try_count > 0 else "failed"
+
+    def region_leg(has_data):
+        if has_data:
+            return "done"
+        return "pending" if try_count >= 0 else "failed"
+
+    return {
+        "home_catalog": home_leg(has_home_catalog),
+        "home_pricing": home_leg(has_home_pricing),
+        "region_catalog": region_leg(has_region_catalog),
+        "region_pricing": region_leg(has_region_pricing),
+    }
+
 # --- ▼ SECTION 04: 共通 Shipping補正・設定 + Fee算定処理 ▼ ---
 def _build_listing_row_with_shipping(
     row, user_id, marketplace_id, country_code, timezone, 
@@ -537,10 +562,14 @@ def _build_listing_row_with_shipping(
         "brand_gate_reason": brand_gate_reason,
         "brand_listed_before": brand_listed_before,
 
-        "home_rank": home_rank,  
-        "home_rank_title": home_rank_title, 
-        "region_rank": region_rank, 
-        "region_rank_title": region_rank_title,          
+        "home_rank": home_rank,
+        "home_rank_title": home_rank_title,
+        "region_rank": region_rank,
+        "region_rank_title": region_rank_title,
+
+        "catalog_progress": _compute_catalog_progress(
+            row.get("first_try_count"), catalog_row, cache_row
+        ),
     }
     
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
@@ -862,6 +891,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         SELECT
             asin, sku,
             home_marketplace_id,
+            first_try_count,
             hm.country_code AS home_country_code,
             rm.country_code AS region_country_code,
             COALESCE(home_title, '') AS home_title,
