@@ -1177,6 +1177,65 @@ def get_prelisting():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- ▼ SECTION 06-1: リーサルウエポン（Pre絞込み条件の規定登録・復元） ▼ ---
+@listing_bp.route("/lethal_weapon/save", methods=["POST"])
+def save_lethal_weapon_preset():
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "not logged in"}), 401
+
+        body = request.get_json(force=True) or {}
+        filters = body.get("filters") or {}
+        filters_json = json.dumps(filters, ensure_ascii=False)
+        now_utc = datetime.utcnow().isoformat()
+
+        conn = get_conn("a_lethal_weapon_preset.db")
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO lethal_weapon_preset (user_id, filters_json, created_at, updated_at)
+            SELECT %s, %s, %s, %s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM lethal_weapon_preset WHERE user_id = %s
+            )
+        """, (user_id, filters_json, now_utc, now_utc, user_id))
+
+        cur.execute("""
+            UPDATE lethal_weapon_preset
+            SET filters_json = %s, updated_at = %s
+            WHERE user_id = %s
+        """, (filters_json, now_utc, user_id))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@listing_bp.route("/lethal_weapon/load", methods=["GET"])
+def load_lethal_weapon_preset():
+    try:
+        user_id = request.args.get("user_id") or session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "not logged in"}), 401
+
+        conn = get_conn("a_lethal_weapon_preset.db")
+        cur = conn.cursor()
+        cur.execute("SELECT filters_json FROM lethal_weapon_preset WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        conn.close()
+
+        filters = json.loads(row["filters_json"]) if row and row["filters_json"] else {}
+        return jsonify({"status": "success", "filters": filters})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # --- ▼ SECTION 07: Pre → ALL 移動処理 ▼ ---
 @listing_bp.route("/get_alllisting", methods=["GET"])
 def get_alllisting():

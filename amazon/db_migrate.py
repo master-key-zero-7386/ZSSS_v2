@@ -391,6 +391,14 @@ OFFER_FILTER_RULES_COLUMNS = {
     "updated_at": "TEXT"
 }
 
+# --- ▼ lethal_weapon_preset（Pre-Listing：絞込み条件の規定登録） ---
+LETHAL_WEAPON_PRESET_COLUMNS = {
+    "user_id": "INTEGER NOT NULL",
+    "filters_json": "TEXT",
+    "created_at": "TEXT",
+    "updated_at": "TEXT"
+}
+
 # --- ▼ shipping_config（仕入側：梱包補正設定） ---
 SHIPPING_CONFIG_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
@@ -578,7 +586,9 @@ def migrate_db(db_name):
     elif base.endswith("_shipping_override_master.db"):
         migrate_table(conn, "shipping_override_master", SHIPPING_OVERRIDE_MASTER_COLUMNS)    
     elif base.endswith("_lwa_credentials_log.db"):
-        migrate_table(conn, "lwa_credentials_log", LWA_CREDENTIALS_LOG_COLUMNS)              
+        migrate_table(conn, "lwa_credentials_log", LWA_CREDENTIALS_LOG_COLUMNS)
+    elif base.endswith("_lethal_weapon_preset.db"):
+        migrate_table(conn, "lethal_weapon_preset", LETHAL_WEAPON_PRESET_COLUMNS)
 
 
     conn.close()
@@ -893,6 +903,16 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
+    # --- a_lethal_weapon_preset.db ---
+    conn = get_conn("a_lethal_weapon_preset.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_lethal_weapon_preset_unique "
+        "ON lethal_weapon_preset(user_id)"
+    )
+    conn.commit()
+    conn.close()
+
 # --- メイン処理 ---
 def main():
 
@@ -915,6 +935,7 @@ def main():
         "a_lwa_credentials_log.db",
         "a_admin_settings.db",
         "a_api_block_state.db",
+        "a_lethal_weapon_preset.db",
     ]
 
     # 固定DB migrate

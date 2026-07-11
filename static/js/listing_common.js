@@ -653,6 +653,90 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // === ▼ 09-04E: リーサルウエポン（Pre絞込み条件の規定登録・復元） ▼ ===
+    // data-lw="1" が付いた要素を汎用的に走査するため、絞込み項目が増えても
+    // ここのコードは変更不要（HTML側にdata-lwを付けるだけで対象に入る）
+    function collectLethalWeaponFilters() {
+        const filters = {};
+
+        document.querySelectorAll('#prelisting [data-lw]').forEach(el => {
+            if (el.type === "radio") {
+                if (el.checked) filters[el.name] = el.value;
+            } else {
+                filters[el.id] = el.value;
+            }
+        });
+
+        return filters;
+    }
+
+    function applyLethalWeaponFilters(filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+            const radios = document.querySelectorAll(`#prelisting input[type="radio"][name="${key}"]`);
+
+            if (radios.length) {
+                radios.forEach(r => { r.checked = (r.value === value); });
+            } else {
+                const el = document.getElementById(key);
+                if (el) el.value = value;
+            }
+        });
+
+        // --- ▼ INACTIVE理由プルダウンの有効/無効を情報取得状態に合わせて同期 ▼ ---
+        const reasonSelect = document.getElementById("preInactiveReason");
+        if (reasonSelect) {
+            const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value;
+            reasonSelect.disabled = (infoStatus !== "INACTIVE");
+        }
+
+        const region = document.getElementById("globalRegion")?.value;
+        if (!region) return;
+
+        window.loadprelisting(region);
+    }
+
+    const lwSaveBtn = document.getElementById("lwSaveBtn");
+    if (lwSaveBtn) {
+        lwSaveBtn.addEventListener("click", function () {
+            const originalLabel = lwSaveBtn.textContent;
+            lwSaveBtn.disabled = true;
+
+            fetch(`/listing/lethal_weapon/save?user_id=${ZSSS_USER_ID}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: ZSSS_USER_ID, filters: collectLethalWeaponFilters() })
+            })
+            .then(res => res.json())
+            .then(json => {
+                lwSaveBtn.textContent = (json.status === "success") ? "登録しました" : "登録失敗";
+            })
+            .catch(err => {
+                console.error("lethal_weapon save error:", err);
+                lwSaveBtn.textContent = "登録失敗";
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    lwSaveBtn.textContent = originalLabel;
+                    lwSaveBtn.disabled = false;
+                }, 1500);
+            });
+        });
+    }
+
+    const lwApplyBtn = document.getElementById("lwApplyBtn");
+    if (lwApplyBtn) {
+        lwApplyBtn.addEventListener("click", function () {
+            fetch(`/listing/lethal_weapon/load?user_id=${ZSSS_USER_ID}`)
+            .then(res => res.json())
+            .then(json => {
+                if (json.status === "success") {
+                    applyLethalWeaponFilters(json.filters || {});
+                }
+            })
+            .catch(err => console.error("lethal_weapon load error:", err));
+        });
+    }
+
     // === ▼ 09-04D: ALL 絞込リセット ▼ ===
     const allResetBtn = document.getElementById("allFilterResetBtn");
 

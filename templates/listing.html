@@ -140,6 +140,13 @@
 }
 
 /* 検索バー */
+.search-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .search-bar input {
     width: 500px;
     padding: 10px 10px;
@@ -297,7 +304,8 @@
                 type="text"
                 class="zsss-control"
                 placeholder="ASIN SKU Title Brandで検索"
-                style="padding-right:24px;">
+                style="padding-right:24px;"
+                data-lw="1">
 
             <span id="preListingSearchClear"
                 style="
@@ -314,7 +322,7 @@
         </div>
 
         <!-- ソートプルダウン（Pre） -->
-        <select id="preListingSort" class="zsss-control">
+        <select id="preListingSort" class="zsss-control" data-lw="1">
             <option value="created_desc">登録順 ▼</option>
             <option value="created_asc">登録順 ▲</option>
 
@@ -332,7 +340,7 @@
         </select>
 
         <!-- 絞り込み：ブランドゲート（Pre） -->
-        <select id="preBrandGateFilter" class="zsss-control">
+        <select id="preBrandGateFilter" class="zsss-control" data-lw="1">
             <option value="all">BrandGate：絞込 なし</option>
             <option value="brandgate_ok">BrandGate OK</option>
             <option value="brandgate_approval">BrandGate APPROVAL</option>
@@ -341,7 +349,7 @@
         </select>
 
         <!-- 絞り込み：REGIONセラー数（Pre） -->
-        <select id="preRegionSellerFilter" class="zsss-control">
+        <select id="preRegionSellerFilter" class="zsss-control" data-lw="1">
             <option value="all">REGIONセラー数：絞込 なし</option>
             <option value="region_single_seller">REGIONセラー0～1人（要注意）</option>
             <option value="region_two_sellers">REGIONセラー2人のみ</option>
@@ -350,18 +358,23 @@
 
         <button id="preListingSearchBtn" class="zsss-control">検　索</button>
         <button id="preFilterResetBtn" class="zsss-control" type="button">絞込リセット</button>
+
+        <span style="flex:1;"></span>
+        <button id="lwApplyBtn" class="zsss-control" type="button">⚡ リーサルウエポン</button>
+        <button id="lwSaveBtn" class="zsss-control" type="button">条件を規定登録</button>
+        
     </div>
 
     <div id="preInfoStatusFilter" style="margin-top:10px;">
         <div style="display:flex; gap:20px; align-items:center;">
             <span>情報取得状態:</span>
 
-            <label><input type="radio" name="preInfoStatus" value="all" checked> 全て</label>
-            <label><input type="radio" name="preInfoStatus" value="ACTIVE"> ACTIVE</label>
-            <label><input type="radio" name="preInfoStatus" value="INACTIVE"> INACTIVE</label>
+            <label><input type="radio" name="preInfoStatus" value="all" checked data-lw="1"> 全て</label>
+            <label><input type="radio" name="preInfoStatus" value="ACTIVE" data-lw="1"> ACTIVE</label>
+            <label><input type="radio" name="preInfoStatus" value="INACTIVE" data-lw="1"> INACTIVE</label>
 
             <!-- ▼ INACTIVE理由 絞り込み（INACTIVE選択時のみ有効） -->
-            <select id="preInactiveReason" class="zsss-control" disabled>
+            <select id="preInactiveReason" class="zsss-control" disabled data-lw="1">
                 <option value="all">理由：全て</option>
 
                 <optgroup label="確定NG">
@@ -383,16 +396,16 @@
                 <optgroup label="その他">
                     <option value="BLACKLIST">BLACKLIST</option>
                 </optgroup>
-            </select>  
+            </select>
 
             <span style="margin-left:20px;">既出品/未出品:</span>
 
-            <label><input type="radio" name="preBrandStatus" value="all" checked> 全て</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_listed"> 既出品Brand</label>
-            <label><input type="radio" name="preBrandStatus" value="brand_unlisted"> 未出品Brand</label>            
-            
-        </div>        
-    </div>   
+            <label><input type="radio" name="preBrandStatus" value="all" checked data-lw="1"> 全て</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_listed" data-lw="1"> 既出品Brand</label>
+            <label><input type="radio" name="preBrandStatus" value="brand_unlisted" data-lw="1"> 未出品Brand</label>
+
+        </div>
+    </div>
 
     <!-- ▼ 一括操作（Pre） -->
     <div class="listing-bulk-action">
