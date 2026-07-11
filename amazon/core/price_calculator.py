@@ -49,9 +49,36 @@ def calculate_listing_price(
     extra_cost: float,  ):                                 # その他経費（通貨）
        
 
+    # --- 送料表の重量範囲外（該当行なし）は価格計算不能として扱う ---
+    # shipping_fee=None を 0 円扱いすると、送料無しの誤った安値でACTIVE化してしまうため
+    if shipping_fee is None:
+        return {
+            "P_min": None,
+            "P_max": None,
+            "total_cost": None,
+            "breakdown": {
+                "home_price": None,
+                "intl_shipping": None,
+                "packing": None,
+                "outsource": None,
+                "cif_cost": None,
+                "duty": None,
+                "amazon_fee_rate": None,
+                "gst_rate": None,
+                "profit_min_rate": None,
+                "profit_max_rate": None,
+                "customs_duty_rate": None,
+                "remittance_rate": None,
+                "fuel_rate": None,
+                "exchange_rate": None,
+                "denom_min": None,
+                "denom_max": None,
+            }
+        }
+
     # --- 正規化 ---
     home_price = float(home_price or 0)                    # 仕入原価（通貨）
-    shipping_fee = float(shipping_fee or 0)                # 国際送料ベース（通貨）
+    shipping_fee = float(shipping_fee)                     # 国際送料ベース（通貨）
 
     r = float(amazon_fee_rate or 0) / 100                  # Amazon手数料率
     m_min = float(min_profit_rate or 0) / 100              # 目標利益率（販売額基準）
