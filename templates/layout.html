@@ -275,6 +275,7 @@
         <button class="tab active" data-tab="top">TOP</button>
         <button class="tab" data-tab="shipping-rates">配送料金設定</button>        
         <button class="tab" data-tab="account">アカウント設定</button>
+        <button class="tab" data-tab="research-tool">リサーチツール</button>
 
 
         {% if session.is_admin %}
@@ -346,6 +347,11 @@
             {% include 'shipping_tools.html' %}
         </div>
 
+        <!-- リサーチツール（別プロセスのresearch_toolをiframeで表示） -->
+        <div id="research-tool" class="tab-content">
+            <iframe id="research-tool-frame" style="width:100%; height:100%; border:none;"></iframe>
+        </div>
+
     </main>
 
    <!--  ✅ トースト通知領域（全ページ共通） -->
@@ -367,6 +373,17 @@
     document.addEventListener("DOMContentLoaded", () => {
         if (window.initTabs) {
             window.initTabs();   // ★ これが globalRegion を作る唯一の起点
+        }
+
+        // リサーチツールタブは初回クリック時にだけiframeを読み込む（同一ホストのポート5002）
+        const researchTab = document.querySelector('[data-tab="research-tool"]');
+        const researchFrame = document.getElementById('research-tool-frame');
+        if (researchTab && researchFrame) {
+            researchTab.addEventListener('click', () => {
+                if (!researchFrame.src) {
+                    researchFrame.src = `${window.location.protocol}//${window.location.hostname}:5002/`;
+                }
+            }, { once: true });
         }
     });
     </script>
