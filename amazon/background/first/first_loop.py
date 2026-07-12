@@ -20,9 +20,7 @@ from amazon.routes.routes_pricing_v2 import update_listing_price
 
 # --- ▼ SECTION 01: first loop 基本設定 ▼
 def run_first_loop(app, db_dir):
-    with app.app_context(): 
-        cache_db = os.path.join(db_dir, "a_pricing_cache.db")
-
+    with app.app_context():
         # === ▼ 以下はfirst動作制御設定値 将来UI操作に変更する  ▼ ===
         MAX_FIRST_PER_CYCLE = 20       # 件数制御
         FIRST_LOOP_SLEEP_SEC = 1.0     # cycle間のSleep時間（0.0でもOK）
@@ -127,29 +125,27 @@ def run_first_loop(app, db_dir):
                     time.sleep(api_sleep_sec)
                     # --- ▲ SECTION  firstで取得・updateする項目 ▲ ---
 
-                    # --- ★ SUCCESS判定：pricing_cacheにrawが入っていれば即0 ---
-                    conn_success = get_conn(cache_db)
+                    # --- ★ SUCCESS判定：このリスティング自身のHOMEカタログ・価格が
+                    #     実際に書き込まれていれば即0（pricing_cacheはASIN単位の共有キャッシュで
+                    #     他ユーザー/他出品の取得結果が入っているだけの場合があり、
+                    #     このリスティング自身の取得成否の判定には使えないため使用しない） ---
+                    conn_success = get_conn(t["db"])
                     try:
                         cur_success = conn_success.cursor()
                         cur_success.execute("""
-                            SELECT home_offers_json
-                            FROM pricing_cache
-                            WHERE asin = %s 
-                        """, (t["asin"],))
+                            SELECT home_title, home_price
+                            FROM listed_items
+                            WHERE user_id = %s AND asin = %s
+                        """, (t["user_id"], t["asin"]))
                         row_success = cur_success.fetchone()
 
-                        if row_success and row_success["home_offers_json"] is not None:
-                            conn_listed = get_conn(t["db"]) 
-                            try:
-                                cur_listed = conn_listed.cursor()
-                                cur_listed.execute("""
-                                    UPDATE listed_items
-                                    SET first_try_count = 0
-                                    WHERE user_id = %s AND asin = %s
-                                """, (t["user_id"], t["asin"]))
-                                conn_listed.commit()
-                            finally:
-                                conn_listed.close()
+                        if row_success and (row_success["home_title"] or "").strip() and row_success["home_price"] is not None:
+                            cur_success.execute("""
+                                UPDATE listed_items
+                                SET first_try_count = 0
+                                WHERE user_id = %s AND asin = %s
+                            """, (t["user_id"], t["asin"]))
+                            conn_success.commit()
 
                             time.sleep(ASIN_SLEEP_SEC)
                             continue
