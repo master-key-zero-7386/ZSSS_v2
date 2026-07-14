@@ -111,12 +111,7 @@ def run_ttl_loop(app, db_dir):
 
 # --- ▼ SECTION 03: TTL対象取得（Cacheベース / catalog） ▼ ---
 def load_catalog_ttl_targets(db_dir: str):
-    cache_db = os.path.join(db_dir, "a_catalog_cache.db")
-    conn = get_conn(cache_db)
-
     try:
-        cur = conn.cursor()
-
         # --- Catalog HOME ---
         tmp = []
 
@@ -316,15 +311,11 @@ def load_catalog_ttl_targets(db_dir: str):
             )
 
     finally:
-        conn.close()
+        pass
 
 # --- ▼ SECTION 04: TTL対象取得（Cacheベース / pricing） ▼ ---
 def load_pricing_ttl_targets(db_dir: str):
-    conn = get_conn(os.path.join(db_dir, "a_pricing_cache.db"))
-
     try:
-        cur = conn.cursor()
-
         # --- Pricing HOME ---
         tmp = []
 
@@ -519,11 +510,11 @@ def load_pricing_ttl_targets(db_dir: str):
                     "region_marketplace_id": record.get("region_marketplace_id"),
                 },
                 country_code
-            )              
+            )
 
     finally:
-        conn.close()
-            
+        pass
+
 # --- ▼ SECTION 05: TTL実行受け口 ▼ ---
 def dispatch_ttl_execution(targets, record, country_code):
     for scope, ttl_type in targets:
