@@ -762,8 +762,9 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
         params_base.append(marketplace_id)
 
     # --- 本除外：ASINが"B"始まりでない商品（本類はブランド未登録が多くソート条件に合わないため除外） ---
+    # psycopg2はクエリ文字列中の%をプレースホルダとして解釈するため、リテラルの%は%%にエスケープする
     if exclude_books:
-        query_filter += " AND asin LIKE 'B%'"
+        query_filter += " AND asin LIKE 'B%%'"
 
     if info_status != "all":
         query_filter += " AND information_status = %s"
