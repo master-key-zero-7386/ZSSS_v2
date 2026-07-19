@@ -105,6 +105,7 @@ window.loadprelisting = async function (country_code) {
             const brandgate = document.getElementById("preBrandGateFilter")?.value || 'all';
             const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || 'all';
             const regionSeller = document.getElementById("preRegionSellerFilter")?.value || 'all';
+            const excludeBooks = document.getElementById("preExcludeBooksFilter")?.checked ? '1' : '0';
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
             const reason = document.getElementById("preInactiveReason")?.value || 'all';
@@ -116,7 +117,7 @@ window.loadprelisting = async function (country_code) {
             //     window.prelistingLoadingをtrueに保つ（重複リクエスト防止）
             window.prelistingLoading = true;
 
-            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&brand_status=${brandStatus}&region_seller=${regionSeller}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
+            fetch(`/listing/get_prelisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&brand_status=${brandStatus}&region_seller=${regionSeller}&exclude_books=${excludeBooks}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
             .then(res => res.json())
             .then(json => {
                 window.preGrandTotalCount = json.grand_total_count;

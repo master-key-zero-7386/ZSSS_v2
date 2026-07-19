@@ -579,7 +579,7 @@ def _build_listing_row_with_shipping(
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
 # Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
 # （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
-def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -761,6 +761,10 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
         """
         params_base.append(marketplace_id)
 
+    # --- 本除外：ASINが"B"始まりでない商品（本類はブランド未登録が多くソート条件に合わないため除外） ---
+    if exclude_books:
+        query_filter += " AND asin LIKE 'B%'"
+
     if info_status != "all":
         query_filter += " AND information_status = %s"
         params_base.append(info_status)
@@ -795,7 +799,7 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     return query_filter, params_base
 
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all"):
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -885,7 +889,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
     query_filter, params_base = _build_listing_query_filter(
         status_value, user_id, marketplace_id,
         info_status=info_status, reason=reason, keyword=keyword,
-        brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter
+        brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
+        exclude_books=exclude_books
     )
 
     # --- データ取得 ---
@@ -1207,13 +1212,14 @@ def get_prelisting():
         brandgate_filter = request.args.get("brandgate") or "all"
         brand_status_filter = request.args.get("brand_status") or "all"
         region_seller_filter = request.args.get("region_seller") or "all"
+        exclude_books = (request.args.get("exclude_books") or "0") == "1"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -1297,13 +1303,14 @@ def get_alllisting():
         sort = request.args.get("sort") or "created_desc"
         brandgate_filter = request.args.get("brandgate") or "all"
         region_seller_filter = request.args.get("region_seller") or "all"
+        exclude_books = (request.args.get("exclude_books") or "0") == "1"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -2023,6 +2030,7 @@ def bulk_delete_all_pre():
         brandgate_filter = data.get("brandgate") or "all"
         brand_status_filter = data.get("brand_status") or "all"
         region_seller_filter = data.get("region_seller") or "all"
+        exclude_books = bool(data.get("exclude_books"))
         info_status = data.get("info_status") or "all"
         reason = data.get("reason") or "all"
         keyword = data.get("keyword") or ""
@@ -2050,7 +2058,8 @@ def bulk_delete_all_pre():
         query_filter, params_base = _build_listing_query_filter(
             "pre", user_id, marketplace_id,
             info_status=info_status, reason=reason, keyword=keyword,
-            brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter
+            brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
+            exclude_books=exclude_books
         )
 
         db_name = f"a_{country_code}_listed_items.db"

@@ -173,6 +173,12 @@
     width: 260px;
 }
 
+/* 本除外チェックボックス（.search-bar input の幅500px指定を打ち消す） */
+#preExcludeBooksFilter, #allExcludeBooksFilter {
+    width: auto;
+    padding: 0;
+}
+
 /* Listing Bulk 操作バー */
 .listing-bulk-action{
     margin-top:10px;
@@ -356,6 +362,10 @@
             <option value="region_three_plus_sellers">REGIONセラー3人以上</option>
         </select>
 
+        <label style="display:inline-flex; align-items:center; gap:4px;">
+            <input type="checkbox" id="preExcludeBooksFilter" data-lw="1"> 本除外
+        </label>
+
         <button id="preListingSearchBtn" class="zsss-control">検　索</button>
         <button id="preFilterResetBtn" class="zsss-control" type="button">絞込リセット</button>
 
@@ -488,6 +498,10 @@
             <option value="region_two_sellers">REGIONセラー2人のみ</option>
             <option value="region_three_plus_sellers">REGIONセラー3人以上</option>
         </select>
+
+        <label style="display:inline-flex; align-items:center; gap:4px;">
+            <input type="checkbox" id="allExcludeBooksFilter"> 本除外
+        </label>
 
         <button id="allListingSearchBtn" class="zsss-control">検　索</button>
         <button id="allFilterResetBtn" class="zsss-control" type="button">絞込リセット</button>

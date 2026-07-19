@@ -643,6 +643,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const regionSellerEl = document.getElementById("preRegionSellerFilter");
             if (regionSellerEl) regionSellerEl.value = "all";
 
+            const excludeBooksEl = document.getElementById("preExcludeBooksFilter");
+            if (excludeBooksEl) excludeBooksEl.checked = false;
+
             const infoAll = document.querySelector('input[name="preInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
 
@@ -671,6 +674,8 @@ document.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll('#prelisting [data-lw]').forEach(el => {
             if (el.type === "radio") {
                 if (el.checked) filters[el.name] = el.value;
+            } else if (el.type === "checkbox") {
+                filters[el.id] = el.checked;
             } else {
                 filters[el.id] = el.value;
             }
@@ -687,7 +692,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 radios.forEach(r => { r.checked = (r.value === value); });
             } else {
                 const el = document.getElementById(key);
-                if (el) el.value = value;
+                if (!el) return;
+                if (el.type === "checkbox") {
+                    el.checked = !!value;
+                } else {
+                    el.value = value;
+                }
             }
         });
 
@@ -766,6 +776,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const regionSellerEl = document.getElementById("allRegionSellerFilter");
             if (regionSellerEl) regionSellerEl.value = "all";
+
+            const excludeBooksEl = document.getElementById("allExcludeBooksFilter");
+            if (excludeBooksEl) excludeBooksEl.checked = false;
 
             const infoAll = document.querySelector('input[name="allInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
@@ -988,6 +1001,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const brandgate = document.getElementById("preBrandGateFilter")?.value || "all";
         const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || "all";
         const regionSeller = document.getElementById("preRegionSellerFilter")?.value || "all";
+        const excludeBooks = document.getElementById("preExcludeBooksFilter")?.checked || false;
         const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || "all";
         const keyword = document.querySelector('#preListingSearchInput')?.value?.trim() || "";
         const reason = document.getElementById("preInactiveReason")?.value || "all";
@@ -997,10 +1011,11 @@ document.addEventListener("DOMContentLoaded", () => {
             brandgate !== "all" ||
             brandStatus !== "all" ||
             regionSeller !== "all" ||
+            excludeBooks ||
             infoStatus !== "all" ||
             reason !== "all";
 
-        return { brandgate, brandStatus, regionSeller, infoStatus, keyword, reason, hasFilter };
+        return { brandgate, brandStatus, regionSeller, excludeBooks, infoStatus, keyword, reason, hasFilter };
     };
 
     window.updatePreDeleteAllFilteredState = function () {
@@ -1070,6 +1085,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const brandgate = document.getElementById("preBrandGateFilter")?.value || 'all';
             const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || 'all';
             const regionSeller = document.getElementById("preRegionSellerFilter")?.value || 'all';
+            const excludeBooks = document.getElementById("preExcludeBooksFilter")?.checked || false;
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
             const reason = document.getElementById("preInactiveReason")?.value || 'all';
@@ -1086,6 +1102,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         brandgate,
                         brand_status: brandStatus,
                         region_seller: regionSeller,
+                        exclude_books: excludeBooks,
                         info_status: infoStatus,
                         keyword,
                         reason
