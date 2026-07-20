@@ -584,6 +584,38 @@ def export_blacklist(country_code):
         }
     )
 
+# --- ▼ SECTION 08.5: Blacklist CSV 初期テンプレート出力 ▼ ---
+@blacklist_bp.get("/blacklist/template/<country_code>")
+def export_blacklist_template(country_code):
+
+    country_code = (country_code or "").upper()
+
+    if not country_code:
+        return "error", 400
+
+    import csv
+    from io import StringIO
+    from flask import Response
+
+    output = StringIO()
+    output.write('﻿')
+    writer = csv.writer(output)
+
+    # ヘッダーのみ（インポート側が要求する固定フォーマット）
+    writer.writerow(["type", "ASIN/BrandName", "note"])
+
+    output.seek(0)
+
+    filename = f"{country_code}_blacklist_sheet.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={
+            "Content-Disposition": f"attachment;filename={filename}"
+        }
+    )
+
 # --- ▼ SECTION 09: ASIN/Brand単体追加  ▼ ---
 @blacklist_bp.post("/blacklist/add")
 def add_blacklist():

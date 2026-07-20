@@ -119,6 +119,17 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = `/blacklist/export/${globalRegionEl.value}`;
     });
 
+    // --- ▼ SECTION 02.5: 初期CSVテンプレートダウンロード ▼ ---
+    document.getElementById("blacklistCsvTemplateBtn")?.addEventListener("click", () => {
+        const globalRegionEl = document.getElementById("globalRegion");
+        if (!globalRegionEl || !globalRegionEl.value) {
+            alert("リージョンが取得できません");
+            return;
+        }
+
+        window.location.href = `/blacklist/template/${globalRegionEl.value}`;
+    });
+
     // --- ▼ SECTION 03: DataTable 初期化 ▼ ---
     const brandTableEl = document.getElementById("brandTable");
     const asinTableEl  = document.getElementById("asinTable");
