@@ -16,7 +16,7 @@ load_dotenv()
 FX_API_KEY = os.getenv("FX_API_KEY")
 
 # --- ▼ SECTION 02: FX LOOP ENTRY POINT ▼ ---
-def run_fx_loop():
+def run_fx_loop(app):
     """
     通貨更新メインループ
     """
@@ -77,6 +77,7 @@ def run_fx_loop():
             print("### FX LOOP ERROR ###")
             print(e)
             traceback.print_exc()
+            app.logger.error("### FX LOOP ERROR ###", exc_info=True)
 
         # print(f"[FX][CYCLE_END] cycle={loop_count}") # カウント処理用
 

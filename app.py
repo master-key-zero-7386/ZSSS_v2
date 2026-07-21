@@ -139,6 +139,7 @@ def start_fx_runner(app):
 
     t = threading.Thread(
         target=run_fx_loop,
+        args=(app,),
         daemon=True
     )
     t.start()

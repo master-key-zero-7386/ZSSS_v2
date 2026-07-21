@@ -168,8 +168,10 @@ def run_first_regioncheck(app, db_dir):
                     conn_mkt.close()
 
                 except Exception as e:
-                    print("### REGIONCHECK ERROR ###")
-                    print(e) 
+                    app.logger.error(
+                        "### REGIONCHECK ERROR ### asin=%s user_id=%s",
+                        t["asin"], t["user_id"], exc_info=True
+                    )
 
         time.sleep(REGIONCHECK_LOOP_SLEEP_SEC) 
 

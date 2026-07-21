@@ -79,6 +79,7 @@ def run_ttl_loop(app, db_dir):
                 print("### TTL LOOP ERROR ###")
                 print(e)
                 traceback.print_exc()
+                app.logger.error("### TTL LOOP ERROR ###", exc_info=True)
 
                 # ★追加：エラー内容をファイルにも記録（CMDのログが流れて消えても後から確認できるように）
                 try:
@@ -583,10 +584,16 @@ def dispatch_ttl_execution(targets, record, country_code):
 
         except Exception as e:
             import traceback
+            from flask import current_app
             print(f"### TTL DISPATCH ERROR ### scope={scope} ttl_type={ttl_type} "
                 f"user={record['user_id']} asin={record['asin']} country={country_code}: {e}",
                 flush=True)
             traceback.print_exc()
+            current_app.logger.error(
+                "### TTL DISPATCH ERROR ### scope=%s ttl_type=%s user=%s asin=%s country=%s",
+                scope, ttl_type, record["user_id"], record["asin"], country_code,
+                exc_info=True
+            )
 
     api_request_sleep()
          

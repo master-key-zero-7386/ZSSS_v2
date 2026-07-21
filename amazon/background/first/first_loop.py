@@ -156,10 +156,10 @@ def run_first_loop(app, db_dir):
 
                 # except Exception:
                 except Exception as e:
-                    import traceback
-                    print("### FIRST ERROR ###")
-                    print(e)
-                    traceback.print_exc()
+                    app.logger.error(
+                        "### FIRST ERROR ### asin=%s user_id=%s",
+                        t["asin"], t["user_id"], exc_info=True
+                    )
                 #--------------------------
 
                 conn3 = get_conn(t["db"])  
