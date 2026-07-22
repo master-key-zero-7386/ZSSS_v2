@@ -353,7 +353,7 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
             SELECT marketplace_id
             FROM marketplaces
             WHERE user_id = %s
-              AND country_code = %s
+              AND UPPER(country_code) = UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         row = cur.fetchone()
