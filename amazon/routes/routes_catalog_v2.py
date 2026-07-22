@@ -81,6 +81,17 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
             "country_code": country_code,
         }
 
+    # ★修正: NOT_FOUND以外のエラー（タイムアウト等の一時的な通信失敗を含む）は、
+    #        既存の正しいカタログ情報（タイトル・画像・寸法）を空データで
+    #        上書きしないよう、何もせず終了する（次のTTL巡回で再取得を待つ）
+    if errors:
+        return {
+            "status": "api_error",
+            "asin": asin,
+            "country_code": country_code,
+            "errors": errors,
+        }
+
     # === 01-3: NORMALIZE（HOME） ===
     normalizer = NormalizedCatalogAdapter(parent_adapter=adapter)
     normalized = {
@@ -189,6 +200,17 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
 
 
     raw = result.get("raw")
+
+    # ★修正: エラー時（タイムアウト等）はTTLだけ進めて次回に先送りにせず、
+    #        何もせず終了して次のTTL巡回ですぐ再取得されるようにする
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors:
+        return {
+            "status": "api_error",
+            "asin": asin,
+            "country_code": country_code,
+            "errors": errors,
+        }
 
     # === 01-03: NORMALIZE（REGION） ===
     normalizer = NormalizedCatalogAdapter(parent_adapter=adapter)

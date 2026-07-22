@@ -126,9 +126,13 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
 
     except Exception as e:
         import traceback
-        traceback.print_exc()        
+        traceback.print_exc()
         print(f"[DBG][ERR] request failed (after utf8 encode): {e}", flush=True)
-        return {"error": str(e)}
+        # ★修正: 呼び出し側は Amazon本来のエラー形式（"errors"複数形）でしか
+        #        判定していないため、ここも合わせないとタイムアウト等が
+        #        「正常取得（データ無し）」と誤認識され、既存の正しいデータが
+        #        Noneで上書きされてしまう
+        return {"errors": [{"code": "REQUEST_FAILED", "message": str(e)}]}
 
     # === ▼ SECTION 02: APIエラーコード管理  ▼ ---
     if resp.status_code >= 400:
