@@ -92,7 +92,9 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
     normalized.update(normalizer._normalize_dimensions_weight(raw))
 
     # --- ▼ 請求重量を「実際の送料設定」で再計算（画面表示と一致させる） ▼ ---
-    if normalized.get("actual_weight_kg") is not None:
+    # ★修正: 0kgはAmazon側の未取得/欠損値なので、Noneと同様に計算しない
+    #        （0のまま計算するとpadding分だけの架空の容積重量・請求重量ができてしまう）
+    if normalized.get("actual_weight_kg"):
         shipping_config_row = get_shipping_config(user_id) or {}
 
         calc_result = shipping_calc(

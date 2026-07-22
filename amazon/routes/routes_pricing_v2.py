@@ -222,12 +222,16 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         )
 
         # 出品停止
-        conn = get_conn(listed_db) 
+        # ★修正: home_priceはNoneにしていたのにinformation_statusがACTIVEのまま残り、
+        #        古いstatus/価格が固まってしまっていたため、他のNG理由と同様にINACTIVE化する
+        conn = get_conn(listed_db)
         try:
             cur = conn.cursor()
             cur.execute("""
                 UPDATE listed_items
-                SET updated_at = %s
+                SET information_status = 'INACTIVE',
+                    inactive_reason = 'HOME_NO_OFFERS',
+                    updated_at = %s
                 WHERE user_id = %s
                 AND asin = %s
             """, (
@@ -669,11 +673,13 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         return 
 
     # --- ▼▼▼ カタログ情報チェック(揃うまでACTIVE化しない) ▼▼▼ ---
+    # ★修正: 0（またはNone）は「未取得」扱い。0kg・0cmは実在しないため、
+    #        Amazon側が重量だけ0を返してきた場合でも寸法未取得と同様にNO_CATALOGとする
     if (
-        row["length_cm"] is None
-        or row["width_cm"] is None
-        or row["height_cm"] is None
-        or row["actual_weight_kg"] is None
+        not row["length_cm"]
+        or not row["width_cm"]
+        or not row["height_cm"]
+        or not row["actual_weight_kg"]
     ):
         conn = get_conn(listed_db)
         try:
