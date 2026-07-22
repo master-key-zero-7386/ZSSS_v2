@@ -657,7 +657,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         cur_mp.execute("""
             SELECT marketplace_id
             FROM marketplaces
-            WHERE user_id = %s AND country_code = %s
+            WHERE user_id = %s AND UPPER(country_code) = UPPER(%s)
             LIMIT 1
         """, (user_id, country_code))
         mp_row = cur_mp.fetchone()
