@@ -12,7 +12,7 @@ import datetime
 from datetime import timezone, timedelta
 from amazon.db import get_conn
 
-from amazon.background.common.background_common import api_request_sleep
+from amazon.background.common.background_common import api_request_sleep, get_first_scan_settings
 
 from amazon.routes.routes_catalog_v2 import update_region_catalog
 from amazon.routes.routes_pricing_v2 import update_region_pricing
@@ -21,15 +21,17 @@ from amazon.routes.routes_pricing_v2 import update_region_pricing
 # --- ▼ SECTION 01: region check loop 基本設定 ▼
 def run_first_regioncheck(app, db_dir):
 
-    # === ▼ 以下はregioncheck動作制御設定値 将来UI操作に変更する ▼ ===
-    MAX_REGIONCHECK_PER_CYCLE = 20
-    REGIONCHECK_LOOP_SLEEP_SEC = 1.0
     ASIN_SLEEP_SEC = 1.0
-    # === ▲ ここまで ▲ ===
 
     while True:
 
         with app.app_context():
+
+            # ★修正: 管理画面「FIRST Cycle Settings」の設定値をサイクルごとに反映する
+            #        （first_loopと同じ設定を共有。固定値だと負荷を下げる手段が無かった）
+            scan_settings = get_first_scan_settings()
+            MAX_REGIONCHECK_PER_CYCLE = scan_settings["scan_limit"]
+            REGIONCHECK_LOOP_SLEEP_SEC = scan_settings["interval_sec"]
 
             targets = []
 

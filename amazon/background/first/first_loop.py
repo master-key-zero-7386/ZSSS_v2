@@ -14,20 +14,22 @@ from amazon.db import get_conn
 
 from amazon.routes.routes_catalog_v2 import update_home_catalog
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing)
-from amazon.background.common.background_common import get_ttl_sleep_sec
+from amazon.background.common.background_common import get_ttl_sleep_sec, get_first_scan_settings
 from amazon.routes.routes_pricing_v2 import update_listing_price
 
 
 # --- ▼ SECTION 01: first loop 基本設定 ▼
 def run_first_loop(app, db_dir):
     with app.app_context():
-        # === ▼ 以下はfirst動作制御設定値 将来UI操作に変更する  ▼ ===
-        MAX_FIRST_PER_CYCLE = 20       # 件数制御
-        FIRST_LOOP_SLEEP_SEC = 1.0     # cycle間のSleep時間（0.0でもOK）
         ASIN_SLEEP_SEC = 1.0           # ASIN間Sleep時間
-        # === ▲ ここまで  ▲ ===
 
         while True:
+            # ★修正: 管理画面「FIRST Cycle Settings」の設定値をサイクルごとに反映する
+            #        （固定値だと大量バックログ時に間隔を空けて負荷を下げる手段が無かった）
+            scan_settings = get_first_scan_settings()
+            MAX_FIRST_PER_CYCLE = scan_settings["scan_limit"]      # 件数制御
+            FIRST_LOOP_SLEEP_SEC = scan_settings["interval_sec"]   # cycle間のSleep時間
+
             targets = []
 
             for listed_db in ["listed_items"]:
