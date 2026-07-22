@@ -24,27 +24,31 @@ DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))
 
 # --- ▼ SECTION 01: HOME Catalog 正規更新 ▼ ---
 def update_home_catalog(*, user_id: int, asin: str, country_code: str):
-    # === 01-1: HOME marketplace_id 確定 ===
-    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
-    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
-
+    # === 01-1: HOME marketplace_id 確定（marketplacesマスタ基準） ===
+    # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
+    #        複数国に出品している場合にどの行を引くか不定だった。home_marketplace_id
+    #        はユーザーごとに一意（HOMEは1人1件）なので、marketplacesから直接確定させる。
+    #        ※ HOME仕入元の情報はASIN単位で全リージョン共通のため、region_marketplace_id
+    #          によるスコープはあえて行わない（first_loopがHOME国コードで呼ぶため）。
+    conn = get_conn("a_marketplaces.db")
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT home_marketplace_id
-            FROM listed_items
-            WHERE user_id = %s
-              AND asin = %s
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND home_flag = 1
             LIMIT 1
-        """, (user_id, asin))
-        row = cur.fetchone()
+        """, (user_id,))
+        home_row = cur.fetchone()
     finally:
         conn.close()
 
-    if not row:
-        raise RuntimeError("home_marketplace_id not found in listed_items")
+    if not home_row:
+        raise RuntimeError("home marketplace not found in marketplaces")
 
-    home_marketplace_id = row["home_marketplace_id"]
+    home_marketplace_id = home_row["marketplace_id"]
+
+    listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
 
 # === 01-2: HOME Catalog raw 取得（API） ===
     base = AmazonAdapter(
@@ -186,27 +190,30 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 # --- ▼ SECTION 01: REGION Catalog 正規更新 ▼ ---
 def update_region_catalog(*, user_id: int, asin: str, country_code: str):
     # === 01-01: REGION marketplace_id 確定 ===
+    # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
+    #        同一ASINを複数国に出品している場合にどの国の行か特定できなかった。
+    #        marketplacesはuser_id+country_codeで一意なので、ここから確定させる。
     listed_db = os.path.join(DB_DIR, f"a_{country_code.lower()}_listed_items.db")
 
-    conn = get_conn(f"a_{country_code.lower()}_listed_items.db")
+    conn = get_conn("a_marketplaces.db")
 
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT region_marketplace_id
-            FROM listed_items
+            SELECT marketplace_id
+            FROM marketplaces
             WHERE user_id = %s
-              AND asin = %s
+              AND country_code = %s
             LIMIT 1
-        """, (user_id, asin))
+        """, (user_id, country_code))
         row = cur.fetchone()
     finally:
         conn.close()
 
     if not row:
-        raise RuntimeError("region_marketplace_id not found in listed_items")
+        raise RuntimeError("region marketplace not found in marketplaces")
 
-    region_marketplace_id = row["region_marketplace_id"]
+    region_marketplace_id = row["marketplace_id"]
 
     # === 01-02: REGION Catalog raw 取得（API） ===
     base = AmazonAdapter(

@@ -18,6 +18,9 @@ class ListedItemsUpdate:
         self.base_dir = base_dir  # DB_DIR
 
     # --- ▼ SECTION 01: listed_items書き込み（catalog HOME）  ▼ ---
+    # ★注記: HOME側（仕入元＝JP）のカタログ情報はASIN単位で全リージョン共通のため、
+    #        意図的にregion_marketplace_idでは絞り込まず、同一user_id+asinの
+    #        全リージョン行に同じHOMEデータを反映する（broadcast）。
     def update_home_from_catalog_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
 
@@ -64,7 +67,7 @@ class ListedItemsUpdate:
                 normalized.get("home_title"),
                 normalized.get("home_brand"),
                 normalized.get("home_manufacturer"),
-                normalized.get("image_url"), 
+                normalized.get("image_url"),
                 normalized.get("length_cm"),
                 normalized.get("width_cm"),
                 normalized.get("height_cm"),
@@ -99,6 +102,8 @@ class ListedItemsUpdate:
                 return
 
             # --- UPDATE（REGION / catalog 情報のみ） ---
+            # ★修正: region_marketplace_id条件が無く、同一ASINを複数国に出品している場合、
+            #        他国の行まで巻き込んで上書きしてしまっていたため追加
             cur.execute("""
                 UPDATE listed_items
                 SET
@@ -109,6 +114,7 @@ class ListedItemsUpdate:
                 WHERE
                     user_id = %s
                     AND asin = %s
+                    AND region_marketplace_id = %s
             """, (
                 normalized.get("region_title"),
                 normalized.get("region_brand"),
@@ -116,6 +122,7 @@ class ListedItemsUpdate:
                 now_utc,
                 user_id,
                 asin,
+                region_marketplace_id,
             ))
 
             conn.commit()
@@ -125,6 +132,9 @@ class ListedItemsUpdate:
             conn.close()
 
     # --- ▼ SECTION 03: listed_items書き込み（PRICING HOME） ▼ ---
+    # ★注記: HOME側（仕入元＝JP）の仕入価格はASIN単位で全リージョン共通のため、
+    #        意図的にregion_marketplace_idでは絞り込まず、同一user_id+asinの
+    #        全リージョン行に同じHOMEデータを反映する（broadcast）。
     def update_home_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
 
@@ -151,12 +161,12 @@ class ListedItemsUpdate:
                 LIMIT 1
             """, (user_id, asin))
             row_old = cur.fetchone()
-            old_id = row_old["id"] if row_old else None 
+            old_id = row_old["id"] if row_old else None
             old_price = row_old["home_price"] if row_old else None
             old_status = row_old["information_status"] if row_old else None
 
             # --- 新価格 ---
-            new_price = normalized.get("home_price") 
+            new_price = normalized.get("home_price")
 
             # --- UPDATE ---
             cur.execute("""
@@ -178,34 +188,38 @@ class ListedItemsUpdate:
         finally:
             conn.close()
 
-    # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---  
+    # --- ▼ SECTION 04: listed_items書き込み（PRICING REGION） ▼ ---
     def update_region_from_pricing_normalized(self, listed_db: str, user_id: int, asin: str, region_marketplace_id: str, normalized: dict):
         conn = get_conn(listed_db)
 
         try:
-            cur = conn.cursor()  
+            cur = conn.cursor()
             now_utc = datetime.utcnow().isoformat()
 
-            # --- UPDATE（REGION / PRICING price のみ） ---  
-            cur.execute("""  
+            # --- UPDATE（REGION / PRICING price のみ） ---
+            # ★修正: region_marketplace_id条件が無く、同一ASINを複数国に出品している場合、
+            #        他国の行まで巻き込んで上書きしてしまっていたため追加
+            cur.execute("""
                 UPDATE listed_items
                 SET
-                    region_price = %s,  
-                    final_price = %s, 
+                    region_price = %s,
+                    final_price = %s,
                     updated_at = %s
                 WHERE
                     user_id = %s
                     AND asin = %s
+                    AND region_marketplace_id = %s
             """, (
-                normalized.get("region_price"),  
-                normalized.get("final_price"), 
+                normalized.get("region_price"),
+                normalized.get("final_price"),
                 now_utc,
-                user_id,  
-                asin,  
-            ))    
+                user_id,
+                asin,
+                region_marketplace_id,
+            ))
 
-            conn.commit()  
-            return True  
+            conn.commit()
+            return True
         finally:
-            conn.close()  
+            conn.close()
 

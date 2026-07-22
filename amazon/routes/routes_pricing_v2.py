@@ -83,28 +83,32 @@ def get_asin_blacklist(user_id, region_marketplace_id, country_code):
 # --- ▼ SECTION 02:HOME Pricing 正規更新 ▼ ---
 def update_home_pricing(*, user_id: int, asin: str, country_code: str):
 
-    # === 02-01: HOME marketplace_id 確定（listed_items基準） ===
+    # === 02-01: HOME marketplace_id 確定（marketplacesマスタ基準） ===
+    # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
+    #        複数国に出品している場合にどの行を引くか不定だった。home_marketplace_id
+    #        はユーザーごとに一意（HOMEは1人1件）なので、marketplacesから直接確定させる。
+    #        ※ HOME仕入元の情報はASIN単位で全リージョン共通のため、region_marketplace_id
+    #          によるスコープはあえて行わない（first_loopがHOME国コードで呼ぶため）。
     db_name = f"a_{country_code.lower()}_listed_items.db"
     listed_db = db_name
-    conn = get_conn(db_name)    
 
+    conn = get_conn("a_marketplaces.db")
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT home_marketplace_id
-            FROM listed_items
-            WHERE user_id = %s
-              AND asin = %s
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND home_flag = 1
             LIMIT 1
-        """, (user_id, asin))
-        row = cur.fetchone()
+        """, (user_id,))
+        home_row = cur.fetchone()
     finally:
         conn.close()
 
-    if not row:
-        raise RuntimeError("home_marketplace_id not found in listed_items")
+    if not home_row:
+        raise RuntimeError("home marketplace not found in marketplaces")
 
-    home_marketplace_id = row["home_marketplace_id"]
+    home_marketplace_id = home_row["marketplace_id"]
 
     # === 02-02: HOME Pricing raw 取得（API） ===
     base = AmazonAdapter(
@@ -142,7 +146,7 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
                 1 if reason == "HOME_PRICE_NOT_FOUND" else None,  # ★変更: 404だけ停止、200は継続監視
                 datetime.utcnow().isoformat(),
                 user_id,
-                asin
+                asin,
             ))
             conn.commit()
         finally:
@@ -335,28 +339,31 @@ def _get_offer_filter_rules(user_id: int, country_code: str):
 # --- ▼ SECTION 05:REGION Pricing 正規更新 ▼ ---
 def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_price: float = 0):
 
-    # === 05-01: REGION marketplace_id 確定（listed_items基準） ===
+    # === 05-01: REGION marketplace_id 確定（marketplacesマスタ基準） ===
+    # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
+    #        同一ASINを複数国に出品している場合にどの国の行か特定できなかった。
+    #        marketplacesはuser_id+country_codeで一意なので、ここから確定させる。
     db_name = f"a_{country_code.lower()}_listed_items.db"
     listed_db = db_name
-    conn = get_conn(db_name)
+    conn = get_conn("a_marketplaces.db")
 
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT region_marketplace_id
-            FROM listed_items
+            SELECT marketplace_id
+            FROM marketplaces
             WHERE user_id = %s
-              AND asin = %s
+              AND country_code = %s
             LIMIT 1
-        """, (user_id, asin))
+        """, (user_id, country_code))
         row = cur.fetchone()
     finally:
         conn.close()
 
     if not row:
-        raise RuntimeError("region_marketplace_id not found in listed_items")
+        raise RuntimeError("region marketplace not found in marketplaces")
 
-    region_marketplace_id = row["region_marketplace_id"]
+    region_marketplace_id = row["marketplace_id"]
 
     # === 05-02: REGION Pricing raw 取得（API） ===
     base = AmazonAdapter(
@@ -636,10 +643,33 @@ def update_offer_filter_rules():
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str):
-    # === -01: listed_items取得 ===
-    db_name = f"a_{country_code.lower()}_listed_items.db" 
+    # === -00: REGION marketplace_id 確定（marketplacesマスタ基準） ===
+    # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
+    #        同一ASINを複数国に出品している場合にどの国の行か特定できず、
+    #        後続のUPDATEが他国の行まで巻き込んで上書きしてしまっていた。
+    #        marketplacesはuser_id+country_codeで一意なので、ここから確定させる。
+    db_name = f"a_{country_code.lower()}_listed_items.db"
     listed_db = db_name
 
+    conn_mp = get_conn("a_marketplaces.db")
+    try:
+        cur_mp = conn_mp.cursor()
+        cur_mp.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND country_code = %s
+            LIMIT 1
+        """, (user_id, country_code))
+        mp_row = cur_mp.fetchone()
+    finally:
+        conn_mp.close()
+
+    if not mp_row:
+        raise RuntimeError("region marketplace not found in marketplaces")
+
+    region_marketplace_id = mp_row["marketplace_id"]
+
+    # === -01: listed_items取得 ===
     conn = get_conn(db_name)
 
     try:
@@ -657,20 +687,21 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 status,
                 strategy_quantity,
                 information_status,
-                home_brand,         
-                region_brand        
+                home_brand,
+                region_brand
             FROM listed_items
             WHERE user_id = %s
               AND asin = %s
+              AND region_marketplace_id = %s
             LIMIT 1
-        """, (user_id, asin))
+        """, (user_id, asin, region_marketplace_id))
         row = cur.fetchone()
     finally:
         conn.close()
 
     if not row:
-        
-        return 
+
+        return
 
     # --- ▼▼▼ カタログ情報チェック(揃うまでACTIVE化しない) ▼▼▼ ---
     # ★修正: 0（またはNone）は「未取得」扱い。0kg・0cmは実在しないため、
@@ -690,7 +721,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                     inactive_reason = 'NO_CATALOG'
                 WHERE user_id = %s
                 AND asin = %s
-            """, (user_id, asin))
+                AND region_marketplace_id = %s
+            """, (user_id, asin, region_marketplace_id))
             conn.commit()
         finally:
             conn.close()
@@ -699,10 +731,9 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             "status": "no_catalog_skip",
             "final_price": None
         }
-    # --- ▲▲▲ ここまで ▲▲▲ ---        
+    # --- ▲▲▲ ここまで ▲▲▲ ---
 
-    region_marketplace_id = row["region_marketplace_id"]
-    home_price = row["home_price"]    
+    home_price = row["home_price"]
     if home_price is None:
         final_price = None
     else:
@@ -823,8 +854,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             cur_li.execute("""
                 UPDATE listed_items
                 SET min_price = %s, max_price = %s
-                WHERE user_id = %s AND asin = %s
-            """, (P_min, P_max, user_id, asin))
+                WHERE user_id = %s AND asin = %s AND region_marketplace_id = %s
+            """, (P_min, P_max, user_id, asin, region_marketplace_id))
 
             conn_li.commit()
             conn_li.close()
@@ -1106,6 +1137,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 updated_at = %s
             WHERE user_id = %s
             AND asin = %s
+            AND region_marketplace_id = %s
         """, (
             final_price,
             profit_rate,
@@ -1115,6 +1147,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             datetime.utcnow().isoformat(),
             user_id,
             asin,
+            region_marketplace_id,
         ))
         conn.commit()
     finally:

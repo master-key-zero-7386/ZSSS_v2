@@ -173,8 +173,10 @@ window.getCommonDataTableOptions = function() {
 
             paginate.on("click", ".page-jump-btn", function() {
 
+                const scope = $(this).closest(".dataTables_paginate");
+
                 const page = parseInt(
-                    paginate.find(".page-jump-input").val()
+                    scope.find(".page-jump-input").val()
                 );
 
                 if (isNaN(page)) {
