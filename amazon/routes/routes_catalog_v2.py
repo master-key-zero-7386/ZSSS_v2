@@ -83,8 +83,28 @@ def update_home_catalog(*, user_id: int, asin: str, country_code: str):
 
     # ★修正: NOT_FOUND以外のエラー（タイムアウト等の一時的な通信失敗を含む）は、
     #        既存の正しいカタログ情報（タイトル・画像・寸法）を空データで
-    #        上書きしないよう、何もせず終了する（次のTTL巡回で再取得を待つ）
+    #        上書きしないよう、listed_itemsへのUPDATEはスキップする。
+    #        ただしTTLタイムスタンプは進めておかないと、このASINが
+    #        「一番古い＝最優先」としてTTL巡回のたびに毎回選ばれ続け、
+    #        1件のタイムアウトが無限リトライ＆他ASINの処理渋滞を招く。
     if errors:
+        conn = get_conn("a_catalog_cache.db")
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE catalog_cache
+                SET h_catalog_ttl_at = %s
+                WHERE asin = %s
+                AND home_marketplace_id = %s
+            """, (
+                datetime.utcnow().isoformat(),
+                asin,
+                home_marketplace_id
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
         return {
             "status": "api_error",
             "asin": asin,
@@ -201,10 +221,29 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
 
     raw = result.get("raw")
 
-    # ★修正: エラー時（タイムアウト等）はTTLだけ進めて次回に先送りにせず、
-    #        何もせず終了して次のTTL巡回ですぐ再取得されるようにする
+    # ★修正: エラー時（タイムアウト等）はlisted_itemsへのUPDATEはスキップするが、
+    #        TTLタイムスタンプは進める。進めないと、このASINが「一番古い＝最優先」
+    #        としてTTL巡回のたびに毎回選ばれ続け、1件のタイムアウトが無限リトライ
+    #        ＆他ASINの処理渋滞を招く。
     errors = raw.get("errors") if isinstance(raw, dict) else None
     if errors:
+        conn = get_conn("a_catalog_cache.db")
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE catalog_cache
+                SET r_catalog_ttl_at = %s
+                WHERE asin = %s
+                AND region_marketplace_id = %s
+            """, (
+                datetime.utcnow().isoformat(),
+                asin,
+                region_marketplace_id
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
         return {
             "status": "api_error",
             "asin": asin,
