@@ -2196,9 +2196,13 @@ def move_to_all():
                 # ★ ステータス更新（価格は一切触らない）
                 cur.execute("""
                     UPDATE listed_items
-                    SET 
+                    SET
                         status = 'listed',
-                        updated_at = %s
+                        updated_at = %s,
+                        h_catalog_ttl_at = NULL,
+                        r_catalog_ttl_at = NULL,
+                        h_pricing_ttl_at = NULL,
+                        r_pricing_ttl_at = NULL
                     WHERE asin=%s AND status='pre' AND user_id=%s
                 """, (now_utc, asin, user_id))
 
@@ -2388,7 +2392,11 @@ def bulk_move_to_all():
             UPDATE listed_items
             SET
                 status='listed',
-                updated_at=%s
+                updated_at=%s,
+                h_catalog_ttl_at = NULL,
+                r_catalog_ttl_at = NULL,
+                h_pricing_ttl_at = NULL,
+                r_pricing_ttl_at = NULL
             WHERE asin = ANY(%s) AND status='pre' AND user_id=%s
             RETURNING asin
         """, (now_utc, to_activate, user_id))

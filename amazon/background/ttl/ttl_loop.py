@@ -148,6 +148,7 @@ def load_catalog_ttl_targets(db_dir: str):
                         AND li.region_marketplace_id = mp.marketplace_id
                     WHERE mp.enable_home_catalog = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
+                    AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.h_catalog_ttl_at IS NULL
                         OR CAST(li.h_catalog_ttl_at AS timestamp) <
@@ -220,6 +221,7 @@ def load_catalog_ttl_targets(db_dir: str):
                         AND li.region_marketplace_id = mp.marketplace_id
                     WHERE mp.enable_region_catalog = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
+                    AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.r_catalog_ttl_at IS NULL
                         OR CAST(li.r_catalog_ttl_at AS timestamp) <
