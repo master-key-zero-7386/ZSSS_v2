@@ -14,7 +14,7 @@ if (window.__listingCommonLoaded) {
     const style = document.createElement("style");
     style.textContent = `
 
-table.dataTable td:last-child {
+table.dataTable td.col-action {
     position: relative;
 }
     
@@ -236,10 +236,11 @@ window.attachRefreshButtons = function (tableSelector) {
         const asinCell = row.querySelector("strong.asin-cell");
         const asin = asinCell ? asinCell.textContent.trim() : "";
 
-        let actionCell = row.querySelector("td:last-child");
+        let actionCell = row.querySelector("td.col-action");
         if (!actionCell) {
             actionCell = document.createElement("td");
-            row.appendChild(actionCell);
+            actionCell.className = "col-action";
+            row.insertBefore(actionCell, row.children[1] || null);
         }
 
         let wrap = actionCell.querySelector(".listing-action-wrap");
@@ -325,10 +326,11 @@ window.attachRegisterButtons = function (tableSelector) {
         const asinCell = row.querySelector("strong.asin-cell");
         const asin = asinCell ? asinCell.textContent.trim().toLowerCase() : "(asin不明)";
 
-        let actionCell = row.querySelector("td:last-child");
+        let actionCell = row.querySelector("td.col-action");
         if (!actionCell) {
             actionCell = document.createElement("td");
-            row.appendChild(actionCell);
+            actionCell.className = "col-action";
+            row.insertBefore(actionCell, row.children[1] || null);
         }
         
         // これを追加（ラッパー作成）
@@ -394,10 +396,11 @@ window.attachDeleteButtons = function (tableSelector) {
         const skuCell = row.querySelector(".sku-cell");
         const sku = skuCell ? skuCell.textContent.trim() : "";
 
-        let actionCell = row.querySelector("td:last-child");
+        let actionCell = row.querySelector("td.col-action");
         if (!actionCell) {
             actionCell = document.createElement("td");
-            row.appendChild(actionCell);
+            actionCell.className = "col-action";
+            row.insertBefore(actionCell, row.children[1] || null);
         }
 
         // ★ register と同じ wrap を必ず使う

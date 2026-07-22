@@ -149,7 +149,9 @@ window.loadprelisting = async function (country_code) {
                     return meta.row + meta.settings._iDisplayStart + 1;
                 }
             },
-            
+
+            { title: "Action", data: null, className: "col-action", defaultContent: "", orderable: false },
+
             {
                 data: null,
                 title: '<input type="checkbox" id="toggleAllRows"> 商品情報',
@@ -550,7 +552,6 @@ window.loadprelisting = async function (country_code) {
                     `;
                 }
             },
-            { title: "Action", data: null, defaultContent: "", orderable: false },
         ],
     });
 
