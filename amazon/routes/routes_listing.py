@@ -878,6 +878,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 WHEN inactive_reason = 'NO_CATALOG' THEN 5
                 WHEN inactive_reason = 'HOME_NOT_FOUND' THEN 6
                 WHEN inactive_reason = 'HOME_PRICE_NOT_FOUND' THEN 7
+                WHEN inactive_reason = 'REGION_PRICE_NOT_FOUND' THEN 7
                 WHEN inactive_reason = 'HOME_NO_OFFERS' THEN 8
                 WHEN inactive_reason = 'PRICE_PENDING' THEN 9
                 WHEN inactive_reason IS NULL OR inactive_reason = '' THEN 10

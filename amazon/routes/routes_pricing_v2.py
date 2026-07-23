@@ -121,10 +121,13 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
     raw = result.get("raw")
 
     # ★追加: 確定でゴミASINと判断できるケースを検知
+    # ★修正: NOT_FOUND(404)だけでなくInvalidInput(400 = このマーケットプレイスに
+    #        存在しない/無効なASIN)も同じく恒久NG。ここで拾わないとttl_stopされず、
+    #        同じ無効ASINが毎TTLサイクル無駄に再試行され続ける。
     errors = raw.get("errors") if isinstance(raw, dict) else None
 
-    if errors and any(e.get("code") == "NOT_FOUND" for e in errors):
-        reason = "HOME_PRICE_NOT_FOUND"   # 404: そもそも存在しない
+    if errors and any(e.get("code") in ("NOT_FOUND", "InvalidInput") for e in errors):
+        reason = "HOME_PRICE_NOT_FOUND"   # 404/400: そもそも存在しない・無効
     else:
         offers = raw.get("payload", {}).get("Offers", []) if isinstance(raw, dict) else []
         reason = "HOME_NO_OFFERS" if (not errors and len(offers) == 0) else None  # 200だが出品者0件
@@ -393,6 +396,41 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     #        競合0件と区別がつかず、region_priceを誤ってNULLで上書きし、
     #        画面の取得進捗が「未取得」に後退して見えてしまうため。
     errors = raw.get("errors") if isinstance(raw, dict) else None
+
+    # ★修正: NOT_FOUND(404)/InvalidInput(400)はこのマーケットプレイスに
+    #        存在しない/無効なASINという恒久NGなので、429・5xx等の一時的エラーと
+    #        区別してttl_stopする。区別しないと同じ無効ASINが毎TTLサイクル
+    #        無駄に再試行され続ける。
+    if errors and any(e.get("code") in ("NOT_FOUND", "InvalidInput") for e in errors):
+        conn_stop = get_conn(listed_db)
+        try:
+            cur_stop = conn_stop.cursor()
+            cur_stop.execute("""
+                UPDATE listed_items
+                SET information_status = 'INACTIVE',
+                    inactive_reason = 'REGION_PRICE_NOT_FOUND',
+                    ttl_stop_status = '1',
+                    updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+                AND region_marketplace_id = %s
+            """, (
+                datetime.utcnow().isoformat(),
+                user_id,
+                asin,
+                region_marketplace_id,
+            ))
+            conn_stop.commit()
+        finally:
+            conn_stop.close()
+
+        return {
+            "status": "region_price_not_found",
+            "asin": asin,
+            "country_code": country_code,
+            "errors": errors,
+        }
+
     if errors:
         return {
             "status": "api_error",

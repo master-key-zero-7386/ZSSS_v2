@@ -158,17 +158,9 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
 
         print(f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [SP-API][ERR] {msg} body={resp.text[:500]}", flush=True)
 
-        # --- ▼ ttl_stop判定 ▼ ---
-        if user_id:
-            try:
-                if (
-                    (resp.status_code == 400 and code == "InvalidInput") or
-                    (resp.status_code == 404 and code == "NOT_FOUND")
-                ):
-                    pass
-            except Exception:
-                pass 
-        # --- ▲ ttl_stop判定（ここまで） ▼ ---
+        # --- ▲ ttl_stop判定はupdate_home_pricing/update_region_pricing側で
+        #     NOT_FOUND/InvalidInputを見て行う（呼び出し元でしかlisted_itemsの
+        #     行を特定できないため） ▲ ---
 
         if resp.status_code == 429 and user_id:
             block(user_id, "spapi")
