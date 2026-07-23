@@ -41,13 +41,19 @@ window.loadalllisting = async function(country_code) {
     // --- ▼ SECTION 02: DataTable 再生成 ---
     let allTable; 
 
-    try { 
+    // 一括操作・単発最新取得などの「同じ絞り込み条件のままの再読み込み」の場合、
+    // 直前のページ番号をsessionStorageから引き継ぐ（無ければ1ページ目から）
+    const savedAllPage = sessionStorage.getItem("all_current_page");
+    sessionStorage.removeItem("all_current_page");
+
+    try {
         allTable = $("#alllistingtable").DataTable({
 
             ...window.getCommonDataTableOptions(),
 
                 serverSide: true,
                 processing: true,
+                displayStart: savedAllPage !== null ? parseInt(savedAllPage, 10) * 100 : 0,
 
                 ajax: function(dt, callback) {
 
@@ -557,19 +563,9 @@ window.loadalllisting = async function(country_code) {
                     ]
             });
 
-        const savedPage = sessionStorage.getItem("all_current_page");
-
-        if (savedPage !== null) {
-
-            setTimeout(() => {
-                allTable.page(parseInt(savedPage)).draw("page");
-                sessionStorage.removeItem("all_current_page");
-            }, 1000);    
-        }
-
         } catch(e) {
-            
-            return; 
+
+            return;
         }
 
         const btn = document.querySelector('#allListingSearchBtn');

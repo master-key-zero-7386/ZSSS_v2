@@ -221,6 +221,19 @@ window.getCommonDataTableOptions = function() {
     };
 };
 
+// --- ▼ 絞り込み条件を変えずにテーブルを再読み込みする操作（一括削除・一括最新取得・
+//     一括登録など）の前に呼ぶと、再読み込み後も同じページに留まる ▼ ---
+window.savePreListingPage = function() {
+    if ($.fn.DataTable.isDataTable("#prelistingtable")) {
+        sessionStorage.setItem("pre_current_page", $("#prelistingtable").DataTable().page());
+    }
+};
+window.saveAllListingPage = function() {
+    if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+        sessionStorage.setItem("all_current_page", $("#alllistingtable").DataTable().page());
+    }
+};
+
 // --- ▼ SECTION 01: 最新取得ボタン生成（pre / all 共通） ▼ ---
 window.attachRefreshButtons = function (tableSelector) {
 
@@ -284,17 +297,12 @@ window.attachRefreshButtons = function (tableSelector) {
 
                 if (currentTab === "all") {
 
-                    const table = $("#alllistingtable").DataTable();
-
-                    sessionStorage.setItem("all_current_page", table.page());
-
+                    window.saveAllListingPage();
                     window.loadalllisting(country_code);
 
                 } else {
 
-                    const table = $("#prelistingtable").DataTable();
-                    sessionStorage.setItem("pre_current_page", table.page());
-
+                    window.savePreListingPage();
                     window.loadprelisting(country_code);
                 }
 
@@ -365,7 +373,8 @@ window.attachRegisterButtons = function (tableSelector) {
                         const table = $(tableSelector).DataTable();
                         table.row($(registerBtn).closest("tr")).remove().draw(false);
                     } else {
-                        window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all'); 
+                        window.saveAllListingPage();
+                        window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all');
                     }
                 } else {
                     console.warn("move_to_all failed:", data);
@@ -1170,6 +1179,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 if (country_code) {
+                    window.savePreListingPage();
                     window.loadprelisting(country_code);
                 }
 
@@ -1221,6 +1231,7 @@ document.addEventListener("DOMContentLoaded", () => {
             runBtn.disabled = false;
 
             if (country_code) {
+                window.savePreListingPage();
                 window.loadprelisting(country_code);
             }
 
@@ -1344,6 +1355,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 table.draw();
 
                 if (country_code) {
+                    window.savePreListingPage();
                     window.loadprelisting(country_code);
                 }
 
@@ -1358,7 +1370,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-    });    
+    });
 
     // --- ▼ SECTION 12: ALL 一括操作 実行 ▼ ---
     document.getElementById("bulkActionRunAll").addEventListener("click", async function () {
@@ -1414,6 +1426,7 @@ document.addEventListener("DOMContentLoaded", () => {
             runBtn.disabled = false;
 
             if (country_code) {
+                window.saveAllListingPage();
                 window.loadalllisting(country_code);
             }
 
@@ -1551,6 +1564,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (country_code) {
+                window.saveAllListingPage();
                 window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all');
             }
 

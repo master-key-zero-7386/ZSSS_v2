@@ -93,12 +93,18 @@ window.loadprelisting = async function (country_code) {
     });
 
     // --- ▼ SECTION 05: DataTable 再生成 ---
-    const preTable = $("#prelistingtable").DataTable({  
+    // 一括操作・単発最新取得などの「同じ絞り込み条件のままの再読み込み」の場合、
+    // 直前のページ番号をsessionStorageから引き継ぐ（無ければ1ページ目から）
+    const savedPrePage = sessionStorage.getItem("pre_current_page");
+    sessionStorage.removeItem("pre_current_page");
+
+    const preTable = $("#prelistingtable").DataTable({
 
         ...window.getCommonDataTableOptions(),
 
         serverSide: true,
         processing: true,
+        displayStart: savedPrePage !== null ? parseInt(savedPrePage, 10) * 100 : 0,
 
         ajax: function(dt, callback) {
             const sort = document.getElementById("preListingSort")?.value;
