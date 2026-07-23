@@ -713,7 +713,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 strategy_quantity,
                 information_status,
                 home_brand,
-                region_brand
+                region_brand,
+                first_try_count
             FROM listed_items
             WHERE user_id = %s
               AND asin = %s
@@ -1069,7 +1070,12 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     # --- ▼ 仕入HOEMPric対象なし ▼ ---
     elif final_price is None or final_price == 0:
         status_value = 'INACTIVE'
-        inactive_reason = "NO_PRICE"
+
+        # --- ▼ まだfirst_loopの再試行予算が残っている間は「価格取得の見込みなし」を
+        #     意味するNO_PRICEを確定させず、再試行待ちであることが分かる理由にする。
+        #     予算を使い切って（first_try_count <= 0）もなお価格が無ければ確定NGとする ▼ ---
+        still_retrying = row["status"] == "pre" and (row["first_try_count"] or 0) > 0
+        inactive_reason = "PRICE_PENDING" if still_retrying else "NO_PRICE"
 
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
