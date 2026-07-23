@@ -228,11 +228,38 @@ def update_region_catalog(*, user_id: int, asin: str, country_code: str):
 
     raw = result.get("raw")
 
+    # ★追加: 404 NOT_FOUND / 400 InvalidInput（REGION=このマーケットプレイスに
+    #        存在しない/無効なASIN）は恒久NGなので、HOMEカタログと同様にttl_stop
+    #        する。ここが無いと同じ無効ASINが毎TTLサイクル無駄に再試行され続ける。
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors and any(e.get("code") in ("NOT_FOUND", "InvalidInput") for e in errors):
+        conn = get_conn(listed_db)
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE listed_items
+                SET information_status = 'INACTIVE',
+                    inactive_reason = 'REGION_NOT_FOUND',
+                    ttl_stop_status = '1',
+                    updated_at = %s
+                WHERE user_id = %s
+                AND asin = %s
+                AND region_marketplace_id = %s
+            """, (datetime.utcnow().isoformat(), user_id, asin, region_marketplace_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+        return {
+            "status": "region_not_found",
+            "asin": asin,
+            "country_code": country_code,
+        }
+
     # ★修正: エラー時（タイムアウト等）はlisted_itemsへのUPDATEはスキップするが、
     #        TTLタイムスタンプは進める。進めないと、このASINが「一番古い＝最優先」
     #        としてTTL巡回のたびに毎回選ばれ続け、1件のタイムアウトが無限リトライ
     #        ＆他ASINの処理渋滞を招く。
-    errors = raw.get("errors") if isinstance(raw, dict) else None
     if errors:
         conn = get_conn("a_catalog_cache.db")
         try:
