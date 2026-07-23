@@ -955,12 +955,15 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             WHERE marketplace_id = %s
         """, (region_marketplace_id,))
 
-        SHIPPING_OVERRIDE_SET = {
-            (r["seller_id"], float(r["shipping_amount"]))
-            for r in cur_ps.fetchall()
-        }
+        SHIPPING_OVERRIDE_SET = set()
+        SHIPPING_OVERRIDE_SELLER_ONLY = set()
+        for r in cur_ps.fetchall():
+            if r["shipping_amount"] is None:
+                SHIPPING_OVERRIDE_SELLER_ONLY.add(r["seller_id"])
+            else:
+                SHIPPING_OVERRIDE_SET.add((r["seller_id"], float(r["shipping_amount"])))
 
-        conn_ps.close()        
+        conn_ps.close()
 
 
         if row_cache and row_cache["region_offers_json"]:
@@ -987,8 +990,9 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             pricing_rules_adapter = PricingRulesAdapter(
                 rules,
                 marketplace_id=region_marketplace_id,
-                shipping_override_set=SHIPPING_OVERRIDE_SET
-            )            
+                shipping_override_set=SHIPPING_OVERRIDE_SET,
+                shipping_override_seller_only=SHIPPING_OVERRIDE_SELLER_ONLY
+            )
             result = pricing_rules_adapter.select_region_price_offer(normalized)
 
             selected_offer = result.get("selected") if result else None

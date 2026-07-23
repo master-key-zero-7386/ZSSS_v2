@@ -7,6 +7,7 @@
 # ==========================================================
 
 from flask import Blueprint, request, jsonify
+import psycopg2
 from amazon.db import get_conn
 
 # --- Blueprint ---
@@ -70,6 +71,14 @@ def insert_override_seller():
     if not seller_id:
         return jsonify({"status": "error", "message": "Seller IDを入力してください"}), 400
 
+    if shipping_amount in (None, ""):
+        shipping_amount = None
+    else:
+        try:
+            shipping_amount = float(shipping_amount)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "送料は数値で入力してください"}), 400
+
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()
 
@@ -92,17 +101,22 @@ def insert_override_seller():
     conn = get_conn("a_shipping_override_master.db")
     cur = conn.cursor()
 
-    cur.execute("""
-        INSERT INTO shipping_override_master
-        (marketplace_id, seller_id, seller_name, shipping_amount, remarks)
-        VALUES (%s,%s,%s,%s,%s)
-    """, (
-        marketplace_id,
-        seller_id,
-        seller_name,
-        shipping_amount,
-        remarks
-    ))
+    try:
+        cur.execute("""
+            INSERT INTO shipping_override_master
+            (marketplace_id, seller_id, seller_name, shipping_amount, remarks)
+            VALUES (%s,%s,%s,%s,%s)
+        """, (
+            marketplace_id,
+            seller_id,
+            seller_name,
+            shipping_amount,
+            remarks
+        ))
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": "同じSeller ID・送料の組み合わせが既に登録されています"}), 400
 
     conn.commit()
     conn.close()
@@ -120,6 +134,14 @@ def update_override_seller():
     seller_name = data.get("seller_name")
     shipping_amount = data.get("shipping_amount")
     remarks = data.get("remarks")
+
+    if shipping_amount in (None, ""):
+        shipping_amount = None
+    else:
+        try:
+            shipping_amount = float(shipping_amount)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "送料は数値で入力してください"}), 400
 
     conn = get_conn("a_marketplaces_master.db")
     cur = conn.cursor()

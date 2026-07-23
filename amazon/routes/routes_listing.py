@@ -285,6 +285,7 @@ def _build_listing_row_with_shipping(
     BRAND_GATE_MAP=None,
     ASIN_GATE_MAP=None,
     SHIPPING_OVERRIDE_SET=None,
+    SHIPPING_OVERRIDE_SELLER_ONLY=None,
     LISTED_BRAND_SET=None,
     P_min=None, P_max=None):
 
@@ -494,7 +495,7 @@ def _build_listing_row_with_shipping(
 
         rules["my_seller_id"] = my_seller_id  
 
-        pricing_rules_adapter = PricingRulesAdapter(rules, marketplace_id=marketplace_id, shipping_override_set=SHIPPING_OVERRIDE_SET, retail_seller_ids=RETAIL_SELLER_IDS)
+        pricing_rules_adapter = PricingRulesAdapter(rules, marketplace_id=marketplace_id, shipping_override_set=SHIPPING_OVERRIDE_SET, shipping_override_seller_only=SHIPPING_OVERRIDE_SELLER_ONLY, retail_seller_ids=RETAIL_SELLER_IDS)
 
         result_offer = pricing_rules_adapter.select_region_price_offer(normalized_region        )
 
@@ -1162,10 +1163,13 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         WHERE marketplace_id = %s
     """, (marketplace_id,))
 
-    SHIPPING_OVERRIDE_SET = {
-        (r["seller_id"], float(r["shipping_amount"]))
-        for r in cur_ps.fetchall()
-    }
+    SHIPPING_OVERRIDE_SET = set()
+    SHIPPING_OVERRIDE_SELLER_ONLY = set()
+    for r in cur_ps.fetchall():
+        if r["shipping_amount"] is None:
+            SHIPPING_OVERRIDE_SELLER_ONLY.add(r["seller_id"])
+        else:
+            SHIPPING_OVERRIDE_SET.add((r["seller_id"], float(r["shipping_amount"])))
 
     conn_ps.close()
 
@@ -1192,6 +1196,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
                 BRAND_GATE_MAP=BRAND_GATE_MAP,
                 ASIN_GATE_MAP=ASIN_GATE_MAP,
                 SHIPPING_OVERRIDE_SET=SHIPPING_OVERRIDE_SET,
+                SHIPPING_OVERRIDE_SELLER_ONLY=SHIPPING_OVERRIDE_SELLER_ONLY,
                 LISTED_BRAND_SET=LISTED_BRAND_SET
             )
         )

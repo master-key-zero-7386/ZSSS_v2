@@ -433,7 +433,7 @@ SHIPPING_OVERRIDE_MASTER_COLUMNS = {
     "marketplace_id": "TEXT NOT NULL",
     "seller_id": "TEXT NOT NULL",
     "seller_name": "TEXT",    
-    "shipping_amount": "REAL NOT NULL",
+    "shipping_amount": "REAL",
     "remarks": "TEXT",    
     "updated_at": "TEXT"
 }
@@ -896,8 +896,15 @@ def add_unique_indexes():  # UNIQUE制約
     conn = get_conn("a_shipping_override_master.db")
     cur = conn.cursor()
     cur.execute(
+        "ALTER TABLE shipping_override_master ALTER COLUMN shipping_amount DROP NOT NULL"
+    )
+    cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_override_master_unique "
         "ON shipping_override_master(marketplace_id, seller_id, shipping_amount)"
+    )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_override_master_seller_only "
+        "ON shipping_override_master(marketplace_id, seller_id) WHERE shipping_amount IS NULL"
     )
     conn.commit()
     conn.close()

@@ -156,7 +156,7 @@ $(document)
 
     $tr.find("td:eq(1)").html(`<input class="edit-seller_id">`);
     $tr.find("td:eq(2)").html(`<input class="edit-seller_name">`);
-    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" placeholder="空欄=金額問わず常にoverride">`);
     $tr.find("td:eq(4)").html(`<input class="edit-remarks">`);
 
     $tr.find("td:last").html(`
@@ -226,7 +226,7 @@ $(document)
 
     $tr.find("td:eq(1)").html(`<input class="edit-seller_id" value="${data.seller_id}">`);
     $tr.find("td:eq(2)").html(`<input class="edit-seller_name" value="${data.seller_name}">`);
-    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" value="${data.shipping_amount}">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" placeholder="空欄=金額問わず常にoverride" value="${data.shipping_amount ?? ""}">`);
     $tr.find("td:eq(4)").html(`<input class="edit-remarks" value="${data.remarks || ""}">`);
 
     $tr.find("td:last").html(`
@@ -328,7 +328,7 @@ $(document)
 
     $tr.find("td:eq(1)").html(`<input class="edit-seller_id">`);
     $tr.find("td:eq(2)").html(`<input class="edit-seller_name">`);
-    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" placeholder="空欄=金額問わず常にoverride">`);
     $tr.find("td:eq(4)").html(`<input class="edit-remarks">`);
 
     $tr.find("td:last").html(`
@@ -393,7 +393,7 @@ $(document)
 
     $tr.find("td:eq(1)").html(`<input class="edit-seller_id" value="${data.seller_id}">`);
     $tr.find("td:eq(2)").html(`<input class="edit-seller_name" value="${data.seller_name}">`);
-    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" value="${data.shipping_amount}">`);
+    $tr.find("td:eq(3)").html(`<input class="edit-shipping_amount" placeholder="空欄=金額問わず常にoverride" value="${data.shipping_amount ?? ""}">`);
     $tr.find("td:eq(4)").html(`<input class="edit-remarks" value="${data.remarks || ""}">`);
 
     $tr.find("td:last").html(`

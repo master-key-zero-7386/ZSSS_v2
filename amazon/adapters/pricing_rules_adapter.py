@@ -14,11 +14,12 @@ from amazon.adapters.pricing_adapter_home import get_retail_seller_ids
 class PricingRulesAdapter:
 
     # --- ▼ SECTION 01: 初期化（将来の拡張用） ▼ -
-    def __init__(self, rules: dict | None = None, marketplace_id=None, shipping_override_set=None, retail_seller_ids=None):
+    def __init__(self, rules: dict | None = None, marketplace_id=None, shipping_override_set=None, shipping_override_seller_only=None, retail_seller_ids=None):
         self.rules = rules or {}
         self.marketplace_id = marketplace_id
         self.shipping_override_set = shipping_override_set or set()
-        self.retail_seller_ids = retail_seller_ids 
+        self.shipping_override_seller_only = shipping_override_seller_only or set()
+        self.retail_seller_ids = retail_seller_ids
 
     # --- ▼ SECTION 02: HOME 原価確定（フィルタ＋最安決定） ▼ ---
     def select_home_cost_offer(self, normalized_offers: list[dict]):
@@ -180,7 +181,9 @@ class PricingRulesAdapter:
             if price is None:
                 continue
 
-            override = self._is_shipping_override(
+            is_amazon = offer.get("seller_id") in RETAIL_SELLER_IDS
+
+            override = is_amazon or self._is_shipping_override(
                 offer.get("seller_id"),
                 shipping
             )
@@ -205,8 +208,10 @@ class PricingRulesAdapter:
 
     # --- ▼ SECTION 04: Shipping Override判定 ▼ ---
     def _is_shipping_override(self, seller_id, shipping_amount):
+        if seller_id in self.shipping_override_seller_only:
+            return True
         return (
             seller_id,
             float(shipping_amount or 0)
-        ) in self.shipping_override_set          
+        ) in self.shipping_override_set
 
