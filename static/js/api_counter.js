@@ -93,5 +93,34 @@ window.addEventListener("DOMContentLoaded", () => {
             console.error("api-usage-summary error:", err);
         });
 
+    // === ▼ 429発生状況：Dashboard起動時取得 ▼ ===
+    const wrap429 = document.getElementById("api-429-detail");
+    if (!wrap429) return;
+
+    fetch("/account/api-429-summary")
+        .then(res => res.json())
+        .then(res => {
+            if (res.status !== "ok") return;
+
+            const d = res.data || {};
+            const avg = (d.avg_interval_sec !== null && d.avg_interval_sec !== undefined)
+                ? `${d.avg_interval_sec} 秒`
+                : "-";
+            const last = d.last_occurred_at || "-";
+
+            wrap429.innerHTML = `
+                本日: <b>${d.today_count ?? 0}</b> 件
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                前日: <b>${d.yesterday_count ?? 0}</b> 件
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                本日の平均発生間隔: ${avg}
+                &nbsp;&nbsp;|&nbsp;&nbsp;
+                直近発生: ${last}
+            `;
+        })
+        .catch(err => {
+            console.error("api-429-summary error:", err);
+        });
+
 });
 

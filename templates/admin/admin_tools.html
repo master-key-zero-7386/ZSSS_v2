@@ -70,10 +70,38 @@
                             <span>件</span>
 
                         </div>
-                
+
+                        <div style="margin-top:15px; display:flex; align-items:center; gap:12px;">
+
+                            <label for="first_asin_sleep_sec" style="font-weight:bold;">
+                                ASIN間 追加Sleep（旧ハードコード）
+                            </label>
+
+                            <input
+                                type="number"
+                                id="first_asin_sleep_sec"
+                                step="0.1"
+                                min="0"
+                                placeholder="例：1.0"
+                                style="
+                                    width:120px;
+                                    font-size:18px;
+                                    padding:6px 4px;
+                                    border:none;
+                                    border-bottom:2px solid #888;
+                                    background:transparent;
+                                    outline:none;
+                                    color:#000;
+                                "
+                            />
+
+                            <span>秒</span>
+
+                        </div>
+
                     </div>
-                </div> 
-                
+                </div>
+
                 <!-- RIGHT：TTL（新規） -->
                 <div style="flex:1;">
                     <div class="card">
@@ -85,7 +113,7 @@
                         <p>TTL更新時のAPI間隔を制御します。</p>
                         <hr>
 
-                        <label>TTL Sleep（秒）</label>
+                        <label>TTL Sleep（秒・旧共通値／未使用時のフォールバック）</label>
                         <input
                             type="number"
                             id="ttl_sleep_sec"
@@ -95,6 +123,53 @@
                             style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
                         />
                         <span>秒</span>
+
+                        <!-- ▼ API種別ごとのsleep（新規・catalogとpricingで実際のAmazon側レート制限が違うため分離） ▼ -->
+                        <div style="display:flex; gap:40px; margin-top:15px;">
+                            <div style="flex:1;">
+                                <label>Catalog系 Sleep（HOME/REGION共通）</label>
+                                <input
+                                    type="number"
+                                    id="ttl_sleep_sec_catalog"
+                                    step="0.1" min="0" placeholder="例：0.7"
+                                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                                />
+                                <span>秒</span>
+                            </div>
+                            <div style="flex:1;">
+                                <label>Pricing系 Sleep（HOME/REGION共通）</label>
+                                <input
+                                    type="number"
+                                    id="ttl_sleep_sec_pricing"
+                                    step="0.1" min="0" placeholder="例：2.3"
+                                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                                />
+                                <span>秒</span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:40px; margin-top:15px;">
+                            <div style="flex:1;">
+                                <label>TTLサイクル間Sleep（旧ハードコード）</label>
+                                <input
+                                    type="number"
+                                    id="ttl_cycle_sleep_sec"
+                                    step="0.1" min="0" placeholder="例：3"
+                                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                                />
+                                <span>秒</span>
+                            </div>
+                            <div style="flex:1;">
+                                <label>429ブロック秒数（旧ハードコード）</label>
+                                <input
+                                    type="number"
+                                    id="api_block_sec"
+                                    step="0.5" min="0" placeholder="例：8"
+                                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                                />
+                                <span>秒</span>
+                            </div>
+                        </div>
 
                         <!-- ▼ ここから4項目、左右2列レイアウト ▼ -->
                         <div style="display:flex; gap:40px; margin-top:15px;">
@@ -152,9 +227,52 @@
                         </div>             
                     </div>  
                 </div>     
-            </div> 
-        </div>  
-    </div>     
+            </div>
+        </div>
+    </div>
+
+    <!-- --- ▼ REGIONCHECK Cycle Settings（新規・first_loopから設定分離） ▼ --- -->
+    <div class="main-container bg-scan">
+        <div class="card" style="margin-top:20px; font-size:18px;">
+            <div class="card">
+                <h3>REGIONCHECK Cycle Settings</h3>
+                <button id="save_regioncheck_settings" class="btn-blue">Save</button>
+                <div id="regioncheck_msg" style="margin-top:8px; font-size:10px;"></div>
+                <p>REGION未取得チェックの巡回間隔・件数（FIRSTとは別に設定可能）。</p>
+
+                <hr>
+
+                <label for="regioncheck_interval_min">
+                    巡回間隔（分）
+                </label>
+                <input
+                    type="number"
+                    id="regioncheck_interval_min"
+                    step="0.1"
+                    min="0.1"
+                    placeholder="例：3"
+                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                />
+                <span style="margin-left:6px;">分</span>
+
+                <div style="margin-top:15px; display:flex; align-items:center; gap:12px;">
+                    <label for="regioncheck_scan_limit" style="font-weight:bold;">
+                        1巡回あたりの最大処理件数
+                    </label>
+                    <input
+                        type="number"
+                        id="regioncheck_scan_limit"
+                        min="1"
+                        step="1"
+                        placeholder="例：30"
+                        style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                    />
+                    <span>件</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- --- ▼ SECTION 02: RAW確認ツール（管理者） ▼ --- -->
     <div class="main-container bg-scan">
         <div class="card" style="margin-top:20px; font-size:18px;">

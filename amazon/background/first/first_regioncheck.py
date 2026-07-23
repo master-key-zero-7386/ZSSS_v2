@@ -12,7 +12,7 @@ import datetime
 from datetime import timezone, timedelta
 from amazon.db import get_conn
 
-from amazon.background.common.background_common import api_request_sleep, get_first_scan_settings
+from amazon.background.common.background_common import api_request_sleep, get_regioncheck_scan_settings
 
 from amazon.routes.routes_catalog_v2 import update_region_catalog
 from amazon.routes.routes_pricing_v2 import update_region_pricing
@@ -21,7 +21,6 @@ from amazon.routes.routes_pricing_v2 import update_region_pricing
 # --- ▼ SECTION 01: region check loop 基本設定 ▼
 def run_first_regioncheck(app, db_dir):
 
-    ASIN_SLEEP_SEC = 1.0
     JST = timezone(timedelta(hours=9))
     loop_count = 0  # LOOPカウント処理（生存確認用）
 
@@ -37,9 +36,10 @@ def run_first_regioncheck(app, db_dir):
         try:
             with app.app_context():
 
-                # ★修正: 管理画面「FIRST Cycle Settings」の設定値をサイクルごとに反映する
-                #        （first_loopと同じ設定を共有。固定値だと負荷を下げる手段が無かった）
-                scan_settings = get_first_scan_settings()
+                # ★変更: 管理画面「REGIONCHECK Cycle Settings」の設定値をサイクルごとに反映する
+                #        （旧: first_loopと同じ設定を共有していたため片方だけ調整できなかった。
+                #        未設定ならinterval_min/scan_limitにフォールバックするので既存挙動は変わらない）
+                scan_settings = get_regioncheck_scan_settings()
                 MAX_REGIONCHECK_PER_CYCLE = scan_settings["scan_limit"]
                 REGIONCHECK_LOOP_SLEEP_SEC = scan_settings["interval_sec"]
 
@@ -80,7 +80,12 @@ def run_first_regioncheck(app, db_dir):
 
                 _run_regioncheck_cycle(app, targets)
 
-            time.sleep(REGIONCHECK_LOOP_SLEEP_SEC)
+            # ★追加: 取得件数が上限(MAX_REGIONCHECK_PER_CYCLE)に達していた場合は
+            #        バックログが残っている可能性が高いため、フル待機せず
+            #        すぐ次のサイクルへ進む。上限未満なら在庫を捌き切ったと
+            #        みなし、通常通りREGIONCHECK_LOOP_SLEEP_SEC待機する。
+            if len(targets) < MAX_REGIONCHECK_PER_CYCLE:
+                time.sleep(REGIONCHECK_LOOP_SLEEP_SEC)
 
         except Exception:
             import traceback
@@ -211,3 +216,8 @@ def _run_regioncheck_cycle(app, targets):
                 "### REGIONCHECK ERROR ### asin=%s user_id=%s",
                 t["asin"], t["user_id"], exc_info=True
             )
+
+        # --- ▼ 追加: ASIN間のAPIペース制御が欠落していたため追加。
+        #     update_region_catalog/pricingを間隔なしで連射していた。
+        #     1件でcatalog/pricing両方を叩くため、より厳しいpricing側の値を使う ▼ ---
+        api_request_sleep(kind="pricing")

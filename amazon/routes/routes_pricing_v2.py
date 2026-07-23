@@ -156,7 +156,19 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
             "status": reason.lower(),
             "asin": asin,
             "country_code": country_code,
-        }    
+        }
+
+    # ★追加: NOT_FOUND以外のエラー（429ブロック・5xx・タイムアウト等）はAPIに
+    #        問い合わせできていないだけなので、ここで打ち切る。このまま下の
+    #        NORMALIZEに進むと、payload無し＝offers空と区別がつかず「出品者0件」
+    #        と誤判定してHOME_NO_OFFERSでINACTIVE化してしまうため。
+    if errors:
+        return {
+            "status": "api_error",
+            "asin": asin,
+            "country_code": country_code,
+            "errors": errors,
+        }
 
     # === 02-03: NORMALIZE（HOME / 暫定） ===
     normalizer = NormalizedPricingAdapter(parent_adapter=adapter)
@@ -375,6 +387,19 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     result = adapter.get_full_pricing_item(asin)
 
     raw = result.get("raw")
+
+    # ★追加: エラー（429ブロック・5xx・NOT_FOUND等）はAPIに問い合わせできて
+    #        いないだけなので、ここで打ち切る。このまま進むとpayload無し＝
+    #        競合0件と区別がつかず、region_priceを誤ってNULLで上書きし、
+    #        画面の取得進捗が「未取得」に後退して見えてしまうため。
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors:
+        return {
+            "status": "api_error",
+            "asin": asin,
+            "country_code": country_code,
+            "errors": errors,
+        }
 
     # === 05-03: NORMALIZE（REGION） ===
     normalizer = NormalizedPricingAdapter(parent_adapter=adapter)

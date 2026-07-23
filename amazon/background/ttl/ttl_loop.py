@@ -14,7 +14,7 @@ from datetime import timezone, timedelta
 from amazon.background.ttl.ttl_days import get_account_ttl_days
 from amazon.routes.routes_catalog_v2 import (update_home_catalog, update_region_catalog,)
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing,)
-from amazon.background.common.background_common import api_request_sleep
+from amazon.background.common.background_common import api_request_sleep, get_ttl_cycle_sleep_sec
 from amazon.routes.routes_pricing_v2 import update_listing_price
 from amazon.db import get_conn
 from amazon.guard.guard_429 import is_blocked
@@ -58,10 +58,6 @@ def run_ttl_loop(app, db_dir):
     with app.app_context():
         JST = timezone(timedelta(hours=9))
         loop_count = 0 # LOOPカウント処理
-
-        # === ▼ 以下は TTL 動作制御設定値（FIRSTと同系）将来UI操作に変更する ▼ ===
-        TTL_LOOP_SLEEP_SEC = 3     # cycle間のsleep
-        # === ▲ ここまで ▲ ===
 
         while True:
             # === ★loop動作確認用（API関係なし） ===============================================
@@ -108,7 +104,8 @@ def run_ttl_loop(app, db_dir):
             except Exception:
                 pass
 
-            time.sleep(TTL_LOOP_SLEEP_SEC)
+            # ★変更: 管理者タブⅡ ttl_cycle_sleep_sec をサイクルごとに反映（旧ハードコード3秒）
+            time.sleep(get_ttl_cycle_sleep_sec())
 
 # --- ▼ SECTION 03: TTL対象取得（Cacheベース / catalog） ▼ ---
 def load_catalog_ttl_targets(db_dir: str):
@@ -597,5 +594,8 @@ def dispatch_ttl_execution(targets, record, country_code):
                 exc_info=True
             )
 
-    api_request_sleep()
-         
+    # ★変更: catalog/pricingで実際のAmazon側レート制限が違うため、
+    #        この呼び出しがどちらの種別だったかでsleep秒数を切り替える
+    ttl_kind = "catalog" if any(t[1] == "catalog" for t in targets) else "pricing"
+    api_request_sleep(kind=ttl_kind)
+

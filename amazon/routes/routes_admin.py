@@ -455,6 +455,17 @@ def save_bg_scan_settings():
     ttl_limit_home_catalog    = data.get("ttl_limit_home_catalog")
     ttl_limit_region_catalog  = data.get("ttl_limit_region_catalog")
 
+    # ▼ API種別ごとのsleep秒数・旧ハードコード値（新規追加）
+    ttl_sleep_sec_catalog = data.get("ttl_sleep_sec_catalog")
+    ttl_sleep_sec_pricing = data.get("ttl_sleep_sec_pricing")
+    ttl_cycle_sleep_sec   = data.get("ttl_cycle_sleep_sec")
+    first_asin_sleep_sec  = data.get("first_asin_sleep_sec")
+    api_block_sec         = data.get("api_block_sec")
+
+    # ▼ REGIONCHECK専用の巡回設定（新規追加。first_loopから分離）
+    regioncheck_interval_min = data.get("regioncheck_interval_min")
+    regioncheck_scan_limit   = data.get("regioncheck_scan_limit")
+
     try:
         conn = get_conn("a_bg_scan_settings.db")
         cur = conn.cursor()
@@ -512,7 +523,57 @@ def save_bg_scan_settings():
                 UPDATE bg_scan_settings
                 SET ttl_limit_region_catalog = %s, updated_at = %s
                 WHERE id = 1
-            """, (int(ttl_limit_region_catalog), now))            
+            """, (int(ttl_limit_region_catalog), now))
+
+        # ▼ API種別ごとのsleep秒数・旧ハードコード値を保存
+        if ttl_sleep_sec_catalog is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_sleep_sec_catalog = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(ttl_sleep_sec_catalog), now))
+
+        if ttl_sleep_sec_pricing is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_sleep_sec_pricing = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(ttl_sleep_sec_pricing), now))
+
+        if ttl_cycle_sleep_sec is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET ttl_cycle_sleep_sec = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(ttl_cycle_sleep_sec), now))
+
+        if first_asin_sleep_sec is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET first_asin_sleep_sec = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(first_asin_sleep_sec), now))
+
+        if api_block_sec is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET api_block_sec = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(api_block_sec), now))
+
+        if regioncheck_interval_min is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET regioncheck_interval_min = %s, updated_at = %s
+                WHERE id = 1
+            """, (float(regioncheck_interval_min), now))
+
+        if regioncheck_scan_limit is not None:
+            cur.execute("""
+                UPDATE bg_scan_settings
+                SET regioncheck_scan_limit = %s, updated_at = %s
+                WHERE id = 1
+            """, (int(regioncheck_scan_limit), now))
 
         conn.commit()
         conn.close()
@@ -536,7 +597,10 @@ def get_bg_scan_settings():
         cur.execute("""
             SELECT interval_min, scan_limit, ttl_sleep_sec,
                 ttl_limit_home_pricing, ttl_limit_region_pricing,
-                ttl_limit_home_catalog, ttl_limit_region_catalog
+                ttl_limit_home_catalog, ttl_limit_region_catalog,
+                ttl_sleep_sec_catalog, ttl_sleep_sec_pricing,
+                ttl_cycle_sleep_sec, first_asin_sleep_sec, api_block_sec,
+                regioncheck_interval_min, regioncheck_scan_limit
             FROM bg_scan_settings
             WHERE id = 1
         """)
@@ -554,7 +618,16 @@ def get_bg_scan_settings():
             "ttl_limit_home_pricing": row["ttl_limit_home_pricing"],
             "ttl_limit_region_pricing": row["ttl_limit_region_pricing"],
             "ttl_limit_home_catalog": row["ttl_limit_home_catalog"],
-            "ttl_limit_region_catalog": row["ttl_limit_region_catalog"],            
+            "ttl_limit_region_catalog": row["ttl_limit_region_catalog"],
+            # ★追加: 未設定時は旧ttl_sleep_secにフォールバックして画面に表示する
+            "ttl_sleep_sec_catalog": row["ttl_sleep_sec_catalog"] if row["ttl_sleep_sec_catalog"] is not None else row["ttl_sleep_sec"],
+            "ttl_sleep_sec_pricing": row["ttl_sleep_sec_pricing"] if row["ttl_sleep_sec_pricing"] is not None else row["ttl_sleep_sec"],
+            "ttl_cycle_sleep_sec": row["ttl_cycle_sleep_sec"] if row["ttl_cycle_sleep_sec"] is not None else 3.0,
+            "first_asin_sleep_sec": row["first_asin_sleep_sec"] if row["first_asin_sleep_sec"] is not None else 1.0,
+            "api_block_sec": row["api_block_sec"] if row["api_block_sec"] is not None else 8.0,
+            # ★追加: 未設定時はinterval_min/scan_limit（旧共有値）にフォールバックして画面に表示する
+            "regioncheck_interval_min": row["regioncheck_interval_min"] if row["regioncheck_interval_min"] is not None else row["interval_min"],
+            "regioncheck_scan_limit": row["regioncheck_scan_limit"] if row["regioncheck_scan_limit"] is not None else row["scan_limit"],
         })
 
     except Exception as e:

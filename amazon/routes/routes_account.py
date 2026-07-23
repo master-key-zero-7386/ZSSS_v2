@@ -11,6 +11,7 @@ from auth.routes_auth import login_required
 from amazon.constants import BASE_DIR
 from amazon.db import get_conn
 from amazon.adapters.api_usage_summary import get_api_usage_summary
+from amazon.adapters.api_429_summary import get_api_429_summary
 from datetime import datetime
 
 # --- ▼ SECTION 01: account_master + marketplaces_master → marketplaces へコピー ▼ ---
@@ -791,5 +792,16 @@ def api_usage_summary():
         return jsonify({"status": "error", "message": "not logged in"}), 401
 
     data = get_api_usage_summary(user_id)
+    return jsonify({"status": "ok", "data": data})
+
+
+@account_bp.route("/api-429-summary", methods=["GET"])
+@login_required
+def api_429_summary():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "not logged in"}), 401
+
+    data = get_api_429_summary(user_id)
     return jsonify({"status": "ok", "data": data})
 

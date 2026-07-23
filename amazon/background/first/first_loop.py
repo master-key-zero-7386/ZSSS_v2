@@ -14,14 +14,13 @@ from amazon.db import get_conn
 
 from amazon.routes.routes_catalog_v2 import update_home_catalog
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing)
-from amazon.background.common.background_common import get_ttl_sleep_sec, get_first_scan_settings
+from amazon.background.common.background_common import get_ttl_sleep_sec_pricing, get_first_scan_settings, get_first_asin_sleep_sec
 from amazon.routes.routes_pricing_v2 import update_listing_price
 
 
 # --- ▼ SECTION 01: first loop 基本設定 ▼
 def run_first_loop(app, db_dir):
     with app.app_context():
-        ASIN_SLEEP_SEC = 1.0           # ASIN間Sleep時間
         JST = timezone(timedelta(hours=9))
         loop_count = 0  # LOOPカウント処理（生存確認用）
 
@@ -88,11 +87,19 @@ def run_first_loop(app, db_dir):
                     continue
 
                 # --- ASIN間Sleep秒数はサイクル中変わらないため、ASINごとにDB再取得せず1回だけ取得 ---
-                api_sleep_sec = get_ttl_sleep_sec()
+                # ★変更: 1件でcatalog+pricing+listing価格更新をまとめて叩くため、
+                #        より厳しいpricing側の値を使う（旧get_ttl_sleep_sec）
+                api_sleep_sec = get_ttl_sleep_sec_pricing()
+                asin_sleep_sec = get_first_asin_sleep_sec()
 
-                _run_first_cycle(app, targets, api_sleep_sec, ASIN_SLEEP_SEC)
+                _run_first_cycle(app, targets, api_sleep_sec, asin_sleep_sec)
 
-                time.sleep(FIRST_LOOP_SLEEP_SEC)
+                # ★追加: 取得件数が上限(MAX_FIRST_PER_CYCLE)に達していた場合は
+                #        バックログが残っている可能性が高いため、フル待機せず
+                #        すぐ次のサイクルへ進む。上限未満なら在庫を捌き切ったと
+                #        みなし、通常通りFIRST_LOOP_SLEEP_SEC待機する。
+                if len(targets) < MAX_FIRST_PER_CYCLE:
+                    time.sleep(FIRST_LOOP_SLEEP_SEC)
 
             except Exception:
                 import traceback

@@ -14,12 +14,23 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("bg_scan_interval_min").value = data.interval_min;
             document.getElementById("bg_scan_limit").value        = data.scan_limit;
             document.getElementById("ttl_sleep_sec").value        = data.ttl_sleep_sec ?? 0.2;
+            document.getElementById("first_asin_sleep_sec").value = data.first_asin_sleep_sec ?? 1.0;
 
             // ▼ TTL項目別 上限件数を画面に表示
             document.getElementById("ttl_limit_home_pricing").value   = data.ttl_limit_home_pricing;
             document.getElementById("ttl_limit_region_pricing").value = data.ttl_limit_region_pricing;
             document.getElementById("ttl_limit_home_catalog").value   = data.ttl_limit_home_catalog;
             document.getElementById("ttl_limit_region_catalog").value = data.ttl_limit_region_catalog;
+
+            // ▼ API種別ごとのsleep・旧ハードコード値
+            document.getElementById("ttl_sleep_sec_catalog").value = data.ttl_sleep_sec_catalog ?? 0.2;
+            document.getElementById("ttl_sleep_sec_pricing").value = data.ttl_sleep_sec_pricing ?? 0.2;
+            document.getElementById("ttl_cycle_sleep_sec").value   = data.ttl_cycle_sleep_sec ?? 3;
+            document.getElementById("api_block_sec").value         = data.api_block_sec ?? 8;
+
+            // ▼ REGIONCHECK専用の巡回設定
+            document.getElementById("regioncheck_interval_min").value = data.regioncheck_interval_min;
+            document.getElementById("regioncheck_scan_limit").value   = data.regioncheck_scan_limit;
         });
 
   // --- ▼ SECTION 02: ▼ First 巡回設定 保存（時間 + LIMIT） ▼ ---
@@ -43,13 +54,23 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // ③ 保存API呼び出し
+    // ③ ASIN間 追加Sleep（旧ハードコード）
+    const firstAsinSleepEl = document.getElementById("first_asin_sleep_sec");
+    const firstAsinSleepVal = Number(firstAsinSleepEl.value);
+
+    if (firstAsinSleepVal < 0) {
+      alert("ASIN間 追加Sleep は 0 以上を入力してください");
+      return;
+    }
+
+    // ④ 保存API呼び出し
     fetch("/admin/save_bg_scan_settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         interval_min: intervalVal,
-        scan_limit: limitVal
+        scan_limit: limitVal,
+        first_asin_sleep_sec: firstAsinSleepVal
       })
     })
       .then(res => res.json())
@@ -82,6 +103,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const homeCatalogLimit = Number(document.getElementById("ttl_limit_home_catalog").value);
     const regionCatalogLimit = Number(document.getElementById("ttl_limit_region_catalog").value);
 
+    // ▼ API種別ごとのsleep・旧ハードコード値を取得
+    const catalogSleepVal = Number(document.getElementById("ttl_sleep_sec_catalog").value);
+    const pricingSleepVal = Number(document.getElementById("ttl_sleep_sec_pricing").value);
+    const cycleSleepVal   = Number(document.getElementById("ttl_cycle_sleep_sec").value);
+    const blockSecVal     = Number(document.getElementById("api_block_sec").value);
+
+    if (catalogSleepVal < 0 || pricingSleepVal < 0 || cycleSleepVal < 0 || blockSecVal < 0) {
+      alert("sleep秒数・ブロック秒数は 0 以上を入力してください");
+      return;
+    }
+
     fetch("/admin/save_bg_scan_settings", {
       method: "POST",
       headers: {
@@ -92,7 +124,11 @@ document.addEventListener("DOMContentLoaded", () => {
         ttl_limit_home_pricing: homePriceLimit,
         ttl_limit_region_pricing: regionPriceLimit,
         ttl_limit_home_catalog: homeCatalogLimit,
-        ttl_limit_region_catalog: regionCatalogLimit
+        ttl_limit_region_catalog: regionCatalogLimit,
+        ttl_sleep_sec_catalog: catalogSleepVal,
+        ttl_sleep_sec_pricing: pricingSleepVal,
+        ttl_cycle_sleep_sec: cycleSleepVal,
+        api_block_sec: blockSecVal
       })
     })
     .then(res => res.json())
@@ -103,6 +139,46 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast("保存失敗", "error")
       }
     });
+  });
+
+  // --- ▼ SECTION 03-1: REGIONCHECK Cycle Settings 保存（first_loopから分離） ▼ ---
+  document.getElementById("save_regioncheck_settings")?.addEventListener("click", () => {
+
+    const intervalEl = document.getElementById("regioncheck_interval_min");
+    const intervalVal = Number(intervalEl.value);
+
+    if (!intervalVal || intervalVal <= 0) {
+      alert("巡回間隔は 0.1 以上を入力してください");
+      return;
+    }
+
+    const limitEl = document.getElementById("regioncheck_scan_limit");
+    const limitVal = Number(limitEl.value);
+
+    if (!limitVal || limitVal <= 0) {
+      alert("巡回件数は 1 以上を入力してください");
+      return;
+    }
+
+    fetch("/admin/save_bg_scan_settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        regioncheck_interval_min: intervalVal,
+        regioncheck_scan_limit: limitVal
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "ok") {
+          showToast("REGIONCHECK Cycle 保存完了", "success")
+        } else {
+          showToast("保存失敗", "error")
+        }
+      })
+      .catch(() => {
+        document.getElementById("regioncheck_msg").textContent = "通信エラー";
+      });
   });
 
   // --- ▼ SECTION 04: RAWチェックツール ▼ ---

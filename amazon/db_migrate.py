@@ -70,7 +70,18 @@ BG_SCAN_SETTINGS_COLUMNS = {
     "ttl_limit_region_pricing": "INTEGER",    # TTL：REGION価格情報の上限件数
     "ttl_limit_home_catalog": "INTEGER",      # TTL：HOME商品情報の上限件数
     "ttl_limit_region_catalog": "INTEGER",    # TTL：REGION商品情報の上限件数
-    "ttl_sleep_sec": "REAL",                  # TTL SleepTIME    
+    "ttl_sleep_sec": "REAL",                  # TTL SleepTIME（旧・共通値。後方互換のため残置）
+
+        # --- ▼ API種別ごとのsleep秒数（新規追加。旧ttl_sleep_secから分割） ▼ ---
+    "ttl_sleep_sec_catalog": "REAL",           # TTL：HOME/REGION catalog専用sleep
+    "ttl_sleep_sec_pricing": "REAL",           # TTL：HOME/REGION pricing専用sleep
+    "ttl_cycle_sleep_sec": "REAL",             # TTL：ttl_loop.py サイクル間sleep（旧ハードコード）
+    "first_asin_sleep_sec": "REAL",            # FIRST：ASIN間の追加sleep（旧ハードコード）
+    "api_block_sec": "REAL",                   # 429検知後のブロック秒数（旧ハードコード）
+
+        # --- ▼ REGIONCHECK専用の巡回設定（新規追加。旧interval_min/scan_limitはfirst_loop専用に） ▼ ---
+    "regioncheck_interval_min": "REAL",        # REGIONCHECK：巡回間隔（分）。未設定時はinterval_minを流用
+    "regioncheck_scan_limit": "INTEGER",       # REGIONCHECK：1巡回あたりの最大処理件数。未設定時はscan_limitを流用
 }
 
 
@@ -136,6 +147,14 @@ API_BLOCK_STATE_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
     "endpoint": "TEXT NOT NULL",
     "blocked_until": "TEXT NOT NULL",
+}
+
+# --- ▼ SECTION：429発生ログ（Dashboard表示用・新規追加） ---
+API_429_EVENTS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "endpoint": "TEXT NOT NULL",
+    "created_at": "TEXT NOT NULL",
 }
 
 # --- ▼ SECTION ： Bland Gate用 ▼ ---
@@ -583,6 +602,8 @@ def migrate_db(db_name):
         migrate_table(conn, "admin_settings", ADMIN_SETTINGS_COLUMNS)
     elif base.endswith("_api_block_state.db"):
         migrate_table(conn, "api_block_state", API_BLOCK_STATE_COLUMNS)
+    elif base.endswith("_api_429_events.db"):
+        migrate_table(conn, "api_429_events", API_429_EVENTS_COLUMNS)
     elif base.endswith("_shipping_override_master.db"):
         migrate_table(conn, "shipping_override_master", SHIPPING_OVERRIDE_MASTER_COLUMNS)    
     elif base.endswith("_lwa_credentials_log.db"):
@@ -923,6 +944,16 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
+    # --- a_api_429_events.db ---
+    conn = get_conn("a_api_429_events.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_api_429_events_created_at "
+        "ON api_429_events(created_at)"
+    )
+    conn.commit()
+    conn.close()
+
 # --- メイン処理 ---
 def main():
 
@@ -946,6 +977,7 @@ def main():
         "a_admin_settings.db",
         "a_api_block_state.db",
         "a_lethal_weapon_preset.db",
+        "a_api_429_events.db",
     ]
 
     # 固定DB migrate
