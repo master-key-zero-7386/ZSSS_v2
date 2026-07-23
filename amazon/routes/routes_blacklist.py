@@ -780,61 +780,60 @@ def apply_blacklist_update(user_id, country_code):
 
         asin = row["asin"]
 
-        # --- ASINチェック ---
-        asin_ng = asin in asin_ng_list
+        try:
+            # --- ASINチェック ---
+            asin_ng = asin in asin_ng_list
 
-        # --- ブランドチェック ---
-        brand_list = []
+            # --- ブランドチェック ---
+            brand_list = []
 
-        if "home_brand" in row.keys() and row["home_brand"]:
-            brand_list.append(row["home_brand"].strip().lower())
+            if "home_brand" in row.keys() and row["home_brand"]:
+                brand_list.append(row["home_brand"].strip().lower())
 
-        if "region_brand" in row.keys() and row["region_brand"]:
-            brand_list.append(row["region_brand"].strip().lower())
+            if "region_brand" in row.keys() and row["region_brand"]:
+                brand_list.append(row["region_brand"].strip().lower())
 
-        brand_ng = any(
-            ng == b
-            for b in brand_list
-            for ng in brand_ng_list
-        )
-
-        if asin_ng or brand_ng:
-
-            # --- ▼ 判定のみ。書き込みはサービスに委譲 ▼ ---
-            apply_blacklist(
-                user_id=user_id,
-                asin=asin,
-                marketplace_id=row["region_marketplace_id"],
-                sku=row["sku"],
-                reason="BLACKLIST",
-                country_code=country_code
+            brand_ng = any(
+                ng == b
+                for b in brand_list
+                for ng in brand_ng_list
             )
 
-            if row["status"] == "listed":
-                delete_listings_item(
-                    user_id=user_id,
-                    country_code=country_code,
-                    marketplace_id=row["region_marketplace_id"],
-                    seller_sku=row["sku"]
-                )
+            if asin_ng or brand_ng:
 
-        else:
-            # --- ▼ ブラックリスト理由だった場合のみ解除 ▼ ---
-            if row["inactive_reason"] == "BLACKLIST":
-                clear_blacklist(
+                # --- ▼ 判定のみ。書き込みはサービスに委譲 ▼ ---
+                apply_blacklist(
                     user_id=user_id,
                     asin=asin,
                     marketplace_id=row["region_marketplace_id"],
+                    sku=row["sku"],
+                    reason="BLACKLIST",
                     country_code=country_code
                 )
 
-        # else:
-        #     # --- ACTIVEに戻す ---
-        #     cur.execute("""
-        #         UPDATE listed_items
-        #         SET information_status = 'ACTIVE'
-        #         WHERE id = %s
-        #     """, (row["id"],))
+                if row["status"] == "listed":
+                    delete_listings_item(
+                        user_id=user_id,
+                        country_code=country_code,
+                        marketplace_id=row["region_marketplace_id"],
+                        seller_sku=row["sku"]
+                    )
+
+            else:
+                # --- ▼ ブラックリスト理由だった場合のみ解除 ▼ ---
+                if row["inactive_reason"] == "BLACKLIST":
+                    clear_blacklist(
+                        user_id=user_id,
+                        asin=asin,
+                        marketplace_id=row["region_marketplace_id"],
+                        country_code=country_code
+                    )
+
+        except Exception as e:
+            # --- ▼ 1件の失敗（SP-API通信エラー等）で残り全件の反映が
+            #     止まらないよう、行単位で隔離する ▼ ---
+            print(f"apply_blacklist_update row error: asin={asin} error={e}")
+            continue
 
     conn.commit()
     conn.close()
