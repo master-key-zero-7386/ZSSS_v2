@@ -242,6 +242,14 @@
                         <span id="externalListedDeleteResult" style="margin-left:10px; font-size:14px; color:#000000;"></span>
                     </div>
 
+                    <!-- SKU CSV一括削除（画面上部で選択中のマーケット対象。Pre/ALL問わず削除、ALLはAmazon出品も削除） -->
+                    <div class="file-input-row" style="margin-top:10px;">
+                        <input type="file" id="skuDeleteFileInput" accept=".csv" style="display:none;" />
+                        <input type="text" id="skuDeleteFileName" class="file-input-text" placeholder="削除するSKU CSV（1列目=SKU）を選択してください" readonly style="width:340px;" />
+                        <button type="button" id="skuDeleteBtn" class="btn-red" style="height:36px;">SKU一括削除（選択中マーケット）</button>
+                        <span id="skuDeleteResult" style="margin-left:10px; font-size:14px; color:#000000;"></span>
+                    </div>
+
                 </div>
             </div>
 

@@ -29,6 +29,7 @@ from flask import Blueprint, request, jsonify, session, current_app, Response
 from werkzeug.utils import secure_filename
 
 from amazon.services.blacklist_service import is_blacklisted, get_blacklist_reason
+from amazon.services.listing_submit_service import bulk_delete_listing_item
 
 
 BASE_DIR = os.path.dirname(__file__)
@@ -954,6 +955,143 @@ def delete_external_listed_asin():
             "before": before,
             "deleted": deleted,
             "after": after
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 07-2: 出品SKU CSV一括削除（Pre／ALL問わず。ALLはAmazon側もFeedで削除） ▼ ---
+@csv_import_bp.route("/listed_items_delete", methods=["POST"])
+def delete_listed_items_by_sku():
+    try:
+        user_id = session.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "login required"}), 401
+
+        country_code = request.form.get("country_code", "").strip().lower()
+        if not country_code:
+            return jsonify({"status": "error", "message": "country_code required"}), 400
+
+        file = request.files.get("file")
+        if not file or file.filename == "":
+            return jsonify({"status": "error", "message": "CSVファイルを選択してください"}), 400
+
+        conn_m = get_conn("a_marketplaces.db")
+        cur_m = conn_m.cursor()
+        cur_m.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND LOWER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code))
+        row_mp = cur_m.fetchone()
+        conn_m.close()
+
+        if not row_mp:
+            return jsonify({"status": "error", "message": "marketplace_id not found"}), 400
+
+        marketplace_id = row_mp["marketplace_id"]
+
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
+        file.save(save_path)
+
+        sku_list = []
+        with open(save_path, newline="", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            headers = next(reader, None)
+
+            if not headers or headers[0].strip().upper() != "SKU":
+                os.remove(save_path)
+                return jsonify({
+                    "status": "error",
+                    "message": "CSVのフォーマットが不正です。1列目は『SKU』にしてください。"
+                }), 400
+
+            for row in reader:
+                if not row or not row[0].strip():
+                    continue
+                sku = row[0].strip()
+                if sku:
+                    sku_list.append(sku)
+
+        os.remove(save_path)
+
+        sku_list = list(dict.fromkeys(sku_list))  # 重複除去（順序維持）
+
+        if not sku_list:
+            return jsonify({"status": "error", "message": "有効なSKUがありません"}), 400
+
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"database not found: {db_name}"}), 500
+
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT sku, status FROM listed_items
+            WHERE user_id = %s AND sku = ANY(%s)
+        """, (user_id, sku_list))
+        rows = cur.fetchall()
+
+        matched_skus = [r["sku"] for r in rows]
+        listed_skus = [r["sku"] for r in rows if (r["status"] or "").strip().lower() == "listed"]
+        not_found = [s for s in sku_list if s not in matched_skus]
+
+        if not matched_skus:
+            conn.close()
+            return jsonify({
+                "status": "success",
+                "country_code": country_code,
+                "requested": len(sku_list),
+                "matched": 0,
+                "listed_deleted": 0,
+                "pre_deleted": 0,
+                "not_found": not_found
+            })
+
+        # --- ALL(出品中)分はDB削除前にAmazon側もFeedで削除。deleting_flagはFeed送信前のガード ---
+        if listed_skus:
+            cur.execute("""
+                UPDATE listed_items
+                SET deleting_flag = 1
+                WHERE sku = ANY(%s) AND user_id = %s
+            """, (listed_skus, user_id))
+            conn.commit()
+
+            feed_response = bulk_delete_listing_item(
+                user_id=user_id,
+                country_code=country_code,
+                marketplace_id=marketplace_id,
+                sku_list=listed_skus
+            )
+            print("[CSV SKU DELETE] BULK FEED RESPONSE:", feed_response, flush=True)
+
+        # --- DB削除（Pre/ALL問わず一括。1件ずつではなくANY(%s)でまとめて1クエリ） ---
+        try:
+            cur.execute("""
+                DELETE FROM listed_items
+                WHERE sku = ANY(%s) AND user_id = %s
+            """, (matched_skus, user_id))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return jsonify({"status": "error", "message": "削除に失敗しました", "detail": str(e)}), 500
+
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "country_code": country_code,
+            "requested": len(sku_list),
+            "matched": len(matched_skus),
+            "listed_deleted": len(listed_skus),
+            "pre_deleted": len(matched_skus) - len(listed_skus),
+            "not_found": not_found
         })
 
     except Exception as e:

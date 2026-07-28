@@ -419,5 +419,72 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // ✅ SKU CSV一括削除（画面上部で選択中のマーケット対象。Pre/ALL問わず削除、ALLはAmazon出品も削除）
+    const skuDeleteFileInput = document.getElementById("skuDeleteFileInput");
+    const skuDeleteFileName = document.getElementById("skuDeleteFileName");
+    const skuDeleteBtn = document.getElementById("skuDeleteBtn");
+    const skuDeleteResult = document.getElementById("skuDeleteResult");
+
+    if (skuDeleteFileName) {
+        skuDeleteFileName.addEventListener("click", () => {
+            skuDeleteFileInput.click();
+        });
+    }
+
+    if (skuDeleteFileInput) {
+        skuDeleteFileInput.addEventListener("change", (e) => {
+            const fileName = e.target.files.length ? e.target.files[0].name : "";
+            skuDeleteFileName.value = fileName;
+        });
+    }
+
+    if (skuDeleteBtn) {
+        skuDeleteBtn.addEventListener("click", () => {
+            if (!skuDeleteFileInput.files.length) {
+                alert("CSVファイルを選択してください");
+                return;
+            }
+
+            const country_code = document.getElementById("globalRegion")?.value;
+            if (!country_code) {
+                alert("画面上部でマーケットを選択してください");
+                return;
+            }
+
+            if (!confirm(`選択中マーケット（${country_code}）のリストから、CSVに記載されたSKUを一括削除します。\n出品中（ALL）のSKUはAmazon側の出品も同時に削除されます。よろしいですか？`)) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", skuDeleteFileInput.files[0]);
+            formData.append("country_code", country_code);
+
+            if (skuDeleteResult) skuDeleteResult.textContent = "";
+
+            fetch("/csv/listed_items_delete", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    const msg = `削除完了：${data.matched}件（出品中${data.listed_deleted}件／Pre${data.pre_deleted}件）　未該当${data.not_found.length}件`;
+                    if (skuDeleteResult) skuDeleteResult.textContent = msg;
+                    window.showToast(msg, "success");
+                    skuDeleteFileInput.value = "";
+                    skuDeleteFileName.value = "";
+                } else {
+                    const errMsg = data && data.message ? data.message : "削除に失敗しました";
+                    if (skuDeleteResult) skuDeleteResult.textContent = errMsg;
+                    window.showToast(errMsg, "error");
+                }
+            })
+            .catch(err => {
+                console.error("[SKU CSV Delete] error:", err);
+                window.showToast("エラーが発生しました", "error");
+            });
+        });
+    }
+
 });
 
