@@ -535,6 +535,7 @@ def _build_listing_row_with_shipping(
         
         "final_price": row["final_price"],
         "override_price": row["override_price"],
+        "override_weight_class": row["override_weight_class"],
         "profit_rate": row["profit_rate"],
         "min_price": row["min_price"], 
         "max_price": row["max_price"],

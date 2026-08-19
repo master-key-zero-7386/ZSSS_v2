@@ -566,13 +566,15 @@ window.loadalllisting = async function(country_code) {
                                 const vol = row.volumetric_weight_kg != null ? parseFloat(row.volumetric_weight_kg).toFixed(3) : "--";
                                 const bill = row.billable_weight_kg != null ? parseFloat(row.billable_weight_kg).toFixed(3) : "--";
                                 const shippingFee = row.shipping_fee != null ? Number(row.shipping_fee).toLocaleString() : "--";
+                                const isWeightOverridden = row.override_weight_class != null && row.override_weight_class !== "";
+                                const billStyle = isWeightOverridden ? "color:#dc3545;" : "";
                                 return `
                                 <div>
                                     <div><span style="display:inline-block; width:90px;">サイズ</span>：${len} × ${wid} × ${hei} cm</div>
                                     <div><span style="display:inline-block; width:90px;">実重量</span>：${act} kg</div>
                                     <div><span style="display:inline-block; width:90px;">容積重量</span>：${vol} kg</div>
-                                    <div><span style="display:inline-block; width:90px;">請求重量</span>：<b>${bill} kg</b></div>
-                                    <div><span style="display:inline-block; width:90px;">補正前送料</span>：<b>${shippingFee}</b></div>
+                                    <div><span style="display:inline-block; width:90px;">請求重量</span>：<b style="${billStyle}">${bill} kg</b>${isWeightOverridden ? ' <span style="font-size:11px; color:#dc3545;" title="送料区分を手動で上書き中">(手動)</span>' : ''}</div>
+                                    <div><span style="display:inline-block; width:90px;">補正前送料</span>：<b style="${billStyle}">${shippingFee}</b></div>
                                 </div>
 
                                 `;
