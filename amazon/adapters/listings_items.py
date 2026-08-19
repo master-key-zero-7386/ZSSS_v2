@@ -83,12 +83,9 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
     }
     
     # --- 出品APIチェック用 ---
-    print(
-    f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[LIST {country_code}]] UserID:{user_id} ASIN:{asin} PRICE:{price} QTY:{quantity} HT:{handling_time} SKU:{seller_sku} ",
-    flush=True)  
     write_log(
         f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[LIST {country_code}]] UserID:{user_id} ASIN:{asin} PRICE:{price} QTY:{quantity} HT:{handling_time} SKU:{seller_sku} "
-    )      
+    )
     # --- 出品APIチェック用 ---ここまで 削除しない
 
     response = adapter.real_signed_request(
