@@ -925,6 +925,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(region_price, NULL) AS region_price,
             COALESCE(final_price, NULL) AS final_price,
             COALESCE(override_price, NULL) AS override_price,
+            override_weight_class,
             COALESCE(profit_rate, NULL) AS profit_rate,
             COALESCE(min_price, NULL) AS min_price,
             COALESCE(max_price, NULL) AS max_price,
