@@ -39,19 +39,22 @@ window.loadalllisting = async function(country_code) {
     );
 
     // --- ▼ SECTION 01b: 送料区分プルダウン用の重量帯を先読み ---
-    // 列render内はDataTableが同期的に呼ぶため、行描画が始まる前に取得を終えておく
+    // ★注意: ここでawaitするとテーブル初期化（SECTION 02）が遅延し、
+    //        ほぼ同時に呼ばれる複数のloadalllisting()が競合して
+    //        「Cannot reinitialise DataTable」を引き起こすため、
+    //        awaitせず非同期のまま裏で取得する（render関数はletのクロージャなので
+    //        取得完了後に値が更新されれば以降の描画から自動的に反映される）
     let shippingRateRowsForOverride = [];
-    try {
-        const rateRes = await fetch(`/api/shipping-rates/load?marketplace_id=${encodeURIComponent(country_code)}`);
-        const rateData = await rateRes.json();
-        if (rateData.status === "success") {
-            shippingRateRowsForOverride = (rateData.rows || [])
-                .slice()
-                .sort((a, b) => a.weight_from_g - b.weight_from_g);
-        }
-    } catch (e) {
-        console.error("[weight-override] shipping-rates/load error:", e);
-    }
+    fetch(`/api/shipping-rates/load?marketplace_id=${encodeURIComponent(country_code)}`)
+        .then(res => res.json())
+        .then(rateData => {
+            if (rateData.status === "success") {
+                shippingRateRowsForOverride = (rateData.rows || [])
+                    .slice()
+                    .sort((a, b) => a.weight_from_g - b.weight_from_g);
+            }
+        })
+        .catch(e => console.error("[weight-override] shipping-rates/load error:", e));
 
     // --- ▼ SECTION 02: DataTable 再生成 ---
     let allTable;
