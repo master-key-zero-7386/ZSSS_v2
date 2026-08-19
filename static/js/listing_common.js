@@ -935,6 +935,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const excludeBooksEl = document.getElementById("allExcludeBooksFilter");
             if (excludeBooksEl) excludeBooksEl.checked = false;
 
+            const weightOverrideEl = document.getElementById("allWeightOverrideFilter");
+            if (weightOverrideEl) weightOverrideEl.checked = false;
+
+            const priceOverrideEl = document.getElementById("allPriceOverrideFilter");
+            if (priceOverrideEl) priceOverrideEl.checked = false;
+
             const infoAll = document.querySelector('input[name="allInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
 
