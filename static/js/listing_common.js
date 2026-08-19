@@ -496,6 +496,147 @@ $(document).on("click", ".cancel-edit-btn", function () {
     cell.find(".listing-strategy-summary").show();             
 });
 
+// --- ▼ SECTION 07b: 送料区分 手動上書き ON/OFF（グレーアウト切替） ▼ ---
+$(document).on("change", ".weight-override-toggle", function () {
+    const $row = $(this).closest(".weight-override-row");
+    const $select = $row.find(".weight-override-select");
+    const $saveBtn = $row.find(".weight-override-save-btn");
+
+    if ($(this).is(":checked")) {
+        $select.prop("disabled", false).css("opacity", 1);
+        $saveBtn.prop("disabled", false).css("opacity", 1);
+    } else {
+        $select.val("").prop("disabled", true).css("opacity", 0.4);
+        $saveBtn.prop("disabled", true).css("opacity", 0.4);
+        // OFFにした時点で自動計算に戻す（保存ボタンを待たない）
+        saveWeightOverride($row, null);
+    }
+});
+
+// --- ▼ SECTION 07c: 送料区分 手動上書き 保存処理 ▼ ---
+async function saveWeightOverride($row, overrideWeightClass) {
+    const asin = $row.data("asin");
+    const country_code = $("#globalRegion").val();
+    if (!asin || !country_code) return;
+
+    try {
+        const res = await fetch("/listing/update_shipping_override", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                asin,
+                country_code,
+                override_weight_class: overrideWeightClass,
+            }),
+        });
+
+        const data = await res.json();
+        if (data.status !== "success") {
+            window.showToast("保存に失敗しました", "error");
+            return;
+        }
+
+        const submitted = data.price_result && data.price_result.submitted;
+        window.showToast(
+            submitted
+                ? "送料区分を保存し、Seller Centralへ送信しました"
+                : "送料区分を保存しました（未出品/非ACTIVEのためSeller Centralへの送信は行われません）",
+            "success"
+        );
+
+        // --- 請求重量・送料・出品価格が変わるため、一覧を再読込して最新値を表示 ---
+        if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+            $("#alllistingtable").DataTable().ajax.reload(null, false);
+        }
+
+    } catch (e) {
+        console.error("[update_shipping_override]", e);
+        window.showToast("通信エラーが発生しました", "error");
+    }
+}
+
+$(document).on("click", ".weight-override-save-btn", function () {
+    const $row = $(this).closest(".weight-override-row");
+    const selected = $row.find(".weight-override-select").val();
+
+    if (!selected) {
+        window.showToast("重量区分を選択してください", "error");
+        return;
+    }
+
+    saveWeightOverride($row, Number(selected));
+});
+
+// --- ▼ SECTION 07d: 出品価格 手動固定 ON/OFF（グレーアウト切替） ▼ ---
+$(document).on("change", ".price-override-toggle", function () {
+    const $row = $(this).closest(".price-override-row");
+    const $input = $row.find(".price-override-input");
+    const $saveBtn = $row.find(".price-override-save-btn");
+
+    if ($(this).is(":checked")) {
+        $input.prop("disabled", false).css("opacity", 1);
+        $saveBtn.prop("disabled", false).css("opacity", 1);
+    } else {
+        $input.val("").prop("disabled", true).css("opacity", 0.4);
+        $saveBtn.prop("disabled", true).css("opacity", 0.4);
+        // OFFにした時点で自動計算・TTL対象に戻す（保存ボタンを待たない）
+        savePriceOverride($row, null);
+    }
+});
+
+// --- ▼ SECTION 07e: 出品価格 手動固定 保存処理 ▼ ---
+async function savePriceOverride($row, overridePrice) {
+    const asin = $row.data("asin");
+    const country_code = $("#globalRegion").val();
+    if (!asin || !country_code) return;
+
+    try {
+        const res = await fetch("/listing/update_price_override", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                asin,
+                country_code,
+                override_price: overridePrice,
+            }),
+        });
+
+        const data = await res.json();
+        if (data.status !== "success") {
+            window.showToast(data.message || "保存に失敗しました", "error");
+            return;
+        }
+
+        const submitted = data.price_result && data.price_result.submitted;
+        window.showToast(
+            submitted
+                ? "価格を固定し、Seller Centralへ送信しました"
+                : "価格を固定しました（未出品/非ACTIVEのためSeller Centralへの送信は行われません）",
+            "success"
+        );
+
+        if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+            $("#alllistingtable").DataTable().ajax.reload(null, false);
+        }
+
+    } catch (e) {
+        console.error("[update_price_override]", e);
+        window.showToast("通信エラーが発生しました", "error");
+    }
+}
+
+$(document).on("click", ".price-override-save-btn", function () {
+    const $row = $(this).closest(".price-override-row");
+    const val = $row.find(".price-override-input").val();
+
+    if (!val || Number(val) <= 0) {
+        window.showToast("価格を入力してください", "error");
+        return;
+    }
+
+    savePriceOverride($row, Number(val));
+});
+
 // --- ▼ SECTION 08: ALL 出品戦略 保存処理（ALL専用） ▼ ---
 $(document).on("click", ".save-edit-btn", async function () {
 

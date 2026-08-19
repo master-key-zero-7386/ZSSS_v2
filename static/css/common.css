@@ -265,7 +265,34 @@ textarea {
 input[type="checkbox"] {
     transform: scale(1.5);
     margin-right: 6px;
-} 
+}
+
+/* 共通 ON / OFF トグル（小型・狭い列用） */
+.switch-sm {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.switch-sm input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-sm .slider {
+  border-radius: 16px;
+}
+.switch-sm .slider:before {
+  height: 12px;
+  width: 12px;
+  left: 2px;
+  bottom: 2px;
+}
+.switch-sm input:checked + .slider:before {
+  transform: translateX(14px);
+}
+
 
 /* --- ▲ SECTION : ZSSS 共通 ボタン系 ▲ ---
 /* メニュー親 */

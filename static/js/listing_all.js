@@ -38,8 +38,23 @@ window.loadalllisting = async function(country_code) {
         '<table id="alllistingtable" class="display zsss-listing-table"><thead></thead><tbody></tbody></table>'
     );
 
+    // --- ▼ SECTION 01b: 送料区分プルダウン用の重量帯を先読み ---
+    // 列render内はDataTableが同期的に呼ぶため、行描画が始まる前に取得を終えておく
+    let shippingRateRowsForOverride = [];
+    try {
+        const rateRes = await fetch(`/api/shipping-rates/load?marketplace_id=${encodeURIComponent(country_code)}`);
+        const rateData = await rateRes.json();
+        if (rateData.status === "success") {
+            shippingRateRowsForOverride = (rateData.rows || [])
+                .slice()
+                .sort((a, b) => a.weight_from_g - b.weight_from_g);
+        }
+    } catch (e) {
+        console.error("[weight-override] shipping-rates/load error:", e);
+    }
+
     // --- ▼ SECTION 02: DataTable 再生成 ---
-    let allTable; 
+    let allTable;
 
     // 一括操作・単発最新取得などの「同じ絞り込み条件のままの再読み込み」の場合、
     // 直前のページ番号をsessionStorageから引き継ぐ（無ければ1ページ目から）
@@ -436,6 +451,15 @@ window.loadalllisting = async function(country_code) {
                             data: null,
                             orderable: false,
                             render: function (_data, _type, row) {
+                                const hasWeightOverride = row.override_weight_class != null && row.override_weight_class !== "";
+                                const hasPriceOverride = row.override_price != null && row.override_price !== "";
+
+                                const weightOptions = shippingRateRowsForOverride.map(r => {
+                                    const g = r.weight_to_g;
+                                    const isSelected = hasWeightOverride && Number(row.override_weight_class) === Number(g);
+                                    return `<option value="${g}" ${isSelected ? "selected" : ""}>${Number(g).toLocaleString()}g</option>`;
+                                }).join("");
+
                                 return `
                                     <div style="display:inline-block; border-bottom:2px solid #1c0cfa;">
                                         <span style="display:inline-block; width:66px; font-weight:bold;">出品価格</span>
@@ -464,6 +488,27 @@ window.loadalllisting = async function(country_code) {
                                                         : "ー")
                                             }
                                         </span>
+                                    </div>
+                                    <div class="weight-override-row" data-asin="${row.asin}" style="margin-top:6px; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                                        <span style="font-size:11px; color:#666; white-space:nowrap;" title="送料区分 手動上書き">手動</span>
+                                        <label class="switch switch-sm" title="送料区分 手動上書き">
+                                            <input type="checkbox" class="weight-override-toggle" ${hasWeightOverride ? "checked" : ""}>
+                                            <span class="slider"></span>
+                                        </label>
+                                        <select class="weight-override-select" ${hasWeightOverride ? "" : "disabled"} style="font-size:12px; padding:2px 4px; max-width:80px; opacity:${hasWeightOverride ? "1" : "0.4"};">
+                                            <option value="">重量区分</option>
+                                            ${weightOptions}
+                                        </select>
+                                        <button type="button" class="btn-blue weight-override-save-btn" ${hasWeightOverride ? "" : "disabled"} style="font-size:11px; padding:2px 8px; opacity:${hasWeightOverride ? "1" : "0.4"};">保存</button>
+                                    </div>
+                                    <div class="price-override-row" data-asin="${row.asin}" style="margin-top:4px; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                                        <span style="font-size:11px; color:#666; white-space:nowrap;" title="出品価格 手動固定">手動</span>
+                                        <label class="switch switch-sm" title="出品価格 手動固定">
+                                            <input type="checkbox" class="price-override-toggle" ${hasPriceOverride ? "checked" : ""}>
+                                            <span class="slider"></span>
+                                        </label>
+                                        <input type="number" step="0.01" min="0" class="price-override-input" ${hasPriceOverride ? "" : "disabled"} value="${hasPriceOverride ? row.override_price : ""}" placeholder="価格固定" style="font-size:12px; padding:2px 4px; max-width:70px; opacity:${hasPriceOverride ? "1" : "0.4"};">
+                                        <button type="button" class="btn-blue price-override-save-btn" ${hasPriceOverride ? "" : "disabled"} style="font-size:11px; padding:2px 8px; opacity:${hasPriceOverride ? "1" : "0.4"};">保存</button>
                                     </div>
                                 `;
                             }

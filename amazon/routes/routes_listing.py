@@ -36,6 +36,8 @@ from amazon.core.price_calculator import get_pricing_master_rule
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 from amazon.routes.routes_pricing_v2 import get_asin_blacklist, get_brand_blacklist
+from amazon.routes.routes_pricing_v2 import update_listing_price
+from amazon.routes.routes_pricing_v2 import update_home_pricing, update_region_pricing
 from amazon.utils.brand_gate_store import NO_BRAND_VALUES
 
 
@@ -308,19 +310,20 @@ def _build_listing_row_with_shipping(
         "pack_ratio": pack_ratio,
     }
 
-    shipping_result = calculate_shipping_result(  
+    shipping_result = calculate_shipping_result(
         normalized,
         shipping_config,
         user_id,
         marketplace_id,
-        SHIPPING_RATE_ROWS
+        SHIPPING_RATE_ROWS,
+        override_weight_g=row.get("override_weight_class")
     )
 
-    calc_result = shipping_result["calc_result"]  
+    calc_result = shipping_result["calc_result"]
 
-    billable_weight = shipping_result["billable_weight"]  
+    billable_weight = shipping_result["billable_weight"]
 
-    shipping_fee = shipping_result["shipping_fee"]    
+    shipping_fee = shipping_result["shipping_fee"]
 
     # --- Black ASIN Brand用 ---
     is_black_asin = (
@@ -2521,6 +2524,180 @@ def update_strategy():
     except Exception as e:
         import traceback
         print("[update_strategy ERROR]")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 15 送料区分 手動上書き 保存処理 ▼ ---
+@listing_bp.route("/update_shipping_override", methods=["POST"])
+def update_shipping_override():
+    """
+    ALL Listing：送料区分（override_weight_class）手動上書きの保存
+    - ONにしてプルダウンで選んだ重量帯の To(g) をそのまま保存
+    - OFFにした場合は None（自動計算に戻す）
+    """
+    try:
+        data = request.get_json() or {}
+
+        asin = (data.get("asin") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")
+
+        if not asin or not country_code or not user_id:
+            return jsonify({"status": "error", "message": "missing parameter"})
+
+        # --- 正規化 ---
+        override_weight_class = data.get("override_weight_class")
+        if override_weight_class in ("", None):
+            override_weight_class = None
+        else:
+            override_weight_class = int(override_weight_class)
+
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500
+
+        cur = conn.cursor()
+
+        now_utc = datetime.utcnow().isoformat()
+        cur.execute("""
+            UPDATE listed_items
+            SET
+                override_weight_class = %s,
+                updated_at = %s
+            WHERE asin = %s AND user_id = %s
+        """, (
+            override_weight_class,
+            now_utc,
+            asin,
+            user_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        # --- 保存と同時に請求重量・送料・出品価格を再計算し、SP-APIへ即時反映 ---
+        # TTL巡回を待たず、このASINだけその場でSeller Centralへ最新価格を送信する
+        price_result = None
+        try:
+            price_result = update_listing_price(
+                user_id=user_id,
+                asin=asin,
+                country_code=country_code
+            )
+        except Exception:
+            import traceback
+            print("[update_shipping_override] update_listing_price ERROR")
+            traceback.print_exc()
+
+        return jsonify({
+            "status": "success",
+            "override_weight_class": override_weight_class,
+            "price_result": price_result,
+        })
+
+    except Exception as e:
+        import traceback
+        print("[update_shipping_override ERROR]")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 16 出品価格 手動固定（override_price） 保存処理 ▼ ---
+@listing_bp.route("/update_price_override", methods=["POST"])
+def update_price_override():
+    """
+    ALL Listing：出品価格 手動固定（override_price）の保存
+    - ONにして入力した価格をそのまま保存（ガードレール無視で無条件出品）
+    - OFFにした場合は None（自動計算・TTL対象に復帰）
+    """
+    try:
+        data = request.get_json() or {}
+
+        asin = (data.get("asin") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")
+
+        if not asin or not country_code or not user_id:
+            return jsonify({"status": "error", "message": "missing parameter"})
+
+        # --- 正規化 ---
+        override_price = data.get("override_price")
+        if override_price in ("", None):
+            override_price = None
+        else:
+            override_price = float(override_price)
+            if override_price <= 0:
+                return jsonify({"status": "error", "message": "invalid price"})
+
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500
+
+        cur = conn.cursor()
+
+        now_utc = datetime.utcnow().isoformat()
+        cur.execute("""
+            UPDATE listed_items
+            SET
+                override_price = %s,
+                updated_at = %s
+            WHERE asin = %s AND user_id = %s
+        """, (
+            override_price,
+            now_utc,
+            asin,
+            user_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        price_result = None
+        try:
+            if override_price is not None:
+                # --- ON：固定価格をそのままSP-APIへ即時反映 ---
+                # 手動で決めた価格なので、競合の再取得は不要。TTL巡回を待たず、
+                # このASINだけその場でSeller Centralへ固定価格を送信する
+                price_result = update_listing_price(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=country_code
+                )
+            else:
+                # --- OFF：自動計算に戻す ---
+                # 固定中はTTLを全除外していたため競合価格キャッシュが古いままの可能性がある。
+                # 「最新取得」ボタンと同じ経路（update_home_pricing + update_region_pricing）で
+                # Amazonへ問い合わせ直してから再計算・送信しないと、OFFにした瞬間
+                # 固定前の古い価格でまた出品してしまう。
+                update_home_pricing(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=country_code
+                )
+                price_result = update_region_pricing(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=country_code
+                )
+        except Exception:
+            import traceback
+            print("[update_price_override] recalculation ERROR")
+            traceback.print_exc()
+
+        return jsonify({
+            "status": "success",
+            "override_price": override_price,
+            "price_result": price_result,
+        })
+
+    except Exception as e:
+        import traceback
+        print("[update_price_override ERROR]")
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)})
 

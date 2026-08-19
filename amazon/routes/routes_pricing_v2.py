@@ -527,6 +527,8 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
         "source": result.get("source"),
         "debug": result_select,
         "offers": raw.get("payload", {}).get("Offers", []),
+        "submitted": bool(isinstance(price_result, dict) and price_result.get("submitted")),
+        "final_price": price_result.get("final_price") if isinstance(price_result, dict) else None,
     }
 
 # --- ▼ SECTION 06 : 販売条件取得（UI用API） ▼ ---
@@ -747,6 +749,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 width_cm,
                 height_cm,
                 actual_weight_kg,
+                override_weight_class,
+                override_price,
                 status,
                 strategy_quantity,
                 information_status,
@@ -793,7 +797,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
         return {
             "status": "no_catalog_skip",
-            "final_price": None
+            "final_price": None,
+            "submitted": False
         }
     # --- ▲▲▲ ここまで ▲▲▲ ---
 
@@ -870,14 +875,15 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         shipping_config,
         user_id,
         region_marketplace_id,
-        SHIPPING_RATE_ROWS
+        SHIPPING_RATE_ROWS,
+        override_weight_g=row["override_weight_class"]
     )
 
-    calc_result = shipping_result["calc_result"] 
+    calc_result = shipping_result["calc_result"]
 
-    billable_weight = shipping_result["billable_weight"] 
+    billable_weight = shipping_result["billable_weight"]
 
-    shipping_fee = shipping_result["shipping_fee"]    
+    shipping_fee = shipping_result["shipping_fee"]
 
     # === -06: pricing_rules取得 ===
     rules = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
@@ -1013,8 +1019,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         region_price = result.get("compare_price")
 
     # === -09: 出品価格決定 ===
-    discount_rate = rules.get("discount_rate") or 0   
-    
+    discount_rate = rules.get("discount_rate") or 0
+
     final_price = decide_listing_price(
         P_min=P_min,
         P_max=P_max,
@@ -1022,6 +1028,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         competitor_api_enabled=(region_price is not None),
         discount_rate=discount_rate,
     )
+
+    # --- ▼ 出品価格 手動固定（override_price） ▼ ---
+    # 在庫を早くはきたい等、一時的に任意の価格へ固定したい場合の上書き。
+    # ユーザーがOFFにするまでTTLの対象からも外れる（ttl_loop.py側で除外）。
+    price_override_active = bool(row["override_price"]) and float(row["override_price"]) > 0
+
+    if price_override_active:
+        final_price = float(row["override_price"])
 
     # === -10: 利益率計算 ===
     profit_rate = None
@@ -1122,8 +1136,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         if is_listed and row["information_status"] != "INACTIVE":
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
-    # --- ▼ Pricing設定のMAX Priceオーバー ▼ ---
-    elif max_price and final_price and float(final_price) > float(max_price):
+    # --- ▼ Pricing設定のMAX Priceオーバー（手動固定価格は無条件でそのまま出品するためスキップ） ▼ ---
+    elif max_price and final_price and float(final_price) > float(max_price) and not price_override_active:
         status_value = 'INACTIVE'
         inactive_reason = "Setting MAX_PRICE"
 
@@ -1131,8 +1145,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
             res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
-    # --- ▼ RAW最安競合との差チェック ▼ ---
-    elif rules.get("max_competitor_price_ratio") and final_price:
+    # --- ▼ RAW最安競合との差チェック（手動固定価格は無条件でそのまま出品するためスキップ） ▼ ---
+    elif rules.get("max_competitor_price_ratio") and final_price and not price_override_active:
 
         raw_min_price = None
 
@@ -1230,14 +1244,16 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     if row["status"] != "listed":
         return {
             "status": "ok",
-            "final_price": final_price
+            "final_price": final_price,
+            "submitted": False
         }
 
     # --- ▼ Status INACTIVEはAPI叩かない  ---
     if status_value == 'INACTIVE':
         return {
             "status": "inactive_skip",
-            "final_price": final_price
+            "final_price": final_price,
+            "submitted": False
         }
 
     # --- quantity決定（将来UI対応） ---
@@ -1260,7 +1276,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     return {
         "status": "ok",
-        "final_price": final_price
+        "final_price": final_price,
+        "submitted": True
     }
 
 # --- ▼ SECTION 11 : HOME通貨取得（UI表示用） ▼ ---

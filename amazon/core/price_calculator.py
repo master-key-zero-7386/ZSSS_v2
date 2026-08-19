@@ -202,14 +202,22 @@ def calculate_listing_price(
     } 
 
 # --- ▼ SECTION 03: Shipping共通計算（From：routes_pricing_v2.py / routes_listing.py） ▼ ---
-def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_id, SHIPPING_RATE_ROWS):
+def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_id, SHIPPING_RATE_ROWS, override_weight_g=None):
+    """
+    override_weight_g: listed_items.override_weight_class（手動上書きの重量帯 To(g)）。
+    Amazonカタログの寸法・重量が誤っていて自動算定の請求重量がズレる場合に、
+    このASINだけ自動算定をスキップして指定の重量で送料帯を確定させるための値。
+    """
 
     calc_result = shipping_calc(
         normalized,
         shipping_config
     )
 
-    billable_weight = calc_result["billable_weight_kg_rounded"]
+    if override_weight_g:
+        billable_weight = round(float(override_weight_g) / 1000.0, 3)
+    else:
+        billable_weight = calc_result["billable_weight_kg_rounded"]
 
     shipping_fee = calc_min_shipping_fee(
         billable_weight,
@@ -221,7 +229,8 @@ def calculate_shipping_result(normalized, shipping_config, user_id, marketplace_
     return {
         "calc_result": calc_result,
         "billable_weight": billable_weight,
-        "shipping_fee": shipping_fee
+        "shipping_fee": shipping_fee,
+        "weight_override_applied": bool(override_weight_g),
     }
 
 # --- ▼ SECTION 04: shipping_rates取得（From：routes_pricing_v2.py / routes_listing.py / routes_admin.py） ▼ ---
