@@ -567,19 +567,32 @@ $(document).on("click", ".weight-override-save-btn", function () {
     saveWeightOverride($row, Number(selected));
 });
 
-// --- ▼ SECTION 07d: 出品価格 手動固定 ON/OFF（グレーアウト切替） ▼ ---
+// --- ▼ SECTION 07d: 出品価格 手動固定 ON/OFF ▼ ---
+// ONにした瞬間、出品価格の表示（span）をその場で編集可能なinputに差し替える
+// （保存前はDOM操作のみ・サーバーへは保存ボタンで送る）
 $(document).on("change", ".price-override-toggle", function () {
     const $row = $(this).closest(".price-override-row");
-    const $input = $row.find(".price-override-input");
     const $saveBtn = $row.find(".price-override-save-btn");
 
     if ($(this).is(":checked")) {
-        $input.prop("disabled", false).css("opacity", 1);
+        const $span = $row.find(".disp-sale-price");
+        if ($span.length) {
+            const currentText = $span.text().trim().replace(/,/g, "");
+            const currentVal = currentText === "ー" ? "" : currentText;
+            const color = $span.css("color");
+            const $input = $(
+                `<input type="number" step="0.01" min="0" class="price-override-input"
+                    style="font-size:25px; font-weight:bold; border:none; background:transparent; width:90px; padding:0;">`
+            );
+            $input.css("color", color);
+            $input.val(currentVal);
+            $span.replaceWith($input);
+        }
         $saveBtn.prop("disabled", false).css("opacity", 1);
     } else {
-        $input.val("").prop("disabled", true).css("opacity", 0.4);
         $saveBtn.prop("disabled", true).css("opacity", 0.4);
         // OFFにした時点で自動計算・TTL対象に戻す（保存ボタンを待たない）
+        // 表示の差し替えは保存後のテーブル再読込に任せる
         savePriceOverride($row, null);
     }
 });
@@ -635,6 +648,57 @@ $(document).on("click", ".price-override-save-btn", function () {
     }
 
     savePriceOverride($row, Number(val));
+});
+
+// --- ▼ SECTION 07f: 在庫0（一時的な出品停止） ON/OFF ▼ ---
+// ボタンなし・トグルの変更だけで即実行（ON＝取り下げ、OFF＝最新取得して再出品）
+$(document).on("change", ".stock-zero-toggle", async function () {
+    const $checkbox = $(this);
+    const $row = $checkbox.closest(".stock-zero-override-row");
+    const asin = $row.data("asin");
+    const country_code = $("#globalRegion").val();
+    const stockZero = $checkbox.is(":checked");
+
+    if (!asin || !country_code) return;
+
+    $checkbox.prop("disabled", true);
+
+    try {
+        const res = await fetch("/listing/update_stock_zero_override", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                asin,
+                country_code,
+                stock_zero: stockZero,
+            }),
+        });
+
+        const data = await res.json();
+        if (data.status !== "success") {
+            window.showToast(data.message || "保存に失敗しました", "error");
+            $checkbox.prop("checked", !stockZero);
+            return;
+        }
+
+        window.showToast(
+            stockZero
+                ? "出品を取り下げました"
+                : "最新情報を取得して出品を再開しました",
+            "success"
+        );
+
+        if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+            $("#alllistingtable").DataTable().ajax.reload(null, false);
+        }
+
+    } catch (e) {
+        console.error("[update_stock_zero_override]", e);
+        window.showToast("通信エラーが発生しました", "error");
+        $checkbox.prop("checked", !stockZero);
+    } finally {
+        $checkbox.prop("disabled", false);
+    }
 });
 
 // --- ▼ SECTION 08: ALL 出品戦略 保存処理（ALL専用） ▼ ---

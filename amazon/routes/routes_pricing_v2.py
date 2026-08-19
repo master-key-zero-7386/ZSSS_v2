@@ -751,6 +751,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 actual_weight_kg,
                 override_weight_class,
                 override_price,
+                override_stock_zero,
                 status,
                 strategy_quantity,
                 information_status,
@@ -770,6 +771,16 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     if not row:
 
         return
+
+    # --- ▼ 在庫0 手動一時停止中は価格計算・API送信を一切行わない ▼ ---
+    # TTL側は override_stock_zero がある間そもそも対象から除外しているが、
+    # 「最新取得」ボタン等の手動トリガー経由で呼ばれた場合の保険として、ここでも止める。
+    if row["override_stock_zero"]:
+        return {
+            "status": "stock_zero_skip",
+            "final_price": None,
+            "submitted": False
+        }
 
     # --- ▼▼▼ カタログ情報チェック(揃うまでACTIVE化しない) ▼▼▼ ---
     # ★修正: 0（またはNone）は「未取得」扱い。0kg・0cmは実在しないため、

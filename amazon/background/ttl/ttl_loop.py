@@ -146,6 +146,7 @@ def load_catalog_ttl_targets(db_dir: str):
                     WHERE mp.enable_home_catalog = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
                     AND li.override_price IS NULL
+                    AND li.override_stock_zero IS NULL
                     AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.h_catalog_ttl_at IS NULL
@@ -220,6 +221,7 @@ def load_catalog_ttl_targets(db_dir: str):
                     WHERE mp.enable_region_catalog = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
                     AND li.override_price IS NULL
+                    AND li.override_stock_zero IS NULL
                     AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.r_catalog_ttl_at IS NULL
@@ -353,6 +355,7 @@ def load_pricing_ttl_targets(db_dir: str):
                     WHERE mp.enable_home_pricing = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
                     AND li.override_price IS NULL
+                    AND li.override_stock_zero IS NULL
                     AND (
                         li.h_pricing_ttl_at IS NULL
                         OR CAST(li.h_pricing_ttl_at AS timestamp) <
@@ -425,6 +428,7 @@ def load_pricing_ttl_targets(db_dir: str):
                     WHERE mp.enable_region_pricing = 1
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
                     AND li.override_price IS NULL
+                    AND li.override_stock_zero IS NULL
                     AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.r_pricing_ttl_at IS NULL

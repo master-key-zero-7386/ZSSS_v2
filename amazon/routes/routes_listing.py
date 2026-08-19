@@ -38,6 +38,7 @@ from amazon.routes.routes_pricing_v2 import _get_offer_filter_rules
 from amazon.routes.routes_pricing_v2 import get_asin_blacklist, get_brand_blacklist
 from amazon.routes.routes_pricing_v2 import update_listing_price
 from amazon.routes.routes_pricing_v2 import update_home_pricing, update_region_pricing
+from amazon.services.listing_submit_service import delete_listings_item
 from amazon.utils.brand_gate_store import NO_BRAND_VALUES
 
 
@@ -536,6 +537,7 @@ def _build_listing_row_with_shipping(
         "final_price": row["final_price"],
         "override_price": row["override_price"],
         "override_weight_class": row["override_weight_class"],
+        "override_stock_zero": row["override_stock_zero"],
         "profit_rate": row["profit_rate"],
         "min_price": row["min_price"], 
         "max_price": row["max_price"],
@@ -934,6 +936,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(final_price, NULL) AS final_price,
             COALESCE(override_price, NULL) AS override_price,
             override_weight_class,
+            override_stock_zero,
             COALESCE(profit_rate, NULL) AS profit_rate,
             COALESCE(min_price, NULL) AS min_price,
             COALESCE(max_price, NULL) AS max_price,
@@ -2710,6 +2713,104 @@ def update_price_override():
     except Exception as e:
         import traceback
         print("[update_price_override ERROR]")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 17 在庫0（一時的な出品停止）手動切替 保存処理 ▼ ---
+@listing_bp.route("/update_stock_zero_override", methods=["POST"])
+def update_stock_zero_override():
+    """
+    ALL Listing：在庫0（一時的な出品停止）の手動切替
+    - ON：override_stock_zero を立てて、すぐに出品を取り下げる（削除フィード送信）。
+          ONの間はTTLの対象からも外れ、ユーザーがOFFにするまで自動では復帰しない。
+    - OFF：override_stock_zero を解除して、最新情報を取得してから出品を再開する
+    """
+    try:
+        data = request.get_json() or {}
+
+        asin = (data.get("asin") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")
+
+        if not asin or not country_code or not user_id:
+            return jsonify({"status": "error", "message": "missing parameter"})
+
+        stock_zero = bool(data.get("stock_zero"))
+
+        db_name = f"a_{country_code}_listed_items.db"
+
+        try:
+            conn = get_conn(db_name)
+        except FileNotFoundError:
+            return jsonify({"status": "error", "message": f"DB not found: {db_name}"}), 500
+
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT sku, region_marketplace_id
+            FROM listed_items
+            WHERE asin = %s AND user_id = %s
+            LIMIT 1
+        """, (asin, user_id))
+        row = cur.fetchone()
+
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "listing not found"})
+
+        now_utc = datetime.utcnow().isoformat()
+        cur.execute("""
+            UPDATE listed_items
+            SET
+                override_stock_zero = %s,
+                updated_at = %s
+            WHERE asin = %s AND user_id = %s
+        """, (
+            1 if stock_zero else None,
+            now_utc,
+            asin,
+            user_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        result = None
+        try:
+            if stock_zero:
+                # --- ON：出品を取り下げる ---
+                result = delete_listings_item(
+                    user_id=user_id,
+                    country_code=country_code,
+                    marketplace_id=row["region_marketplace_id"],
+                    seller_sku=row["sku"],
+                )
+            else:
+                # --- OFF：最新情報を取得してから出品を再開する ---
+                update_home_pricing(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=country_code
+                )
+                result = update_region_pricing(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=country_code
+                )
+        except Exception:
+            import traceback
+            print("[update_stock_zero_override] action ERROR")
+            traceback.print_exc()
+
+        return jsonify({
+            "status": "success",
+            "override_stock_zero": stock_zero,
+            "result": result,
+        })
+
+    except Exception as e:
+        import traceback
+        print("[update_stock_zero_override ERROR]")
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)})
 

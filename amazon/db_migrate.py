@@ -256,7 +256,10 @@ LISTED_ITEMS_COLUMNS = {
     "billable_weight_kg": "REAL",                   # HOME重量　請求重量
 
     # --- 送料（手動変更用） ---
-    "override_weight_class": "INTEGER",             # 送料区分 手動変更用 
+    "override_weight_class": "INTEGER",             # 送料区分 手動変更用
+
+    # --- 在庫0 手動一時停止用 ---
+    "override_stock_zero": "INTEGER",               # 在庫0 手動出品停止（ON中はTTL対象外・出品を取り下げたまま維持）
 
     # --- 在庫数情報 ---
 
