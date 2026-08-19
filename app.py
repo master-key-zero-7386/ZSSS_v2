@@ -8,8 +8,7 @@ import os
 import threading
 
 from amazon.routes.routes import amazon_bp
-from tools.dhl_routes import dhl_bp
-from tools.pdf_routes import pdf_bp
+from tools.remote_area_routes import remote_area_bp
 from flask import Flask, render_template, jsonify, request, redirect
 import json
 import codecs
@@ -68,8 +67,7 @@ app.config["SESSION_COOKIE_SECURE"] = False
 app.register_blueprint(amazon_bp, url_prefix="/amazon")
 app.register_blueprint(amazon_oauth_bp, url_prefix="/amazon")
 app.register_blueprint(blacklist_bp) # 新BlackList
-app.register_blueprint(dhl_bp, url_prefix="/tools/dhl") 
-app.register_blueprint(pdf_bp, url_prefix="/tools/pdf") 
+app.register_blueprint(remote_area_bp, url_prefix="/tools/remote_area")
 app.register_blueprint(csv_import_bp, url_prefix="/csv")
 app.register_blueprint(listing_bp, url_prefix="/listing")
 app.register_blueprint(auth_bp, url_prefix="/auth")

@@ -243,126 +243,205 @@ window.addEventListener("DOMContentLoaded", () => {
         if (btn) {
             } 
 
-        async function convertDHLRemote() {
-        const ta = document.getElementById("dhlInput");
-        const out = document.getElementById("dhlOutput");
-        const count = document.getElementById("dhlCount");
-        if (!ta || !out || !count) return;
-
-        const text = ta.value || "";
-        if (!text.trim()) {
-            out.textContent = "";
-            count.textContent = "";
-            return;
-        }
-
-        try {
-            const resp = await fetch("/tools/dhl/remote_expand", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text })
+        // ▼ SECTION : その他ツール サブタブ切替（Brand Gate / 遠隔地郵便番号管理）
+        document.querySelectorAll(".st-subtab-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".st-subtab-btn").forEach(b => b.classList.remove("active"));
+                document.querySelectorAll(".st-subtab-pane").forEach(p => p.classList.remove("active"));
+                btn.classList.add("active");
+                const pane = document.getElementById(btn.getAttribute("data-target"));
+                if (pane) pane.classList.add("active");
             });
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const result = await resp.json();
-            const codes = result.codes || [];
-            out.textContent = codes.join("\n");
-            count.textContent = `件数：${codes.length.toLocaleString()}`;
-        } catch (e) {
-            console.error("DHL convert error:", e);
-            out.textContent = "変換エラー";
-            count.textContent = "";
-        }
-        }
+        });
 
-        // DHL：CSVダウンロード
-        async function downloadDHLRemoteCSV() {
-        const ta = document.getElementById("dhlInput");
-        const text = (ta && ta.value) ? ta.value : "";
-        try {
-            const resp = await fetch("/tools/dhl/remote_export", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ text })
-            });
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
+        // ▼ SECTION : 遠隔地郵便番号管理
+        async function raRefreshCountryList() {
+            const datalist = document.getElementById("raCountryList");
+            if (!datalist) return;
 
-            const blob = await resp.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "dhl_remote_codes.csv";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error("DHL download error:", e);
-            alert("CSVのダウンロードに失敗しました。");
-        }
-        }
-
-        // ボタンにバインド
-        document.getElementById("dhlConvertBtn")?.addEventListener("click", convertDHLRemote);
-        document.getElementById("dhlDownloadBtn")?.addEventListener("click", downloadDHLRemoteCSV);
-        document.getElementById("dhlClearBtn")?.addEventListener("click", clearDHLFields); 
-
-        // DHL用 PDF 分割ツール（完全に別機能） ▼ === 
-        // TODO: pdf_tools.js 等へ分離予定         
-        async function splitPdfChunks() {
-            const fi = document.getElementById("pdfFileInput"); 
-            const perEl = document.getElementById("pdfSplitPer");
-            if (!fi || !fi.files || fi.files.length === 0) {
-                alert("PDFファイルを選択してください。");
-                return;
-            }
-            let per = parseInt(perEl?.value || "60", 10);
-            if (!Number.isInteger(per) || per <= 0) per = 60;
-
-            const fd = new FormData();
-            fd.append("file", fi.files[0]);
-            fd.append("per", String(per));
-
-            const resp = await fetch("/tools/pdf/split_chunks", { method: "POST", body: fd });
-            if (!resp.ok) {
-                alert("分割に失敗しました。");
-                return;
-            }
-            const blob = await resp.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "pdf_splits.zip";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        }
-
-        document.getElementById("pdfSplitBtn")?.addEventListener("click", splitPdfChunks);
-
-        // DHL用 入力クリア補助 ▼ ===         
-        function clearDHLFields() {
-            const ta = document.getElementById("dhlInput");
-            const out = document.getElementById("dhlOutput");
-            const count = document.getElementById("dhlCount");
-            if (ta) ta.value = "";
-            if (out) out.textContent = "";
-            if (count) count.textContent = "";
-        }
-        // ✅ PDFファイル選択処理 ←★ここに追加
-        const pdfFileInput = document.getElementById("pdfFileInput");
-        const pdfFileName = document.getElementById("pdfFileName");
-
-        if (pdfFileName && pdfFileInput) {
-            pdfFileName.addEventListener("click", () => pdfFileInput.click());
-        }
-
-        if (pdfFileInput) {
-            pdfFileInput.addEventListener("change", () => {
-                if (pdfFileInput.files.length > 0) {
-                    pdfFileName.value = pdfFileInput.files[0].name;
+            const codes = new Set();
+            for (const carrier of ["DHL", "FEDEX"]) {
+                try {
+                    const resp = await fetch(`/tools/remote_area/countries?carrier=${carrier}`);
+                    if (!resp.ok) continue;
+                    const result = await resp.json();
+                    (result.countries || []).forEach(c => codes.add(c.country_code));
+                } catch (e) {
+                    console.error("remote_area countries error:", e);
                 }
+            }
+
+            datalist.innerHTML = "";
+            [...codes].sort().forEach(code => {
+                const opt = document.createElement("option");
+                opt.value = code;
+                datalist.appendChild(opt);
             });
+        }
+
+        async function raImport() {
+            const carrier = document.getElementById("raImportCarrier")?.value;
+            const country = (document.getElementById("raImportCountry")?.value || "").trim().toUpperCase();
+            const text = document.getElementById("raImportText")?.value || "";
+            const statusEl = document.getElementById("raImportStatus");
+            if (!statusEl) return;
+
+            if (!country) {
+                statusEl.textContent = "国コードを入力してください。";
+                statusEl.style.color = "red";
+                return;
+            }
+
+            try {
+                const resp = await fetch("/tools/remote_area/import", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ carrier, country_code: country, text })
+                });
+                const result = await resp.json();
+
+                if (!resp.ok) {
+                    statusEl.textContent = result.message || result.error || "取り込みに失敗しました。";
+                    statusEl.style.color = "red";
+                    return;
+                }
+
+                statusEl.textContent = `${carrier} / ${country}：${result.imported}件を取り込みました（${result.imported_at}）`;
+                statusEl.style.color = "green";
+                raRefreshCountryList();
+            } catch (e) {
+                console.error("remote_area import error:", e);
+                statusEl.textContent = "取り込みに失敗しました。";
+                statusEl.style.color = "red";
+            }
+        }
+
+        function raImportClear() {
+            const country = document.getElementById("raImportCountry");
+            const text = document.getElementById("raImportText");
+            const statusEl = document.getElementById("raImportStatus");
+            if (country) country.value = "";
+            if (text) text.value = "";
+            if (statusEl) statusEl.textContent = "";
+        }
+
+        async function raLoadCountryTable() {
+            const carrier = document.getElementById("raResetCarrier")?.value;
+            const tbody = document.querySelector("#raCountryTable tbody");
+            if (!tbody) return;
+
+            tbody.innerHTML = "";
+
+            try {
+                const resp = await fetch(`/tools/remote_area/countries?carrier=${carrier}`);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const result = await resp.json();
+
+                (result.countries || []).forEach(c => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${c.country_code}</td>
+                        <td>${c.row_count.toLocaleString()}</td>
+                        <td>${c.imported_at || ""}</td>
+                        <td><button class="btn-blue ra-reset-btn" data-country="${c.country_code}">リセット</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                tbody.querySelectorAll(".ra-reset-btn").forEach(btn => {
+                    btn.addEventListener("click", async () => {
+                        const country = btn.getAttribute("data-country");
+                        if (!confirm(`${carrier} / ${country} のデータを削除します。よろしいですか？`)) return;
+
+                        const resp = await fetch("/tools/remote_area/reset", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ carrier, country_code: country })
+                        });
+                        if (!resp.ok) {
+                            alert("リセットに失敗しました。");
+                            return;
+                        }
+                        raLoadCountryTable();
+                        raRefreshCountryList();
+                    });
+                });
+            } catch (e) {
+                console.error("remote_area countries error:", e);
+            }
+        }
+
+        async function raCheckPostal() {
+            const country = (document.getElementById("raCheckCountry")?.value || "").trim().toUpperCase();
+            const postal = (document.getElementById("raCheckPostal")?.value || "").trim();
+            const resultEl = document.getElementById("raCheckResult");
+            if (!resultEl) return;
+
+            if (!country || !postal) {
+                resultEl.textContent = "国コードと郵便番号を入力してください。";
+                return;
+            }
+
+            try {
+                const resp = await fetch("/tools/remote_area/check", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ country_code: country, postal_code: postal })
+                });
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                const result = await resp.json();
+
+                const rows = ["DHL", "FEDEX"].map(carrier => {
+                    const r = result[carrier];
+                    if (!r) return "";
+                    const cls = r.remote ? "status-block" : "status-open";
+                    const label = r.remote ? "遠隔地（該当あり）" : "対象外";
+                    const range = r.matched_range ? `（${r.matched_range.postal_from} - ${r.matched_range.postal_to}）` : "";
+                    return `<div><b>${carrier}</b>: <span class="${cls}">${label}</span> ${range}</div>`;
+                });
+
+                resultEl.innerHTML = rows.join("");
+            } catch (e) {
+                console.error("remote_area check error:", e);
+                resultEl.textContent = "判定に失敗しました。";
+            }
+        }
+
+        async function raExportCsv() {
+            const carrier = document.getElementById("raExportCarrier")?.value;
+            const country = (document.getElementById("raExportCountry")?.value || "").trim().toUpperCase();
+            if (!country) {
+                alert("国コードを入力してください。");
+                return;
+            }
+
+            try {
+                const resp = await fetch(`/tools/remote_area/export?carrier=${carrier}&country_code=${country}`);
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${carrier}_${country}_remote_area.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                console.error("remote_area export error:", e);
+                alert("CSVのダウンロードに失敗しました。");
+            }
+        }
+
+        document.getElementById("raImportBtn")?.addEventListener("click", raImport);
+        document.getElementById("raImportClearBtn")?.addEventListener("click", raImportClear);
+        document.getElementById("raResetLoadBtn")?.addEventListener("click", raLoadCountryTable);
+        document.getElementById("raCheckBtn")?.addEventListener("click", raCheckPostal);
+        document.getElementById("raExportBtn")?.addEventListener("click", raExportCsv);
+
+        if (document.getElementById("st-remotearea")) {
+            raRefreshCountryList();
         }
 
         // ▼ SECTION : 上部タブ切替（唯一の正規ルート）

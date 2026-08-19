@@ -503,6 +503,17 @@ SHIPPING_RATES_COLUMNS = {
     "updated_at": "TEXT"
 }
 
+# --- ▼ SECTION : carrier_remote_area_codes（DHL/FedEx 遠隔地郵便番号マスタ） ---
+CARRIER_REMOTE_AREA_COLUMNS = {
+    "id":           "SERIAL PRIMARY KEY",
+    "carrier":      "TEXT NOT NULL",        # 'DHL' / 'FEDEX'
+    "country_code": "TEXT NOT NULL",        # 2文字ISOコード（AU/CA/US等・手入力）
+    "postal_from":  "TEXT NOT NULL",
+    "postal_to":    "TEXT NOT NULL",
+    "imported_at":  "TEXT",                 # 取り込み日（YYYY-MM-DD）
+    "created_at":   "TEXT",
+}
+
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
 USER_LOGIN_ACCOUNTS_COLUMNS = {
     "id":                   "SERIAL PRIMARY KEY",                   # ユーザーID（全DB共通キー）
@@ -596,7 +607,15 @@ def migrate_db(db_name):
         migrate_table(conn, "bg_scan_settings", BG_SCAN_SETTINGS_COLUMNS)
     elif base.endswith("_fx.db"):
         migrate_table(conn, "fx_settings", FX_SETTINGS_COLUMNS)
-        migrate_table(conn, "fx_rates", FX_RATES_COLUMNS) 
+        migrate_table(conn, "fx_rates", FX_RATES_COLUMNS)
+    elif base.endswith("_carrier_remote_area.db"):
+        migrate_table(conn, "carrier_remote_area_codes", CARRIER_REMOTE_AREA_COLUMNS)
+        cur = conn.cursor()
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_carrier_remote_area_lookup "
+            "ON carrier_remote_area_codes(carrier, country_code)"
+        )
+        conn.commit()
     # elif base.endswith("_brand_master.db"):
     #     migrate_table(conn, "brand_master", BRAND_MASTER_COLUMNS)  
     elif base.endswith("_brand_gate_result.db"):
@@ -988,6 +1007,7 @@ def main():
         "a_api_block_state.db",
         "a_lethal_weapon_preset.db",
         "a_api_429_events.db",
+        "a_carrier_remote_area.db",
     ]
 
     # 固定DB migrate

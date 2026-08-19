@@ -9,19 +9,6 @@
   gap: 12px;
 }
 
-/* .brand-gate-grid .asin-panel {
-  flex: 0 0 320px;
-}
-
-.brand-gate-grid .result-panel {
-  flex: 0 0 600px;  
-  min-width: unset; 
-}
-
-.brand-gate-grid .extra-panel {
-  flex: 0 0 260px;
-} */
-
 .asin-panel .btn-row {
     margin: 8px 0;   /* 上下に余白 */
 }
@@ -31,33 +18,6 @@
   width: 100%;
   border-collapse: collapse;  /* 線を綺麗にする */
 }
-
-/* ヘッダー固定 
-#bgc-table th {
-  position: sticky;
-  top: 0;
-  background: #fff;
-  z-index: 2;
-  border-bottom: 2px solid #999; /* ヘッダー下は少し濃い線 
-  padding: 6px 8px;
-}
-
-/* 行ごとに下線を追加 
-#bgc-table td {
-  border-bottom: 1px solid #ccc;
-  padding: 4px 8px;
-  word-wrap: break-word; /* 長いブランド名も折り返し 
-}
-
-#bgc-table th {
-  position: sticky;
-  top: 0;
-  background: #fff;   /* 背景白で透け防止 
-  z-index: 2;         /* 下のセルより前面に出す
-  border-bottom: 2px solid #999; /* ヘッダー下の線を少し濃く 
-  padding: 6px 8px;
-}
- */
 
 .table th {
   position: sticky;
@@ -91,6 +51,56 @@
   color: red;
   font-weight: bold;
 }
+
+/* ============================= */
+/* その他ツール：サブタブ         */
+/* ============================= */
+.st-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #ddd;
+}
+
+.st-subtab-btn {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 15px;
+  border-radius: 6px 6px 0 0;
+}
+
+.st-subtab-btn.active {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+}
+
+.st-subtab-pane {
+  display: none;
+}
+
+.st-subtab-pane.active {
+  display: block;
+}
+
+/* ============================= */
+/* 遠隔地郵便番号管理             */
+/* ============================= */
+.ra-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+#raCountryTable th,
+#raCountryTable td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid #ccc;
+}
 </style>
 
 
@@ -98,7 +108,13 @@
 <div class="main-container account-page">
 <h2>TOOL</h2>
 
-    <!-- ▼ SECTION: Brand Gate Check -->
+    <div class="st-subtabs">
+        <button class="st-subtab-btn active" data-target="st-brandgate">Brand Gate</button>
+        <button class="st-subtab-btn" data-target="st-remotearea">遠隔地郵便番号管理</button>
+    </div>
+
+    <!-- ▼ SUBTAB: Brand Gate Check -->
+    <div id="st-brandgate" class="st-subtab-pane active">
     <div class="card" style="margin-bottom:20px;">
 
         <h2>Brand Gate</h2>
@@ -116,7 +132,7 @@
                 <div class="btn-row">
                     <button id="bgc-run" class="btn-blue">Check</button>
                     <button id="bgc-clear" class="btn-blue" type="button">Clear</button>
-                </div>                
+                </div>
 
                 <textarea id="bgc-asins" rows="40"
                     placeholder="ASINを1行ずつ入力&#10;Samle>&#10;B000000001&#10;B000000002"
@@ -164,93 +180,118 @@
                         </tbody>
                     </table>
                 </div>
-            </div>        
+            </div>
         </div>
 
     </div>
+    </div>
+    <!-- ▲ SUBTAB: Brand Gate Check -->
 
-    <!-- ▼ SECTION: ASIN DHL　Remoteチェック -->
-    <div class="card">
-        <div class="row">
-            <h2>DHL PDF分割（Nページごと）</h2>
-            <p>配布されるPDF容量が大きい為指定ページ数に分割し軽くしてZIPで一括ダウンロードします。</p>
+    <!-- ▼ SUBTAB: 遠隔地郵便番号管理 -->
+    <div id="st-remotearea" class="st-subtab-pane">
 
-            <!-- 非表示の file input -->
-            <input type="file" id="pdfFileInput" accept=".pdf" style="display:none;" />
+        <datalist id="raCountryList"></datalist>
 
-            <!-- CSV Import と同じUI -->
-            <div class="file-input-row">
-                <div class="file-input-wrapper">
-                    <input type="text" id="pdfFileName" class="file-input-text" placeholder="PDFファイルを選択してください" readonly />
-                    <button id="pdfSplitBtn" class="btn-blue">分割してZIP取得</button></div>
-                </div>
-            </div>
+        <div class="ra-grid">
 
-            <div class="row" style="margin-top:10px;">
-                <label class="label">分割ページ数</label>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <input id="pdfSplitPer" type="number" min="1" value="60" style="width:80px; font-size:20px;">
-                    <span>ページ毎</span>
-                </div>
-            </div>
-
-            <div class="row">
-                <span class="label"></span>
-                <div class="btn-row">
-            
-            </div>
-
-            <div class="row">
-                <span class="label"></span>
-                <small>例：60にすると 1–60, 61–120, … のPDFに分割します。</small>
-            </div>
-        </div>
-
-        <!-- DHL 遠隔地郵便番号 展開 -->
-        <div class="card">
-            <div class="row">
-                <h2>DHL 遠隔地郵便番号 展開</h2>
-                <p>PDFから該当国の郵便番号テキストを貼り付けて、展開し1列に整形します。</p>
+            <!-- 取り込み -->
+            <div class="card">
+                <h3>取り込み</h3>
+                <p>Excelの「郵便番号from」「郵便番号to」の2列をそのままコピーして貼り付けてください（タブ区切り）。1回の取り込みにつき1キャリア・1国分。</p>
 
                 <div class="row">
-                <label class="label">貼り付け</label>
-                <textarea id="dhlInput" rows="8" placeholder="US例）5桁 
-    02584
-    02642 - 02643
-    02650 - 02652
-    02659" style="width:100%;"></textarea>
+                    <label class="label">キャリア</label>
+                    <select id="raImportCarrier">
+                        <option value="DHL">DHL</option>
+                        <option value="FEDEX">FedEx</option>
+                    </select>
                 </div>
 
                 <div class="row">
-                <label class="label">数字桁数</label>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input id="dhlDigitLen" type="number" value="5" min="3" max="10" style="width:80px; font-size:20px;">
-                        <span>桁</span>
-                    </div> 
-                </div> 
+                    <label class="label">国コード</label>
+                    <input id="raImportCountry" list="raCountryList" placeholder="例: AU" style="width:120px; text-transform:uppercase;">
+                </div>
+
+                <div class="row">
+                    <label class="label">貼り付け</label>
+                    <textarea id="raImportText" rows="10"
+                        placeholder="例）&#10;7321	7321&#10;7325	7325&#10;X0A0A0	X0A1Z9"
+                        style="width:100%;"></textarea>
+                </div>
 
                 <div class="row">
                     <span class="label"></span>
-                    <div class="btn-row"> 
-                    <button id="dhlConvertBtn" class="btn-blue">展開する</button>
-                    <button id="dhlDownloadBtn" class="btn-blue">CSVをダウンロード</button>
-                    <button id="dhlClearBtn" class="btn-blue" type="button">クリア</button> 
+                    <div class="btn-row">
+                        <button id="raImportBtn" class="btn-blue">取り込む</button>
+                        <button id="raImportClearBtn" class="btn-blue" type="button">クリア</button>
                     </div>
                 </div>
 
-                <div class="row">
-                    <label class="label">件数</label>
-                    <span id="dhlCount"></span>
-                </div>
+                <div id="raImportStatus" style="margin-top:6px; font-weight:bold;"></div>
+            </div>
+
+            <!-- 登録済み一覧 / リセット -->
+            <div class="card">
+                <h3>登録済みデータ・リセット</h3>
 
                 <div class="row">
-                    <label class="label">結果</label>
-                    <pre id="dhlOutput" style="max-height: 260px; overflow:auto; background:#f7f7f7; padding:8px; margin:0; width:100%;"></pre>
+                    <label class="label">キャリア</label>
+                    <select id="raResetCarrier">
+                        <option value="DHL">DHL</option>
+                        <option value="FEDEX">FedEx</option>
+                    </select>
+                    <button id="raResetLoadBtn" class="btn-blue">一覧表示</button>
                 </div>
+
+                <table id="raCountryTable" style="width:100%; margin-top:10px;">
+                    <thead>
+                        <tr>
+                            <th>国</th>
+                            <th>件数</th>
+                            <th>取込日</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- JS -->
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        <!-- 郵便番号判定 -->
+        <div class="card" style="margin-top:16px;">
+            <h3>郵便番号判定</h3>
+            <p>指定した国・郵便番号がDHL/FedExそれぞれの遠隔地エリアに該当するかを判定します。</p>
+
+            <div class="row" style="display:flex; align-items:center; gap:12px;">
+                <label class="label">国コード</label>
+                <input id="raCheckCountry" list="raCountryList" style="width:120px; text-transform:uppercase;">
+                <label class="label">郵便番号</label>
+                <input id="raCheckPostal" style="width:160px;">
+                <button id="raCheckBtn" class="btn-blue">判定する</button>
+            </div>
+
+            <div id="raCheckResult" style="margin-top:12px;"></div>
+        </div>
+
+        <!-- CSV出力 -->
+        <div class="card" style="margin-top:16px;">
+            <h3>CSV出力</h3>
+
+            <div class="row" style="display:flex; align-items:center; gap:12px;">
+                <label class="label">キャリア</label>
+                <select id="raExportCarrier">
+                    <option value="DHL">DHL</option>
+                    <option value="FEDEX">FedEx</option>
+                </select>
+                <label class="label">国コード</label>
+                <input id="raExportCountry" list="raCountryList" style="width:120px; text-transform:uppercase;">
+                <button id="raExportBtn" class="btn-blue">CSVをダウンロード</button>
+            </div>
+        </div>
+
     </div>
+    <!-- ▲ SUBTAB: 遠隔地郵便番号管理 -->
+
 </div>
-
-
-
