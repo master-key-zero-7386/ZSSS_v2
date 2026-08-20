@@ -152,7 +152,7 @@ def inject_zsss_mode():
 @app.route("/")
 def index():
 
-    return redirect("/amazon/#account") 
+    return redirect("/amazon/")
 
 if __name__ == "__main__":
     print(">>> Flask main() start <<<")

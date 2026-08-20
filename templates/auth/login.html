@@ -1,52 +1,304 @@
 <!-- login.html -->
 
 <!DOCTYPE html>
-<html>
+<html lang="ja" data-mode="{{ zsss_mode }}">
 <head>
     <meta charset="UTF-8">
+    {% if zsss_mode == 'dev' %}
+    <title>開発用 ZSSS ログイン</title>
+    {% elif zsss_mode == 'zsss' %}
+    <title>Zero Stock Sales System ログイン</title>
+    {% elif zsss_mode == 'atlas' %}
+    <title>ATLAS ログイン</title>
+    {% else %}
     <title>ZSSS ログイン</title>
+    {% endif %}
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f6f9;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ▼ 上部ヘッダーバー（layout.html のタブバーと同系配色） */
+        .login-header {
+            display: flex;
+            align-items: center;
+            height: 56px;
+            padding: 0 20px;
+            background: linear-gradient(45deg, #011300, #97661d, #cb0000, #001eff);
+            background-size: 200% 200%;
+            animation: bggradient 20s ease infinite;
+            box-shadow: 0 2px 4px -1px rgba(0,0,0,.2), 0 4px 5px 0 rgba(0,0,0,.14);
+        }
+
+        html[data-mode="dev"] .login-header {
+            background: linear-gradient(45deg, #0b5c06, #06962a, #524204, #035f1e);
+            background-size: 200% 200%;
+            animation: bggradient 20s ease infinite;
+        }
+
+        html[data-mode="zsss"] .login-header {
+            background: linear-gradient(45deg, #85031f, #ce0707, #f1bd12, #9dc003);
+            background-size: 200% 200%;
+            animation: bggradient 20s ease infinite;
+        }
+
+        html[data-mode="atlas"] .login-header {
+            background: linear-gradient(45deg, #150346, #0758c2, #f0f407, #001eff);
+            background-size: 200% 200%;
+            animation: bggradient 20s ease infinite;
+        }
+
+        @keyframes bggradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .login-header-title {
+            color: #fff;
+            font-weight: bold;
+            font-size: 22px;
+        }
+
+        /* ▼ 中央フォームエリア */
+        .login-main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card h2 {
+            margin: 0 0 28px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #222;
+            text-align: center;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .form-row .field-icon {
+            width: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .field-group {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .field-group label {
+            display: block;
+            font-size: 12px;
+            color: #7a7a7a;
+            margin-bottom: 4px;
+        }
+
+        .field-input-wrap {
+            position: relative;
+        }
+
+        .field-group input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 15px;
+            border: 1px solid #d7dde5;
+            border-radius: 6px;
+            background: #eef4fc;
+            outline: none;
+        }
+
+        .field-group input:focus {
+            border-color: #4a90e2;
+            background: #fff;
+        }
+
+        #togglePassword {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 15px;
+            padding: 4px;
+        }
+
+        .login-error {
+            display: none;
+            color: #c0392b;
+            background: #fdecea;
+            border: 1px solid #f5c2c0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .login-submit-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        #loginBtn {
+            background: #2c7be5;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 40px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        #loginBtn:hover {
+            background: #1f63c4;
+        }
+
+        #loginBtn:disabled {
+            background: #9db8dd;
+            cursor: default;
+        }
+
+        /* ▼ フッター */
+        .login-footer {
+            background: #1e1e1e;
+            color: #ccc;
+            text-align: center;
+            font-size: 12px;
+            padding: 10px 0;
+        }
+    </style>
 </head>
 <body>
 
-<h2>ZSSS ログイン</h2>
+<div class="login-header">
+    {% if zsss_mode == 'dev' %}
+    <div class="login-header-title">開発用 ZSSS</div>
+    {% elif zsss_mode == 'zsss' %}
+    <div class="login-header-title">Zero Stock Sales System</div>
+    {% elif zsss_mode == 'atlas' %}
+    <div class="login-header-title">ATLAS</div>
+    {% else %}
+    <div class="login-header-title">ZSSS Web Tool</div>
+    {% endif %}
+</div>
 
-<form id="loginForm">
-    <div>
-        <label>メールアドレス</label><br>
-        <input type="email" id="email" required>
+<div class="login-main">
+    <div class="login-card">
+        <h2>ログインしてください</h2>
+
+        <div id="loginError" class="login-error"></div>
+
+        <form id="loginForm" autocomplete="off">
+            <div class="form-row">
+                <div class="field-icon"><i class="fa-solid fa-envelope"></i></div>
+                <div class="field-group">
+                    <label for="email">email</label>
+                    <div class="field-input-wrap">
+                        <input type="email" id="email" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field-icon"><i class="fa-solid fa-lock"></i></div>
+                <div class="field-group">
+                    <label for="password">password</label>
+                    <div class="field-input-wrap">
+                        <input type="password" id="password" required>
+                        <button type="button" id="togglePassword" tabindex="-1" aria-label="パスワード表示切替">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-submit-row">
+                <button type="submit" id="loginBtn">ログイン</button>
+            </div>
+        </form>
     </div>
+</div>
 
-    <div style="margin-top:10px;">
-        <label>パスワード</label><br>
-        <input type="password" id="password" required>
-    </div>
-
-    <button type="submit" style="margin-top:20px;">ログイン</button>
-</form>
+<div class="login-footer">
+    Copyright&copy; 2026 ZSSS All Rights Reserved.
+</div>
 
 <script>
-document.getElementById("loginForm").addEventListener("submit", async function(e) {
+document.getElementById("togglePassword").addEventListener("click", function () {
+    const pw = document.getElementById("password");
+    const icon = this.querySelector("i");
+    const show = pw.type === "password";
+    pw.type = show ? "text" : "password";
+    icon.classList.toggle("fa-eye", show);
+    icon.classList.toggle("fa-eye-slash", !show);
+});
+
+document.getElementById("loginForm").addEventListener("submit", async function (e) {
     e.preventDefault();
 
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
+    const errorBox = document.getElementById("loginError");
+    const btn = document.getElementById("loginBtn");
 
-    const res = await fetch("/auth/login", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ email, password })
-    });
+    errorBox.style.display = "none";
+    btn.disabled = true;
 
-    const data = await res.json();
+    try {
+        const res = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
 
-    if (data.status === "ok") {
-        window.location.href = "/";  // ログイン成功 → TOP へ
-    } else {
-        alert("メールアドレスまたはパスワードが違います");
+        const data = await res.json();
+
+        if (data.status === "ok") {
+            window.location.href = "/";  // ログイン成功 → TOP へ
+        } else {
+            errorBox.textContent = data.message || "メールアドレスまたはパスワードが違います";
+            errorBox.style.display = "block";
+        }
+    } catch (err) {
+        errorBox.textContent = "通信エラーが発生しました。時間をおいて再度お試しください。";
+        errorBox.style.display = "block";
+    } finally {
+        btn.disabled = false;
     }
 });
 </script>
 
 </body>
 </html>
-
