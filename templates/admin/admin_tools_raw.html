@@ -1,0 +1,79 @@
+<!-- admin_tools_raw.html（旧 admin_tools.html の RAWチェックツールセクションを分離） -->
+
+<div class="main-container bg-scan">
+    <div class="card" style="margin-top:20px; font-size:18px;">
+        <h2>RAWチェックツール（管理者専用）</h2>
+
+        <div class="card">
+            <p>ASIN を指定して DB の raw データを確認できます。</p>
+
+            <hr>
+
+            <!-- 入力 -->
+            <div style="margin-bottom: 20px;">
+
+                <label style="font-weight:bold;">ASIN:</label>
+                <input
+                    id="raw_asin"
+                    type="text"
+                    placeholder="ASIN を入力"
+                    style="
+                        width:240px;
+                        font-size:18px;
+                        padding:6px 4px;
+                        border:none;
+                        border-bottom:2px solid #888;
+                        background:transparent;
+                        outline:none;
+                        color:#000;
+                        display:inline-block;
+                    ">
+
+                <button id="raw_check_btn" class="btn-blue"
+                        style="margin-left:20px;">チェック実行</button>
+
+            </div>
+
+            <hr>
+
+            <!-- 結果 -->
+            <h4>結果表示</h4>
+
+            <!-- 各ID表示 -->
+            <div id="raw-id" style="margin-bottom:10px; font-weight:bold;"></div>
+
+            <!-- TTL再開ID -->
+            <div style="margin-bottom:10px;">
+                TTL現在ID:
+                <span id="ttl_last_id" style="font-weight:bold; margin-left:5px;"></span>
+            </div>
+
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+
+                <div style="flex:1; min-width:45%;">
+                    <h4>HOME catalog</h4>
+                    <pre id="raw_home_catalog" style="height:200px; overflow:auto; background:#f5f5f5;"></pre>
+                </div>
+
+                <div style="flex:1; min-width:45%;">
+                    <h4>REGION catalog</h4>
+                    <pre id="raw_region_catalog" style="height:200px; overflow:auto; background:#f5f5f5;"></pre>
+                </div>
+
+                <div style="flex:1; min-width:45%;">
+                    <h4>HOME pricing</h4>
+                    <pre id="raw_home_pricing" style="height:200px; overflow:auto; background:#f5f5f5;"></pre>
+                </div>
+
+                <div style="flex:1; min-width:45%;">
+                    <h4>REGION pricing</h4>
+                    <pre id="raw_region_pricing" style="height:200px; overflow:auto; background:#f5f5f5;"></pre>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin/admin_tools.js') }}"></script>

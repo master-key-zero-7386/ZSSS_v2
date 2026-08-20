@@ -1,0 +1,42 @@
+<!-- admin_tools_regioncheck.html（旧 admin_tools.html の REGIONCHECK Cycle Settings セクションを分離） -->
+
+<div class="main-container bg-scan">
+    <div class="card" style="margin-top:20px; font-size:18px;">
+        <div class="card">
+            <h3>REGIONCHECK Cycle Settings</h3>
+            <button id="save_regioncheck_settings" class="btn-blue">Save</button>
+            <div id="regioncheck_msg" style="margin-top:8px; font-size:10px;"></div>
+            <p>REGION未取得チェックの巡回間隔・件数（FIRSTとは別に設定可能）。</p>
+
+            <hr>
+
+            <label for="regioncheck_interval_min">
+                巡回間隔（分）
+            </label>
+            <input
+                type="number"
+                id="regioncheck_interval_min"
+                step="0.1"
+                min="0.1"
+                placeholder="例：3"
+                style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+            />
+            <span style="margin-left:6px;">分</span>
+
+            <div style="margin-top:15px; display:flex; align-items:center; gap:12px;">
+                <label for="regioncheck_scan_limit" style="font-weight:bold;">
+                    1巡回あたりの最大処理件数
+                </label>
+                <input
+                    type="number"
+                    id="regioncheck_scan_limit"
+                    min="1"
+                    step="1"
+                    placeholder="例：30"
+                    style="width:120px; font-size:18px; padding:6px 4px; border:none; border-bottom:2px solid #888; background:transparent; outline:none; color:#000;"
+                />
+                <span>件</span>
+            </div>
+        </div>
+    </div>
+</div>

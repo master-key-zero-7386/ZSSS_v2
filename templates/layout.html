@@ -280,7 +280,6 @@
 
         {% if session.is_admin %}
         <button class="tab" data-tab="admin-marketplace">管理者</button>
-        <button class="tab" data-tab="admin-tools">管理者2</button>
         <button class="tab" data-tab="blacklist">ブラックリスト</button>
         <button class="tab" data-tab="admin-blacklist">管理者ブラックリスト</button>            
         <button class="tab" data-tab="shipping-tools">その他ツール</button>   
@@ -319,19 +318,11 @@
             {% include 'shipping_rates.html' %}
         </div>
 
-        <!-- 管理者表示用 --> 
-        <!-- 管理者 タブ --> 
+        <!-- 管理者表示用 -->
+        <!-- 管理者 タブ（旧・管理者2を統合。中身はサブタブで切替） -->
         <div id="admin-marketplace" class="tab-content">
             {% if session.get('is_admin') %}
                 {% include 'admin/marketplace_master.html' %}
-            {% endif %}
-        </div>
-
-        <!-- 管理者2 タブ -->
-        <div id="admin-tools" class="tab-content" >
-            {% if session.get('is_admin') %}
-                {% include 'admin/admin_tools.html' %}
-                {% include 'admin/api_checker.html' %}
             {% endif %}
         </div>
 

@@ -90,8 +90,19 @@
 </style>
 
 <div class="main-container admin-page">
-  <h2>Marketplaces 管理</h2>
+  <h2>管理者</h2>
 
+  <div class="st-subtabs">
+      <button class="st-subtab-btn active" data-target="admin-pane-mkt-master">Marketplaces Master</button>
+      <button class="st-subtab-btn" data-target="admin-pane-amazon-retail">Amazon Retail Sellers</button>
+      <button class="st-subtab-btn" data-target="admin-pane-override-seller">Shipping Misclassified Sellers</button>
+      <button class="st-subtab-btn" data-target="admin-pane-bgloop">Background Loop Settings</button>
+      <button class="st-subtab-btn" data-target="admin-pane-regioncheck">REGIONCHECK Cycle Settings</button>
+      <button class="st-subtab-btn" data-target="admin-pane-raw">RAWチェックツール</button>
+      <button class="st-subtab-btn" data-target="admin-pane-apichecker">APIチェックツール</button>
+  </div>
+
+  <div id="admin-pane-mkt-master" class="st-subtab-pane active">
   <div class="card">
   <h2>Marketplaces Master</h2>
     <div class="master-description">
@@ -142,7 +153,10 @@
       </table>
     </div>
   </div>
+  </div>
+  <!-- ▲ admin-pane-mkt-master -->
 
+  <div id="admin-pane-amazon-retail" class="st-subtab-pane">
   <div class="card" style="margin-top:20px;">
   <h2>Amazon Retail Sellers</h2>
     <div class="master-description">
@@ -169,8 +183,11 @@
           </tbody>
       </table>
     </div>
-  </div>  
+  </div>
+  </div>
+  <!-- ▲ admin-pane-amazon-retail -->
 
+  <div id="admin-pane-override-seller" class="st-subtab-pane">
   <div class="card" style="margin-top:20px;">
       <h2>Shipping Misclassified Sellers</h2>
 
@@ -200,7 +217,25 @@
               </tbody>
           </table>
       </div>
-  </div>  
+  </div>
+  </div>
+  <!-- ▲ admin-pane-override-seller -->
+
+  <div id="admin-pane-bgloop" class="st-subtab-pane">
+      {% include 'admin/admin_tools_bgloop.html' %}
+  </div>
+
+  <div id="admin-pane-regioncheck" class="st-subtab-pane">
+      {% include 'admin/admin_tools_regioncheck.html' %}
+  </div>
+
+  <div id="admin-pane-raw" class="st-subtab-pane">
+      {% include 'admin/admin_tools_raw.html' %}
+  </div>
+
+  <div id="admin-pane-apichecker" class="st-subtab-pane">
+      {% include 'admin/api_checker.html' %}
+  </div>
 
 </div>
 

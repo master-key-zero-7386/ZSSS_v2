@@ -246,11 +246,26 @@ window.addEventListener("DOMContentLoaded", () => {
         // ▼ SECTION : その他ツール サブタブ切替（Brand Gate / 遠隔地郵便番号管理）
         document.querySelectorAll(".st-subtab-btn").forEach(btn => {
             btn.addEventListener("click", () => {
-                document.querySelectorAll(".st-subtab-btn").forEach(b => b.classList.remove("active"));
-                document.querySelectorAll(".st-subtab-pane").forEach(p => p.classList.remove("active"));
+                // ★ 同じ .main-container 内のサブタブ同士だけを切替対象にする
+                //   （その他ツール／管理者など、複数のサブタブ群が同じページに存在するため、
+                //    documentクリック全体を対象にすると別グループのactive状態まで消してしまう）
+                const scope = btn.closest(".main-container") || document;
+                scope.querySelectorAll(".st-subtab-btn").forEach(b => b.classList.remove("active"));
+                scope.querySelectorAll(".st-subtab-pane").forEach(p => p.classList.remove("active"));
                 btn.classList.add("active");
                 const pane = document.getElementById(btn.getAttribute("data-target"));
-                if (pane) pane.classList.add("active");
+                if (!pane) return;
+                pane.classList.add("active");
+
+                // ★ DataTablesは非表示コンテナ内で初期化されると列幅が崩れるため、
+                //   サブタブ表示時に再計算させる（destroy/再初期化はしない安全な方法）
+                if (window.jQuery && window.jQuery.fn && window.jQuery.fn.DataTable) {
+                    pane.querySelectorAll("table").forEach(tableEl => {
+                        if (window.jQuery.fn.DataTable.isDataTable(tableEl)) {
+                            window.jQuery(tableEl).DataTable().columns.adjust().draw(false);
+                        }
+                    });
+                }
             });
         });
 
