@@ -25,6 +25,7 @@ from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.price_calculator import (calculate_shipping_result, get_shipping_rate, get_shipping_config)
+from amazon.shipping_calc import get_ems_limits
 from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
@@ -586,7 +587,7 @@ def _build_listing_row_with_shipping(
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
 # Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
 # （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
-def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False):
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -773,6 +774,29 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     if exclude_books:
         query_filter += " AND asin LIKE 'B%%'"
 
+    # --- EMS不可（配送先国のサイズ上限を超える商品）：梱包補正後の寸法で判定 ---
+    # 補正後寸法 = 各辺 + padding_cm（緩衝材・段ボール厚み分の補正。二重補正を避けるため生データに1回だけ加算）
+    # 最長辺+胴回り = 最長辺 + 2×(残り2辺の合計) = 2×(3辺合計) − 最長辺
+    if ems_ng_only and (ems_max_longest_side_cm is not None or ems_max_length_plus_girth_cm is not None):
+        padding = float(ems_padding_cm or 0.0)
+        corrected_l = f"(length_cm + {padding})"
+        corrected_w = f"(width_cm + {padding})"
+        corrected_h = f"(height_cm + {padding})"
+        longest_expr = f"GREATEST({corrected_l}, {corrected_w}, {corrected_h})"
+        total_expr = f"({corrected_l} + {corrected_w} + {corrected_h})"
+        length_plus_girth_expr = f"(2 * {total_expr} - {longest_expr})"
+
+        ng_conditions = []
+        if ems_max_longest_side_cm is not None:
+            ng_conditions.append(f"{longest_expr} > {float(ems_max_longest_side_cm)}")
+        if ems_max_length_plus_girth_cm is not None:
+            ng_conditions.append(f"{length_plus_girth_expr} > {float(ems_max_length_plus_girth_cm)}")
+
+        query_filter += f"""
+            AND length_cm IS NOT NULL AND width_cm IS NOT NULL AND height_cm IS NOT NULL
+            AND ({' OR '.join(ng_conditions)})
+        """
+
     # --- 手動固定の絞り込み（送料区分／出品価格）：両方チェックならどちらかに該当すればOK ---
     if weight_override_only and price_override_only:
         query_filter += " AND (override_weight_class IS NOT NULL OR override_price IS NOT NULL)"
@@ -815,7 +839,7 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     return query_filter, params_base
 
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False):
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -904,12 +928,22 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             created_at DESC
         """       
 
+    # --- EMS不可絞り込み用：配送先国のサイズ上限を取得（チェック時のみDBアクセス） ---
+    ems_padding_cm, ems_max_longest_side_cm, ems_max_length_plus_girth_cm = 0.0, None, None
+    if ems_ng_only:
+        ems_limits = get_ems_limits(user_id, country_code)
+        ems_padding_cm = ems_limits["padding_cm"]
+        ems_max_longest_side_cm = ems_limits["max_longest_side_cm"]
+        ems_max_length_plus_girth_cm = ems_limits["max_length_plus_girth_cm"]
+
     # --- フィルタ条件 ---
     query_filter, params_base = _build_listing_query_filter(
         status_value, user_id, marketplace_id,
         info_status=info_status, reason=reason, keyword=keyword,
         brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
-        exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only
+        exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only,
+        ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
+        ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm
     )
 
     # --- データ取得 ---
@@ -1238,13 +1272,14 @@ def get_prelisting():
         brand_status_filter = request.args.get("brand_status") or "all"
         region_seller_filter = request.args.get("region_seller") or "all"
         exclude_books = (request.args.get("exclude_books") or "0") == "1"
+        ems_ng_only = (request.args.get("ems_ng_only") or "0") == "1"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "pre", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, ems_ng_only=ems_ng_only)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -1331,13 +1366,14 @@ def get_alllisting():
         exclude_books = (request.args.get("exclude_books") or "0") == "1"
         weight_override_only = (request.args.get("weight_override_only") or "0") == "1"
         price_override_only = (request.args.get("price_override_only") or "0") == "1"
+        ems_ng_only = (request.args.get("ems_ng_only") or "0") == "1"
 
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only, ems_ng_only=ems_ng_only)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -2058,6 +2094,7 @@ def bulk_delete_all_pre():
         brand_status_filter = data.get("brand_status") or "all"
         region_seller_filter = data.get("region_seller") or "all"
         exclude_books = bool(data.get("exclude_books"))
+        ems_ng_only = bool(data.get("ems_ng_only"))
         info_status = data.get("info_status") or "all"
         reason = data.get("reason") or "all"
         keyword = data.get("keyword") or ""
@@ -2081,12 +2118,22 @@ def bulk_delete_all_pre():
 
         marketplace_id = row_mid["marketplace_id"]
 
+        # --- EMS不可絞り込み用：配送先国のサイズ上限を取得（チェック時のみDBアクセス） ---
+        ems_padding_cm, ems_max_longest_side_cm, ems_max_length_plus_girth_cm = 0.0, None, None
+        if ems_ng_only:
+            ems_limits = get_ems_limits(user_id, country_code)
+            ems_padding_cm = ems_limits["padding_cm"]
+            ems_max_longest_side_cm = ems_limits["max_longest_side_cm"]
+            ems_max_length_plus_girth_cm = ems_limits["max_length_plus_girth_cm"]
+
         # --- Pre一覧取得と同一ロジックで絞り込み条件を再現 ---
         query_filter, params_base = _build_listing_query_filter(
             "pre", user_id, marketplace_id,
             info_status=info_status, reason=reason, keyword=keyword,
             brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
-            exclude_books=exclude_books
+            exclude_books=exclude_books,
+            ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
+            ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm
         )
 
         db_name = f"a_{country_code}_listed_items.db"

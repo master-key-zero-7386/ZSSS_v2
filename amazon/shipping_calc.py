@@ -17,47 +17,77 @@ from datetime import datetime
 def get_shipping_config():
     try:
         user_id = int(request.args.get("user_id"))
-        # country_code  = request.args.get("country_code")
+        # EMSサイズ上限は配送先国ごとに規定が異なるため、実際に選択中のcountry_codeを使う
+        country_code = (request.args.get("country_code") or "ALL").upper()
 
         from amazon.db import get_conn
         conn = get_conn("a_pricing_settings.db")
         cur = conn.cursor()
 
+        # --- 梱包補正設定（全国共通：ALL固定） ---
         cur.execute("""
             SELECT padding_cm, pack_ratio, volumetric_divisor
             FROM shipping_config
-            WHERE user_id=%s
-            AND (
-                UPPER(country_code)=UPPER(%s)
-                OR country_code='ALL'
-            )
-        """, (user_id, "ALL"))
+            WHERE user_id=%s AND country_code='ALL'
+        """, (user_id,))
 
-        row = cur.fetchone()
+        all_row = cur.fetchone()
+
+        # --- EMSサイズ上限（配送先国別。国別に登録が無ければ未設定扱い） ---
+        cur.execute("""
+            SELECT max_longest_side_cm, max_length_plus_girth_cm
+            FROM shipping_config
+            WHERE user_id=%s AND UPPER(country_code)=%s
+        """, (user_id, country_code))
+
+        ems_row = cur.fetchone()
 
         conn.close()
-
-        if not row:
-            return jsonify({
-                "status": "success",
-                "data": {
-                    "padding_cm": 0,
-                    "pack_ratio": 0,
-                    "volumetric_divisor": 5000
-                }
-            }), 200
 
         return jsonify({
             "status": "success",
             "data": {
-                "padding_cm": row["padding_cm"],
-                "pack_ratio": row["pack_ratio"],
-                "volumetric_divisor": row["volumetric_divisor"],
+                "padding_cm": all_row["padding_cm"] if all_row else 0,
+                "pack_ratio": all_row["pack_ratio"] if all_row else 0,
+                "volumetric_divisor": all_row["volumetric_divisor"] if all_row else 5000,
+                "max_longest_side_cm": ems_row["max_longest_side_cm"] if ems_row else None,
+                "max_length_plus_girth_cm": ems_row["max_length_plus_girth_cm"] if ems_row else None,
             }
         }), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ▼ SECTION 01-2: EMSサイズ上限取得（出品管理画面の絞り込み用） ▼ ---
+def get_ems_limits(user_id: int, country_code: str) -> Dict:
+    """
+    padding_cm（梱包補正：country_code='ALL'の共通行）と、
+    EMSサイズ上限（最長辺／最長辺+胴回り合計：配送先国別の行）をまとめて取得する。
+    """
+    from amazon.db import get_conn
+    conn = get_conn("a_pricing_settings.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT padding_cm FROM shipping_config
+        WHERE user_id = %s AND country_code = 'ALL'
+    """, (user_id,))
+    all_row = cur.fetchone()
+
+    cur.execute("""
+        SELECT max_longest_side_cm, max_length_plus_girth_cm
+        FROM shipping_config
+        WHERE user_id = %s AND UPPER(country_code) = UPPER(%s)
+    """, (user_id, country_code))
+    ems_row = cur.fetchone()
+
+    conn.close()
+
+    return {
+        "padding_cm": float(all_row["padding_cm"]) if all_row and all_row["padding_cm"] is not None else 0.0,
+        "max_longest_side_cm": float(ems_row["max_longest_side_cm"]) if ems_row and ems_row["max_longest_side_cm"] is not None else None,
+        "max_length_plus_girth_cm": float(ems_row["max_length_plus_girth_cm"]) if ems_row and ems_row["max_length_plus_girth_cm"] is not None else None,
+    }
 
 # --- ▼ SECTION 02: 内部ユーティリティ（純計算） ▼ ---
 def _calc_volumetric_weight(length_cm: float, width_cm: float, height_cm: float, volumetric_divisor: float,) -> float:
@@ -164,9 +194,15 @@ def update_shipping_config():
         # country_code  = data.get("country_code") #TopページPricing設定を国別で個別に保存する場合は戻す
         country_code = "ALL"
 
+        # EMSサイズ上限は配送先国ごとに規定が異なるため、実際に選択中のcountry_codeで保存する
+        ems_country_code = (data.get("country_code") or "ALL").upper()
+
         padding_cm = data.get("padding_cm")
         pack_ratio = data.get("pack_ratio")
         volumetric_divisor = data.get("volumetric_divisor")
+
+        max_longest_side_cm = data.get("max_longest_side_cm")
+        max_length_plus_girth_cm = data.get("max_length_plus_girth_cm")
 
         from amazon.db import get_conn
         conn = get_conn("a_pricing_settings.db")
@@ -184,6 +220,16 @@ def update_shipping_config():
               volumetric_divisor=excluded.volumetric_divisor,
               updated_at=%s
         """, (user_id, country_code, padding_cm, pack_ratio, volumetric_divisor, now_utc, now_utc))
+
+        # --- ▼ EMSサイズ上限（配送先国別）の upsert ▼ ---
+        cur.execute("""
+            INSERT INTO shipping_config (user_id, country_code, max_longest_side_cm, max_length_plus_girth_cm, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT(user_id, country_code) DO UPDATE SET
+              max_longest_side_cm=excluded.max_longest_side_cm,
+              max_length_plus_girth_cm=excluded.max_length_plus_girth_cm,
+              updated_at=%s
+        """, (user_id, ems_country_code, max_longest_side_cm, max_length_plus_girth_cm, now_utc, now_utc))
 
         conn.commit()
         conn.close()

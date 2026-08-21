@@ -383,13 +383,16 @@ MARKETPLACES_MASTER_COLUMNS = {
     "tax_mode": "TEXT",     
 
     "host": "TEXT",
-    "spapi_host": "TEXT",    
+    "spapi_host": "TEXT",
 
-    "client_id": "TEXT",        
-    "client_secret": "TEXT",    
-    "access_key": "TEXT",       
-    "secret_key": "TEXT",  
-    "application_id": "TEXT",  
+    "client_id": "TEXT",
+    "client_secret": "TEXT",
+    "access_key": "TEXT",
+    "secret_key": "TEXT",
+    "application_id": "TEXT",
+
+    # order-idの先頭桁（カンマ区切り。例: AU="2,5"）→ このマーケットの注文かどうかを判別するために使用（ORBIT）
+    "order_id_prefixes": "TEXT",
 
     "created_at": "TEXT",
     "updated_at": "TEXT"
@@ -428,7 +431,9 @@ SHIPPING_CONFIG_COLUMNS = {
     "padding_cm": "REAL",
     "pack_ratio": "REAL",
     "volumetric_divisor": "REAL",
-    "updated_at": "TEXT"  
+    "max_longest_side_cm": "REAL",         # EMS上限：最長辺（配送先国別）
+    "max_length_plus_girth_cm": "REAL",    # EMS上限：最長辺＋胴回り合計（配送先国別）
+    "updated_at": "TEXT"
 }
 
 # --- ▼ shipping_override_master（別途送料誤判定 セラー除外設定） ---
@@ -512,6 +517,70 @@ CARRIER_REMOTE_AREA_COLUMNS = {
     "postal_to":    "TEXT NOT NULL",
     "imported_at":  "TEXT",                 # 取り込み日（YYYY-MM-DD）
     "created_at":   "TEXT",
+}
+
+# --- ▼ SECTION : ORBIT（注文管理）注文明細テーブル ---
+ORBIT_ORDERS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+
+    # --- Amazon注文レポート由来（CSVインポートでそのまま取込） ---
+    "order_id": "TEXT",
+    "order_item_id": "TEXT NOT NULL",       # 明細単位で一意・重複判定キー
+    "purchase_date": "TEXT",
+    "payments_date": "TEXT",
+    "reporting_date": "TEXT",
+    "promise_date": "TEXT",
+    "days_past_promise": "TEXT",
+    "buyer_email": "TEXT",
+    "buyer_name": "TEXT",
+    "buyer_phone_number": "TEXT",
+    "sku": "TEXT",
+    "product_name": "TEXT",
+    "quantity_purchased": "INTEGER",
+    "quantity_shipped": "INTEGER",
+    "quantity_to_ship": "INTEGER",
+    "ship_service_level": "TEXT",
+    "recipient_name": "TEXT",
+    "ship_address_1": "TEXT",
+    "ship_address_2": "TEXT",
+    "ship_address_3": "TEXT",
+    "ship_city": "TEXT",
+    "ship_state": "TEXT",
+    "ship_postal_code": "TEXT",
+    "ship_country": "TEXT",
+    "is_business_order": "TEXT",
+    "purchase_order_number": "TEXT",
+    "price_designation": "TEXT",
+    "is_transparency": "TEXT",
+    "verge_of_cancellation": "TEXT",
+    "verge_of_late_shipment": "TEXT",
+    "signature_confirmation_recommended": "TEXT",
+    "buyer_identification_number": "TEXT",
+    "buyer_identification_type": "TEXT",
+
+    # --- ORBIT側で手入力（再インポートで上書きされない） ---
+    "jan_code": "TEXT",
+    "purchase_price": "REAL",              # 仕入れ価格
+
+    # --- 発送代行会社とのやり取り用（手入力） ---
+    "agent_serial_no": "INTEGER",          # 代行会社の管理連番（Nから始まる連番。先頭行だけ入力すれば以降は自動採番）
+    "request_date": "TEXT",                # 依頼日
+    "shipping_type": "TEXT",               # 発送種別（暫定：手入力）
+    "tracking_number": "TEXT",             # 発送会社トラッキング番号（暫定：手入力。将来自動反映を想定）
+    "remarks": "TEXT",                     # 発送代行会社への連絡事項・備考
+
+    # --- 仕入れ管理（手入力） ---
+    "supplier": "TEXT",                    # 仕入先（Amazon/楽天/Yahoo!など）
+    "supplier_order_number": "TEXT",       # 仕入先での注文番号
+    "supplier_shop_name": "TEXT",          # モール内のショップ名（楽天/Yahoo!等）
+    "arrival_date": "TEXT",                # 到着予定日
+
+    # --- 発送代行への通知状況 ---
+    "notified_at": "TEXT",
+
+    "created_at": "TEXT",
+    "updated_at": "TEXT",
 }
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
@@ -632,6 +701,8 @@ def migrate_db(db_name):
         migrate_table(conn, "lwa_credentials_log", LWA_CREDENTIALS_LOG_COLUMNS)
     elif base.endswith("_lethal_weapon_preset.db"):
         migrate_table(conn, "lethal_weapon_preset", LETHAL_WEAPON_PRESET_COLUMNS)
+    elif base.endswith("_orbit_orders.db"):
+        migrate_table(conn, "orbit_orders", ORBIT_ORDERS_COLUMNS)
 
 
     conn.close()
@@ -750,6 +821,20 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_rates_unique "
         "ON shipping_rates(user_id, marketplace_id, weight_from_g, weight_to_g)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_orders.db ---
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_orders_unique "
+        "ON orbit_orders(user_id, order_item_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_orders_sku "
+        "ON orbit_orders(user_id, sku)"
     )
     conn.commit()
     conn.close()
@@ -1008,6 +1093,7 @@ def main():
         "a_lethal_weapon_preset.db",
         "a_api_429_events.db",
         "a_carrier_remote_area.db",
+        "a_orbit_orders.db",
     ]
 
     # 固定DB migrate
@@ -1035,6 +1121,29 @@ def main():
 
     # 初期データ
     ensure_fx_settings_initialized()
+    ensure_order_id_prefixes_seeded()
+
+# --- ▼ ORBIT: order-id先頭桁の初期値投入（未設定のマーケットにのみ設定・既存の手動編集は上書きしない） ---
+def ensure_order_id_prefixes_seeded():
+    known_prefixes = {
+        "US": "1",
+        "AU": "2,5",
+        "CA": "7",
+    }
+
+    conn = get_conn("a_marketplaces_master.db")
+    cur = conn.cursor()
+
+    for country_code, prefixes in known_prefixes.items():
+        cur.execute("""
+            UPDATE marketplaces_master
+            SET order_id_prefixes = %s
+            WHERE country_code = %s
+            AND (order_id_prefixes IS NULL OR order_id_prefixes = '')
+        """, (prefixes, country_code))
+
+    conn.commit()
+    conn.close()
 
 # --- ▼ FX 初期設定挿入 ---
 def ensure_fx_settings_initialized():

@@ -865,6 +865,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const excludeBooksEl = document.getElementById("preExcludeBooksFilter");
             if (excludeBooksEl) excludeBooksEl.checked = false;
 
+            const emsNgEl = document.getElementById("preEmsNgFilter");
+            if (emsNgEl) emsNgEl.checked = false;
+
             const infoAll = document.querySelector('input[name="preInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
 
@@ -1004,6 +1007,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const priceOverrideEl = document.getElementById("allPriceOverrideFilter");
             if (priceOverrideEl) priceOverrideEl.checked = false;
+
+            const emsNgEl = document.getElementById("allEmsNgFilter");
+            if (emsNgEl) emsNgEl.checked = false;
 
             const infoAll = document.querySelector('input[name="allInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
@@ -1227,6 +1233,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || "all";
         const regionSeller = document.getElementById("preRegionSellerFilter")?.value || "all";
         const excludeBooks = document.getElementById("preExcludeBooksFilter")?.checked || false;
+        const emsNgOnly = document.getElementById("preEmsNgFilter")?.checked || false;
         const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || "all";
         const keyword = document.querySelector('#preListingSearchInput')?.value?.trim() || "";
         const reason = document.getElementById("preInactiveReason")?.value || "all";
@@ -1237,10 +1244,11 @@ document.addEventListener("DOMContentLoaded", () => {
             brandStatus !== "all" ||
             regionSeller !== "all" ||
             excludeBooks ||
+            emsNgOnly ||
             infoStatus !== "all" ||
             reason !== "all";
 
-        return { brandgate, brandStatus, regionSeller, excludeBooks, infoStatus, keyword, reason, hasFilter };
+        return { brandgate, brandStatus, regionSeller, excludeBooks, emsNgOnly, infoStatus, keyword, reason, hasFilter };
     };
 
     window.updatePreDeleteAllFilteredState = function () {
@@ -1311,6 +1319,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const brandStatus = document.querySelector('input[name="preBrandStatus"]:checked')?.value || 'all';
             const regionSeller = document.getElementById("preRegionSellerFilter")?.value || 'all';
             const excludeBooks = document.getElementById("preExcludeBooksFilter")?.checked || false;
+            const emsNgOnly = document.getElementById("preEmsNgFilter")?.checked || false;
             const infoStatus = document.querySelector('input[name="preInfoStatus"]:checked')?.value || 'all';
             const keyword = document.querySelector('#preListingSearchInput')?.value || '';
             const reason = document.getElementById("preInactiveReason")?.value || 'all';
@@ -1328,6 +1337,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         brand_status: brandStatus,
                         region_seller: regionSeller,
                         exclude_books: excludeBooks,
+                        ems_ng_only: emsNgOnly,
                         info_status: infoStatus,
                         keyword,
                         reason

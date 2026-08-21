@@ -264,11 +264,13 @@ def get_shipping_config(user_id):
     conn_cfg = get_conn("a_pricing_settings.db")
     cur_cfg = conn_cfg.cursor()
 
+    # 梱包補正設定は country_code='ALL' の共通行のみを対象にする。
+    # shipping_configにはEMSサイズ上限のような配送先国別の行も保存されるため、
+    # updated_at最新順だけで拾うと国別行（padding_cm等はNULL）を誤って返しかねない。
     cur_cfg.execute("""
         SELECT padding_cm, pack_ratio, volumetric_divisor
         FROM shipping_config
-        WHERE user_id = %s
-        ORDER BY updated_at DESC
+        WHERE user_id = %s AND country_code = 'ALL'
         LIMIT 1
     """, (user_id,))
 

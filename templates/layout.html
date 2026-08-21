@@ -273,7 +273,8 @@
         </div>
 
         <button class="tab active" data-tab="top">TOP</button>
-        <button class="tab" data-tab="shipping-rates">配送料金設定</button>        
+        <button class="tab" data-tab="orbit">注文管理</button>
+        <button class="tab" data-tab="shipping-rates">配送料金設定</button>
         <button class="tab" data-tab="account">アカウント設定</button>
         <button class="tab" data-tab="research-tool">リサーチツール</button>
 
@@ -316,6 +317,11 @@
         <!-- 送料設定（ユーザー公開） -->
         <div id="shipping-rates" class="tab-content">
             {% include 'shipping_rates.html' %}
+        </div>
+
+        <!-- ORBIT 注文管理 -->
+        <div id="orbit" class="tab-content">
+            {% include 'orbit.html' %}
         </div>
 
         <!-- 管理者表示用 -->

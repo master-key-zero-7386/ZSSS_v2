@@ -25,7 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // # === ▼ SECTION 01: Shipping Config 読込処理（新・最小） ▼ ===
   window.loadShippingConfigV2 = function(region) {
-    const currentRegion = "ALL";
+    // 梱包補正設定はALL固定だが、EMSサイズ上限は配送先国別のため実際のregionを渡す
+    const currentRegion = region || document.getElementById("globalRegion")?.value || "ALL";
 
     fetch(`/amazon/get_shipping_config?user_id=${ZSSS_USER_ID}&country_code=${currentRegion}&_=${Date.now()}`)
 
@@ -43,6 +44,10 @@ document.addEventListener("DOMContentLoaded", () => {
         set("pkg_padding_cm", cfg.padding_cm);
         set("pkg_weight_ratio", cfg.pack_ratio);
         set("pkg_volumetric_divisor", cfg.volumetric_divisor);
+
+        // EMSサイズ上限（配送先国別）
+        set("pkg_max_longest_side_cm", cfg.max_longest_side_cm);
+        set("pkg_max_length_plus_girth_cm", cfg.max_length_plus_girth_cm);
       })
       .catch(err => console.error("[ERR] loadShippingConfigV2:", err));
   };
@@ -54,12 +59,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // プルダウン未選択時は処理しない
     if (!region) return;
 
+    const emsLongestSide = document.getElementById("pkg_max_longest_side_cm")?.value;
+    const emsLengthPlusGirth = document.getElementById("pkg_max_length_plus_girth_cm")?.value;
+
     const payload = {
       user_id: ZSSS_USER_ID,
-      country_code: "ALL",
+      // 梱包補正設定はALL固定。EMSサイズ上限は配送先国別のため実際のregionを送る
+      country_code: region,
       padding_cm: parseFloat(document.getElementById("pkg_padding_cm")?.value || 0),
       pack_ratio: parseFloat(document.getElementById("pkg_weight_ratio")?.value || 0),
       volumetric_divisor: parseFloat(document.getElementById("pkg_volumetric_divisor")?.value || 5000),
+      max_longest_side_cm: emsLongestSide ? parseFloat(emsLongestSide) : null,
+      max_length_plus_girth_cm: emsLengthPlusGirth ? parseFloat(emsLengthPlusGirth) : null,
     };
 
     const res = await fetch("/amazon/update_shipping_config", {

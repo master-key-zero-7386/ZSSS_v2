@@ -34,6 +34,7 @@ from amazon.background.first.first_regioncheck import run_first_regioncheck
 from amazon.background.ttl.ttl_loop import run_ttl_loop
 from amazon.background.fx.fx_loop import run_fx_loop
 from amazon.routes.routes_override_seller import override_seller_bp
+from amazon.routes.routes_orbit import orbit_bp
 
 
 # ✅ コマンド引数から実行モードを判定（デフォルトは "dev"）
@@ -78,6 +79,7 @@ app.register_blueprint(admin_market_bp, url_prefix="/admin_market")
 app.register_blueprint(api_raw_check_bp) # APIチェック用　
 app.register_blueprint(shipping_bp, url_prefix="/api")
 app.register_blueprint(pricing_v2_bp)
+app.register_blueprint(orbit_bp)
 
 
 # first loop常駐起動

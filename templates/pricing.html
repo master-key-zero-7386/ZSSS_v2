@@ -29,13 +29,21 @@
 <div id="pricing" class="subtab-content" hidden>
 
     <h2>Pricing 価格条件設定</h2>
+
+    <div class="st-subtabs">
+        <button class="st-subtab-btn active" data-target="pricing-pane-settings">設定</button>
+        <button class="st-subtab-btn" data-target="pricing-pane-check">Price Check</button>
+    </div>
+
+    <div id="pricing-pane-settings" class="st-subtab-pane active">
+
         <div class="pricing-save-area">
             <button id="savePricingBtn" class="btn-blue" style="font-size:16px;">Save</button>
         </div>
 
-    <hr>
+        <hr>
 
-    <section class="pricing-section" style="margin-bottom:40px;">
+        <section class="pricing-section" style="margin-bottom:40px;">
 
         <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">仕入先設定</h3>
         <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
@@ -143,6 +151,43 @@
                 </div> -->
                 <div style="display:flex; align-items:center; gap:6px;">
                     <span style="color:#666; font-size:13px;">※梱包時の緩衝材によるサイズアップ分の補正に利用</span>
+                </div>
+            </div>
+        </div>
+    </section>
+    <hr>
+
+    <!-- EMSサイズ上限設定 -->
+    <section class="pricing-section" style="margin-bottom:40px;">
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">EMSサイズ上限設定</h3>
+        <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
+
+            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+
+                <div>
+                    <label for="pkg_max_longest_side_cm"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最長辺上限（cm）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pkg_max_longest_side_cm" class="input" type="number" placeholder="例：150"
+                            style="width:130px;">
+                        <span>cm</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="pkg_max_length_plus_girth_cm"
+                        style="display:block; font-weight:600; margin-bottom:4px;">最長辺＋胴回り合計上限（cm）</label>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input id="pkg_max_length_plus_girth_cm" class="input" type="number" placeholder="例：300"
+                            style="width:150px;">
+                        <span>cm</span>
+                    </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="color:#666; font-size:13px;">
+                        ※EMSのサイズ制限（最長辺／最長辺＋胴回り合計）は配送先国ごとに異なるため、上部の国選択（現在選択中の国）ごとに個別保存されます。
+                    </span>
                 </div>
             </div>
         </div>
@@ -350,15 +395,16 @@
             </div>
 
         </div>
-    </section>
+        </section>
 
-    <hr>
+        <hr>
 
+    </div>
 
-
-
-<!-- HOME / Region Seller Price Check -->
-{% include "pricing_debug.html" %}
+    <div id="pricing-pane-check" class="st-subtab-pane">
+        <!-- HOME / Region Seller Price Check -->
+        {% include "pricing_debug.html" %}
+    </div>
 
 </div>
 

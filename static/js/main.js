@@ -246,10 +246,10 @@ window.addEventListener("DOMContentLoaded", () => {
         // ▼ SECTION : その他ツール サブタブ切替（Brand Gate / 遠隔地郵便番号管理）
         document.querySelectorAll(".st-subtab-btn").forEach(btn => {
             btn.addEventListener("click", () => {
-                // ★ 同じ .main-container 内のサブタブ同士だけを切替対象にする
-                //   （その他ツール／管理者など、複数のサブタブ群が同じページに存在するため、
+                // ★ 同じ .main-container（または .subtab-content）内のサブタブ同士だけを切替対象にする
+                //   （その他ツール／管理者／Pricingなど、複数のサブタブ群が同じページに存在するため、
                 //    documentクリック全体を対象にすると別グループのactive状態まで消してしまう）
-                const scope = btn.closest(".main-container") || document;
+                const scope = btn.closest(".main-container, .subtab-content") || document;
                 scope.querySelectorAll(".st-subtab-btn").forEach(b => b.classList.remove("active"));
                 scope.querySelectorAll(".st-subtab-pane").forEach(p => p.classList.remove("active"));
                 btn.classList.add("active");
@@ -526,7 +526,11 @@ window.addEventListener("DOMContentLoaded", () => {
             }
 
             if (tabName === "admin-marketplace" && typeof initMarketplaceMaster === "function") {
-                initMarketplaceMaster();            
+                initMarketplaceMaster();
+            }
+
+            if (tabName === "orbit" && typeof window.initOrbit === "function") {
+                window.initOrbit();
             }
 
         }

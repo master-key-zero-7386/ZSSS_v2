@@ -1,0 +1,175 @@
+<!-- orbit.html -->
+<style>
+.orbit-page .table-wrapper {
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+
+.orbit-page table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.orbit-page table th,
+.orbit-page table td {
+  border: 1px solid #ddd;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.orbit-page table thead th {
+  position: sticky;
+  top: 0;
+  background: #f0f4f8;
+  z-index: 2;
+}
+
+.orbit-page table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+.orbit-page input.orbit-manual {
+  width: 100px;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  box-sizing: border-box;
+}
+
+.orbit-page input.orbit-manual:focus {
+  background: #ffffff;
+  outline: 1px solid #4a90e2;
+}
+
+.orbit-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.master-description {
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    background: #f8f9fa;
+    border-left: 4px solid #4a90e2;
+    color: #555;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* 出荷期日の警告色（今日からの残り日数基準） */
+.orbit-deadline-blue   { background-color: #e3f2fd !important; }
+.orbit-deadline-orange { background-color: #ffe0b2 !important; }
+.orbit-deadline-red    { background-color: #ffcdd2 !important; font-weight: bold; }
+
+.orbit-page select.orbit-manual {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  box-sizing: border-box;
+}
+
+.orbit-page select.orbit-manual:focus {
+  background: #ffffff;
+  outline: 1px solid #4a90e2;
+}
+</style>
+
+<div class="main-container orbit-page">
+  <h2>ORBIT 注文管理</h2>
+
+  <div class="st-subtabs">
+      <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入れ管理</button>
+  </div>
+
+  <div id="orbit-pane-orders" class="st-subtab-pane active">
+    <div class="card">
+
+      <div class="master-description">
+          セラーセントラルの注文レポート(タブ区切り/CSV)を取り込みます。サイズ・重量・予測送料はZSSSの登録情報から自動表示されます。
+      </div>
+
+      <input type="file" id="orbitFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
+
+      <div class="orbit-actions">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbitFileName" class="file-input-text" placeholder="注文レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+          <button id="orbit-refresh-btn" class="btn-blue">再読込</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="orbit-orders-table">
+          <thead>
+            <tr>
+              <!-- JSで描画（全項目） -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-dispatch" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          ラフ版です。CA/US(このPC)＋AU(ATLAS)を1つにまとめて、発送代行会社の「依頼書」シートと同じ形式で表示・編集します。<br>
+          AUの取込(Googleドライブ共有フォルダ経由)はまだ未実装のため、現時点ではCA/US分のみ表示されます。<br>
+          N番号は先頭行に開始番号を入れると、以降の行(システムに取り込まれた順)に自動で連番が振られます。<br>
+          JAN(仕入れ管理で入力)・トラッキング(代行会社が入力)は読取専用です。仕入価格欄は判断待ちのため空欄のままにしています。
+      </div>
+
+      <div class="orbit-actions">
+          <button id="orbit-dispatch-refresh-btn" class="btn-blue">再読込</button>
+          <button id="orbit-export-btn" class="btn-blue">発送代行へ出力(CSV)</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="orbit-dispatch-table">
+          <thead>
+            <tr>
+              <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-procurement" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          受注一覧に取り込まれた注文を、日本の仕入先での購入状況で管理します。JAN・仕入価格はここで入力してください(発注管理には読取専用で反映されます)。<br>
+          出荷期日は、注文の締切日(Amazon配送約束日)に対する残り日数で色分け表示されます(3日前:青／1日前:オレンジ／当日〜超過:赤)。
+      </div>
+
+      <div class="table-wrapper">
+        <table id="orbit-procurement-table">
+          <thead>
+            <tr>
+              <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/orbit.js') }}"></script>
