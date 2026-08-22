@@ -1,7 +1,9 @@
 <!-- orbit.html -->
 <style>
+/* 作業領域は重要なので、データ件数が少なくても常に広く確保する（min-heightもmax-heightと揃える） */
 .orbit-page .table-wrapper {
   max-height: calc(100vh - 260px);
+  min-height: calc(100vh - 260px);
   overflow: auto;
 }
 
@@ -131,9 +133,11 @@
       <div class="orbit-actions">
           <button id="orbit-dispatch-refresh-btn" class="btn-blue">再読込</button>
           <button id="orbit-export-btn" class="btn-blue">発送代行へ出力(CSV)</button>
+          <button id="orbit-dispatch-sync-btn" class="btn-blue">代行会社シートから取り込む</button>
+          <span id="orbit-dispatch-sync-status"></span>
       </div>
 
-      <div class="table-wrapper">
+      <div class="table-wrapper" id="orbit-dispatch-table-wrapper">
         <table id="orbit-dispatch-table">
           <thead>
             <tr>
@@ -144,6 +148,12 @@
             <!-- JSで描画 -->
           </tbody>
         </table>
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap; margin-top:12px;">
+          <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
+          <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
+          <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
       </div>
     </div>
   </div>

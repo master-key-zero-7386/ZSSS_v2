@@ -60,9 +60,24 @@ const DISPATCH_COLUMNS = [
     { key: "jan_code", label: "JAN" },  // 仕入れ管理で入力した値を反映（読取専用）
     { key: "shipping_type", label: "発送種別", editable: "text" },
     { key: "quantity_purchased", label: "数量" },
-    { key: "tracking_number", label: "トラッキング(海外向け)" },  // 代行会社が入力する項目（読取専用）
+    { key: "agent_tracking_number", label: "トラッキング(海外向け)" },  // 代行会社シートから読み戻し（読取専用）
     { key: "purchase_price_placeholder", label: "仕入価格", blank: true },
     { key: "remarks", label: "備考", editable: "text" },
+
+    // --- 代行会社シートからの読み戻し（読取専用。依頼書J〜U列） ---
+    { key: "agent_thankyou_letter", label: "サンクスレター内容" },
+    { key: "agent_option_content", label: "オプション内容" },
+    { key: "agent_option_fee", label: "オプション料計" },
+    { key: "agent_non_deliverable_weight", label: "配送不可重量" },
+    { key: "agent_shipping_weight", label: "発送重量" },
+    { key: "agent_weight_recorded_date", label: "発送重量記入日(=出荷済み)" },
+    { key: "agent_confirmed_weight", label: "確定重量" },
+    { key: "agent_deadline", label: "期限" },
+    { key: "agent_status", label: "状況" },
+    { key: "agent_shipping_fee", label: "送料" },
+    { key: "agent_shipping_fee_total", label: "送料合計" },
+    { key: "agent_delivery_area", label: "配送エリア" },
+    { key: "agent_synced_at", label: "読戻し日時" },
 
     // --- 参照用（読み取り専用） ---
     { key: "order_id", label: "order-id" },
@@ -283,14 +298,24 @@ window.initOrbit = function () {
     }
     tbody.dataset.orbitInitialized = "true";
 
+    // データ再読込でtbody.innerHTMLを差し替えると、テーブルを囲むtable-wrapperの
+    // 横スクロール位置がブラウザによって勝手にリセットされることがあるため、明示的に保持する。
+    function renderPreservingScroll(tbodyEl, columns, rows) {
+        if (!tbodyEl) return;
+        const wrapper = tbodyEl.closest(".table-wrapper");
+        const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
+        renderTableRows(tbodyEl, columns, rows);
+        if (wrapper) wrapper.scrollLeft = scrollLeft;
+    }
+
     function loadOrders() {
         fetch("/orbit/orders")
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    renderTableRows(tbody, ORBIT_COLUMNS, data.rows);
-                    if (procTbody) renderTableRows(procTbody, PROCUREMENT_COLUMNS, data.rows);
-                    if (dispatchTbody) renderTableRows(dispatchTbody, DISPATCH_COLUMNS, data.rows);
+                    renderPreservingScroll(tbody, ORBIT_COLUMNS, data.rows);
+                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, data.rows);
+                    renderPreservingScroll(dispatchTbody, DISPATCH_COLUMNS, data.rows);
                 } else {
                     window.showToast?.("注文一覧の取得に失敗しました", "error");
                 }
@@ -356,10 +381,71 @@ window.initOrbit = function () {
         window.location.href = "/orbit/export";
     });
 
+    // --- ▼ SECTION 02-2: 代行会社シートから読み戻し（N番号で突き合わせ） ▼ ---
+    const syncBtn = document.getElementById("orbit-dispatch-sync-btn");
+    const syncStatus = document.getElementById("orbit-dispatch-sync-status");
+
+    syncBtn?.addEventListener("click", () => {
+        if (syncStatus) syncStatus.textContent = "取り込み中...";
+
+        fetch("/orbit/dispatch_sheet_sync", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    if (syncStatus) syncStatus.textContent = `${data.matched}件を反映しました`;
+                    loadOrders();
+                } else {
+                    if (syncStatus) syncStatus.textContent = data.message || "取り込みに失敗しました";
+                }
+            })
+            .catch(err => {
+                console.error("dispatch_sheet_sync error:", err);
+                if (syncStatus) syncStatus.textContent = "取り込みに失敗しました";
+            });
+    });
+
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
     attachSaveHandlers(tbody, { onSaved: loadOrders });
     if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
     if (dispatchTbody) attachSaveHandlers(dispatchTbody, { onSaved: loadOrders });
+
+    // --- ▼ SECTION 04: 依頼書スプレッドシートの設定（URL・シート名） ▼ ---
+    const sheetUrlInput = document.getElementById("orbit-dispatch-sheet-url");
+    const sheetNameInput = document.getElementById("orbit-dispatch-sheet-name");
+    const sheetSettingsSaveBtn = document.getElementById("orbit-dispatch-sheet-settings-save-btn");
+
+    // 依頼書スプレッドシートの設定を読み込んで欄に反映
+    fetch("/orbit/dispatch_sheet_settings")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (sheetUrlInput) sheetUrlInput.value = data.spreadsheet_url || "";
+            if (sheetNameInput) sheetNameInput.value = data.sheet_name || "";
+        })
+        .catch(err => console.error("dispatch_sheet_settings load error:", err));
+
+    sheetSettingsSaveBtn?.addEventListener("click", () => {
+        fetch("/orbit/dispatch_sheet_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                spreadsheet_url: sheetUrlInput?.value || "",
+                sheet_name: sheetNameInput?.value || "",
+            }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.("設定を保存しました", "success");
+                } else {
+                    window.showToast?.(data.message || "保存に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("dispatch_sheet_settings save error:", err);
+                window.showToast?.("保存に失敗しました", "error");
+            });
+    });
 
     loadOrders();
 };

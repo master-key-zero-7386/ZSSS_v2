@@ -1,0 +1,250 @@
+# ==========================================
+# ファイル名: amazon/services/google_sheets_service.py
+# 目的: ORBIT（発注管理）が発送代行会社の「依頼書」シートを読み戻すための
+#       Google OAuth（ユーザー自身のGoogleアカウント）・Sheets API連携
+# ==========================================
+
+import os
+import re
+import time
+from datetime import datetime, timedelta
+
+import requests
+
+from amazon.db import get_conn
+
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+
+# Desktop app タイプのOAuthクライアントは http://localhost（任意のポート）へのリダイレクトが
+# 登録不要で許可されるため、ZSSS自身のFlaskサーバーをそのままコールバック先にできる。
+GOOGLE_REDIRECT_URI = "http://localhost:5001/orbit/google_oauth/callback"
+
+GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
+
+# 依頼書スプレッドシートのURL・シート名はユーザー変更可能（orbit_dispatch_sheet_settings）。
+# 未設定時のみのフォールバックとして、判明している値を初期値に使う。
+DEFAULT_DISPATCH_SHEET_URL = "https://docs.google.com/spreadsheets/d/1w4lnuf9RxwKZaPHgJJ6QoRwgihgDF7WNc1W61PGWvn4/edit"
+DEFAULT_DISPATCH_SHEET_NAME = "【発送確認用】依頼書"
+DISPATCH_SHEET_FULL_COLUMN_RANGE = "A2:U"       # ヘッダー除く全列（絞り込んだ行範囲に対して使う）
+DISPATCH_SHEET_KEY_COLUMN_RANGE = "A2:B"        # 事前スキャン用：N番号・依頼日の2列だけ（軽量）
+DISPATCH_SHEET_RECENT_DAYS = 30                 # この日数より古い依頼日の行は取得しない
+
+SPREADSHEET_ID_PATTERN = re.compile(r"/d/([a-zA-Z0-9_-]+)")
+
+
+def _parse_sheet_date(value: str):
+    if not value:
+        return None
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value.strip(), fmt)
+        except (ValueError, AttributeError):
+            continue
+    return None
+
+
+def _extract_spreadsheet_id(url: str):
+    if not url:
+        return None
+    match = SPREADSHEET_ID_PATTERN.search(url)
+    return match.group(1) if match else url.strip()  # IDそのものを貼られた場合もそのまま使う
+
+
+# --- ▼ SECTION 00: 依頼書シート設定の取得・保存 ▼ ---
+def get_dispatch_sheet_settings(user_id: int) -> dict:
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT spreadsheet_url, sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    return {
+        "spreadsheet_url": (row["spreadsheet_url"] if row and row.get("spreadsheet_url") else DEFAULT_DISPATCH_SHEET_URL),
+        "sheet_name": (row["sheet_name"] if row and row.get("sheet_name") else DEFAULT_DISPATCH_SHEET_NAME),
+    }
+
+
+def save_dispatch_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name: str):
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+
+    cur.execute("""
+        INSERT INTO orbit_dispatch_sheet_settings (user_id, spreadsheet_url, sheet_name, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (user_id) DO UPDATE SET
+            spreadsheet_url = EXCLUDED.spreadsheet_url,
+            sheet_name = EXCLUDED.sheet_name,
+            updated_at = EXCLUDED.updated_at
+    """, (user_id, spreadsheet_url, sheet_name, now, now))
+
+    conn.commit()
+    conn.close()
+
+
+# --- ▼ SECTION 01: 認可URL生成 ▼ ---
+def build_authorization_url() -> str:
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": SHEETS_SCOPE,
+        "access_type": "offline",   # refresh_tokenを取得するために必須
+        "prompt": "consent",        # 毎回同意画面を出してrefresh_tokenを確実に取得
+    }
+    query = "&".join(f"{k}={requests.utils.quote(v)}" for k, v in params.items())
+    return f"{GOOGLE_AUTH_ENDPOINT}?{query}"
+
+
+# --- ▼ SECTION 02: 認可コード → トークン交換 ▼ ---
+def exchange_code_for_tokens(code: str) -> dict:
+    resp = requests.post(GOOGLE_TOKEN_ENDPOINT, data={
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    })
+    resp.raise_for_status()
+    return resp.json()
+
+
+# --- ▼ SECTION 03: トークン保存（refresh_tokenは初回のみ返るので、無ければ既存を保持） ▼ ---
+def save_tokens(user_id: int, token_data: dict):
+    conn = get_conn("a_google_oauth_tokens.db")
+    cur = conn.cursor()
+    now = datetime.utcnow()
+    expires_at = (now + timedelta(seconds=token_data.get("expires_in", 3600))).isoformat()
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
+
+    if refresh_token:
+        cur.execute("""
+            INSERT INTO google_oauth_tokens (user_id, access_token, refresh_token, expires_at, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                access_token = EXCLUDED.access_token,
+                refresh_token = EXCLUDED.refresh_token,
+                expires_at = EXCLUDED.expires_at,
+                updated_at = EXCLUDED.updated_at
+        """, (user_id, access_token, refresh_token, expires_at, now.isoformat(), now.isoformat()))
+    else:
+        # refresh_tokenが返らなかった場合（再認可等）は既存のrefresh_tokenを保持
+        cur.execute("""
+            UPDATE google_oauth_tokens
+            SET access_token = %s, expires_at = %s, updated_at = %s
+            WHERE user_id = %s
+        """, (access_token, expires_at, now.isoformat(), user_id))
+
+    conn.commit()
+    conn.close()
+
+
+# --- ▼ SECTION 04: 有効なaccess_tokenの取得（期限切れなら自動更新） ▼ ---
+def get_valid_access_token(user_id: int):
+    conn = get_conn("a_google_oauth_tokens.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT access_token, refresh_token, expires_at FROM google_oauth_tokens WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row or not row.get("refresh_token"):
+        return None
+
+    expires_at = row.get("expires_at")
+    if expires_at:
+        try:
+            still_valid = datetime.fromisoformat(expires_at) > datetime.utcnow() + timedelta(seconds=60)
+        except ValueError:
+            still_valid = False
+    else:
+        still_valid = False
+
+    if still_valid:
+        return row["access_token"]
+
+    # --- 期限切れ：refresh_tokenで再取得 ---
+    resp = requests.post(GOOGLE_TOKEN_ENDPOINT, data={
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "refresh_token": row["refresh_token"],
+        "grant_type": "refresh_token",
+    })
+    resp.raise_for_status()
+    token_data = resp.json()
+    save_tokens(user_id, token_data)
+    return token_data.get("access_token")
+
+
+# --- ▼ SECTION 05: 接続状態の確認 ▼ ---
+def is_connected(user_id: int) -> bool:
+    conn = get_conn("a_google_oauth_tokens.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT refresh_token FROM google_oauth_tokens WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return bool(row and row.get("refresh_token"))
+
+
+# --- ▼ SECTION 06: シート範囲の取得（IMPORTRANGEと同じ発想） ▼ ---
+def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str) -> list:
+    access_token = get_valid_access_token(user_id)
+    if not access_token:
+        raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
+
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{requests.utils.quote(sheet_range)}"
+    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
+    resp.raise_for_status()
+    return resp.json().get("values", [])
+
+
+# --- ▼ SECTION 07: 依頼書シートの直近分取得 ▼ ---
+# シート全体（数千行）を毎回取得すると重いため、まずA・B列（N番号・依頼日）だけを軽量取得して
+# 「直近30日以内の依頼日が始まる行」を特定し、そこから末尾までだけを全列で取得する。
+# 通常30日あれば発送〜到着まで完了しているはず、という前提。
+def _fetch_recent_dispatch_rows(user_id: int, spreadsheet_id: str, sheet_name: str, days: int = DISPATCH_SHEET_RECENT_DAYS) -> dict:
+    header_rows = fetch_sheet_range(user_id, spreadsheet_id, f"{sheet_name}!A1:U1")
+    header = header_rows[0] if header_rows else []
+
+    key_rows = fetch_sheet_range(user_id, spreadsheet_id, f"{sheet_name}!{DISPATCH_SHEET_KEY_COLUMN_RANGE}")
+    if not key_rows:
+        return {"header": header, "rows": []}
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    start_index = len(key_rows)  # 見つからなければ「該当なし」
+
+    for i, row in enumerate(key_rows):
+        date_str = row[1] if len(row) > 1 else None
+        parsed = _parse_sheet_date(date_str)
+        if parsed and parsed >= cutoff:
+            start_index = i
+            break
+
+    if start_index >= len(key_rows):
+        return {"header": header, "rows": []}
+
+    start_row_number = start_index + 2  # key_rows[0] はシートの2行目に対応
+    data_rows = fetch_sheet_range(user_id, spreadsheet_id, f"{sheet_name}!A{start_row_number}:U")
+
+    # 末尾には「N番号だけ自動採番済みで依頼日(B列)が未入力」の空行が含まれることがあるため除外する
+    data_rows = [row for row in data_rows if len(row) > 1 and row[1]]
+
+    return {"header": header, "rows": data_rows}
+
+
+def fetch_dispatch_sheet_preview(user_id: int) -> dict:
+    settings = get_dispatch_sheet_settings(user_id)
+    spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
+    return _fetch_recent_dispatch_rows(user_id, spreadsheet_id, settings["sheet_name"])

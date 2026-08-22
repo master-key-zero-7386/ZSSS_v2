@@ -3,7 +3,7 @@
 # 目的: ORBIT（注文管理）Blueprint
 # ==========================================
 
-from flask import Blueprint, request, jsonify, session, Response
+from flask import Blueprint, request, jsonify, session, Response, redirect
 
 from amazon.services.orbit_order_service import (
     parse_order_report,
@@ -12,7 +12,16 @@ from amazon.services.orbit_order_service import (
     update_manual_fields,
     set_agent_serial_no,
     export_notify_csv,
+    sync_dispatch_sheet_status,
     MANUAL_FIELDS,
+)
+from amazon.services.google_sheets_service import (
+    build_authorization_url,
+    exchange_code_for_tokens,
+    save_tokens,
+    is_connected,
+    get_dispatch_sheet_settings,
+    save_dispatch_sheet_settings,
 )
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
@@ -115,3 +124,86 @@ def export_orders():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=orbit_export.csv"},
     )
+
+
+# --- ▼ SECTION 05: Google OAuth連携（依頼書シート読み戻し用） ▼ ---
+@orbit_bp.route("/google_oauth/status", methods=["GET"])
+def google_oauth_status():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    return jsonify({"status": "success", "connected": is_connected(user_id)})
+
+
+@orbit_bp.route("/google_oauth/start", methods=["GET"])
+def google_oauth_start():
+    if not session.get("user_id"):
+        return jsonify({"status": "error"}), 401
+
+    return redirect(build_authorization_url())
+
+
+@orbit_bp.route("/google_oauth/callback", methods=["GET"])
+def google_oauth_callback():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    error = request.args.get("error")
+    if error:
+        return f"Google連携に失敗しました: {error}", 400
+
+    code = request.args.get("code")
+    if not code:
+        return "認可コードがありません", 400
+
+    token_data = exchange_code_for_tokens(code)
+    save_tokens(user_id, token_data)
+
+    return redirect("/amazon/#orbit")
+
+
+
+
+# --- ▼ SECTION 08: 依頼書スプレッドシート設定（URLが変わっても画面から変更可能に） ▼ ---
+@orbit_bp.route("/dispatch_sheet_settings", methods=["GET"])
+def get_dispatch_sheet_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    settings = get_dispatch_sheet_settings(user_id)
+    return jsonify({"status": "success", **settings})
+
+
+@orbit_bp.route("/dispatch_sheet_settings", methods=["POST"])
+def save_dispatch_sheet_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    spreadsheet_url = (data.get("spreadsheet_url") or "").strip()
+    sheet_name = (data.get("sheet_name") or "").strip()
+
+    if not spreadsheet_url or not sheet_name:
+        return jsonify({"status": "error", "message": "スプレッドシートURLとシート名の両方が必要です"}), 400
+
+    save_dispatch_sheet_settings(user_id, spreadsheet_url, sheet_name)
+    return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 09: 代行会社シートの読み戻し（N番号で突き合わせてorbit_ordersに反映） ▼ ---
+@orbit_bp.route("/dispatch_sheet_sync", methods=["POST"])
+def dispatch_sheet_sync():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = sync_dispatch_sheet_status(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})

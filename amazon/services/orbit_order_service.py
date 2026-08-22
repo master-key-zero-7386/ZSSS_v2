@@ -10,6 +10,7 @@ from datetime import datetime
 
 from amazon.db import get_conn
 from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate
+from amazon.services.google_sheets_service import fetch_dispatch_sheet_preview
 
 # SKUに埋め込まれたASIN（10桁英数字）を抽出するフォールバック用
 # 例: "Z_CA_B0GP95SH1F_20260511_NEW001" / "NEW_S_AU_B013S7YU3Y_20240512"
@@ -362,3 +363,81 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
         conn.close()
 
     return output.getvalue()
+
+
+# --- ▼ SECTION 08: 代行会社シートからの読み戻し（N番号でorbit_ordersと突き合わせる） ▼ ---
+# 依頼書シートの列位置（0始まり）。A=SLCN管理No(0), B=依頼日(1), ... U=配送エリア(20)。
+DISPATCH_COLUMN_INDEX = {
+    "agent_tracking_number": 6,         # G列
+    "agent_thankyou_letter": 9,         # J列
+    "agent_option_content": 10,         # K列
+    "agent_option_fee": 11,             # L列
+    "agent_non_deliverable_weight": 12, # M列
+    "agent_shipping_weight": 13,        # N列
+    "agent_weight_recorded_date": 14,   # O列（日付が入れば出荷済み）
+    "agent_confirmed_weight": 15,       # P列
+    "agent_deadline": 16,               # Q列
+    "agent_status": 17,                 # R列
+    "agent_shipping_fee": 18,           # S列
+    "agent_shipping_fee_total": 19,     # T列
+    "agent_delivery_area": 20,          # U列
+}
+
+
+def _parse_agent_serial_no(value):
+    if not value:
+        return None
+    digits = re.sub(r"[^0-9]", "", str(value))
+    return int(digits) if digits else None
+
+
+def sync_dispatch_sheet_status(user_id: int) -> dict:
+    preview = fetch_dispatch_sheet_preview(user_id)
+    sheet_rows = preview.get("rows", [])
+
+    sheet_by_serial = {}
+    for row in sheet_rows:
+        serial = _parse_agent_serial_no(row[0] if row else None)
+        if serial is not None:
+            sheet_by_serial[serial] = row
+
+    if not sheet_by_serial:
+        return {"matched": 0, "updated": 0}
+
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT order_item_id, agent_serial_no FROM orbit_orders WHERE user_id = %s AND agent_serial_no IS NOT NULL",
+        (user_id,),
+    )
+    orbit_rows = cur.fetchall()
+
+    now = datetime.utcnow().isoformat()
+    matched = 0
+
+    for orbit_row in orbit_rows:
+        sheet_row = sheet_by_serial.get(orbit_row["agent_serial_no"])
+        if not sheet_row:
+            continue
+
+        matched += 1
+
+        set_parts = []
+        values = []
+        for field, idx in DISPATCH_COLUMN_INDEX.items():
+            set_parts.append(f"{field} = %s")
+            values.append(sheet_row[idx] if len(sheet_row) > idx and sheet_row[idx] else None)
+
+        set_parts.append("agent_synced_at = %s")
+        set_parts.append("updated_at = %s")
+        values.extend([now, now, user_id, orbit_row["order_item_id"]])
+
+        cur.execute(
+            f"UPDATE orbit_orders SET {', '.join(set_parts)} WHERE user_id = %s AND order_item_id = %s",
+            values,
+        )
+
+    conn.commit()
+    conn.close()
+
+    return {"matched": matched, "updated": matched}

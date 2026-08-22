@@ -579,6 +579,43 @@ ORBIT_ORDERS_COLUMNS = {
     # --- 発送代行への通知状況 ---
     "notified_at": "TEXT",
 
+    # --- 発送代行会社からの読み戻し（依頼書シートJ〜U列・緑項目。Google Sheets API経由で取込） ---
+    "agent_tracking_number": "TEXT",       # G列 海外向けトラッキング
+    "agent_thankyou_letter": "TEXT",       # J列 サンクスレター内容
+    "agent_option_content": "TEXT",        # K列 オプション内容
+    "agent_option_fee": "TEXT",            # L列 オプション料計
+    "agent_non_deliverable_weight": "TEXT",# M列 配送不可重量
+    "agent_shipping_weight": "TEXT",       # N列 発送重量
+    "agent_weight_recorded_date": "TEXT",  # O列 発送重量記入日（日付が入れば出荷済み）
+    "agent_confirmed_weight": "TEXT",      # P列 確定重量
+    "agent_deadline": "TEXT",              # Q列 期限
+    "agent_status": "TEXT",                # R列 状況
+    "agent_shipping_fee": "TEXT",          # S列 送料
+    "agent_shipping_fee_total": "TEXT",    # T列 送料合計
+    "agent_delivery_area": "TEXT",         # U列 配送エリア
+    "agent_synced_at": "TEXT",             # 最終取込日時
+
+    "created_at": "TEXT",
+    "updated_at": "TEXT",
+}
+
+# --- ▼ SECTION : Google OAuthトークン（ORBIT: 発送代行会社シートの読み戻し用） ---
+GOOGLE_OAUTH_TOKENS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "access_token": "TEXT",
+    "refresh_token": "TEXT",
+    "expires_at": "TEXT",          # access_tokenの有効期限（ISO日時）
+    "created_at": "TEXT",
+    "updated_at": "TEXT",
+}
+
+# --- ▼ SECTION : 依頼書スプレッドシート設定（ORBIT: URLが変わっても画面から変更できるように） ---
+ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "spreadsheet_url": "TEXT",     # 依頼書スプレッドシートのURL（ブラウザからそのまま貼り付け）
+    "sheet_name": "TEXT",          # シート名（例: 【発送確認用】依頼書）
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }
@@ -703,6 +740,10 @@ def migrate_db(db_name):
         migrate_table(conn, "lethal_weapon_preset", LETHAL_WEAPON_PRESET_COLUMNS)
     elif base.endswith("_orbit_orders.db"):
         migrate_table(conn, "orbit_orders", ORBIT_ORDERS_COLUMNS)
+    elif base.endswith("_google_oauth_tokens.db"):
+        migrate_table(conn, "google_oauth_tokens", GOOGLE_OAUTH_TOKENS_COLUMNS)
+    elif base.endswith("_orbit_dispatch_sheet_settings.db"):
+        migrate_table(conn, "orbit_dispatch_sheet_settings", ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS)
 
 
     conn.close()
@@ -835,6 +876,26 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_orders_sku "
         "ON orbit_orders(user_id, sku)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_google_oauth_tokens.db ---
+    conn = get_conn("a_google_oauth_tokens.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_google_oauth_tokens_unique "
+        "ON google_oauth_tokens(user_id)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_dispatch_sheet_settings.db ---
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_dispatch_sheet_settings_unique "
+        "ON orbit_dispatch_sheet_settings(user_id)"
     )
     conn.commit()
     conn.close()
@@ -1094,6 +1155,8 @@ def main():
         "a_api_429_events.db",
         "a_carrier_remote_area.db",
         "a_orbit_orders.db",
+        "a_google_oauth_tokens.db",
+        "a_orbit_dispatch_sheet_settings.db",
     ]
 
     # 固定DB migrate
