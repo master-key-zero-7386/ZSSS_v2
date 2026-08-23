@@ -558,10 +558,35 @@ ORBIT_ORDERS_COLUMNS = {
     "signature_confirmation_recommended": "TEXT",
     "buyer_identification_number": "TEXT",
     "buyer_identification_type": "TEXT",
+    "order_currency": "TEXT",              # 注文レポートのcurrency列（決済通貨。マーケットにより変動）
+    "item_price": "REAL",                  # 注文レポートのitem-price列（販売価格。出荷前でも取得可能）
+    "shipping_price": "REAL",              # 注文レポートのshipping-price列（買い手負担送料）
 
     # --- ORBIT側で手入力（再インポートで上書きされない） ---
     "jan_code": "TEXT",
     "purchase_price": "REAL",              # 仕入れ価格
+
+    # --- 出荷前の概算利益用（SP-API手数料見積り。取得ボタンで都度キャッシュ） ---
+    "fee_estimate_amount": "REAL",
+    "fee_estimate_currency": "TEXT",
+    "fee_estimate_fetched_at": "TEXT",
+
+    # --- 発送代行会社シートへの貼り付け前チェック用の手修正（再インポートで上書きされない）。
+    #     セットされていればAmazon注文レポート由来の値より優先して表示・CSV出力する。 ---
+    "product_name_override": "TEXT",       # 70字制限・パイプ文字"|"禁止のため手修正（自動修正はしない）
+    "recipient_name_override": "TEXT",     # DHL/Fedex用のフルネーム化（自動修正はしない）
+    "ship_address_1_override": "TEXT",     # 40字制限の振り分け調整（自動修正はしない）
+    "ship_address_2_override": "TEXT",
+    "ship_address_3_override": "TEXT",
+    "buyer_phone_number_override": "TEXT", # 国番号自動除去で直り切らない場合の手修正
+    "buyer_phone_extension_override": "TEXT", # 内線番号(US "ext. 12345"表記)自動分離で直り切らない場合の手修正
+    "ship_state_override": "TEXT",         # 州の正式表記自動変換で直り切らない場合の手修正
+
+    # --- 寸法・重量の手入力（listed_items・catalog_cache 両方に無い場合の最終手段） ---
+    "manual_length_cm": "REAL",
+    "manual_width_cm": "REAL",
+    "manual_height_cm": "REAL",
+    "manual_weight_kg": "REAL",
 
     # --- 発送代行会社とのやり取り用（手入力） ---
     "agent_serial_no": "INTEGER",          # 代行会社の管理連番（Nから始まる連番。先頭行だけ入力すれば以降は自動採番）
@@ -574,6 +599,7 @@ ORBIT_ORDERS_COLUMNS = {
     "supplier": "TEXT",                    # 仕入先（Amazon/楽天/Yahoo!など）
     "supplier_order_number": "TEXT",       # 仕入先での注文番号
     "supplier_shop_name": "TEXT",          # モール内のショップ名（楽天/Yahoo!等）
+    "procurement_date": "TEXT",            # 仕入日（実際に仕入先へ発注した日）
     "arrival_date": "TEXT",                # 到着予定日
 
     # --- 発送代行への通知状況 ---
@@ -597,6 +623,27 @@ ORBIT_ORDERS_COLUMNS = {
 
     "created_at": "TEXT",
     "updated_at": "TEXT",
+}
+
+# --- ▼ SECTION : 決済トランザクション明細（ORBIT: 実利益計算用。セラーセントラル「支払い」→
+#     「トランザクション」画面からのCSVダウンロード。1行=1注文の集計済みデータで、
+#     「合計」列に既にAmazon手数料等を差し引いた後の入金額が入っている） ---
+# 返金・後日調整などで同じorder-idに複数回データが来ても、上書きせず全部残せば読み取り時のSUMで
+# 正しく合算できるようにする。
+ORBIT_SETTLEMENT_LINES_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "order_id": "TEXT NOT NULL",
+    "transaction_date": "TEXT",         # 日付
+    "transaction_status": "TEXT",       # トランザクションステータス（留保中／支払い実行済み等）
+    "transaction_type": "TEXT",         # トランザクションの種類
+    "product_price": "REAL",            # 商品価格合計
+    "promotion_discount": "REAL",       # プロモーション割引合計
+    "amazon_fee": "REAL",               # Amazon手数料
+    "other_amount": "REAL",             # その他
+    "total_amount": "REAL",             # 合計（＝入金額。手数料等差引後）
+    "currency": "TEXT",                 # 「合計 (CAD)」等ヘッダーから取得
+    "imported_at": "TEXT",
 }
 
 # --- ▼ SECTION : Google OAuthトークン（ORBIT: 発送代行会社シートの読み戻し用） ---
@@ -740,6 +787,8 @@ def migrate_db(db_name):
         migrate_table(conn, "lethal_weapon_preset", LETHAL_WEAPON_PRESET_COLUMNS)
     elif base.endswith("_orbit_orders.db"):
         migrate_table(conn, "orbit_orders", ORBIT_ORDERS_COLUMNS)
+    elif base.endswith("_orbit_settlement_lines.db"):
+        migrate_table(conn, "orbit_settlement_lines", ORBIT_SETTLEMENT_LINES_COLUMNS)
     elif base.endswith("_google_oauth_tokens.db"):
         migrate_table(conn, "google_oauth_tokens", GOOGLE_OAUTH_TOKENS_COLUMNS)
     elif base.endswith("_orbit_dispatch_sheet_settings.db"):
@@ -876,6 +925,20 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_orders_sku "
         "ON orbit_orders(user_id, sku)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_settlement_lines.db ---
+    conn = get_conn("a_orbit_settlement_lines.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_settlement_lines_unique "
+        "ON orbit_settlement_lines(user_id, order_id, transaction_date, total_amount)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_settlement_lines_order "
+        "ON orbit_settlement_lines(user_id, order_id)"
     )
     conn.commit()
     conn.close()
@@ -1155,6 +1218,7 @@ def main():
         "a_api_429_events.db",
         "a_carrier_remote_area.db",
         "a_orbit_orders.db",
+        "a_orbit_settlement_lines.db",
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
     ]

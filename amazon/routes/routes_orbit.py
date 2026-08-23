@@ -10,10 +10,19 @@ from amazon.services.orbit_order_service import (
     upsert_orders,
     list_orders_with_calc,
     update_manual_fields,
+    delete_order,
+    delete_all_orders,
+    fetch_and_cache_catalog_for_asin,
+    fetch_and_cache_fee_estimate,
     set_agent_serial_no,
     export_notify_csv,
     sync_dispatch_sheet_status,
     MANUAL_FIELDS,
+    NUMERIC_MANUAL_FIELDS,
+)
+from amazon.services.orbit_settlement_service import (
+    parse_settlement_report,
+    import_settlement_lines,
 )
 from amazon.services.google_sheets_service import (
     build_authorization_url,
@@ -50,6 +59,29 @@ def import_orders():
     return jsonify({"status": "success", "imported": count})
 
 
+# --- ▼ SECTION 01-2: 決済レポート(Settlement Report)インポート（実利益算定用） ▼ ---
+@orbit_bp.route("/settlements/import", methods=["POST"])
+def import_settlements():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"status": "error", "message": "ファイルがありません"}), 400
+
+    text = file.read().decode("utf-8-sig", errors="replace")
+
+    try:
+        rows = parse_settlement_report(text)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"CSV解析に失敗しました: {e}"}), 400
+
+    count = import_settlement_lines(user_id, rows)
+
+    return jsonify({"status": "success", "imported": count})
+
+
 # --- ▼ SECTION 02: 注文一覧取得（サイズ・重量・予測送料つき） ▼ ---
 @orbit_bp.route("/orders", methods=["GET"])
 def get_orders():
@@ -78,13 +110,83 @@ def update_order():
         if key not in data:
             continue
         value = data.get(key)
-        if key == "purchase_price":
+        if key in NUMERIC_MANUAL_FIELDS:
             value = float(value) if value not in (None, "") else None
         fields[key] = value
 
     update_manual_fields(user_id, order_item_id, fields)
 
     return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 03-1: 注文の削除（行ごと／全件リセット） ▼ ---
+@orbit_bp.route("/orders/delete", methods=["POST"])
+def delete_order_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_id = data.get("order_item_id")
+    if not order_item_id:
+        return jsonify({"status": "error"}), 400
+
+    deleted = delete_order(user_id, order_item_id)
+    return jsonify({"status": "success", "deleted": deleted})
+
+
+@orbit_bp.route("/orders/delete_all", methods=["POST"])
+def delete_all_orders_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    if data.get("confirm") != "DELETE":
+        return jsonify({"status": "error", "message": "確認コードが一致しません"}), 400
+
+    deleted = delete_all_orders(user_id)
+    return jsonify({"status": "success", "deleted": deleted})
+
+
+# --- ▼ SECTION 03-1b: 寸法・重量が無いASINをその場でHOME APIから取得 ▼ ---
+@orbit_bp.route("/orders/fetch_catalog", methods=["POST"])
+def fetch_catalog_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    asin = data.get("asin")
+    if not asin:
+        return jsonify({"status": "error", "message": "ASINが必要です"}), 400
+
+    try:
+        dims = fetch_and_cache_catalog_for_asin(user_id, asin)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **dims})
+
+
+# --- ▼ SECTION 03-1c: 出荷前の概算利益用（SP-API手数料見積りをその場で取得） ▼ ---
+@orbit_bp.route("/orders/fetch_fee_estimate", methods=["POST"])
+def fetch_fee_estimate_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_id = data.get("order_item_id")
+    if not order_item_id:
+        return jsonify({"status": "error", "message": "order_item_idが必要です"}), 400
+
+    try:
+        estimate = fetch_and_cache_fee_estimate(user_id, order_item_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **estimate})
 
 
 # --- ▼ SECTION 03-2: 代行会社連番の設定（先頭を入れると以降は自動連番） ▼ ---
@@ -106,7 +208,11 @@ def set_serial():
     except (TypeError, ValueError):
         return jsonify({"status": "error", "message": "開始番号は数値で入力してください"}), 400
 
-    count = set_agent_serial_no(user_id, order_item_id, start_value)
+    ordered_ids = data.get("ordered_ids")
+    if ordered_ids is not None and not isinstance(ordered_ids, list):
+        ordered_ids = None
+
+    count = set_agent_serial_no(user_id, order_item_id, start_value, ordered_ids=ordered_ids)
     return jsonify({"status": "success", "updated": count})
 
 

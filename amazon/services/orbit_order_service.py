@@ -5,12 +5,17 @@
 
 import csv
 import io
+import json
+import math
 import re
 from datetime import datetime
 
 from amazon.db import get_conn
-from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate
+from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule
+from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import fetch_dispatch_sheet_preview
+from amazon.services.orbit_settlement_service import get_order_settlement_summary
+from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 
 # SKUに埋め込まれたASIN（10桁英数字）を抽出するフォールバック用
 # 例: "Z_CA_B0GP95SH1F_20260511_NEW001" / "NEW_S_AU_B013S7YU3Y_20240512"
@@ -26,6 +31,132 @@ def _extract_asin_from_sku(sku):
         if ASIN_IN_SKU_PATTERN.match(part):
             return part
     return None
+
+
+# --- ▼ SECTION 01-1: 発送代行会社への貼り付け前チェック（発注管理画面）用の補正・判定 ▼ ---
+# 代行会社シートへの貼り付け時に手作業で直していた項目を自動判定・自動補正する。
+# 電話番号の国番号除去・州の正式表記化は貼り付け用CSV出力にもそのまま反映する（代行会社側の制約のため）。
+# それ以外（商品名・宛名・住所）は自動修正できないため、画面上でハイライトして人の目でのチェックを促す。
+PHONE_COUNTRY_CODE_PATTERN = re.compile(r"^\+\d{1,3}[\s-]*")
+
+
+def _clean_phone_number(value):
+    if not value:
+        return value
+    return PHONE_COUNTRY_CODE_PATTERN.sub("", value).strip()
+
+
+# US注文で稀に "602-671-6610 ext. 52861" のように内線番号が付いてくるため、
+# 代行会社シートでは電話番号本体と内線番号を別セルに分けて渡す。
+PHONE_EXTENSION_PATTERN = re.compile(r"\s*ext\.?\s*(\d+)\s*$", re.IGNORECASE)
+
+
+def _split_phone_extension(value):
+    if not value:
+        return value, None
+    m = PHONE_EXTENSION_PATTERN.search(value)
+    if not m:
+        return value, None
+    return value[:m.start()].strip(), m.group(1)
+
+
+# 代行会社シートの寸法・重量欄（AV〜AY）向けの丸めルール。
+# 寸法: 10cm未満は10cmに、10cm以上は5cm単位で切り上げる。
+# 重量: 丸めた寸法から出す容積重量と実重量の大きい方を、整数kgに切り上げる（最低1kg）。
+AGENT_VOLUMETRIC_DIVISOR = 5000
+
+
+def _agent_round_dim_cm(cm):
+    if not cm:
+        return None
+    if cm < 10:
+        return 10.0
+    return math.ceil(cm / 5) * 5.0
+
+
+def _agent_estimated_shipping_weight_kg(length_cm, width_cm, height_cm, actual_weight_kg):
+    if not (length_cm and width_cm and height_cm):
+        return None
+    volumetric_weight_kg = (length_cm * width_cm * height_cm) / AGENT_VOLUMETRIC_DIVISOR
+    heaviest = max(actual_weight_kg or 0, volumetric_weight_kg)
+    return math.ceil(heaviest) if heaviest > 0 else None
+
+
+# USPS州略称 → 正式名称（代行会社シートは略称ではなく正式表記が必要）
+US_STATE_NAMES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
+    "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
+    "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
+    "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+    "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+    "DC": "District of Columbia", "PR": "Puerto Rico", "VI": "Virgin Islands", "GU": "Guam",
+    "AS": "American Samoa", "MP": "Northern Mariana Islands",
+}
+
+
+def _expand_us_state(state, country):
+    if not state or (country or "").strip().upper() != "US":
+        return state
+    return US_STATE_NAMES.get(state.strip().upper(), state)
+
+
+def _effective(value, override):
+    return override if override not in (None, "") else value
+
+
+# 手修正が必要な項目（商品名・宛名・住所1〜3）は、Amazon注文レポートの再取込で
+# 元の値に上書きされないよう別カラム(*_override)に保存し、あれば優先して使う。
+OVERRIDE_FIELD_MAP = {
+    "product_name": "product_name_override",
+    "recipient_name": "recipient_name_override",
+    "ship_address_1": "ship_address_1_override",
+    "ship_address_2": "ship_address_2_override",
+    "ship_address_3": "ship_address_3_override",
+}
+
+
+def _apply_dispatch_checks(row):
+    # 商品名・宛名・住所1〜3：自動修正は一切行わない。人が入力したoverrideがあればそれを表示・出力する。
+    for base_field, override_field in OVERRIDE_FIELD_MAP.items():
+        row[f"{base_field}_effective"] = _effective(row.get(base_field), row.get(override_field))
+
+    # 電話番号・州：自動修正してよいのはこの2項目のみ。自動修正結果もoverrideがあればそちらを優先する
+    # （自動判定で直し切れなかった場合や、誤りに手で気付いた場合に上書きできるように）。
+    phone_auto = _clean_phone_number(row.get("buyer_phone_number"))
+    phone_auto, extension_auto = _split_phone_extension(phone_auto)
+    row["buyer_phone_number_effective"] = _effective(phone_auto, row.get("buyer_phone_number_override"))
+    row["buyer_phone_extension_effective"] = _effective(extension_auto, row.get("buyer_phone_extension_override"))
+
+    state_auto = _expand_us_state(row.get("ship_state"), row.get("ship_country"))
+    row["ship_state_effective"] = _effective(state_auto, row.get("ship_state_override"))
+
+    product_name = row.get("product_name_effective") or ""
+    recipient_name = (row.get("recipient_name_effective") or "").strip()
+    address_1 = row.get("ship_address_1_effective") or ""
+    address_2 = row.get("ship_address_2_effective") or ""
+    address_3 = row.get("ship_address_3_effective") or ""
+    phone_effective = row.get("buyer_phone_number_effective") or ""
+    state_effective = (row.get("ship_state_effective") or "").strip()
+
+    # ハイライトは「まだ条件を満たしていないか」で判定する。修正（自動 or 手動）が済んで
+    # 条件を満たせば、次の表示更新時に自動でハイライトが消える。
+    row["flag_phone_country_code"] = bool(PHONE_COUNTRY_CODE_PATTERN.match(phone_effective))
+    row["flag_product_name"] = bool(product_name) and (len(product_name) > 70 or "|" in product_name)
+    row["flag_recipient_name"] = bool(recipient_name) and (" " not in recipient_name and "　" not in recipient_name)
+    row["flag_address1_length"] = len(address_1) > 40
+    row["flag_address2_length"] = len(address_2) > 40
+    row["flag_address3_length"] = len(address_3) > 40
+    row["flag_state_expanded"] = (
+        (row.get("ship_country") or "").strip().upper() == "US"
+        and len(state_effective) == 2
+        and state_effective.isalpha()
+    )
+    row["flag_postal_code_missing"] = not row.get("ship_postal_code")
 
 # --- ▼ SECTION 01: Amazon注文レポート列 → DB列 対応表 ▼ ---
 COLUMN_MAP = {
@@ -62,19 +193,31 @@ COLUMN_MAP = {
     "signature-confirmation-recommended": "signature_confirmation_recommended",
     "buyer-identification-number": "buyer_identification_number",
     "buyer-identification-type": "buyer_identification_type",
+    # 出荷前でも取れる販売価格系（拡張版の注文レポートにのみ入っている場合がある。無ければ空欄のまま）
+    "currency": "order_currency",
+    "item-price": "item_price",
+    "shipping-price": "shipping_price",
 }
 
 IMPORT_COLUMNS = list(dict.fromkeys(COLUMN_MAP.values()))
 INTEGER_FIELDS = {"quantity_purchased", "quantity_shipped", "quantity_to_ship"}
+FLOAT_FIELDS = {"item_price", "shipping_price"}
+
+# Amazonの注文レポートは通貨コードにISO 4217と異なる独自表記を使うことがある
+# （例: カナダドルが"CDN"。fx_ratesテーブルはISOコード("CAD"等)で管理しているため変換する）。
+CURRENCY_ALIASES = {"CDN": "CAD"}
 
 # 発送代行会社「依頼書」シートの実列順に合わせる（貼り付けでズレないように）
 # 左：依頼書シートと同じ並び（手入力）／中：ZSSS算定・その他ORBIT列（依頼書シートには無い）／右：セラーセントラルCSV由来（元の並びのまま）
+# 末尾：依頼書シートAT〜AY列（配送先電話番号・内線・想定発送重量・寸法。ship-countryのさらに右）
 EXPORT_COLUMNS = (
     ["agent_serial_no", "request_date", "jan_code", "shipping_type",
      "quantity_purchased", "tracking_number", "purchase_price", "remarks"]
     + ["asin", "length_cm", "width_cm", "height_cm",
        "billable_weight_kg", "predicted_shipping_fee", "notified_at"]
     + IMPORT_COLUMNS
+    + ["buyer_phone_number_effective", "buyer_phone_extension_effective",
+       "agent_shipping_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"]
 )
 
 
@@ -107,6 +250,15 @@ def parse_order_report(text: str) -> list:
                 except ValueError:
                     value = None
 
+            if dst_col in FLOAT_FIELDS and value is not None:
+                try:
+                    value = float(value)
+                except ValueError:
+                    value = None
+
+            if dst_col == "order_currency" and value is not None:
+                value = CURRENCY_ALIASES.get(value.upper(), value.upper())
+
             row[dst_col] = value
 
         if row.get("order_item_id"):
@@ -116,6 +268,11 @@ def parse_order_report(text: str) -> list:
 
 
 # --- ▼ SECTION 03: 取込（UPSERT・手入力列は上書きしない） ▼ ---
+# Amazon注文レポートは、購入からある程度日数が経つと買い手の電話番号などのPII列が
+# 空欄で返ってくることがある。空欄での再取込で既存の正常値を消してしまわないよう、
+# 新しい値がある列だけ更新し、空欄で来た列は既存値を残す（COALESCE）。
+# 行ごと削除してからの再取込は新規INSERTになりこの保護の対象外になるため、
+# 意図的な「削除して取り込み直す」リセット操作は従来どおり新しいレポートの内容で確定する。
 def upsert_orders(user_id: int, rows: list) -> int:
     if not rows:
         return 0
@@ -129,7 +286,7 @@ def upsert_orders(user_id: int, rows: list) -> int:
 
     col_list = ", ".join(insert_cols)
     placeholders = ", ".join(["%s"] * len(insert_cols))
-    update_clause = ", ".join([f"{c}=EXCLUDED.{c}" for c in update_cols])
+    update_clause = ", ".join([f"{c}=COALESCE(EXCLUDED.{c}, orbit_orders.{c})" for c in update_cols])
 
     sql = f"""
         INSERT INTO orbit_orders ({col_list})
@@ -197,6 +354,306 @@ def _resolve_row_marketplace_id(order_id: str, prefix_map: dict):
     return prefix_map.get(order_id[0])
 
 
+def _load_marketplace_country_map() -> dict:
+    conn = get_conn("a_marketplaces_master.db")
+    cur = conn.cursor()
+    cur.execute("SELECT marketplace_id, country_code FROM marketplaces_master WHERE marketplace_id IS NOT NULL")
+    rows = cur.fetchall()
+    conn.close()
+    return {r["marketplace_id"]: r["country_code"] for r in rows}
+
+
+# --- ▼ SECTION 04-2b: 実利益算定（決済レポートの入金額 − 仕入価格 − 送料） ▼ ---
+# 送料は「代行会社確定値(agent_shipping_fee_total)」を最優先で使う。発送完了前でまだ確定値が無い間は、
+# ZSSSの予測送料(predicted_shipping_fee)にFuel Surcharge・Shipping Fee・Packaging Costを加味した概算で代用する
+# （calculate_listing_price と同じ内訳: fuel_surcharge_rate/shipping_outsource_cost/extra_cost）。
+def _parse_agent_fee_text(value):
+    if not value:
+        return None
+    cleaned = re.sub(r"[^0-9.\-]", "", str(value))
+    if cleaned in ("", "-", "."):
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, marketplace_country_map,
+                              pricing_rule_cache, fx_cache):
+    settlement = settlement_summary.get(row.get("order_id"))
+    row["net_proceeds"] = settlement.get("net_proceeds") if settlement else None
+    row["sale_price"] = settlement.get("sale_price") if settlement else None
+    row["fees_total"] = settlement.get("fees_total") if settlement else None
+    row["settlement_currency"] = settlement.get("currency") if settlement else None
+    row["deposit_date"] = settlement.get("deposit_date") if settlement else None
+
+    agent_fee = _parse_agent_fee_text(row.get("agent_shipping_fee_total"))
+    if agent_fee is not None:
+        row["shipping_cost_used"] = agent_fee
+        row["shipping_cost_is_estimate"] = False
+    else:
+        predicted = row.get("predicted_shipping_fee")
+        marketplace_id = _resolve_row_marketplace_id(row.get("order_id"), prefix_map)
+        country_code = marketplace_country_map.get(marketplace_id) if marketplace_id else None
+        if predicted is not None and country_code:
+            if marketplace_id not in pricing_rule_cache:
+                pricing_rule_cache[marketplace_id] = get_pricing_master_rule(user_id=user_id, country_code=country_code)
+            rule = pricing_rule_cache[marketplace_id]
+            fuel_rate = float(rule.get("fuel_surcharge_rate") or 0) / 100
+            outsource = float(rule.get("shipping_outsource_cost") or 0)
+            packing = float(rule.get("extra_cost") or 0)
+            row["shipping_cost_used"] = predicted * (1 + fuel_rate) + outsource + packing
+            row["shipping_cost_is_estimate"] = True
+        else:
+            row["shipping_cost_used"] = None
+            row["shipping_cost_is_estimate"] = None
+
+    # 入金額は「決済トランザクション実績」を最優先、無ければ「販売価格−手数料見積り」の概算で代用する
+    # （手数料見積りは仕入れ判断のためのSP-API getMyFeesEstimate。出荷完了前でも取得できる）。
+    if row["net_proceeds"] is not None:
+        net_used = row["net_proceeds"]
+        net_used_currency = row.get("settlement_currency")
+        net_is_estimate = False
+    elif row.get("fee_estimate_amount") is not None and row.get("item_price") is not None:
+        net_used = (row.get("item_price") or 0) + (row.get("shipping_price") or 0) - row["fee_estimate_amount"]
+        net_used_currency = row.get("order_currency") or row.get("fee_estimate_currency")
+        net_is_estimate = True
+    else:
+        net_used = None
+        net_used_currency = None
+        net_is_estimate = None
+
+    row["net_proceeds_used_jpy"] = None
+    row["net_proceeds_is_estimate"] = net_is_estimate
+    row["profit_jpy"] = None
+    row["profit_is_estimate"] = None
+
+    if net_used is None:
+        return
+
+    if net_used_currency == "JPY":
+        net_used_jpy = net_used
+    else:
+        # get_exchange_rate(base, target) は「target通貨1単位あたりのbase通貨額」を返す
+        # （routes_pricing_v2.py:903 と同じ呼び方: get_exchange_rate("JPY", 現地通貨) → 現地通貨1単位あたりの円）。
+        if net_used_currency not in fx_cache:
+            fx_cache[net_used_currency] = get_exchange_rate("JPY", net_used_currency) if net_used_currency else None
+        rate = fx_cache[net_used_currency]
+        net_used_jpy = net_used * rate if rate else None
+
+    if net_used_jpy is None:
+        return
+
+    # 入金額(円)は仕入価格・送料が未確定でも表示できるが、利益(円)は両方揃わないと出せない
+    row["net_proceeds_used_jpy"] = net_used_jpy
+    if row["shipping_cost_used"] is None or row.get("purchase_price") is None:
+        return
+
+    row["profit_jpy"] = net_used_jpy - row["purchase_price"] - row["shipping_cost_used"]
+    row["profit_is_estimate"] = bool(net_is_estimate or row["shipping_cost_is_estimate"])
+
+
+# --- ▼ SECTION 04-3: 寸法・重量フォールバック② catalog_cache（ASIN・出品削除後も残る生キャッシュ） ▼ ---
+def _fetch_catalog_cache_dims(asin: str):
+    if not asin:
+        return None
+
+    conn = get_conn("a_catalog_cache.db")
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT home_raw_json FROM catalog_cache
+        WHERE asin = %s AND home_raw_json IS NOT NULL
+        ORDER BY home_updated_at DESC NULLS LAST
+        LIMIT 1
+    """, (asin,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row or not row.get("home_raw_json"):
+        return None
+
+    try:
+        raw = json.loads(row["home_raw_json"])
+    except (ValueError, TypeError):
+        return None
+
+    normalized = NormalizedCatalogAdapter(None)._normalize_dimensions_weight(raw)
+    if not (normalized.get("length_cm") and normalized.get("width_cm") and normalized.get("height_cm")):
+        return None
+
+    return normalized
+
+
+# --- ▼ SECTION 04-4: 寸法・重量フォールバック③ その場でHOME APIを叩いて取得（listed_items登録元を問わない） ▼ ---
+def fetch_and_cache_catalog_for_asin(user_id: int, asin: str) -> dict:
+    if not asin:
+        raise ValueError("ASINが必要です")
+
+    conn = get_conn("a_marketplaces.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT marketplace_id, country_code FROM marketplaces WHERE user_id = %s AND home_flag = 1 LIMIT 1",
+        (user_id,),
+    )
+    home_row = cur.fetchone()
+    conn.close()
+
+    if not home_row:
+        raise RuntimeError("HOMEマーケットプレイスが設定されていません")
+
+    # 遅延importで循環参照を避ける（routes_catalog_v2.py等が本モジュールを直接importしないため実際は問題ないが、
+    # SP-API系アダプタは重いので必要な時だけ読み込む）
+    from amazon.adapters.amazon_adapter import AmazonAdapter
+    from amazon.adapters.catalog_adapter_home import CatalogAdapterHome
+
+    base = AmazonAdapter(
+        user_id=user_id,
+        country_code=home_row["country_code"],
+        marketplace_id=home_row["marketplace_id"],
+    )
+    adapter = CatalogAdapterHome(parent_adapter=base)
+    result = adapter.get_full_catalog_item(asin)
+    raw = result.get("raw") if isinstance(result, dict) else None
+
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors:
+        raise RuntimeError(f"HOME側でASINが見つかりませんでした: {errors}")
+
+    normalized = NormalizedCatalogAdapter(None)._normalize_dimensions_weight(raw)
+    if not (normalized.get("length_cm") and normalized.get("width_cm") and normalized.get("height_cm")):
+        raise RuntimeError("HOME側に寸法情報がありませんでした")
+
+    # 既存adapter群は「更新専用」でINSERTしないため、ここで自前でcatalog_cacheへ保存する
+    now = datetime.utcnow().isoformat()
+    home_marketplace_id = home_row["marketplace_id"]
+    raw_json = json.dumps(raw, ensure_ascii=False)
+
+    conn = get_conn("a_catalog_cache.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id FROM catalog_cache WHERE asin = %s AND home_marketplace_id = %s",
+        (asin, home_marketplace_id),
+    )
+    existing = cur.fetchone()
+
+    if existing:
+        cur.execute("""
+            UPDATE catalog_cache
+            SET home_raw_json = %s, home_updated_at = %s, updated_at = %s
+            WHERE asin = %s AND home_marketplace_id = %s
+        """, (raw_json, now, now, asin, home_marketplace_id))
+    else:
+        cur.execute("""
+            INSERT INTO catalog_cache (asin, home_marketplace_id, home_raw_json, home_updated_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (asin, home_marketplace_id, raw_json, now, now))
+
+    conn.commit()
+    conn.close()
+
+    return normalized
+
+
+# --- ▼ SECTION 04-5: 出荷前の概算利益用（SP-API手数料見積り。getMyFeesEstimateをREGION側で叩く） ▼ ---
+# 決済トランザクション(実績)がまだ無い出荷前の注文向け。ASIN・販売価格(item_price)を渡して
+# Amazonの想定手数料(参照手数料等)を取得し、item_price + shipping_price − 手数料見積り を概算入金額とする。
+def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
+    if not order_item_id:
+        raise ValueError("order_item_idが必要です")
+
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT o.order_id, o.item_price, o.shipping_price, o.order_currency, l.asin
+        FROM orbit_orders o
+        LEFT JOIN listed_items l ON l.user_id = o.user_id AND l.sku = o.sku
+        WHERE o.user_id = %s AND o.order_item_id = %s
+        """,
+        (user_id, order_item_id),
+    )
+    order_row = cur.fetchone()
+    conn.close()
+
+    if not order_row:
+        raise RuntimeError("注文が見つかりませんでした")
+
+    if not order_row.get("asin"):
+        raise RuntimeError("ASINが特定できないため手数料見積りを取得できません")
+    if not order_row.get("item_price"):
+        raise RuntimeError("販売価格(item_price)が注文データにありません（拡張版の注文レポートを再取込してください）")
+
+    prefix_map = _load_order_id_prefix_map()
+    marketplace_id = _resolve_row_marketplace_id(order_row.get("order_id"), prefix_map)
+    if not marketplace_id:
+        raise RuntimeError("マーケットプレイスを特定できませんでした")
+
+    country_map = _load_marketplace_country_map()
+    country_code = country_map.get(marketplace_id)
+    if not country_code:
+        raise RuntimeError("マーケットプレイスの国コードが見つかりませんでした")
+
+    currency = order_row.get("order_currency") or "USD"
+
+    from amazon.adapters.amazon_adapter import AmazonAdapter
+
+    base = AmazonAdapter(
+        user_id=user_id,
+        country_code=country_code,
+        marketplace_id=marketplace_id,
+    )
+    raw = base.real_signed_request(
+        method="POST",
+        endpoint=f"/products/fees/v0/items/{order_row['asin']}/feesEstimate",
+        host=base.host,
+        json={
+            "FeesEstimateRequest": {
+                "MarketplaceId": marketplace_id,
+                "IsAmazonFulfilled": False,  # 代行会社経由の自社発送のためFBAではない
+                "PriceToEstimateFees": {
+                    "ListingPrice": {"CurrencyCode": currency, "Amount": order_row["item_price"]},
+                    "Shipping": {"CurrencyCode": currency, "Amount": order_row.get("shipping_price") or 0},
+                },
+                "Identifier": order_item_id,
+            }
+        },
+    )
+
+    errors = raw.get("errors") if isinstance(raw, dict) else None
+    if errors:
+        raise RuntimeError(f"手数料見積りの取得に失敗しました: {errors}")
+
+    result = (raw.get("payload") or {}).get("FeesEstimateResult") or {}
+    status = result.get("Status")
+    if status and status != "Success":
+        error = result.get("Error") or {}
+        raise RuntimeError(f"手数料見積りの取得に失敗しました: {error.get('Message') or status}")
+
+    total_fees = ((result.get("FeesEstimate") or {}).get("TotalFeesEstimate")) or {}
+    fee_amount = total_fees.get("Amount")
+    fee_currency = total_fees.get("CurrencyCode") or currency
+
+    if fee_amount is None:
+        raise RuntimeError("手数料見積りの結果を取得できませんでした")
+
+    now = datetime.utcnow().isoformat()
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE orbit_orders
+        SET fee_estimate_amount = %s, fee_estimate_currency = %s, fee_estimate_fetched_at = %s
+        WHERE user_id = %s AND order_item_id = %s
+        """,
+        (fee_amount, fee_currency, now, user_id, order_item_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"fee_estimate_amount": fee_amount, "fee_estimate_currency": fee_currency}
+
+
 # --- ▼ SECTION 05: 注文一覧取得（ASIN・サイズ・重量・予測送料つき） ▼ ---
 def list_orders_with_calc(user_id: int) -> list:
     conn = get_conn("a_orbit_orders.db")
@@ -224,10 +681,41 @@ def list_orders_with_calc(user_id: int) -> list:
     for row in rows:
         row["billable_weight_kg"] = None
         row["predicted_shipping_fee"] = None
+        row["dims_source"] = "listed_items" if (row.get("length_cm") and row.get("width_cm") and row.get("height_cm")) else None
 
-        # listed_itemsとの突き合わせが取れない場合は、SKUから直接ASINを抽出（表示のみのフォールバック。寸法・重量は突き合わせが必要）
+        _apply_dispatch_checks(row)
+
+        # listed_itemsとの突き合わせが取れない場合は、SKUから直接ASINを抽出（表示用フォールバック）
         if not row.get("asin"):
             row["asin"] = _extract_asin_from_sku(row.get("sku"))
+
+        # --- 寸法・重量の3段フォールバック ---
+        # ① listed_items（SKU突き合わせ、既存） → ② catalog_cache（ASIN、出品削除後も残る） → ③ 手入力
+        if not row["dims_source"]:
+            cached = _fetch_catalog_cache_dims(row.get("asin"))
+            if cached:
+                row["length_cm"] = cached["length_cm"]
+                row["width_cm"] = cached["width_cm"]
+                row["height_cm"] = cached["height_cm"]
+                row["actual_weight_kg"] = cached.get("actual_weight_kg") or row.get("actual_weight_kg")
+                row["dims_source"] = "catalog_cache"
+
+        if not row["dims_source"] and row.get("manual_length_cm") and row.get("manual_width_cm") and row.get("manual_height_cm"):
+            row["length_cm"] = row["manual_length_cm"]
+            row["width_cm"] = row["manual_width_cm"]
+            row["height_cm"] = row["manual_height_cm"]
+            row["actual_weight_kg"] = row.get("manual_weight_kg") or row.get("actual_weight_kg")
+            row["dims_source"] = "manual"
+
+        # --- 発送代行会社シートの寸法・重量欄（AV〜AY）向け丸め値 ---
+        # ZSSS自身の請求重量・予測送料（billable_weight_kg・predicted_shipping_fee）とは別に、
+        # 代行会社の梱包基準（10cm未満切り上げ・5cm単位切り上げ・整数kg切り上げ）で算出する。
+        row["agent_length_cm"] = _agent_round_dim_cm(row.get("length_cm"))
+        row["agent_width_cm"] = _agent_round_dim_cm(row.get("width_cm"))
+        row["agent_height_cm"] = _agent_round_dim_cm(row.get("height_cm"))
+        row["agent_shipping_weight_kg"] = _agent_estimated_shipping_weight_kg(
+            row["agent_length_cm"], row["agent_width_cm"], row["agent_height_cm"], row.get("actual_weight_kg"),
+        )
 
         marketplace_id = _resolve_row_marketplace_id(row.get("order_id"), prefix_map)
         if not marketplace_id:
@@ -258,6 +746,23 @@ def list_orders_with_calc(user_id: int) -> list:
         row["billable_weight_kg"] = calc["billable_weight"]
         row["predicted_shipping_fee"] = calc["shipping_fee"]
 
+    # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
+    #     予測送料無しで代行会社確定送料だけは反映したいため、上のループとは別パスで全行に適用する。 ---
+    settlement_summary = get_order_settlement_summary(user_id)
+    marketplace_country_map = _load_marketplace_country_map()
+    pricing_rule_cache = {}
+    fx_cache = {}
+    for row in rows:
+        _apply_settlement_profit(
+            row,
+            user_id=user_id,
+            settlement_summary=settlement_summary,
+            prefix_map=prefix_map,
+            marketplace_country_map=marketplace_country_map,
+            pricing_rule_cache=pricing_rule_cache,
+            fx_cache=fx_cache,
+        )
+
     return rows
 
 
@@ -265,8 +770,17 @@ def list_orders_with_calc(user_id: int) -> list:
 MANUAL_FIELDS = [
     "jan_code", "purchase_price",
     "request_date", "shipping_type", "tracking_number", "remarks",
-    "supplier", "supplier_order_number", "supplier_shop_name", "arrival_date",
+    "supplier", "supplier_order_number", "supplier_shop_name", "procurement_date", "arrival_date",
+    "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
+    "product_name_override", "recipient_name_override",
+    "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",
+    "buyer_phone_number_override", "buyer_phone_extension_override", "ship_state_override",
 ]
+
+NUMERIC_MANUAL_FIELDS = {
+    "purchase_price",
+    "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
+}
 
 
 def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
@@ -294,24 +808,50 @@ def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
     conn.close()
 
 
+# --- ▼ SECTION 06-1: 注文の削除（行ごと／全件リセット） ▼ ---
+def delete_order(user_id: int, order_item_id: str) -> int:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM orbit_orders WHERE user_id = %s AND order_item_id = %s",
+        (user_id, order_item_id),
+    )
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def delete_all_orders(user_id: int) -> int:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM orbit_orders WHERE user_id = %s", (user_id,))
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+    return deleted
+
+
 # --- ▼ SECTION 06-2: 代行会社連番（Nから始まる連番）の設定 ▼ ---
-# 対象行に開始番号を設定し、以降は「システムに取り込まれた順（id昇順）」で連番を振り直す。
-# 受注日順にすると、AU分を後から取り込んだ時に既存の連番の途中へ割り込んでしまうため、
-# 常に末尾に追加される取込順を基準にする（代行会社シートが「常に一番下に追加」の運用のため）。
-def set_agent_serial_no(user_id: int, order_item_id: str, start_value: int) -> int:
+# 対象行に開始番号を設定し、以降は指定された並び順で連番を振り直す。
+# ordered_ids（画面側で現在表示・ソートされている順）が渡されればそれを使い、
+# 無ければ既定の「システムに取り込まれた順（id昇順）」を使う
+# （受注日順だと、AU分を後から取り込んだ時に既存の連番の途中へ割り込んでしまうため）。
+def set_agent_serial_no(user_id: int, order_item_id: str, start_value: int, ordered_ids: list = None) -> int:
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT order_item_id
-        FROM orbit_orders
-        WHERE user_id = %s
-        ORDER BY id ASC
-        """,
-        (user_id,),
-    )
-    ordered_ids = [r["order_item_id"] for r in cur.fetchall()]
+    if not ordered_ids:
+        cur.execute(
+            """
+            SELECT order_item_id
+            FROM orbit_orders
+            WHERE user_id = %s
+            ORDER BY id ASC
+            """,
+            (user_id,),
+        )
+        ordered_ids = [r["order_item_id"] for r in cur.fetchall()]
 
     if order_item_id not in ordered_ids:
         conn.close()
@@ -347,8 +887,23 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
     writer = csv.writer(output)
     writer.writerow(EXPORT_COLUMNS)
 
+    # 電話番号(国番号除去)・州(正式表記)は自動補正、商品名・宛名・住所1〜3は手修正(*_override)された
+    # 値があればそちらを優先。いずれも代行会社シート側の制約のため、貼り付け用CSVにも反映する。
+    export_value_overrides = {
+        "buyer_phone_number": "buyer_phone_number_effective",
+        "ship_state": "ship_state_effective",
+        "product_name": "product_name_effective",
+        "recipient_name": "recipient_name_effective",
+        "ship_address_1": "ship_address_1_effective",
+        "ship_address_2": "ship_address_2_effective",
+        "ship_address_3": "ship_address_3_effective",
+    }
+
     for r in rows:
-        writer.writerow([r.get(c) if r.get(c) is not None else "" for c in EXPORT_COLUMNS])
+        writer.writerow([
+            r.get(export_value_overrides.get(c, c)) if r.get(export_value_overrides.get(c, c)) is not None else ""
+            for c in EXPORT_COLUMNS
+        ])
 
     ids = [r["order_item_id"] for r in rows]
     if ids:

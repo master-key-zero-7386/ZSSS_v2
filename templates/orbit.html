@@ -7,6 +7,16 @@
   overflow: auto;
 }
 
+/* 行数が少ない時、本体の横スクロールバーが画面下に隠れてしまうため、上部にも操作用のスクロールバーを置く */
+.orbit-top-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 16px;
+}
+.orbit-top-scroll > div {
+  height: 1px;
+}
+
 .orbit-page table {
   border-collapse: collapse;
   width: 100%;
@@ -44,6 +54,11 @@
   outline: 1px solid #4a90e2;
 }
 
+/* 商品名・宛名・住所など長いテキストが見切れないよう幅を広げる（70字制限が一目で見える幅） */
+.orbit-page input.orbit-manual-wide {
+  width: 70ch;
+}
+
 .orbit-actions {
   display: flex;
   gap: 8px;
@@ -77,6 +92,40 @@
   background: #ffffff;
   outline: 1px solid #4a90e2;
 }
+
+/* 代行会社シート読み戻し列（サンクスレター内容〜読戻し日時）のExcel風グループ折りたたみ */
+.orbit-group-toggle-btn {
+  border: 1px solid #bbb;
+  background: #fff;
+  border-radius: 3px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: 11px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.orbit-page table.orbit-collapsed-agentReadback .orbit-group-agentReadback {
+  display: none;
+}
+
+/* 発送代行会社シートへの貼り付け前チェック（電話番号の国番号・商品名・宛名・住所・州・郵便番号）で
+   要確認/自動補正ありの項目を黄色でハイライトする */
+.orbit-page table td.orbit-issue-flag {
+  background-color: #fff3cd !important;
+}
+
+/* 仕入れ・出荷時に頻繁にチェックする項目（N番号・ASIN・仕入日・到着予定日）を目立たせる */
+.orbit-page table th.orbit-check-highlight,
+.orbit-page table td.orbit-check-highlight {
+  background-color: #e0f7fa !important;
+}
+
+/* 実利益（入金額・送料・利益）を目立たせる */
+.orbit-page table th.orbit-profit-highlight,
+.orbit-page table td.orbit-profit-highlight {
+  background-color: #e8f5e9 !important;
+}
 </style>
 
 <div class="main-container orbit-page">
@@ -103,9 +152,25 @@
               <button type="button" id="orbitUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
           <button id="orbit-refresh-btn" class="btn-blue">再読込</button>
+          <button id="orbit-delete-all-btn" class="btn-red">全件削除(リセット)</button>
       </div>
 
-      <div class="table-wrapper">
+      <div class="master-description">
+          決済レポート(Settlement Report・タブ区切り/CSV)を取り込むと、仕入れ管理タブに入金額・利益が表示されます。セラーセントラルの「レポート」→「決済」からダウンロードしてください。
+      </div>
+
+      <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
+
+      <div class="orbit-actions">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="決済レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+      </div>
+
+      <div class="orbit-top-scroll" id="orbit-orders-top-scroll"><div></div></div>
+
+      <div class="table-wrapper" id="orbit-orders-table-wrapper">
         <table id="orbit-orders-table">
           <thead>
             <tr>
@@ -137,6 +202,14 @@
           <span id="orbit-dispatch-sync-status"></span>
       </div>
 
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
+          <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
+          <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
+      </div>
+
+      <div class="orbit-top-scroll" id="orbit-dispatch-top-scroll"><div></div></div>
+
       <div class="table-wrapper" id="orbit-dispatch-table-wrapper">
         <table id="orbit-dispatch-table">
           <thead>
@@ -148,12 +221,6 @@
             <!-- JSで描画 -->
           </tbody>
         </table>
-      </div>
-
-      <div class="orbit-actions" style="flex-wrap:wrap; margin-top:12px;">
-          <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
-          <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
-          <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
       </div>
     </div>
   </div>
