@@ -14,6 +14,9 @@ from amazon.services.orbit_order_service import (
     delete_all_orders,
     fetch_and_cache_catalog_for_asin,
     fetch_and_cache_fee_estimate,
+    export_fee_data_csv,
+    parse_fee_data_csv,
+    import_fee_data,
     set_agent_serial_no,
     export_notify_csv,
     sync_dispatch_sheet_status,
@@ -230,6 +233,44 @@ def export_orders():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=orbit_export.csv"},
     )
+
+
+# --- ▼ SECTION 04-2: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)） ▼ ---
+@orbit_bp.route("/fee_data/export", methods=["GET"])
+def export_fee_data():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    csv_text = export_fee_data_csv(user_id)
+
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=orbit_fee_data.csv"},
+    )
+
+
+@orbit_bp.route("/fee_data/import", methods=["POST"])
+def import_fee_data_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"status": "error", "message": "ファイルがありません"}), 400
+
+    text = file.read().decode("utf-8-sig", errors="replace")
+
+    try:
+        rows = parse_fee_data_csv(text)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"CSV解析に失敗しました: {e}"}), 400
+
+    count = import_fee_data(user_id, rows)
+
+    return jsonify({"status": "success", "imported": count})
 
 
 # --- ▼ SECTION 05: Google OAuth連携（依頼書シート読み戻し用） ▼ ---

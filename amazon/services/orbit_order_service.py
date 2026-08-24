@@ -844,6 +844,85 @@ def list_orders_with_calc(user_id: int) -> list:
     return rows
 
 
+# --- ▼ SECTION 05-2: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)は別々のDBのため） ▼ ---
+# AU注文の販売価格・手数料見積りはAUアカウントの認証情報を持つATLAS側でしか取得できない。
+# 基本の注文データ自体は通常の注文レポートCSV取込で双方に入れられるので、ここではATLAS側だけで
+# 取得できた項目（item_price・shipping_price・order_currency・fee_estimate_*）だけを受け渡す。
+FEE_DATA_COLUMNS = [
+    "order_item_id", "item_price", "shipping_price", "order_currency",
+    "fee_estimate_amount", "fee_estimate_currency", "fee_estimate_fetched_at",
+]
+
+
+def export_fee_data_csv(user_id: int) -> str:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT {", ".join(FEE_DATA_COLUMNS)}
+        FROM orbit_orders
+        WHERE user_id = %s AND (item_price IS NOT NULL OR fee_estimate_amount IS NOT NULL)
+        ORDER BY id
+    """, (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(FEE_DATA_COLUMNS)
+    for r in rows:
+        writer.writerow([r.get(c) for c in FEE_DATA_COLUMNS])
+    return output.getvalue()
+
+
+def parse_fee_data_csv(text: str) -> list:
+    if text.startswith("﻿"):
+        text = text[1:]
+    reader = csv.DictReader(io.StringIO(text))
+    rows = []
+    for raw in reader:
+        if not raw.get("order_item_id"):
+            continue
+        row = {"order_item_id": raw["order_item_id"].strip()}
+        for c in ("item_price", "shipping_price", "fee_estimate_amount"):
+            value = raw.get(c)
+            row[c] = float(value) if value not in (None, "") else None
+        for c in ("order_currency", "fee_estimate_currency", "fee_estimate_fetched_at"):
+            value = raw.get(c)
+            row[c] = value.strip() if value else None
+        rows.append(row)
+    return rows
+
+
+def import_fee_data(user_id: int, rows: list) -> int:
+    if not rows:
+        return 0
+
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    updated = 0
+    for row in rows:
+        cur.execute(
+            """
+            UPDATE orbit_orders
+            SET item_price = %s, shipping_price = %s, order_currency = %s,
+                fee_estimate_amount = %s, fee_estimate_currency = %s, fee_estimate_fetched_at = %s,
+                updated_at = %s
+            WHERE user_id = %s AND order_item_id = %s
+            """,
+            (
+                row.get("item_price"), row.get("shipping_price"), row.get("order_currency"),
+                row.get("fee_estimate_amount"), row.get("fee_estimate_currency"), row.get("fee_estimate_fetched_at"),
+                now, user_id, row["order_item_id"],
+            ),
+        )
+        updated += cur.rowcount
+
+    conn.commit()
+    conn.close()
+    return updated
+
+
 # --- ▼ SECTION 06: JAN・仕入価格の手入力更新 ▼ ---
 MANUAL_FIELDS = [
     "jan_code", "purchase_price",

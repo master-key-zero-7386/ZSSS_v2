@@ -740,6 +740,47 @@ window.initOrbit = function () {
             });
     });
 
+    // --- ▼ SECTION 01-1c: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)） ▼ ---
+    const orbitFeeDataFileInput = document.getElementById("orbitFeeDataFileInput");
+    const orbitFeeDataFileName = document.getElementById("orbitFeeDataFileName");
+    const orbitFeeDataUploadBtn = document.getElementById("orbitFeeDataUploadBtn");
+
+    orbitFeeDataFileName?.addEventListener("click", () => {
+        orbitFeeDataFileInput?.click();
+    });
+
+    orbitFeeDataFileInput?.addEventListener("change", (e) => {
+        const fileName = e.target.files.length ? e.target.files[0].name : "";
+        if (orbitFeeDataFileName) orbitFeeDataFileName.value = fileName;
+    });
+
+    orbitFeeDataUploadBtn?.addEventListener("click", () => {
+        if (!orbitFeeDataFileInput?.files?.length) {
+            window.showToast?.("ファイルを選択してください", "error");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", orbitFeeDataFileInput.files[0]);
+
+        fetch("/orbit/fee_data/import", { method: "POST", body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.(`${data.imported}件反映しました`, "success");
+                    orbitFeeDataFileInput.value = "";
+                    if (orbitFeeDataFileName) orbitFeeDataFileName.value = "";
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "取り込みに失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/fee_data/import error:", err);
+                window.showToast?.("取り込みに失敗しました", "error");
+            });
+    });
+
     document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
 
