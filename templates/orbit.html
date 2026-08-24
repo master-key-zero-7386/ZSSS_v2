@@ -173,19 +173,6 @@
       </div>
 
       <div class="master-description">
-          決済レポート(Settlement Report・タブ区切り/CSV)を取り込むと、仕入れ管理タブに入金額・利益が表示されます。セラーセントラルの「レポート」→「決済」からダウンロードしてください。
-      </div>
-
-      <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
-
-      <div class="orbit-actions">
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="決済レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
-              <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
-      </div>
-
-      <div class="master-description">
           AU分など、この端末のAmazonアカウント認証情報が無いマーケットの販売額・手数料見積りは、
           そのアカウントを持つ別端末(例: ATLAS)で取得してから、ここで受け渡しできます。
           注文データ自体は事前にどちらの端末にも通常の注文レポートで取り込んでおいてください。
@@ -268,6 +255,19 @@
           注文日の右には発注管理で代行会社シートを取り込むと入る備考・トラッキング・発送重量記入日・確定重量・送料合計を表示します(発送重量記入日は出荷完了を押すまで赤字)。<br>
           利益率がマイナスの場合は赤字表示、出荷完了を押すとその行全体がグレーアウトします(押し間違えた場合はもう一度押せば解除できます)。<br>
           商品名〜ショップ名の列は幅を取るため折りたたんであります。先頭の▸ボタンで展開できます。
+      </div>
+
+      <div class="master-description">
+          決済レポート(Settlement Report・タブ区切り/CSV)を取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「レポート」→「決済」からダウンロードしてください。
+      </div>
+
+      <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
+
+      <div class="orbit-actions">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="決済レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
       </div>
 
       <div class="orbit-top-scroll" id="orbit-procurement-top-scroll"><div></div></div>
