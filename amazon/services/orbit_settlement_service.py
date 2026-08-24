@@ -13,21 +13,30 @@ from amazon.db import get_conn
 # --- ▼ SECTION 01: セラーセントラル「支払い」→「トランザクション」CSVの列名 ▼ ---
 # 1行=1注文の集計済みデータ。「合計 (CAD)」のように通貨がヘッダーに埋め込まれており、
 # マーケットプレイスによって列名の通貨部分が変わる（CAD/USD/AUD等）ため正規表現で拾う。
-TOTAL_COLUMN_PATTERN = re.compile(r"^合計\s*\((\w+)\)$")
+# アカウントのセラーセントラル表示言語によってヘッダーが日本語/英語どちらでも出力されるため
+# （ATLAS＝AU口座は英語ヘッダーで出力される）、両方のエイリアスを持たせて拾う。
+TOTAL_COLUMN_PATTERN = re.compile(r"^(?:合計|Total)\s*\((\w+)\)$")
 
-TEXT_COLUMN_MAP = {
-    "注文番号": "order_id",
-    "日付": "transaction_date",
-    "トランザクションステータス": "transaction_status",
-    "トランザクションの種類": "transaction_type",
+TEXT_COLUMN_ALIASES = {
+    "order_id": ["注文番号", "Order ID"],
+    "transaction_date": ["日付", "Date"],
+    "transaction_status": ["トランザクションステータス", "Transaction Status"],
+    "transaction_type": ["トランザクションの種類", "Transaction type"],
 }
 
-NUMERIC_COLUMN_MAP = {
-    "商品価格合計": "product_price",
-    "プロモーション割引合計": "promotion_discount",
-    "Amazon手数料": "amazon_fee",
-    "その他": "other_amount",
+NUMERIC_COLUMN_ALIASES = {
+    "product_price": ["商品価格合計", "Total product charges"],
+    "promotion_discount": ["プロモーション割引合計", "Total promotional rebates"],
+    "amazon_fee": ["Amazon手数料", "Amazon fees"],
+    "other_amount": ["その他", "Other"],
 }
+
+
+def _first_present(raw: dict, aliases: list):
+    for col in aliases:
+        if col in raw:
+            return raw.get(col)
+    return None
 
 
 def _to_float(value):
@@ -71,15 +80,15 @@ def parse_settlement_report(text: str) -> list:
     rows = []
     for raw in reader:
         row = {}
-        for src_col, dst_col in TEXT_COLUMN_MAP.items():
-            value = raw.get(src_col)
+        for dst_col, aliases in TEXT_COLUMN_ALIASES.items():
+            value = _first_present(raw, aliases)
             row[dst_col] = value.strip() if value else None
 
         if not row.get("order_id"):
             continue
 
-        for src_col, dst_col in NUMERIC_COLUMN_MAP.items():
-            row[dst_col] = _to_float(raw.get(src_col))
+        for dst_col, aliases in NUMERIC_COLUMN_ALIASES.items():
+            row[dst_col] = _to_float(_first_present(raw, aliases))
 
         row["total_amount"] = _to_float(raw.get(total_col)) if total_col else None
         row["currency"] = currency
