@@ -187,9 +187,8 @@ const PROCUREMENT_COLUMNS = [
 
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
     { key: "order_item_id", label: "order-item-id" },
-    { key: "jan_code", label: "JAN", editable: "text" },
-    // 商品名は長いと横幅を大きく取るため、折りたたみ時は商品名自体も隠す（トグルボタンだけこの列に残す）
-    { key: "proc_shrink_toggle", label: "商品名〜ショップ名", group: "procShrink", groupHead: true, blank: true },
+    // JANをグループの先頭にしてトグルボタンを表示（JAN自体はgroupHeadなので折りたたんでも隠れない）
+    { key: "jan_code", label: "JAN", editable: "text", group: "procShrink", groupHead: true },
     { key: "product_name", label: "商品名", group: "procShrink" },
     { key: "quantity_purchased", label: "数量", group: "procShrink" },
     { key: "ship_country", label: "国", group: "procShrink" },
