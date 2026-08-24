@@ -351,8 +351,9 @@ function renderTableRows(tbody, columns, rows) {
             }
 
             if (col.fetchFeeEstimateButton) {
-                // 決済トランザクション実績が既にあれば手数料見積りは不要
-                if (r.net_proceeds != null || !r.asin || !r.item_price) return "<td></td>";
+                // 決済トランザクション実績が既にあれば手数料見積りは不要。
+                // item_priceが無くても、ボタン側でAmazon注文詳細(Orders API)から自動取得する。
+                if (r.net_proceeds != null || !r.asin) return "<td></td>";
                 const label = r.fee_estimate_amount != null ? "手数料見積り再取得" : "手数料見積り取得";
                 return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}">${label}</button></td>`;
             }

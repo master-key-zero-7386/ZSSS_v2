@@ -556,8 +556,9 @@ def fetch_and_cache_catalog_for_asin(user_id: int, asin: str) -> dict:
 
 
 # --- ▼ SECTION 04-5: 出荷前の概算利益用（SP-API手数料見積り。getMyFeesEstimateをREGION側で叩く） ▼ ---
-# 決済トランザクション(実績)がまだ無い出荷前の注文向け。ASIN・販売価格(item_price)を渡して
-# Amazonの想定手数料(参照手数料等)を取得し、item_price + shipping_price − 手数料見積り を概算入金額とする。
+# 注文が入った時点で最初に取り込む基本形式の注文レポートにはitem-price(販売価格)が無いため、
+# 無ければ先にSP-APIのOrders API(getOrderItems)で該当注文明細の販売価格を取得してキャッシュしてから、
+# Amazonの想定手数料(参照手数料等)を取得する。item_price + shipping_price − 手数料見積り を概算入金額とする。
 def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
     if not order_item_id:
         raise ValueError("order_item_idが必要です")
@@ -578,11 +579,8 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
 
     if not order_row:
         raise RuntimeError("注文が見つかりませんでした")
-
     if not order_row.get("asin"):
         raise RuntimeError("ASINが特定できないため手数料見積りを取得できません")
-    if not order_row.get("item_price"):
-        raise RuntimeError("販売価格(item_price)が注文データにありません（拡張版の注文レポートを再取込してください）")
 
     prefix_map = _load_order_id_prefix_map()
     marketplace_id = _resolve_row_marketplace_id(order_row.get("order_id"), prefix_map)
@@ -594,8 +592,6 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
     if not country_code:
         raise RuntimeError("マーケットプレイスの国コードが見つかりませんでした")
 
-    currency = order_row.get("order_currency") or "USD"
-
     from amazon.adapters.amazon_adapter import AmazonAdapter
 
     base = AmazonAdapter(
@@ -603,6 +599,47 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
         country_code=country_code,
         marketplace_id=marketplace_id,
     )
+
+    item_price = order_row.get("item_price")
+    shipping_price = order_row.get("shipping_price")
+    currency = order_row.get("order_currency")
+
+    if not item_price:
+        order_items_raw = base.real_signed_request(
+            method="GET",
+            endpoint=f"/orders/v0/orders/{order_row['order_id']}/orderItems",
+            host=base.host,
+        )
+        errors = order_items_raw.get("errors") if isinstance(order_items_raw, dict) else None
+        if errors:
+            raise RuntimeError(f"注文の販売価格取得に失敗しました: {errors}")
+
+        items = ((order_items_raw.get("payload") or {}).get("OrderItems")) or []
+        matched = next((it for it in items if it.get("OrderItemId") == order_item_id), None)
+        item_price_obj = (matched or {}).get("ItemPrice")
+        if not matched or not item_price_obj:
+            raise RuntimeError("Amazon側にまだ販売価格が確定していません（注文直後は反映まで時間がかかる場合があります）")
+
+        item_price = float(item_price_obj["Amount"])
+        shipping_price = float((matched.get("ShippingPrice") or {}).get("Amount") or 0)
+        currency = item_price_obj.get("CurrencyCode") or currency
+
+        now = datetime.utcnow().isoformat()
+        conn = get_conn("a_orbit_orders.db")
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE orbit_orders
+            SET item_price = %s, shipping_price = %s, order_currency = %s, updated_at = %s
+            WHERE user_id = %s AND order_item_id = %s
+            """,
+            (item_price, shipping_price, currency, now, user_id, order_item_id),
+        )
+        conn.commit()
+        conn.close()
+
+    currency = currency or "USD"
+
     raw = base.real_signed_request(
         method="POST",
         endpoint=f"/products/fees/v0/items/{order_row['asin']}/feesEstimate",
@@ -612,8 +649,8 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
                 "MarketplaceId": marketplace_id,
                 "IsAmazonFulfilled": False,  # 代行会社経由の自社発送のためFBAではない
                 "PriceToEstimateFees": {
-                    "ListingPrice": {"CurrencyCode": currency, "Amount": order_row["item_price"]},
-                    "Shipping": {"CurrencyCode": currency, "Amount": order_row.get("shipping_price") or 0},
+                    "ListingPrice": {"CurrencyCode": currency, "Amount": item_price},
+                    "Shipping": {"CurrencyCode": currency, "Amount": shipping_price or 0},
                 },
                 "Identifier": order_item_id,
             }
