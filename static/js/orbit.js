@@ -835,6 +835,22 @@ window.initOrbit = function () {
         window.location.href = "/orbit/export";
     });
 
+    // --- ▼ SECTION 02-1b: Google連携状態の表示（未連携ならボタンを出す） ▼ ---
+    const googleConnectLink = document.getElementById("orbit-google-connect-link");
+    const googleConnectStatus = document.getElementById("orbit-google-connect-status");
+
+    fetch("/orbit/google_oauth/status")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (data.connected) {
+                if (googleConnectStatus) googleConnectStatus.textContent = "Google連携済み";
+            } else if (googleConnectLink) {
+                googleConnectLink.style.display = "inline-block";
+            }
+        })
+        .catch(err => console.error("google_oauth/status error:", err));
+
     // --- ▼ SECTION 02-2: 代行会社シートから読み戻し（N番号で突き合わせ） ▼ ---
     const syncBtn = document.getElementById("orbit-dispatch-sync-btn");
     const syncStatus = document.getElementById("orbit-dispatch-sync-status");
