@@ -166,6 +166,9 @@ const SUPPLIER_OPTIONS = [
 ];
 
 const PROCUREMENT_COLUMNS = [
+    // --- 出荷完了フラグ（押し間違えてもボタンをもう一度押せば解除できる。行全体がグレーアウトされる） ---
+    { key: "shipped_completed", label: "出荷完了", shippedToggle: true },
+
     // --- 仕入れ・出荷時に頻繁にチェックする項目（発注管理側のN番号と対応づけて左端に配置） ---
     { key: "agent_serial_no", label: "N番号", highlight: true },  // 発注管理タブで入力（読取専用）
     { key: "asin", label: "ASIN", copyClass: "asin-cell", highlight: true },
@@ -174,16 +177,24 @@ const PROCUREMENT_COLUMNS = [
 
     { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
     { key: "purchase_date", label: "注文日", dateOnly: true },
+
+    // --- 発注管理で代行会社シートを取り込むと入る項目（出荷に必要な情報を1画面で確認できるようここにも表示） ---
+    { key: "remarks", label: "備考" },
+    { key: "agent_tracking_number", label: "トラッキング(海外向け)", copyClass: "orbit-orderid-cell" },
+    { key: "agent_weight_recorded_date", label: "発送重量記入日", redUntilShipped: true },
+    { key: "agent_confirmed_weight", label: "確定重量" },
+    { key: "agent_shipping_fee_total", label: "送料合計" },
+
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
     { key: "order_item_id", label: "order-item-id" },
     { key: "jan_code", label: "JAN", editable: "text" },
-    { key: "product_name", label: "商品名" },
-    { key: "quantity_purchased", label: "数量" },
-    { key: "ship_country", label: "国" },
+    { key: "product_name", label: "商品名", group: "procShrink", groupHead: true },
+    { key: "quantity_purchased", label: "数量", group: "procShrink" },
+    { key: "ship_country", label: "国", group: "procShrink" },
 
-    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
-    { key: "supplier_order_number", label: "注文番号", editable: "text" },
-    { key: "supplier_shop_name", label: "ショップ名", editable: "text" },
+    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS, group: "procShrink" },
+    { key: "supplier_order_number", label: "注文番号", editable: "text", group: "procShrink" },
+    { key: "supplier_shop_name", label: "ショップ名", editable: "text", group: "procShrink" },
     { key: "supplier_link", label: "注文リンク", computed: true },
     { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
 
@@ -333,14 +344,27 @@ function sortRowsByKey(rows, key, dir) {
     return sorted;
 }
 
-function renderTableRows(tbody, columns, rows) {
+function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
     tbody.innerHTML = "";
 
     rows.forEach(r => {
         const tr = document.createElement("tr");
         tr.dataset.orderItemId = r.order_item_id;
+        if (grayShipped && r.shipped_completed) tr.classList.add("orbit-row-shipped");
 
         tr.innerHTML = columns.map(col => {
+            let cellClass = col.deadline ? getDeadlineColorClass(r[col.key]) : "";
+            if (col.group && !col.groupHead) cellClass = `${cellClass} orbit-group-${col.group}`.trim();
+            if (col.checkFlagKey && r[col.checkFlagKey]) cellClass = `${cellClass} orbit-issue-flag`.trim();
+            if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
+            if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
+            if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
+
+            if (col.shippedToggle) {
+                const done = !!r[col.key];
+                return `<td class="${cellClass}" style="text-align:center;"><button type="button" class="orbit-shipped-toggle-btn ${done ? "btn-red" : "btn-blue"}" data-order-item-id="${r.order_item_id}" data-shipped="${done ? 1 : 0}">${done ? "解除" : "出荷完了"}</button></td>`;
+            }
+
             if (col.key === "supplier_link") {
                 const link = buildSupplierLink(r.supplier, r.supplier_order_number);
                 return link ? `<td><a href="${link}" target="_blank" rel="noopener">開く</a></td>` : "<td></td>";
@@ -371,8 +395,9 @@ function renderTableRows(tbody, columns, rows) {
             }
 
             if (col.percentCell) {
-                if (r[col.key] == null) return "<td></td>";
-                return `<td>${(Math.round(r[col.key] * 10) / 10).toLocaleString()}%</td>`;
+                if (r[col.key] == null) return `<td class="${cellClass}"></td>`;
+                const negClass = r[col.key] < 0 ? " orbit-text-red" : "";
+                return `<td class="${cellClass}${negClass}">${(Math.round(r[col.key] * 10) / 10).toLocaleString()}%</td>`;
             }
 
             if (col.issueSummary) {
@@ -382,12 +407,6 @@ function renderTableRows(tbody, columns, rows) {
             }
 
             if (col.blank) return "<td></td>";
-
-            let cellClass = col.deadline ? getDeadlineColorClass(r[col.key]) : "";
-            if (col.group && !col.groupHead) cellClass = `${cellClass} orbit-group-${col.group}`.trim();
-            if (col.checkFlagKey && r[col.checkFlagKey]) cellClass = `${cellClass} orbit-issue-flag`.trim();
-            if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
-            if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
 
             if (col.saleAmountCell) {
                 if (r[col.key] == null) return `<td class="${cellClass}"></td>`;
@@ -583,11 +602,11 @@ window.initOrbit = function () {
 
     // データ再読込でtbody.innerHTMLを差し替えると、テーブルを囲むtable-wrapperの
     // 横スクロール位置がブラウザによって勝手にリセットされることがあるため、明示的に保持する。
-    function renderPreservingScroll(tbodyEl, columns, rows) {
+    function renderPreservingScroll(tbodyEl, columns, rows, opts) {
         if (!tbodyEl) return;
         const wrapper = tbodyEl.closest(".table-wrapper");
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
-        renderTableRows(tbodyEl, columns, rows);
+        renderTableRows(tbodyEl, columns, rows, opts);
         if (wrapper) wrapper.scrollLeft = scrollLeft;
     }
 
@@ -645,7 +664,7 @@ window.initOrbit = function () {
                     //   既存の連番より上に表示されてしまい、N番号の並びと矛盾する）。
                     // 仕入れ管理もN番号の列を持つため、発注管理と同じ並びに揃える。
                     const idOrderedRows = [...data.rows].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, idOrderedRows);
+                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, idOrderedRows, { grayShipped: true });
                     dispatchRowsCache = idOrderedRows;
                     renderDispatchTable();
                     syncOrdersTopScrollWidth();
@@ -889,6 +908,38 @@ window.initOrbit = function () {
                 window.showToast?.("取得に失敗しました", "error");
                 btn.disabled = false;
                 btn.textContent = originalLabel;
+            });
+    });
+
+    // --- ▼ SECTION 01-2d: 仕入れ管理：出荷完了フラグの切り替え（押し間違えてももう一度押せば解除できる） ▼ ---
+    procTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-shipped-toggle-btn");
+        if (!btn) return;
+
+        const orderItemId = btn.dataset.orderItemId;
+        if (!orderItemId) return;
+        const next = btn.dataset.shipped === "1" ? 0 : 1;
+
+        btn.disabled = true;
+
+        fetch("/orbit/orders/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_item_id: orderItemId, shipped_completed: next }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "更新に失敗しました", "error");
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error("orbit/orders/update (shipped_completed) error:", err);
+                window.showToast?.("更新に失敗しました", "error");
+                btn.disabled = false;
             });
     });
 

@@ -109,6 +109,23 @@
   display: none;
 }
 
+/* 仕入れ管理：商品名〜ショップ名の列グループのExcel風折りたたみ（発注管理と同じ仕組み） */
+.orbit-page table.orbit-collapsed-procShrink .orbit-group-procShrink {
+  display: none;
+}
+
+/* 出荷完了：行全体をグレーアウトして視覚的に完了済みとわかるようにする */
+.orbit-page table tbody tr.orbit-row-shipped td {
+  background-color: #e0e0e0 !important;
+  color: #888;
+}
+
+/* 発送重量記入日（出荷完了を押すまで赤字）・利益率マイナスなど、注意喚起の赤字表示 */
+.orbit-page table td.orbit-text-red {
+  color: #dc3545 !important;
+  font-weight: bold;
+}
+
 /* 発送代行会社シートへの貼り付け前チェック（電話番号の国番号・商品名・宛名・住所・州・郵便番号）で
    要確認/自動補正ありの項目を黄色でハイライトする */
 .orbit-page table td.orbit-issue-flag {
@@ -247,13 +264,16 @@
 
       <div class="master-description">
           受注一覧に取り込まれた注文を、日本の仕入先での購入状況で管理します。JAN・仕入価格はここで入力してください(発注管理には読取専用で反映されます)。<br>
-          出荷期日は、注文の締切日(Amazon配送約束日)に対する残り日数で色分け表示されます(3日前:青／1日前:オレンジ／当日〜超過:赤)。
+          出荷期日は、注文の締切日(Amazon配送約束日)に対する残り日数で色分け表示されます(3日前:青／1日前:オレンジ／当日〜超過:赤)。<br>
+          注文日の右には発注管理で代行会社シートを取り込むと入る備考・トラッキング・発送重量記入日・確定重量・送料合計を表示します(発送重量記入日は出荷完了を押すまで赤字)。<br>
+          利益率がマイナスの場合は赤字表示、出荷完了を押すとその行全体がグレーアウトします(押し間違えた場合はもう一度押せば解除できます)。<br>
+          商品名〜ショップ名の列は幅を取るため折りたたんであります。先頭の▸ボタンで展開できます。
       </div>
 
       <div class="orbit-top-scroll" id="orbit-procurement-top-scroll"><div></div></div>
 
       <div class="table-wrapper" id="orbit-procurement-table-wrapper">
-        <table id="orbit-procurement-table">
+        <table id="orbit-procurement-table" class="orbit-collapsed-procShrink">
           <thead>
             <tr>
               <!-- JSで描画 -->

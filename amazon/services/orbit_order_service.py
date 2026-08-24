@@ -959,6 +959,7 @@ MANUAL_FIELDS = [
     "jan_code", "purchase_price",
     "request_date", "shipping_type", "tracking_number", "remarks",
     "supplier", "supplier_order_number", "supplier_shop_name", "procurement_date", "arrival_date",
+    "shipped_completed",
     "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
     "product_name_override", "recipient_name_override",
     "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",
