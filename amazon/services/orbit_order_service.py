@@ -567,7 +567,7 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT o.order_id, o.item_price, o.shipping_price, o.order_currency, l.asin
+        SELECT o.order_id, o.sku, o.item_price, o.shipping_price, o.order_currency, l.asin
         FROM orbit_orders o
         LEFT JOIN listed_items l ON l.user_id = o.user_id AND l.sku = o.sku
         WHERE o.user_id = %s AND o.order_item_id = %s
@@ -579,6 +579,10 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
 
     if not order_row:
         raise RuntimeError("注文が見つかりませんでした")
+
+    # listed_itemsに登録が無い商品は、一覧表示と同じくSKUから直接ASINを抽出するフォールバックを使う
+    if not order_row.get("asin"):
+        order_row["asin"] = _extract_asin_from_sku(order_row.get("sku"))
     if not order_row.get("asin"):
         raise RuntimeError("ASINが特定できないため手数料見積りを取得できません")
 

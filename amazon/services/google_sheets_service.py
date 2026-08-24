@@ -89,10 +89,10 @@ def save_dispatch_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name:
 
 
 # --- ▼ SECTION 01: 認可URL生成 ▼ ---
-def build_authorization_url() -> str:
+def build_authorization_url(redirect_uri: str = None) -> str:
     params = {
         "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "redirect_uri": redirect_uri or GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": SHEETS_SCOPE,
         "access_type": "offline",   # refresh_tokenを取得するために必須
@@ -103,12 +103,15 @@ def build_authorization_url() -> str:
 
 
 # --- ▼ SECTION 02: 認可コード → トークン交換 ▼ ---
-def exchange_code_for_tokens(code: str) -> dict:
+# redirect_uriは認可リクエスト時に使ったものと完全一致している必要がある（Googleの仕様）。
+# Tailscale等で複数端末からアクセスする運用があるため、呼び出し元(ルート)でアクセス元ホストから
+# 動的に組み立てたものを渡す（未指定時のみ従来のlocalhost固定にフォールバック）。
+def exchange_code_for_tokens(code: str, redirect_uri: str = None) -> dict:
     resp = requests.post(GOOGLE_TOKEN_ENDPOINT, data={
         "code": code,
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "redirect_uri": redirect_uri or GOOGLE_REDIRECT_URI,
         "grant_type": "authorization_code",
     })
     resp.raise_for_status()
