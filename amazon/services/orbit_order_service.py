@@ -212,7 +212,7 @@ CURRENCY_ALIASES = {"CDN": "CAD"}
 # 末尾：依頼書シートAT〜AY列（配送先電話番号・内線・想定発送重量・寸法。ship-countryのさらに右）
 EXPORT_COLUMNS = (
     ["agent_serial_no", "request_date", "jan_code", "shipping_type",
-     "quantity_purchased", "tracking_number", "purchase_price", "remarks"]
+     "quantity_purchased", "tracking_number", "invoice_price_jpy", "remarks"]
     + ["asin", "length_cm", "width_cm", "height_cm",
        "billable_weight_kg", "predicted_shipping_fee", "notified_at"]
     + IMPORT_COLUMNS
@@ -432,6 +432,37 @@ def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, ma
     row["net_proceeds_is_estimate"] = net_is_estimate
     row["profit_jpy"] = None
     row["profit_is_estimate"] = None
+    row["profit_rate_pct"] = None
+
+    # 販売額（手数料差引前の総額）。代行会社への「インボイス価格（円）」は仕入原価ではなく
+    # 販売額を基準に算出する必要があるため（仕入原価そのままだとアンダーバリュー扱いになる）、
+    # 円換算した販売額の97%を目安のインボイス価格とする（為替変動を見込んで少し安めに設定）。
+    if row["sale_price"] is not None:
+        gross_used = row["sale_price"]
+        gross_used_currency = row.get("settlement_currency")
+    elif row.get("item_price") is not None:
+        gross_used = (row.get("item_price") or 0) + (row.get("shipping_price") or 0)
+        gross_used_currency = row.get("order_currency")
+    else:
+        gross_used = None
+        gross_used_currency = None
+
+    row["sale_price_used"] = gross_used
+    row["sale_price_used_currency"] = gross_used_currency
+    row["sale_price_used_jpy"] = None
+    row["invoice_price_jpy"] = None
+
+    if gross_used is not None:
+        if gross_used_currency == "JPY":
+            gross_used_jpy = gross_used
+        else:
+            if gross_used_currency not in fx_cache:
+                fx_cache[gross_used_currency] = get_exchange_rate("JPY", gross_used_currency) if gross_used_currency else None
+            rate = fx_cache[gross_used_currency]
+            gross_used_jpy = gross_used * rate if rate else None
+        if gross_used_jpy is not None:
+            row["sale_price_used_jpy"] = gross_used_jpy
+            row["invoice_price_jpy"] = round(gross_used_jpy * 0.97)
 
     if net_used is None:
         return
@@ -456,6 +487,8 @@ def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, ma
 
     row["profit_jpy"] = net_used_jpy - row["purchase_price"] - row["shipping_cost_used"]
     row["profit_is_estimate"] = bool(net_is_estimate or row["shipping_cost_is_estimate"])
+    if net_used_jpy:
+        row["profit_rate_pct"] = row["profit_jpy"] / net_used_jpy * 100
 
 
 # --- ▼ SECTION 04-3: 寸法・重量フォールバック② catalog_cache（ASIN・出品削除後も残る生キャッシュ） ▼ ---
@@ -832,6 +865,11 @@ def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
     allowed = {k: v for k, v in fields.items() if k in MANUAL_FIELDS}
     if not allowed:
         return
+
+    # 依頼日(発注管理)は「仕入れした時点で代行会社へ依頼する」運用のため、仕入日(仕入れ管理)を
+    # 入力した時点でそのまま反映する（JANと同じく仕入れ管理側が発生源で、発注管理側は読取専用）。
+    if "procurement_date" in allowed:
+        allowed["request_date"] = allowed["procurement_date"]
 
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()

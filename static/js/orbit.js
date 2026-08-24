@@ -105,12 +105,14 @@ const DISPATCH_COLUMNS = [
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "move", label: "↕", moveButtons: true },
     { key: "agent_serial_no", label: "N番号", editable: "number", isSerial: true },
-    { key: "request_date", label: "依頼日", editable: "text" },
+    { key: "request_date", label: "依頼日" },  // 仕入れ管理で仕入日を入力した値を反映（読取専用）
     { key: "jan_code", label: "JAN" },  // 仕入れ管理で入力した値を反映（読取専用）
     { key: "shipping_type", label: "発送種別", editable: "text" },
     { key: "quantity_purchased", label: "数量" },
     { key: "agent_tracking_number", label: "トラッキング(海外向け)" },  // 代行会社シートから読み戻し（読取専用）
-    { key: "purchase_price_placeholder", label: "仕入価格", blank: true },
+    // 代行会社シートの「インボイス価格（円）」＝仕入原価ではなく販売額基準（アンダーバリュー防止のため
+    // 販売額の97%で算出、自動算定のみで手入力不可）
+    { key: "invoice_price_jpy", label: "仕入価格(インボイス円)" },
     { key: "remarks", label: "備考", editable: "text" },
 
     // --- 代行会社シートからの読み戻し（読取専用。依頼書J〜U列） ---
@@ -188,9 +190,11 @@ const PROCUREMENT_COLUMNS = [
     // --- 実利益。入金額は「決済トランザクション実績」＞「手数料見積り概算」の順で採用、送料は
     //     「代行会社確定額」＞「ZSSS予測概算」の順で採用（円換算、いずれか概算のときは(概算)と表示） ---
     { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
+    { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true },
     { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate" },
     { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate" },
+    { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 ];
 
 // 旧スプレッドシートの仕入先別リンク生成ロジックを移植
@@ -358,6 +362,17 @@ function renderTableRows(tbody, columns, rows) {
                 return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}">${label}</button></td>`;
             }
 
+            if (col.saleAmountCell) {
+                if (r[col.key] == null) return "<td></td>";
+                const amount = Math.round(r[col.key] * 100) / 100;
+                return `<td>${amount.toLocaleString()} ${r.sale_price_used_currency || ""}</td>`;
+            }
+
+            if (col.percentCell) {
+                if (r[col.key] == null) return "<td></td>";
+                return `<td>${(Math.round(r[col.key] * 10) / 10).toLocaleString()}%</td>`;
+            }
+
             if (col.issueSummary) {
                 const active = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
                 if (!active.length) return "<td></td>";
@@ -501,6 +516,24 @@ window.initOrbit = function () {
     const procThead = procTable?.querySelector("thead tr");
     const procTbody = procTable?.querySelector("tbody");
 
+    // 仕入れ管理も他タブ同様、行数が少ないと本体の横スクロールバーが画面下に隠れるため上部バーを同期する
+    const procTopScroll = document.getElementById("orbit-procurement-top-scroll");
+    const procTableWrapper = document.getElementById("orbit-procurement-table-wrapper");
+    const procTopScrollInner = procTopScroll?.firstElementChild;
+
+    function syncProcurementTopScrollWidth() {
+        if (procTopScrollInner && procTable) procTopScrollInner.style.width = `${procTable.scrollWidth}px`;
+    }
+
+    if (procTopScroll && procTableWrapper) {
+        procTopScroll.addEventListener("scroll", () => {
+            procTableWrapper.scrollLeft = procTopScroll.scrollLeft;
+        });
+        procTableWrapper.addEventListener("scroll", () => {
+            procTopScroll.scrollLeft = procTableWrapper.scrollLeft;
+        });
+    }
+
     const dispatchTable = document.getElementById("orbit-dispatch-table");
     const dispatchThead = dispatchTable?.querySelector("thead tr");
     const dispatchTbody = dispatchTable?.querySelector("tbody");
@@ -528,6 +561,9 @@ window.initOrbit = function () {
     // タイミングで再計算できるよう、サイズ変化を監視して都度同期する。
     if (dispatchTable && window.ResizeObserver) {
         new ResizeObserver(() => syncDispatchTopScrollWidth()).observe(dispatchTable);
+    }
+    if (procTable && window.ResizeObserver) {
+        new ResizeObserver(() => syncProcurementTopScrollWidth()).observe(procTable);
     }
 
     if (tbody.dataset.orbitInitialized === "true") {
@@ -605,6 +641,7 @@ window.initOrbit = function () {
                     renderDispatchTable();
                     syncOrdersTopScrollWidth();
                     syncDispatchTopScrollWidth();
+                    syncProcurementTopScrollWidth();
                 } else {
                     window.showToast?.("注文一覧の取得に失敗しました", "error");
                 }
