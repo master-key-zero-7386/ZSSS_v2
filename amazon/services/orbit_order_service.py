@@ -380,13 +380,17 @@ def _parse_agent_fee_text(value):
 
 
 def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, marketplace_country_map,
-                              pricing_rule_cache, fx_cache):
+                              pricing_rule_cache, fx_cache, settlement_weight=1.0):
+    # 決済トランザクションはorder_id単位（1注文にorder_item_idが複数=複数商品あっても1行）なので、
+    # そのまま各order_item_id行に適用すると同じ入金額が商品ごとに丸ごと重複してしまう。
+    # 販売価格(item_price)の比率（無ければ商品数で均等割り）で按分した額を使う。
     settlement = settlement_summary.get(row.get("order_id"))
-    row["net_proceeds"] = settlement.get("net_proceeds") if settlement else None
-    row["sale_price"] = settlement.get("sale_price") if settlement else None
-    row["fees_total"] = settlement.get("fees_total") if settlement else None
+    row["net_proceeds"] = settlement.get("net_proceeds") * settlement_weight if settlement else None
+    row["sale_price"] = settlement.get("sale_price") * settlement_weight if settlement else None
+    row["fees_total"] = settlement.get("fees_total") * settlement_weight if settlement else None
     row["settlement_currency"] = settlement.get("currency") if settlement else None
     row["deposit_date"] = settlement.get("deposit_date") if settlement else None
+    row["settlement_is_split"] = bool(settlement and settlement_weight != 1.0)
 
     # 出荷完了前は代行会社シートの送料セルが空欄または0のままのことが多く、それを確定額として
     # 採用すると送料0円で利益が過大に出てしまう。「発送重量記入日」（=出荷済みの目印）が入っていて、
@@ -832,6 +836,30 @@ def list_orders_with_calc(user_id: int) -> list:
     marketplace_country_map = _load_marketplace_country_map()
     pricing_rule_cache = {}
     fx_cache = {}
+
+    # 決済トランザクションはorder_id単位のため、1注文に商品が複数(=order_item_idが複数)あると
+    # 同じ入金額が重複適用されてしまう。販売価格(item_price)の比率で按分する重みを先に計算する
+    # （item_priceが全商品分揃わない場合は商品数で均等割り）。
+    order_id_groups = {}
+    for row in rows:
+        order_id_groups.setdefault(row.get("order_id"), []).append(row)
+
+    settlement_weights = {}
+    for order_id, group in order_id_groups.items():
+        if len(group) <= 1:
+            for row in group:
+                settlement_weights[row["order_item_id"]] = 1.0
+            continue
+        prices = [row.get("item_price") for row in group]
+        if all(p is not None for p in prices) and sum(prices) > 0:
+            total = sum(prices)
+            for row, price in zip(group, prices):
+                settlement_weights[row["order_item_id"]] = price / total
+        else:
+            equal_weight = 1.0 / len(group)
+            for row in group:
+                settlement_weights[row["order_item_id"]] = equal_weight
+
     for row in rows:
         _apply_settlement_profit(
             row,
@@ -841,6 +869,7 @@ def list_orders_with_calc(user_id: int) -> list:
             marketplace_country_map=marketplace_country_map,
             pricing_rule_cache=pricing_rule_cache,
             fx_cache=fx_cache,
+            settlement_weight=settlement_weights.get(row["order_item_id"], 1.0),
         )
 
     return rows

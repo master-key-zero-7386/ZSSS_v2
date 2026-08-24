@@ -190,11 +190,11 @@ const PROCUREMENT_COLUMNS = [
     // --- 実利益。入金額は「決済トランザクション実績」＞「手数料見積り概算」の順で採用、送料は
     //     「代行会社確定額」＞「ZSSS予測概算」の順で採用（円換算、いずれか概算のときは(概算)と表示） ---
     { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
-    { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency" },
-    { key: "net_proceeds_used", label: "入金額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate" },
-    { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate" },
+    { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
+    { key: "net_proceeds_used", label: "入金額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
+    { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
-    { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate" },
+    { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 ];
 
@@ -248,6 +248,13 @@ function getDeadlineColorClass(promiseDate) {
 }
 
 const JPY_ROUNDED_KEYS = ["net_proceeds_used_jpy", "shipping_cost_used", "profit_jpy"];
+
+// 見積り(概算)・1注文複数商品の按分(按分)の目印。決済実績が確定していれば両方falseになる想定
+function estimateSuffix(col, r) {
+    if (col.estimateFlagKey && r[col.estimateFlagKey]) return " (概算)";
+    if (col.splitFlagKey && r[col.splitFlagKey]) return " (按分)";
+    return "";
+}
 
 function fmtValue(col, value) {
     if (value === null || value === undefined) return "";
@@ -386,12 +393,11 @@ function renderTableRows(tbody, columns, rows) {
                 if (r[col.key] == null) return `<td class="${cellClass}"></td>`;
                 const amount = Math.round(r[col.key] * 100) / 100;
                 const currency = r[col.currencyKey] || "";
-                const suffix = col.estimateFlagKey && r[col.estimateFlagKey] ? " (概算)" : "";
-                return `<td class="${cellClass}">${amount.toLocaleString()} ${currency}${suffix}</td>`;
+                return `<td class="${cellClass}">${amount.toLocaleString()} ${currency}${estimateSuffix(col, r)}</td>`;
             }
 
-            if (col.estimateFlagKey) {
-                const suffix = (r[col.key] != null && r[col.estimateFlagKey]) ? " (概算)" : "";
+            if (col.estimateFlagKey || col.splitFlagKey) {
+                const suffix = r[col.key] != null ? estimateSuffix(col, r) : "";
                 return `<td class="${cellClass}">${fmtValue(col, r[col.key])}${suffix}</td>`;
             }
 
