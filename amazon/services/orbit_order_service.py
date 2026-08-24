@@ -220,6 +220,14 @@ EXPORT_COLUMNS = (
        "agent_shipping_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"]
 )
 
+# 桁数の多い/先頭0がありうる数字文字列の列（Excelが数値と誤認識すると指数表記化・先頭0欠落するため
+# export_notify_csv側で="123"形式にして文字列として固定する対象）
+NUMERIC_TEXT_EXPORT_COLUMNS = {
+    "jan_code", "tracking_number", "order_item_id",
+    "buyer_phone_number", "buyer_phone_number_effective", "buyer_phone_extension_effective",
+    "buyer_identification_number",
+}
+
 
 # --- ▼ SECTION 02: CSV/TSV解析（Amazon注文レポート形式） ▼ ---
 def parse_order_report(text: str) -> list:
@@ -898,6 +906,7 @@ def export_fee_data_csv(user_id: int) -> str:
     conn.close()
 
     output = io.StringIO()
+    output.write('﻿')  # UTF-8 BOM（無いとExcelがShift-JIS扱いして日本語が文字化けする）
     writer = csv.writer(output)
     writer.writerow(FEE_DATA_COLUMNS)
     for r in rows:
@@ -1078,6 +1087,7 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
         rows = [r for r in rows if r["order_item_id"] in wanted]
 
     output = io.StringIO()
+    output.write('﻿')  # UTF-8 BOM（無いとExcelがShift-JIS扱いして日本語が文字化けする）
     writer = csv.writer(output)
     writer.writerow(EXPORT_COLUMNS)
 
@@ -1093,11 +1103,17 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
         "ship_address_3": "ship_address_3_effective",
     }
 
+    # JANコード・電話番号・order-item-idなど桁数の多い/先頭0ありの数字文字列は、Excelが数値と誤認識すると
+    # 指数表記(1.23E+12)になったり先頭0が消えたりする。="123"形式にして文字列として固定する。
     for r in rows:
-        writer.writerow([
-            r.get(export_value_overrides.get(c, c)) if r.get(export_value_overrides.get(c, c)) is not None else ""
-            for c in EXPORT_COLUMNS
-        ])
+        row_values = []
+        for c in EXPORT_COLUMNS:
+            value = r.get(export_value_overrides.get(c, c))
+            text = "" if value is None else str(value)
+            if c in NUMERIC_TEXT_EXPORT_COLUMNS and text.isdigit():
+                text = f'="{text}"'
+            row_values.append(text)
+        writer.writerow(row_values)
 
     ids = [r["order_item_id"] for r in rows]
     if ids:
