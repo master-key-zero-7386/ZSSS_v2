@@ -428,6 +428,8 @@ def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, ma
         net_used_currency = None
         net_is_estimate = None
 
+    row["net_proceeds_used"] = net_used
+    row["net_proceeds_used_currency"] = net_used_currency
     row["net_proceeds_used_jpy"] = None
     row["net_proceeds_is_estimate"] = net_is_estimate
     row["profit_jpy"] = None

@@ -190,7 +190,8 @@ const PROCUREMENT_COLUMNS = [
     // --- 実利益。入金額は「決済トランザクション実績」＞「手数料見積り概算」の順で採用、送料は
     //     「代行会社確定額」＞「ZSSS予測概算」の順で採用（円換算、いずれか概算のときは(概算)と表示） ---
     { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
-    { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true },
+    { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency" },
+    { key: "net_proceeds_used", label: "入金額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate" },
     { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate" },
     { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate" },
@@ -362,12 +363,6 @@ function renderTableRows(tbody, columns, rows) {
                 return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}">${label}</button></td>`;
             }
 
-            if (col.saleAmountCell) {
-                if (r[col.key] == null) return "<td></td>";
-                const amount = Math.round(r[col.key] * 100) / 100;
-                return `<td>${amount.toLocaleString()} ${r.sale_price_used_currency || ""}</td>`;
-            }
-
             if (col.percentCell) {
                 if (r[col.key] == null) return "<td></td>";
                 return `<td>${(Math.round(r[col.key] * 10) / 10).toLocaleString()}%</td>`;
@@ -386,6 +381,14 @@ function renderTableRows(tbody, columns, rows) {
             if (col.checkFlagKey && r[col.checkFlagKey]) cellClass = `${cellClass} orbit-issue-flag`.trim();
             if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
             if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
+
+            if (col.saleAmountCell) {
+                if (r[col.key] == null) return `<td class="${cellClass}"></td>`;
+                const amount = Math.round(r[col.key] * 100) / 100;
+                const currency = r[col.currencyKey] || "";
+                const suffix = col.estimateFlagKey && r[col.estimateFlagKey] ? " (概算)" : "";
+                return `<td class="${cellClass}">${amount.toLocaleString()} ${currency}${suffix}</td>`;
+            }
 
             if (col.estimateFlagKey) {
                 const suffix = (r[col.key] != null && r[col.estimateFlagKey]) ? " (概算)" : "";
