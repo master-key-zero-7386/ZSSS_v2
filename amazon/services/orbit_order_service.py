@@ -388,8 +388,12 @@ def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, ma
     row["settlement_currency"] = settlement.get("currency") if settlement else None
     row["deposit_date"] = settlement.get("deposit_date") if settlement else None
 
-    agent_fee = _parse_agent_fee_text(row.get("agent_shipping_fee_total"))
-    if agent_fee is not None:
+    # 出荷完了前は代行会社シートの送料セルが空欄または0のままのことが多く、それを確定額として
+    # 採用すると送料0円で利益が過大に出てしまう。「発送重量記入日」（=出荷済みの目印）が入っていて、
+    # かつ確定送料が正の値のときだけ確定額として採用する。
+    is_shipped = bool(row.get("agent_weight_recorded_date"))
+    agent_fee = _parse_agent_fee_text(row.get("agent_shipping_fee_total")) if is_shipped else None
+    if agent_fee is not None and agent_fee > 0:
         row["shipping_cost_used"] = agent_fee
         row["shipping_cost_is_estimate"] = False
     else:
