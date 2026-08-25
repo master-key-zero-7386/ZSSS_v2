@@ -44,6 +44,7 @@ const ORBIT_COLUMNS = [
     { key: "length_cm", label: "長さ(cm)" },
     { key: "width_cm", label: "幅(cm)" },
     { key: "height_cm", label: "高さ(cm)" },
+    { key: "actual_weight_kg", label: "実重量(kg)" },
     { key: "billable_weight_kg", label: "請求重量(kg)" },
     { key: "predicted_shipping_fee", label: "予測送料" },
     { key: "manual_length_cm", label: "長さ手入力(cm)", editable: "number" },
