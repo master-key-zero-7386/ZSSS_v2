@@ -31,7 +31,7 @@ document.addEventListener("click", function (e) {
 // 依頼日・JAN・発送種別・トラッキング・仕入価格・備考など「依頼書シート」形式の列は
 // 統合画面（CA/US/AU全市場をまとめる場所）側の担当なので、ここには置かない。
 // N番号のみ、取込直後にこの画面で採番したいという運用のため例外的にここで入力する
-// （連番は画面の表示順ではなく、常に取込順=id昇順を基準に振られる。詳細はattachSaveHandlers呼び出し側を参照）。
+// （連番は列見出しクリックでの並び替え・↕での手動移動を含む「今の画面の表示順」を基準に振られる）。
 const ORBIT_COLUMNS = [
     { key: "delete", label: "", deleteButton: true },
 
@@ -39,7 +39,9 @@ const ORBIT_COLUMNS = [
     { key: "repeat_badge", label: "🔁", repeatBadge: true },
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
 
-    // --- N番号（発送代行会社の管理連番。先頭行に開始番号を入れると、以降の行に取込順=id昇順で自動採番される） ---
+    // --- N番号（発送代行会社の管理連番。↕で並び替えてから先頭行に開始番号を入れると、
+    //     以降の行(画面の表示順)に自動で連番が振られる） ---
+    { key: "move", label: "↕", moveButtons: true },
     { key: "agent_serial_no", label: "N番号", editable: "number", isSerial: true },
 
     // --- ZSSS算定（listed_items→catalog_cache→手入力 の順で自動取得。取れない場合のみ下の手入力欄を使う） ---
@@ -418,6 +420,13 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 return `<td><button type="button" class="orbit-row-delete-btn btn-red" data-order-item-id="${r.order_item_id}">削除</button></td>`;
             }
 
+            if (col.moveButtons) {
+                return `<td style="white-space:nowrap;">
+                    <button type="button" class="orbit-move-up-btn" data-order-item-id="${r.order_item_id}" title="上へ">▲</button>
+                    <button type="button" class="orbit-move-down-btn" data-order-item-id="${r.order_item_id}" title="下へ">▼</button>
+                </td>`;
+            }
+
             if (col.fetchCatalogButton) {
                 if (r.dims_source || !r.asin) return "<td></td>";
                 return `<td><button type="button" class="orbit-fetch-catalog-btn btn-blue" data-asin="${r.asin}" data-order-item-id="${r.order_item_id}">API取得</button></td>`;
@@ -708,8 +717,54 @@ window.initOrbit = function () {
         if (wrapper) wrapper.scrollLeft = scrollLeft;
     }
 
+    // 受注一覧テーブルは列見出しクリックでの並び替え・↕での手動移動ができる
+    // （N番号の連番はこの「今の画面の表示順」を基準に振られる）
+    let ordersRowsCache = [];
+    let ordersSortState = null; // { key, dir }
+
+    function renderOrdersTable() {
+        const rows = ordersSortState
+            ? sortRowsByKey(ordersRowsCache, ordersSortState.key, ordersSortState.dir)
+            : ordersRowsCache;
+        renderPreservingScroll(tbody, ORBIT_COLUMNS, rows);
+    }
+
+    function onOrdersSort(key) {
+        if (ordersSortState && ordersSortState.key === key) {
+            ordersSortState = { key, dir: ordersSortState.dir === "asc" ? "desc" : "asc" };
+        } else {
+            ordersSortState = { key, dir: "asc" };
+        }
+        renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
+        renderOrdersTable();
+    }
+
+    function getOrdersOrderedIds() {
+        const rows = ordersSortState
+            ? sortRowsByKey(ordersRowsCache, ordersSortState.key, ordersSortState.dir)
+            : ordersRowsCache;
+        return rows.map(r => r.order_item_id);
+    }
+
+    // 行を1つ上/下へ手動で移動する（列ソート中の場合は解除して、移動後の並びをそのまま正とする）
+    function moveOrderRow(orderItemId, direction) {
+        const idx = ordersRowsCache.findIndex(r => r.order_item_id === orderItemId);
+        if (idx < 0) return;
+
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= ordersRowsCache.length) return;
+
+        if (ordersSortState) {
+            ordersSortState = null;
+            renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
+        }
+
+        [ordersRowsCache[idx], ordersRowsCache[swapIdx]] = [ordersRowsCache[swapIdx], ordersRowsCache[idx]];
+        renderOrdersTable();
+    }
+
     // 発注管理テーブルは列見出しクリックで並び替えできる（表示確認用。N番号の連番自体は受注一覧タブで
-    // 取込順=id昇順を基準に振られるため、この並び替えは連番には影響しない）
+    // 決める並び順を基準に振られるため、この並び替えは連番には影響しない）
     let dispatchRowsCache = [];
     let dispatchSortState = null; // { key, dir }
 
@@ -735,12 +790,10 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    renderPreservingScroll(tbody, ORBIT_COLUMNS, data.rows);
-                    // 発注管理は「常に末尾に追加される取込順(id昇順)」がN番号採番の基準のため、
-                    // 受注一覧と違って購入日順ではなくid順を初期表示順にする
-                    // （購入日順のままだと、後から取り込んだ注文の購入日が早い場合に
-                    //   既存の連番より上に表示されてしまい、N番号の並びと矛盾する）。
-                    // 仕入れ管理もN番号の列を持つため、発注管理と同じ並びに揃える。
+                    ordersRowsCache = data.rows;
+                    renderOrdersTable();
+                    // 発注管理・仕入れ管理はN番号の列を持つため、受注一覧での並び替えとは独立に、
+                    // 常にid順(取込順)を初期表示順にして連番との対応を追いやすくする
                     const idOrderedRows = [...data.rows].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
                     renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, idOrderedRows, { grayShipped: true });
                     dispatchRowsCache = idOrderedRows;
@@ -758,7 +811,7 @@ window.initOrbit = function () {
             });
     }
 
-    renderTableHeader(thead, ORBIT_COLUMNS);
+    renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
     if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
     if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS);
@@ -1229,9 +1282,19 @@ window.initOrbit = function () {
     });
 
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
-    attachSaveHandlers(tbody, { onSaved: loadOrders });
+    attachSaveHandlers(tbody, { onSaved: loadOrders, getOrderedIds: getOrdersOrderedIds });
     if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
     if (dispatchTbody) attachSaveHandlers(dispatchTbody, { onSaved: loadOrders });
+
+    // --- ▼ 受注一覧: 行ごとの上下移動 ▼ ---
+    tbody.addEventListener("click", (e) => {
+        const upBtn = e.target.closest(".orbit-move-up-btn");
+        const downBtn = e.target.closest(".orbit-move-down-btn");
+        const btn = upBtn || downBtn;
+        if (!btn) return;
+
+        moveOrderRow(btn.dataset.orderItemId, upBtn ? "up" : "down");
+    });
 
     // --- ▼ SECTION 04: 依頼書スプレッドシートの設定（URL・シート名） ▼ ---
     const sheetUrlInput = document.getElementById("orbit-dispatch-sheet-url");
