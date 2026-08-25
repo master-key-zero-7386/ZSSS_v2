@@ -216,6 +216,38 @@ const PROCUREMENT_COLUMNS = [
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 ];
 
+// --- ▼ SECTION 00-3: 買い手履歴タブ 列定義 ▼ ---
+// 買い手購入履歴はAmazon注文レポートの生データ＋N番だけの一覧（過去に買ったことがあるかの確認用）。
+const BUYER_HISTORY_COLUMNS = [
+    { key: "agent_serial_no", label: "N番" },
+    { key: "purchase_date", label: "購入日", dateOnly: true },
+    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
+    { key: "order_item_id", label: "order-item-id" },
+    { key: "buyer_name", label: "buyer-name" },
+    { key: "recipient_name", label: "recipient-name" },
+    { key: "ship_address_1", label: "住所1" },
+    { key: "ship_city", label: "市区町村" },
+    { key: "ship_state", label: "州" },
+    { key: "ship_postal_code", label: "郵便番号" },
+    { key: "ship_country", label: "国" },
+    { key: "sku", label: "sku" },
+    { key: "product_name", label: "product-name" },
+    { key: "quantity_purchased", label: "数量" },
+    { key: "source", label: "区分" },
+    { key: "archived_at", label: "アーカイブ日時" },
+];
+
+// 返品・セキュリティメモ一覧（発注管理タブの「📝メモ追加」で登録した内容の確認用）
+const SECURITY_NOTES_COLUMNS = [
+    { key: "created_at", label: "登録日時" },
+    { key: "recipient_name", label: "recipient-name" },
+    { key: "ship_address_1", label: "住所1" },
+    { key: "ship_postal_code", label: "郵便番号" },
+    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
+    { key: "order_item_id", label: "order-item-id" },
+    { key: "note", label: "メモ", wide: true },
+];
+
 // 旧スプレッドシートの仕入先別リンク生成ロジックを移植
 function buildSupplierLink(supplier, orderNumber) {
     if (!supplier || !orderNumber || supplier === "-") return "";
@@ -589,6 +621,49 @@ window.initOrbit = function () {
     const dispatchThead = dispatchTable?.querySelector("thead tr");
     const dispatchTbody = dispatchTable?.querySelector("tbody");
 
+    // 買い手履歴タブ（買い手購入履歴一覧・返品セキュリティメモ一覧。早期returnより前に取得しておく）
+    const buyerHistoryTable = document.getElementById("orbit-buyer-history-table");
+    const buyerHistoryThead = buyerHistoryTable?.querySelector("thead tr");
+    const buyerHistoryTbody = buyerHistoryTable?.querySelector("tbody");
+
+    const securityNotesTable = document.getElementById("orbit-security-notes-table");
+    const securityNotesThead = securityNotesTable?.querySelector("thead tr");
+    const securityNotesTbody = securityNotesTable?.querySelector("tbody");
+
+    function loadBuyerHistory() {
+        if (!buyerHistoryTbody) return;
+        fetch("/orbit/buyer_history/list")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    renderTableRows(buyerHistoryTbody, BUYER_HISTORY_COLUMNS, data.rows);
+                } else {
+                    window.showToast?.("買い手購入履歴の取得に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/buyer_history/list error:", err);
+                window.showToast?.("買い手購入履歴の取得に失敗しました", "error");
+            });
+    }
+
+    function loadSecurityNotes() {
+        if (!securityNotesTbody) return;
+        fetch("/orbit/security_notes/list")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    renderTableRows(securityNotesTbody, SECURITY_NOTES_COLUMNS, data.rows);
+                } else {
+                    window.showToast?.("返品・セキュリティメモの取得に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/security_notes/list error:", err);
+                window.showToast?.("返品・セキュリティメモの取得に失敗しました", "error");
+            });
+    }
+
     // 発注管理も受注一覧と同様、行数が少ないと本体の横スクロールバーが画面下に隠れるため上部バーを同期する
     const dispatchTopScroll = document.getElementById("orbit-dispatch-top-scroll");
     const dispatchTableWrapper = document.getElementById("orbit-dispatch-table-wrapper");
@@ -619,6 +694,8 @@ window.initOrbit = function () {
 
     if (tbody.dataset.orbitInitialized === "true") {
         loadOrders();
+        loadBuyerHistory();
+        loadSecurityNotes();
         return;
     }
     tbody.dataset.orbitInitialized = "true";
@@ -706,6 +783,8 @@ window.initOrbit = function () {
     renderTableHeader(thead, ORBIT_COLUMNS);
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
     if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
+    if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS);
+    if (securityNotesThead) renderTableHeader(securityNotesThead, SECURITY_NOTES_COLUMNS);
 
     // --- ▼ SECTION 01: CSVインポート（他画面と同じ file-input-wrapper 方式） ▼ ---
     const orbitFileInput = document.getElementById("orbitFileInput");
@@ -875,6 +954,10 @@ window.initOrbit = function () {
 
     document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
+    document.getElementById("orbit-buyer-history-refresh-btn")?.addEventListener("click", () => {
+        loadBuyerHistory();
+        loadSecurityNotes();
+    });
 
     // --- ▼ SECTION 01-2: 行ごとの削除 ▼ ---
     tbody.addEventListener("click", (e) => {
@@ -1080,6 +1163,7 @@ window.initOrbit = function () {
                     const summary = document.getElementById("orbit-archive-summary");
                     if (summary) summary.textContent = "";
                     loadOrders();
+                    loadBuyerHistory();
                 } else {
                     window.showToast?.(data.message || "アーカイブに失敗しました", "error");
                 }
@@ -1111,6 +1195,7 @@ window.initOrbit = function () {
                 if (data.status === "success") {
                     window.showToast?.("メモを追加しました", "success");
                     loadOrders();
+                    loadSecurityNotes();
                 } else {
                     window.showToast?.(data.message || "追加に失敗しました", "error");
                 }
@@ -1219,4 +1304,6 @@ window.initOrbit = function () {
     });
 
     loadOrders();
+    loadBuyerHistory();
+    loadSecurityNotes();
 };

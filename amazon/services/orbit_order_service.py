@@ -345,7 +345,7 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
 
-    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["buyer_key", "source", "created_at", "updated_at"]
+    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["buyer_key", "source", "created_at"]
     col_list = ", ".join(insert_cols)
     placeholders = ", ".join(["%s"] * len(insert_cols))
 
@@ -358,7 +358,7 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     imported = 0
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [buyer_key, "sheet_import", now, now]
+        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [buyer_key, "sheet_import", now]
         cur.execute(sql, values)
         imported += cur.rowcount
 
@@ -986,6 +986,45 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     return notes_by_key
 
 
+# --- ▼ SECTION 05-1b: 買い手履歴タブの一覧表示（過去に買ったことがあるかどうかのチェック専用） ▼ ---
+def list_buyer_history(user_id: int) -> list:
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT order_item_id, order_id, agent_serial_no, purchase_date,
+               buyer_name, recipient_name, ship_address_1, ship_city, ship_state,
+               ship_postal_code, ship_country, sku, product_name, quantity_purchased,
+               source, archived_at, created_at
+        FROM orbit_buyer_history
+        WHERE user_id = %s
+        ORDER BY purchase_date DESC NULLS LAST, id DESC
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def list_security_notes(user_id: int) -> list:
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, buyer_key, recipient_name, ship_address_1, ship_postal_code,
+               order_id, order_item_id, note, created_at
+        FROM orbit_buyer_security_notes
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
 # --- ▼ SECTION 05-2: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)は別々のDBのため） ▼ ---
 # AU注文の販売価格・手数料見積りはAUアカウントの認証情報を持つATLAS側でしか取得できない。
 # 基本の注文データ自体は通常の注文レポートCSV取込で双方に入れられるので、ここではATLAS側だけで
@@ -1160,18 +1199,22 @@ def list_archive_candidates(user_id: int) -> list:
     return [r for r in rows if r.get("order_id") in settlement_summary]
 
 
-# アーカイブは注文明細の「移動」であって削除ではない。orbit_ordersの全列をそのまま
-# orbit_buyer_historyへ引き継ぐ（買い手照合キー・移動日時・区分を追加するだけ）ため、
-# 列名はSELECT結果（cur.fetchall()のキー）から動的に組み立てる＝将来orbit_ordersに列が
-# 増えてもここを修正不要にする。
+# アーカイブは注文明細の「移動」であって削除ではない。ただしorbit_buyer_historyが持つのは
+# Amazon注文レポートの生データ（IMPORT_COLUMNS）＋N番（agent_serial_no）だけ＝過去の購入価格・
+# 送料・利益等ZSSS側の計算結果は引き継がない（「この住所は過去に買ったことがあるか」だけを
+# チェックするための台帳のため）。
+_BUYER_HISTORY_ARCHIVE_COLUMNS = IMPORT_COLUMNS + ["agent_serial_no"]
+
+
 def archive_orders(user_id: int, order_item_ids: list) -> int:
     if not order_item_ids:
         return 0
 
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
+    cols_sql = ", ".join(["order_item_id"] + [c for c in _BUYER_HISTORY_ARCHIVE_COLUMNS if c != "order_item_id"])
     cur.execute(
-        "SELECT * FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
+        f"SELECT {cols_sql} FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
         (user_id, order_item_ids),
     )
     rows = [dict(r) for r in cur.fetchall()]
@@ -1179,10 +1222,9 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
         conn.close()
         return 0
 
-    cols = [c for c in rows[0].keys() if c != "id"]  # idは自動採番の主キーなので引き継がない
     now = datetime.utcnow().isoformat()
 
-    insert_cols = cols + ["buyer_key", "source", "archived_at"]
+    insert_cols = ["user_id"] + _BUYER_HISTORY_ARCHIVE_COLUMNS + ["buyer_key", "source", "archived_at", "created_at"]
     col_list = ", ".join(insert_cols)
     placeholders = ", ".join(["%s"] * len(insert_cols))
     insert_sql = f"""
@@ -1193,7 +1235,7 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
 
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        values = [row.get(c) for c in cols] + [buyer_key, "archived", now]
+        values = [user_id] + [row.get(c) for c in _BUYER_HISTORY_ARCHIVE_COLUMNS] + [buyer_key, "archived", now, now]
         cur.execute(insert_sql, values)
 
     archived_ids = [r["order_item_id"] for r in rows]

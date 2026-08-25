@@ -648,15 +648,58 @@ ORBIT_SETTLEMENT_LINES_COLUMNS = {
 }
 
 # --- ▼ SECTION : 買い手購入履歴アーカイブ（ORBIT: 決済確定＋出荷完了の注文をorbit_ordersから退避）。
-#     列構成はorbit_ordersと同一＋buyer_key/archived_at/sourceを追加。過去のスプレッドシート
-#     「FBMバイヤー履歴」のCSVインポート分（archived_at=NULL, source='sheet_import'）と、
-#     今後のアーカイブ分（source='archived'）の両方をここに集約する。 ---
-ORBIT_BUYER_HISTORY_COLUMNS = dict(ORBIT_ORDERS_COLUMNS)
-ORBIT_BUYER_HISTORY_COLUMNS.update({
+#     Amazon注文レポートの生データ（IMPORT_COLUMNS）＋N番（agent_serial_no）だけを保持する。
+#     過去の購入価格・送料・利益等ZSSS側の計算結果は持たない＝「この住所は過去に買ったことがあるか」
+#     だけをチェックするための台帳。過去のスプレッドシート「FBMバイヤー履歴」のCSVインポート分
+#     （archived_at=NULL, source='sheet_import'）と、今後のアーカイブ分（source='archived'）の
+#     両方をここに集約する。 ---
+ORBIT_BUYER_HISTORY_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "order_id": "TEXT",
+    "order_item_id": "TEXT NOT NULL",
+    "purchase_date": "TEXT",
+    "payments_date": "TEXT",
+    "reporting_date": "TEXT",
+    "promise_date": "TEXT",
+    "days_past_promise": "TEXT",
+    "buyer_email": "TEXT",
+    "buyer_name": "TEXT",
+    "buyer_phone_number": "TEXT",
+    "sku": "TEXT",
+    "product_name": "TEXT",
+    "quantity_purchased": "INTEGER",
+    "quantity_shipped": "INTEGER",
+    "quantity_to_ship": "INTEGER",
+    "ship_service_level": "TEXT",
+    "recipient_name": "TEXT",
+    "ship_address_1": "TEXT",
+    "ship_address_2": "TEXT",
+    "ship_address_3": "TEXT",
+    "ship_city": "TEXT",
+    "ship_state": "TEXT",
+    "ship_postal_code": "TEXT",
+    "ship_country": "TEXT",
+    "is_business_order": "TEXT",
+    "purchase_order_number": "TEXT",
+    "price_designation": "TEXT",
+    "is_transparency": "TEXT",
+    "verge_of_cancellation": "TEXT",
+    "verge_of_late_shipment": "TEXT",
+    "signature_confirmation_recommended": "TEXT",
+    "buyer_identification_number": "TEXT",
+    "buyer_identification_type": "TEXT",
+    "order_currency": "TEXT",
+    "item_price": "REAL",
+    "shipping_price": "REAL",
+
+    "agent_serial_no": "INTEGER",  # N番（発送代行会社の管理連番）
+
     "buyer_key": "TEXT",      # 住所正規化キー（郵便番号+住所1）。買い手照合用
     "archived_at": "TEXT",    # orbit_ordersからの移動日時（sheet_importはNULL）
     "source": "TEXT",         # 'archived' | 'sheet_import'
-})
+    "created_at": "TEXT",
+}
 
 # --- ▼ SECTION : 返品・セキュリティメモ（ORBIT: 買い手＝住所単位で返品・キャンセル理由等を記録。
 #     Amazonにバイヤーブラックリスト機能が無いための自衛策）。注文がorbit_orders/orbit_buyer_history

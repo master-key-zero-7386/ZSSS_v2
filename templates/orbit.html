@@ -165,6 +165,7 @@
       <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入れ管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">買い手履歴</button>
   </div>
 
   <div id="orbit-pane-orders" class="st-subtab-pane active">
@@ -198,30 +199,6 @@
               <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:340px;" />
               <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
-      </div>
-
-      <div class="master-description">
-          過去の買い手購入履歴（例: スプレッドシート「FBMバイヤー履歴」タブ）をCSV/TSVで一括インポートします。
-          Amazon注文レポートと同じ列構成のファイルをそのまま取り込めます（一度きりの取込を想定。何度でも再実行可）。
-      </div>
-
-      <div class="orbit-actions">
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="file" id="orbitBuyerHistoryFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
-              <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="買い手購入履歴CSV/TSVを選択してください" readonly style="width:340px;" />
-              <button type="button" id="orbitBuyerHistoryUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
-      </div>
-
-      <div class="master-description">
-          出荷完了 かつ 決済レポートで入金額・手数料が確定した注文を、買い手購入履歴へ移動します（削除ではなく移動。
-          対象期間はセラーセントラルで決済レポートをダウンロードする範囲で調整してください）。
-      </div>
-
-      <div class="orbit-actions">
-          <button type="button" id="orbit-archive-check-btn" class="btn-blue">アーカイブ対象を確認</button>
-          <button type="button" id="orbit-archive-run-btn" class="btn-red">アーカイブ実行</button>
-          <span id="orbit-archive-summary" style="font-size:13px; color:#555;"></span>
       </div>
 
       <div class="orbit-top-scroll" id="orbit-orders-top-scroll"><div></div></div>
@@ -311,6 +288,73 @@
 
       <div class="table-wrapper" id="orbit-procurement-table-wrapper">
         <table id="orbit-procurement-table" class="orbit-collapsed-procShrink">
+          <thead>
+            <tr>
+              <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-buyer-history" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          買い手購入履歴は、Amazon注文レポートの生データ＋N番だけを保持する台帳です（過去の購入価格・送料・利益は持ちません）。
+          「この住所は過去に買ったことがあるか」を確認するためだけに使います。
+      </div>
+
+      <div class="master-description">
+          過去の買い手購入履歴（例: スプレッドシート「FBMバイヤー履歴」タブ）をCSV/TSVで一括インポートします。
+          Amazon注文レポートと同じ列構成のファイルをそのまま取り込めます（一度きりの取込を想定。何度でも再実行可）。
+      </div>
+
+      <input type="file" id="orbitBuyerHistoryFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
+
+      <div class="orbit-actions">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="買い手購入履歴CSV/TSVを選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitBuyerHistoryUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+          <button id="orbit-buyer-history-refresh-btn" class="btn-blue">再読込</button>
+      </div>
+
+      <div class="master-description">
+          出荷完了 かつ 決済レポートで入金額・手数料が確定した注文を、受注一覧から買い手購入履歴へ移動します（削除ではなく移動。
+          対象期間はセラーセントラルで決済レポートをダウンロードする範囲で調整してください）。
+      </div>
+
+      <div class="orbit-actions">
+          <button type="button" id="orbit-archive-check-btn" class="btn-blue">アーカイブ対象を確認</button>
+          <button type="button" id="orbit-archive-run-btn" class="btn-red">アーカイブ実行</button>
+          <span id="orbit-archive-summary" style="font-size:13px; color:#555;"></span>
+      </div>
+
+      <h3 style="margin-top:24px;">買い手購入履歴</h3>
+      <div class="table-wrapper" id="orbit-buyer-history-table-wrapper" style="max-height:40vh;">
+        <table id="orbit-buyer-history-table">
+          <thead>
+            <tr>
+              <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:24px;">返品・セキュリティメモ</h3>
+      <div class="master-description">
+          発注管理タブの「📝メモ追加」で登録した、買い手（住所）ごとの返品・キャンセル理由等のメモです。
+      </div>
+      <div class="table-wrapper" id="orbit-security-notes-table-wrapper" style="max-height:40vh;">
+        <table id="orbit-security-notes-table">
           <thead>
             <tr>
               <!-- JSで描画 -->

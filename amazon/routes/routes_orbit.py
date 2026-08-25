@@ -24,6 +24,8 @@ from amazon.services.orbit_order_service import (
     list_archive_candidates,
     archive_orders,
     add_security_note,
+    list_buyer_history,
+    list_security_notes,
     MANUAL_FIELDS,
     NUMERIC_MANUAL_FIELDS,
 )
@@ -177,6 +179,26 @@ def import_buyer_history_route():
     count = import_buyer_history_csv(user_id, rows)
 
     return jsonify({"status": "success", "imported": count})
+
+
+@orbit_bp.route("/buyer_history/list", methods=["GET"])
+def list_buyer_history_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    rows = list_buyer_history(user_id)
+    return jsonify({"status": "success", "rows": rows})
+
+
+@orbit_bp.route("/security_notes/list", methods=["GET"])
+def list_security_notes_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    rows = list_security_notes(user_id)
+    return jsonify({"status": "success", "rows": rows})
 
 
 @orbit_bp.route("/archive/candidates", methods=["GET"])
