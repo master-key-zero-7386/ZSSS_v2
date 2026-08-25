@@ -115,7 +115,6 @@ const DISPATCH_COLUMNS = [
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
-    { key: "move", label: "↕", moveButtons: true },
     { key: "agent_serial_no", label: "N番号", highlight: true },  // 受注一覧タブで入力（読取専用）
     { key: "request_date", label: "依頼日" },  // 仕入れ管理で仕入日を入力した値を反映（読取専用）
     { key: "jan_code", label: "JAN" },  // 仕入れ管理で入力した値を反映（読取専用）
@@ -419,13 +418,6 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 return `<td><button type="button" class="orbit-row-delete-btn btn-red" data-order-item-id="${r.order_item_id}">削除</button></td>`;
             }
 
-            if (col.moveButtons) {
-                return `<td style="white-space:nowrap;">
-                    <button type="button" class="orbit-move-up-btn" data-order-item-id="${r.order_item_id}" title="上へ">▲</button>
-                    <button type="button" class="orbit-move-down-btn" data-order-item-id="${r.order_item_id}" title="下へ">▼</button>
-                </td>`;
-            }
-
             if (col.fetchCatalogButton) {
                 if (r.dims_source || !r.asin) return "<td></td>";
                 return `<td><button type="button" class="orbit-fetch-catalog-btn btn-blue" data-asin="${r.asin}" data-order-item-id="${r.order_item_id}">API取得</button></td>`;
@@ -716,7 +708,8 @@ window.initOrbit = function () {
         if (wrapper) wrapper.scrollLeft = scrollLeft;
     }
 
-    // 発注管理テーブルは列見出しクリックで並び替えできる（N番号の連番はこの並び順を使う）
+    // 発注管理テーブルは列見出しクリックで並び替えできる（表示確認用。N番号の連番自体は受注一覧タブで
+    // 取込順=id昇順を基準に振られるため、この並び替えは連番には影響しない）
     let dispatchRowsCache = [];
     let dispatchSortState = null; // { key, dir }
 
@@ -734,27 +727,6 @@ window.initOrbit = function () {
             dispatchSortState = { key, dir: "asc" };
         }
         if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
-        renderDispatchTable();
-    }
-
-    function getDispatchOrderedIds() {
-        return [...dispatchTbody.querySelectorAll("tr[data-order-item-id]")].map(tr => tr.dataset.orderItemId);
-    }
-
-    // 行を1つ上/下へ手動で移動する（列ソート中の場合は解除して、移動後の並びをそのまま正とする）
-    function moveDispatchRow(orderItemId, direction) {
-        const idx = dispatchRowsCache.findIndex(r => r.order_item_id === orderItemId);
-        if (idx < 0) return;
-
-        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-        if (swapIdx < 0 || swapIdx >= dispatchRowsCache.length) return;
-
-        if (dispatchSortState) {
-            dispatchSortState = null;
-            if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
-        }
-
-        [dispatchRowsCache[idx], dispatchRowsCache[swapIdx]] = [dispatchRowsCache[swapIdx], dispatchRowsCache[idx]];
         renderDispatchTable();
     }
 
@@ -1259,17 +1231,7 @@ window.initOrbit = function () {
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
     attachSaveHandlers(tbody, { onSaved: loadOrders });
     if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
-    if (dispatchTbody) attachSaveHandlers(dispatchTbody, { onSaved: loadOrders, getOrderedIds: getDispatchOrderedIds });
-
-    // --- ▼ 発注管理: 行ごとの上下移動 ▼ ---
-    dispatchTbody?.addEventListener("click", (e) => {
-        const upBtn = e.target.closest(".orbit-move-up-btn");
-        const downBtn = e.target.closest(".orbit-move-down-btn");
-        const btn = upBtn || downBtn;
-        if (!btn) return;
-
-        moveDispatchRow(btn.dataset.orderItemId, upBtn ? "up" : "down");
-    });
+    if (dispatchTbody) attachSaveHandlers(dispatchTbody, { onSaved: loadOrders });
 
     // --- ▼ SECTION 04: 依頼書スプレッドシートの設定（URL・シート名） ▼ ---
     const sheetUrlInput = document.getElementById("orbit-dispatch-sheet-url");
