@@ -28,14 +28,19 @@ document.addEventListener("click", function (e) {
 
 // --- ▼ SECTION 00: 表示列定義 ▼ ---
 // 受注一覧＝Amazonデータの取込・管理専用（市場別）。
-// N番号・依頼日・JAN・発送種別・トラッキング・仕入価格・備考など「依頼書シート」形式の列は
+// 依頼日・JAN・発送種別・トラッキング・仕入価格・備考など「依頼書シート」形式の列は
 // 統合画面（CA/US/AU全市場をまとめる場所）側の担当なので、ここには置かない。
+// N番号のみ、取込直後にこの画面で採番したいという運用のため例外的にここで入力する
+// （連番は画面の表示順ではなく、常に取込順=id昇順を基準に振られる。詳細はattachSaveHandlers呼び出し側を参照）。
 const ORBIT_COLUMNS = [
     { key: "delete", label: "", deleteButton: true },
 
     // --- 買い手照合（住所ベース。過去の購入履歴・返品セキュリティメモとの突き合わせ結果） ---
     { key: "repeat_badge", label: "🔁", repeatBadge: true },
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
+
+    // --- N番号（発送代行会社の管理連番。先頭行に開始番号を入れると、以降の行に取込順=id昇順で自動採番される） ---
+    { key: "agent_serial_no", label: "N番号", editable: "number", isSerial: true },
 
     // --- ZSSS算定（listed_items→catalog_cache→手入力 の順で自動取得。取れない場合のみ下の手入力欄を使う） ---
     { key: "asin", label: "ASIN", copyClass: "asin-cell" },
@@ -111,7 +116,7 @@ const DISPATCH_COLUMNS = [
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
     { key: "move", label: "↕", moveButtons: true },
-    { key: "agent_serial_no", label: "N番号", editable: "number", isSerial: true },
+    { key: "agent_serial_no", label: "N番号", highlight: true },  // 受注一覧タブで入力（読取専用）
     { key: "request_date", label: "依頼日" },  // 仕入れ管理で仕入日を入力した値を反映（読取専用）
     { key: "jan_code", label: "JAN" },  // 仕入れ管理で入力した値を反映（読取専用）
     { key: "shipping_type", label: "発送種別", editable: "text" },
