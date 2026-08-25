@@ -427,8 +427,8 @@ def _load_marketplace_country_map() -> dict:
 
 # --- ▼ SECTION 04-2b: 実利益算定（決済レポートの入金額 − 仕入価格 − 送料） ▼ ---
 # 送料は「代行会社確定値(agent_shipping_fee_total)」を最優先で使う。発送完了前でまだ確定値が無い間は、
-# ZSSSの予測送料(predicted_shipping_fee)にFuel Surcharge・Shipping Fee・Packaging Costを加味した概算で代用する
-# （calculate_listing_price と同じ内訳: fuel_surcharge_rate/shipping_outsource_cost/extra_cost）。
+# ZSSSの予測送料(predicted_shipping_fee)で代用する（list_orders_with_calc側で既にFuel Surcharge・
+# Shipping Fee・Packaging Costを加味した全部込みの値になっているので、ここでは再加算しない）。
 def _parse_agent_fee_text(value):
     if not value:
         return None
@@ -441,8 +441,7 @@ def _parse_agent_fee_text(value):
         return None
 
 
-def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, marketplace_country_map,
-                              pricing_rule_cache, fx_cache, settlement_weight=1.0):
+def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_weight=1.0):
     # 決済トランザクションはorder_id単位（1注文にorder_item_idが複数=複数商品あっても1行）なので、
     # そのまま各order_item_id行に適用すると同じ入金額が商品ごとに丸ごと重複してしまう。
     # 販売価格(item_price)の比率（無ければ商品数で均等割り）で按分した額を使う。
@@ -464,16 +463,8 @@ def _apply_settlement_profit(row, *, user_id, settlement_summary, prefix_map, ma
         row["shipping_cost_is_estimate"] = False
     else:
         predicted = row.get("predicted_shipping_fee")
-        marketplace_id = _resolve_row_marketplace_id(row.get("order_id"), prefix_map)
-        country_code = marketplace_country_map.get(marketplace_id) if marketplace_id else None
-        if predicted is not None and country_code:
-            if marketplace_id not in pricing_rule_cache:
-                pricing_rule_cache[marketplace_id] = get_pricing_master_rule(user_id=user_id, country_code=country_code)
-            rule = pricing_rule_cache[marketplace_id]
-            fuel_rate = float(rule.get("fuel_surcharge_rate") or 0) / 100
-            outsource = float(rule.get("shipping_outsource_cost") or 0)
-            packing = float(rule.get("extra_cost") or 0)
-            row["shipping_cost_used"] = predicted * (1 + fuel_rate) + outsource + packing
+        if predicted is not None:
+            row["shipping_cost_used"] = predicted
             row["shipping_cost_is_estimate"] = True
         else:
             row["shipping_cost_used"] = None
@@ -823,6 +814,8 @@ def list_orders_with_calc(user_id: int) -> list:
     shipping_config = _get_shipping_config(user_id)
     prefix_map = _load_order_id_prefix_map()
     rate_cache = {}
+    marketplace_country_map = _load_marketplace_country_map()
+    pricing_rule_cache = {}
 
     for row in rows:
         row["billable_weight_kg"] = None
@@ -890,13 +883,26 @@ def list_orders_with_calc(user_id: int) -> list:
         )
 
         row["billable_weight_kg"] = calc["billable_weight"]
-        row["predicted_shipping_fee"] = calc["shipping_fee"]
+        base_shipping_fee = calc["shipping_fee"]
+
+        # 予測送料は「仕入れ段階の目安」として使われるため、運賃表の生値のままではなく
+        # 燃油サーチャージ・発送外注費・梱包費（pricing_master_rulesの国別設定）を乗せた
+        # 全部込みの見積りにする（仕入れ管理の送料(円)概算と同じ内訳・同じ値にする）。
+        country_code = marketplace_country_map.get(marketplace_id)
+        if base_shipping_fee is not None and country_code:
+            if marketplace_id not in pricing_rule_cache:
+                pricing_rule_cache[marketplace_id] = get_pricing_master_rule(user_id=user_id, country_code=country_code)
+            rule = pricing_rule_cache[marketplace_id]
+            fuel_rate = float(rule.get("fuel_surcharge_rate") or 0) / 100
+            outsource = float(rule.get("shipping_outsource_cost") or 0)
+            packing = float(rule.get("extra_cost") or 0)
+            row["predicted_shipping_fee"] = base_shipping_fee * (1 + fuel_rate) + outsource + packing
+        else:
+            row["predicted_shipping_fee"] = base_shipping_fee
 
     # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
     #     予測送料無しで代行会社確定送料だけは反映したいため、上のループとは別パスで全行に適用する。 ---
     settlement_summary = get_order_settlement_summary(user_id)
-    marketplace_country_map = _load_marketplace_country_map()
-    pricing_rule_cache = {}
     fx_cache = {}
 
     # 決済トランザクションはorder_id単位のため、1注文に商品が複数(=order_item_idが複数)あると
@@ -925,11 +931,7 @@ def list_orders_with_calc(user_id: int) -> list:
     for row in rows:
         _apply_settlement_profit(
             row,
-            user_id=user_id,
             settlement_summary=settlement_summary,
-            prefix_map=prefix_map,
-            marketplace_country_map=marketplace_country_map,
-            pricing_rule_cache=pricing_rule_cache,
             fx_cache=fx_cache,
             settlement_weight=settlement_weights.get(row["order_item_id"], 1.0),
         )
