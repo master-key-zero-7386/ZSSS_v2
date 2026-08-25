@@ -20,6 +20,10 @@ from amazon.services.orbit_order_service import (
     set_agent_serial_no,
     export_notify_csv,
     sync_dispatch_sheet_status,
+    import_buyer_history_csv,
+    list_archive_candidates,
+    archive_orders,
+    add_security_note,
     MANUAL_FIELDS,
     NUMERIC_MANUAL_FIELDS,
 )
@@ -150,6 +154,74 @@ def delete_all_orders_route():
 
     deleted = delete_all_orders(user_id)
     return jsonify({"status": "success", "deleted": deleted})
+
+
+# --- ▼ SECTION 03-1a: 買い手購入履歴アーカイブ ▼ ---
+@orbit_bp.route("/buyer_history/import", methods=["POST"])
+def import_buyer_history_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"status": "error", "message": "ファイルがありません"}), 400
+
+    text = file.read().decode("utf-8-sig", errors="replace")
+
+    try:
+        rows = parse_order_report(text)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"CSV解析に失敗しました: {e}"}), 400
+
+    count = import_buyer_history_csv(user_id, rows)
+
+    return jsonify({"status": "success", "imported": count})
+
+
+@orbit_bp.route("/archive/candidates", methods=["GET"])
+def archive_candidates_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    rows = list_archive_candidates(user_id)
+    return jsonify({"status": "success", "rows": rows})
+
+
+@orbit_bp.route("/archive/run", methods=["POST"])
+def archive_run_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_ids = data.get("order_item_ids")
+    if not order_item_ids or not isinstance(order_item_ids, list):
+        return jsonify({"status": "error", "message": "order_item_idsが必要です"}), 400
+
+    archived = archive_orders(user_id, order_item_ids)
+    return jsonify({"status": "success", "archived": archived})
+
+
+# --- ▼ SECTION 03-1a-2: 返品・セキュリティメモ ▼ ---
+@orbit_bp.route("/security_notes/add", methods=["POST"])
+def add_security_note_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_id = data.get("order_item_id")
+    note = data.get("note")
+    if not order_item_id or not note:
+        return jsonify({"status": "error", "message": "order_item_idとnoteが必要です"}), 400
+
+    added = add_security_note(user_id, order_item_id, note)
+    if not added:
+        return jsonify({"status": "error", "message": "対象の注文が見つかりませんでした"}), 404
+
+    return jsonify({"status": "success"})
 
 
 # --- ▼ SECTION 03-1b: 寸法・重量が無いASINをその場でHOME APIから取得 ▼ ---

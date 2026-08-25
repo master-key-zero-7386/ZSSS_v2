@@ -8,6 +8,7 @@ import io
 import json
 import math
 import re
+import unicodedata
 from datetime import datetime
 
 from amazon.db import get_conn
@@ -103,6 +104,24 @@ def _expand_us_state(state, country):
     if not state or (country or "").strip().upper() != "US":
         return state
     return US_STATE_NAMES.get(state.strip().upper(), state)
+
+
+# --- ▼ SECTION 01-3: 買い手照合キー（買い手購入履歴アーカイブ・返品セキュリティメモの突き合わせ用） ▼ ---
+# 氏名は同姓同名・改名がありうるため使わない。住所（郵便番号＋住所1）だけで照合する
+# （全角/半角の表記ゆれはNFKC正規化・空白除去・大文字化で吸収する）。
+def _normalize_buyer_key(ship_postal_code, ship_address_1):
+    def _norm(value):
+        if not value:
+            return ""
+        value = unicodedata.normalize("NFKC", str(value))
+        value = re.sub(r"\s+", "", value)
+        return value.strip().upper()
+
+    postal = _norm(ship_postal_code)
+    address = _norm(ship_address_1)
+    if not postal and not address:
+        return None
+    return f"{postal}|{address}"
 
 
 def _effective(value, override):
@@ -312,6 +331,41 @@ def upsert_orders(user_id: int, rows: list) -> int:
     conn.close()
 
     return len(rows)
+
+
+# --- ▼ SECTION 03-3: 買い手購入履歴アーカイブへの取込（スプレッドシート「FBMバイヤー履歴」の
+#     一括インポート専用。orbit_ordersと違い、既存行の上書きはしない＝過去にインポート済みなら
+#     スキップするだけの単純なINSERT。列構成はAmazon注文レポートと同一のためparse_order_report()を
+#     そのまま再利用できる） ▼ ---
+def import_buyer_history_csv(user_id: int, rows: list) -> int:
+    if not rows:
+        return 0
+
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+
+    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["buyer_key", "source", "created_at", "updated_at"]
+    col_list = ", ".join(insert_cols)
+    placeholders = ", ".join(["%s"] * len(insert_cols))
+
+    sql = f"""
+        INSERT INTO orbit_buyer_history ({col_list})
+        VALUES ({placeholders})
+        ON CONFLICT (user_id, order_item_id) DO NOTHING
+    """
+
+    imported = 0
+    for row in rows:
+        buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
+        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [buyer_key, "sheet_import", now, now]
+        cur.execute(sql, values)
+        imported += cur.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return imported
 
 
 # --- ▼ SECTION 04: 送料算定条件の取得 ▼ ---
@@ -880,7 +934,56 @@ def list_orders_with_calc(user_id: int) -> list:
             settlement_weight=settlement_weights.get(row["order_item_id"], 1.0),
         )
 
+    # --- リピーター判定・返品セキュリティメモの反映（買い手＝住所キーで突き合わせ） ---
+    buyer_history_counts = _load_buyer_history_counts(user_id)
+    buyer_security_notes = _load_buyer_security_notes(user_id)
+    for row in rows:
+        buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
+        row["repeat_buyer_count"] = buyer_history_counts.get(buyer_key, 0) if buyer_key else 0
+        row["security_notes"] = buyer_security_notes.get(buyer_key, []) if buyer_key else []
+
     return rows
+
+
+# --- ▼ SECTION 05-3: リピーター件数・返品セキュリティメモの一括取得（買い手キー単位） ▼ ---
+# list_orders_with_calc()の中で行ごとにクエリを投げないよう、既存のsettlement_summary一括取得
+# （SECTION 04-2b付近）と同じ考え方で、ユーザー全体を1クエリずつまとめて取得する。
+def _load_buyer_history_counts(user_id: int) -> dict:
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT buyer_key, COUNT(*) AS cnt
+        FROM orbit_buyer_history
+        WHERE user_id = %s AND buyer_key IS NOT NULL
+        GROUP BY buyer_key
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return {r["buyer_key"]: r["cnt"] for r in rows}
+
+
+def _load_buyer_security_notes(user_id: int) -> dict:
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT buyer_key, note
+        FROM orbit_buyer_security_notes
+        WHERE user_id = %s
+        ORDER BY created_at ASC
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    notes_by_key = {}
+    for r in rows:
+        notes_by_key.setdefault(r["buyer_key"], []).append(r["note"])
+    return notes_by_key
 
 
 # --- ▼ SECTION 05-2: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)は別々のDBのため） ▼ ---
@@ -1033,6 +1136,134 @@ def delete_all_orders(user_id: int) -> int:
     conn.commit()
     conn.close()
     return deleted
+
+
+# --- ▼ SECTION 06-1b: アーカイブ候補の検出・実行（決済確定＋出荷完了の注文をFBMバイヤー履歴へ移動） ▼ ---
+# 「決済確定」はorbit_settlement_linesに実績行があるかどうかで判定する。時間ベースの自動実行はせず、
+# 半自動（候補を確認してからボタンで実行）にする：セラーセントラルの決済レポートをいつ・どの期間分
+# 取り込むかで、事実上のアーカイブ対象期間をユーザー側でコントロールできるようにするため。
+def list_archive_candidates(user_id: int) -> list:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT order_item_id, order_id, sku, product_name, recipient_name, purchase_date
+        FROM orbit_orders
+        WHERE user_id = %s AND shipped_completed = 1
+        """,
+        (user_id,),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    settlement_summary = get_order_settlement_summary(user_id)
+    return [r for r in rows if r.get("order_id") in settlement_summary]
+
+
+# アーカイブは注文明細の「移動」であって削除ではない。orbit_ordersの全列をそのまま
+# orbit_buyer_historyへ引き継ぐ（買い手照合キー・移動日時・区分を追加するだけ）ため、
+# 列名はSELECT結果（cur.fetchall()のキー）から動的に組み立てる＝将来orbit_ordersに列が
+# 増えてもここを修正不要にする。
+def archive_orders(user_id: int, order_item_ids: list) -> int:
+    if not order_item_ids:
+        return 0
+
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
+        (user_id, order_item_ids),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    if not rows:
+        conn.close()
+        return 0
+
+    cols = [c for c in rows[0].keys() if c != "id"]  # idは自動採番の主キーなので引き継がない
+    now = datetime.utcnow().isoformat()
+
+    insert_cols = cols + ["buyer_key", "source", "archived_at"]
+    col_list = ", ".join(insert_cols)
+    placeholders = ", ".join(["%s"] * len(insert_cols))
+    insert_sql = f"""
+        INSERT INTO orbit_buyer_history ({col_list})
+        VALUES ({placeholders})
+        ON CONFLICT (user_id, order_item_id) DO NOTHING
+    """
+
+    for row in rows:
+        buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
+        values = [row.get(c) for c in cols] + [buyer_key, "archived", now]
+        cur.execute(insert_sql, values)
+
+    archived_ids = [r["order_item_id"] for r in rows]
+    cur.execute(
+        "DELETE FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
+        (user_id, archived_ids),
+    )
+    archived = cur.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return archived
+
+
+# --- ▼ SECTION 06-1c: 返品・セキュリティメモの追加（買い手＝住所単位） ▼ ---
+# 注文明細（order_item_id）がorbit_orders・orbit_buyer_historyのどちらにあっても追記できる
+# （アーカイブ後、何ヶ月経ってから返品が来ても記録できるようにするため）。
+def add_security_note(user_id: int, order_item_id: str, note: str) -> bool:
+    note = (note or "").strip()
+    if not order_item_id or not note:
+        return False
+
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT order_id, recipient_name, ship_address_1, ship_postal_code "
+        "FROM orbit_orders WHERE user_id = %s AND order_item_id = %s",
+        (user_id, order_item_id),
+    )
+    source_row = cur.fetchone()
+    conn.close()
+
+    if not source_row:
+        conn = get_conn("a_orbit_buyer_history.db")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT order_id, recipient_name, ship_address_1, ship_postal_code "
+            "FROM orbit_buyer_history WHERE user_id = %s AND order_item_id = %s",
+            (user_id, order_item_id),
+        )
+        source_row = cur.fetchone()
+        conn.close()
+
+    if not source_row:
+        return False
+
+    buyer_key = _normalize_buyer_key(source_row.get("ship_postal_code"), source_row.get("ship_address_1"))
+    if not buyer_key:
+        return False
+
+    now = datetime.utcnow().isoformat()
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO orbit_buyer_security_notes
+            (user_id, buyer_key, recipient_name, ship_address_1, ship_postal_code,
+             order_id, order_item_id, note, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (
+            user_id, buyer_key, source_row.get("recipient_name"), source_row.get("ship_address_1"),
+            source_row.get("ship_postal_code"), source_row.get("order_id"), order_item_id,
+            note, now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return True
 
 
 # --- ▼ SECTION 06-2: 代行会社連番（Nから始まる連番）の設定 ▼ ---

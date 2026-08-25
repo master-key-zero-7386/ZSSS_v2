@@ -647,6 +647,33 @@ ORBIT_SETTLEMENT_LINES_COLUMNS = {
     "imported_at": "TEXT",
 }
 
+# --- ▼ SECTION : 買い手購入履歴アーカイブ（ORBIT: 決済確定＋出荷完了の注文をorbit_ordersから退避）。
+#     列構成はorbit_ordersと同一＋buyer_key/archived_at/sourceを追加。過去のスプレッドシート
+#     「FBMバイヤー履歴」のCSVインポート分（archived_at=NULL, source='sheet_import'）と、
+#     今後のアーカイブ分（source='archived'）の両方をここに集約する。 ---
+ORBIT_BUYER_HISTORY_COLUMNS = dict(ORBIT_ORDERS_COLUMNS)
+ORBIT_BUYER_HISTORY_COLUMNS.update({
+    "buyer_key": "TEXT",      # 住所正規化キー（郵便番号+住所1）。買い手照合用
+    "archived_at": "TEXT",    # orbit_ordersからの移動日時（sheet_importはNULL）
+    "source": "TEXT",         # 'archived' | 'sheet_import'
+})
+
+# --- ▼ SECTION : 返品・セキュリティメモ（ORBIT: 買い手＝住所単位で返品・キャンセル理由等を記録。
+#     Amazonにバイヤーブラックリスト機能が無いための自衛策）。注文がorbit_orders/orbit_buyer_history
+#     どちらにアーカイブ済みでも、buyer_keyさえ分かれば追記できる。 ---
+ORBIT_BUYER_SECURITY_NOTES_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "buyer_key": "TEXT NOT NULL",
+    "recipient_name": "TEXT",      # 表示用スナップショット
+    "ship_address_1": "TEXT",      # 表示用スナップショット
+    "ship_postal_code": "TEXT",    # 表示用スナップショット
+    "order_id": "TEXT",
+    "order_item_id": "TEXT",
+    "note": "TEXT NOT NULL",
+    "created_at": "TEXT",
+}
+
 # --- ▼ SECTION : Google OAuthトークン（ORBIT: 発送代行会社シートの読み戻し用） ---
 GOOGLE_OAUTH_TOKENS_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
@@ -790,6 +817,10 @@ def migrate_db(db_name):
         migrate_table(conn, "orbit_orders", ORBIT_ORDERS_COLUMNS)
     elif base.endswith("_orbit_settlement_lines.db"):
         migrate_table(conn, "orbit_settlement_lines", ORBIT_SETTLEMENT_LINES_COLUMNS)
+    elif base.endswith("_orbit_buyer_history.db"):
+        migrate_table(conn, "orbit_buyer_history", ORBIT_BUYER_HISTORY_COLUMNS)
+    elif base.endswith("_orbit_buyer_security_notes.db"):
+        migrate_table(conn, "orbit_buyer_security_notes", ORBIT_BUYER_SECURITY_NOTES_COLUMNS)
     elif base.endswith("_google_oauth_tokens.db"):
         migrate_table(conn, "google_oauth_tokens", GOOGLE_OAUTH_TOKENS_COLUMNS)
     elif base.endswith("_orbit_dispatch_sheet_settings.db"):
@@ -940,6 +971,30 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_settlement_lines_order "
         "ON orbit_settlement_lines(user_id, order_id)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_buyer_history.db ---
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_buyer_history_unique "
+        "ON orbit_buyer_history(user_id, order_item_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_history_buyer_key "
+        "ON orbit_buyer_history(user_id, buyer_key)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_buyer_security_notes.db ---
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_security_notes_buyer_key "
+        "ON orbit_buyer_security_notes(user_id, buyer_key)"
     )
     conn.commit()
     conn.close()
@@ -1220,6 +1275,8 @@ def main():
         "a_carrier_remote_area.db",
         "a_orbit_orders.db",
         "a_orbit_settlement_lines.db",
+        "a_orbit_buyer_history.db",
+        "a_orbit_buyer_security_notes.db",
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
     ]

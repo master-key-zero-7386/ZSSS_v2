@@ -132,6 +132,19 @@
   background-color: #fff3cd !important;
 }
 
+/* リピーター（過去の買い手購入履歴と住所が一致）バッジ */
+.orbit-page table td.orbit-repeat-flag {
+  background-color: #e3f2fd !important;
+  font-weight: bold;
+}
+
+/* 要注意（返品・セキュリティメモがある買い手と住所が一致）バッジ。出荷可否の判断材料 */
+.orbit-page table td.orbit-security-flag {
+  background-color: #ffcdd2 !important;
+  color: #b71c1c;
+  font-weight: bold;
+}
+
 /* 仕入れ・出荷時に頻繁にチェックする項目（N番号・ASIN・仕入日・到着予定日）を目立たせる */
 .orbit-page table th.orbit-check-highlight,
 .orbit-page table td.orbit-check-highlight {
@@ -185,6 +198,30 @@
               <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:340px;" />
               <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
+      </div>
+
+      <div class="master-description">
+          過去の買い手購入履歴（例: スプレッドシート「FBMバイヤー履歴」タブ）をCSV/TSVで一括インポートします。
+          Amazon注文レポートと同じ列構成のファイルをそのまま取り込めます（一度きりの取込を想定。何度でも再実行可）。
+      </div>
+
+      <div class="orbit-actions">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="file" id="orbitBuyerHistoryFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
+              <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="買い手購入履歴CSV/TSVを選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitBuyerHistoryUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+      </div>
+
+      <div class="master-description">
+          出荷完了 かつ 決済レポートで入金額・手数料が確定した注文を、買い手購入履歴へ移動します（削除ではなく移動。
+          対象期間はセラーセントラルで決済レポートをダウンロードする範囲で調整してください）。
+      </div>
+
+      <div class="orbit-actions">
+          <button type="button" id="orbit-archive-check-btn" class="btn-blue">アーカイブ対象を確認</button>
+          <button type="button" id="orbit-archive-run-btn" class="btn-red">アーカイブ実行</button>
+          <span id="orbit-archive-summary" style="font-size:13px; color:#555;"></span>
       </div>
 
       <div class="orbit-top-scroll" id="orbit-orders-top-scroll"><div></div></div>

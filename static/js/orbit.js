@@ -33,6 +33,10 @@ document.addEventListener("click", function (e) {
 const ORBIT_COLUMNS = [
     { key: "delete", label: "", deleteButton: true },
 
+    // --- 買い手照合（住所ベース。過去の購入履歴・返品セキュリティメモとの突き合わせ結果） ---
+    { key: "repeat_badge", label: "🔁", repeatBadge: true },
+    { key: "security_badge", label: "⚠要注意", securityBadge: true },
+
     // --- ZSSS算定（listed_items→catalog_cache→手入力 の順で自動取得。取れない場合のみ下の手入力欄を使う） ---
     { key: "asin", label: "ASIN", copyClass: "asin-cell" },
     { key: "dims_source", label: "寸法取得元" },
@@ -103,6 +107,8 @@ const DISPATCH_ISSUE_FLAGS = [
 // CA/US/AU全市場をまとめて、発送代行会社の「依頼書」シートと同じ並びで表示・編集する。
 const DISPATCH_COLUMNS = [
     { key: "issue_summary", label: "⚠", issueSummary: true },
+    { key: "security_badge", label: "⚠要注意", securityBadge: true },
+    { key: "security_note_add", label: "📝", securityNoteButton: true },
     { key: "move", label: "↕", moveButtons: true },
     { key: "agent_serial_no", label: "N番号", editable: "number", isSerial: true },
     { key: "request_date", label: "依頼日" },  // 仕入れ管理で仕入日を入力した値を反映（読取専用）
@@ -405,6 +411,22 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 const active = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
                 if (!active.length) return "<td></td>";
                 return `<td class="orbit-issue-flag" style="text-align:center;" title="${active.map(f => f.label).join(" / ")}">⚠</td>`;
+            }
+
+            if (col.repeatBadge) {
+                const count = r.repeat_buyer_count || 0;
+                if (!count) return "<td></td>";
+                return `<td class="orbit-repeat-flag" style="text-align:center;" title="過去${count}回購入しています">🔁${count}</td>`;
+            }
+
+            if (col.securityBadge) {
+                const notes = r.security_notes || [];
+                if (!notes.length) return "<td></td>";
+                return `<td class="orbit-security-flag" style="text-align:center;" title="${notes.join(" / ")}">⚠要注意</td>`;
+            }
+
+            if (col.securityNoteButton) {
+                return `<td><button type="button" class="orbit-security-note-btn" data-order-item-id="${r.order_item_id}">📝メモ追加</button></td>`;
             }
 
             if (col.blank) return "<td></td>";
@@ -810,6 +832,47 @@ window.initOrbit = function () {
             });
     });
 
+    // --- ▼ SECTION 01-1d: 買い手購入履歴アーカイブへの一括インポート（過去分の一度きりの取込） ▼ ---
+    const orbitBuyerHistoryFileInput = document.getElementById("orbitBuyerHistoryFileInput");
+    const orbitBuyerHistoryFileName = document.getElementById("orbitBuyerHistoryFileName");
+    const orbitBuyerHistoryUploadBtn = document.getElementById("orbitBuyerHistoryUploadBtn");
+
+    orbitBuyerHistoryFileName?.addEventListener("click", () => {
+        orbitBuyerHistoryFileInput?.click();
+    });
+
+    orbitBuyerHistoryFileInput?.addEventListener("change", (e) => {
+        const fileName = e.target.files.length ? e.target.files[0].name : "";
+        if (orbitBuyerHistoryFileName) orbitBuyerHistoryFileName.value = fileName;
+    });
+
+    orbitBuyerHistoryUploadBtn?.addEventListener("click", () => {
+        if (!orbitBuyerHistoryFileInput?.files?.length) {
+            window.showToast?.("ファイルを選択してください", "error");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", orbitBuyerHistoryFileInput.files[0]);
+
+        fetch("/orbit/buyer_history/import", { method: "POST", body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.(`${data.imported}件インポートしました`, "success");
+                    orbitBuyerHistoryFileInput.value = "";
+                    if (orbitBuyerHistoryFileName) orbitBuyerHistoryFileName.value = "";
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "インポートに失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/buyer_history/import error:", err);
+                window.showToast?.("インポートに失敗しました", "error");
+            });
+    });
+
     document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
 
@@ -966,6 +1029,95 @@ window.initOrbit = function () {
             .catch(err => {
                 console.error("orbit/orders/delete_all error:", err);
                 window.showToast?.("削除に失敗しました", "error");
+            });
+    });
+
+    // --- ▼ SECTION 01-3b: 買い手購入履歴アーカイブへの移動（半自動：候補確認→実行）。
+    //     対象＝出荷完了 かつ 決済レポートで入金額・手数料が確定した注文。移動後もデータは消えず
+    //     orbit_buyer_historyへ引き継がれる（元に戻せないのは注文明細そのものだけで、
+    //     返品・セキュリティのメモはアーカイブ後でも別途追加できる）。 ▼ ---
+    let archiveCandidateIds = [];
+
+    document.getElementById("orbit-archive-check-btn")?.addEventListener("click", () => {
+        fetch("/orbit/archive/candidates")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    window.showToast?.(data.message || "確認に失敗しました", "error");
+                    return;
+                }
+                archiveCandidateIds = data.rows.map(r => r.order_item_id);
+                const summary = document.getElementById("orbit-archive-summary");
+                if (summary) {
+                    summary.textContent = archiveCandidateIds.length
+                        ? `アーカイブ対象: ${archiveCandidateIds.length}件（出荷完了＋決済確定済み）`
+                        : "アーカイブ対象はありません";
+                }
+            })
+            .catch(err => {
+                console.error("orbit/archive/candidates error:", err);
+                window.showToast?.("確認に失敗しました", "error");
+            });
+    });
+
+    document.getElementById("orbit-archive-run-btn")?.addEventListener("click", () => {
+        if (!archiveCandidateIds.length) {
+            window.showToast?.("先に「アーカイブ対象を確認」を押してください", "error");
+            return;
+        }
+        if (!confirm(`${archiveCandidateIds.length}件を買い手購入履歴へアーカイブします。よろしいですか？`)) return;
+
+        fetch("/orbit/archive/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_item_ids: archiveCandidateIds }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.(`${data.archived}件アーカイブしました`, "success");
+                    archiveCandidateIds = [];
+                    const summary = document.getElementById("orbit-archive-summary");
+                    if (summary) summary.textContent = "";
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "アーカイブに失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/archive/run error:", err);
+                window.showToast?.("アーカイブに失敗しました", "error");
+            });
+    });
+
+    // --- ▼ SECTION 01-3c: 返品・セキュリティメモの追加（発注管理タブ。アーカイブ後の注文でも追加可能） ▼ ---
+    dispatchTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-security-note-btn");
+        if (!btn) return;
+
+        const orderItemId = btn.dataset.orderItemId;
+        if (!orderItemId) return;
+
+        const note = prompt("返品・キャンセル理由等のメモを入力してください（この買い手の住所に記録されます）");
+        if (!note || !note.trim()) return;
+
+        fetch("/orbit/security_notes/add", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_item_id: orderItemId, note: note.trim() }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.("メモを追加しました", "success");
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "追加に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/security_notes/add error:", err);
+                window.showToast?.("追加に失敗しました", "error");
             });
     });
 
