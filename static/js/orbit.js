@@ -637,13 +637,35 @@ window.initOrbit = function () {
     const securityNotesThead = securityNotesTable?.querySelector("thead tr");
     const securityNotesTbody = securityNotesTable?.querySelector("tbody");
 
+    // 買い手購入履歴テーブルは列見出しクリックで並び替えできる（初期表示はN番の昇順）
+    let buyerHistoryRowsCache = [];
+    let buyerHistorySortState = { key: "agent_serial_no", dir: "asc" };
+
+    function renderBuyerHistoryTable() {
+        const rows = buyerHistorySortState
+            ? sortRowsByKey(buyerHistoryRowsCache, buyerHistorySortState.key, buyerHistorySortState.dir)
+            : buyerHistoryRowsCache;
+        renderTableRows(buyerHistoryTbody, BUYER_HISTORY_COLUMNS, rows);
+    }
+
+    function onBuyerHistorySort(key) {
+        if (buyerHistorySortState && buyerHistorySortState.key === key) {
+            buyerHistorySortState = { key, dir: buyerHistorySortState.dir === "asc" ? "desc" : "asc" };
+        } else {
+            buyerHistorySortState = { key, dir: "asc" };
+        }
+        if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS, { sortable: true, onSort: onBuyerHistorySort, sortState: buyerHistorySortState });
+        renderBuyerHistoryTable();
+    }
+
     function loadBuyerHistory() {
         if (!buyerHistoryTbody) return;
         fetch("/orbit/buyer_history/list")
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    renderTableRows(buyerHistoryTbody, BUYER_HISTORY_COLUMNS, data.rows);
+                    buyerHistoryRowsCache = data.rows;
+                    renderBuyerHistoryTable();
                 } else {
                     window.showToast?.("買い手購入履歴の取得に失敗しました", "error");
                 }
@@ -814,7 +836,7 @@ window.initOrbit = function () {
     renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
     if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
-    if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS);
+    if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS, { sortable: true, onSort: onBuyerHistorySort, sortState: buyerHistorySortState });
     if (securityNotesThead) renderTableHeader(securityNotesThead, SECURITY_NOTES_COLUMNS);
 
     // --- ▼ SECTION 01: CSVインポート（他画面と同じ file-input-wrapper 方式） ▼ ---

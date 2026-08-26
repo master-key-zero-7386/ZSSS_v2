@@ -249,6 +249,13 @@ NUMERIC_TEXT_EXPORT_COLUMNS = {
 
 
 # --- ▼ SECTION 02: CSV/TSV解析（Amazon注文レポート形式） ▼ ---
+def _normalize_header_cell(value: str) -> str:
+    # スプレッドシートを手動整形したCSVでは、折り返し表示の列見出し
+    # （例:"ship-\nservice-level"）がセル内改行を含んだままエクスポートされることがある。
+    # 改行・空白を除去して"ship-service-level"のような通常の列名と一致させる。
+    return re.sub(r"\s+", "", value) if value else value
+
+
 def parse_order_report(text: str) -> list:
     if text.startswith("﻿"):
         text = text[1:]
@@ -259,10 +266,24 @@ def parse_order_report(text: str) -> list:
     except csv.Error:
         dialect = csv.excel_tab  # Amazon標準レポートはタブ区切り
 
-    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+    reader = csv.reader(io.StringIO(text), dialect=dialect)
+
+    # 標準のAmazon注文レポートは1行目がヘッダーだが、スプレッドシートを手動整形した
+    # CSV（買い手履歴の旧データ取込用など）はタイトル行・空行が先頭に入っていることがある。
+    # そのため「order-item-id列を含む行」を実ヘッダーとして検出する（先頭固定にしない）。
+    header = None
+    for raw_row in reader:
+        normalized = [_normalize_header_cell(c) for c in raw_row]
+        if "order-item-id" in normalized:
+            header = normalized
+            break
+
+    if header is None:
+        return []
 
     rows = []
-    for raw in reader:
+    for raw_row in reader:
+        raw = dict(zip(header, raw_row))
         row = {}
         for src_col, dst_col in COLUMN_MAP.items():
             value = raw.get(src_col)
@@ -290,19 +311,15 @@ def parse_order_report(text: str) -> list:
 
         # "N-No"はAmazon注文レポートには存在しない列で、買い手履歴の旧データを
         # スプレッドシートから取り込む際にのみ付与される（発送代行の管理連番=N番）。
-        # IMPORT_COLUMNSには含めない（通常の受注インポート・エクスポート列構成に影響させないため）。
-        serial_raw = raw.get("N-No")
-        if serial_raw is not None:
-            serial_raw = serial_raw.strip()
-        serial_value = None
-        if serial_raw:
-            try:
-                serial_value = int(serial_raw)
-            except ValueError:
-                serial_value = None
-        row["agent_serial_no"] = serial_value
+        # 値は"N4000"のように接頭辞付きなので_parse_agent_serial_noで数字部分だけ取り出す
+        # （代行会社シート読み戻し処理と同じ変換ルール）。IMPORT_COLUMNSには含めない
+        # （通常の受注インポート・エクスポート列構成に影響させないため）。
+        row["agent_serial_no"] = _parse_agent_serial_no(raw.get("N-No"))
 
-        if row.get("order_item_id"):
+        # 「2020,-,-,-,...」のような年区切り用の装飾行を除外する
+        # （order-item-idは常に数字のみのため、数字以外はデータ行とみなさない）。
+        order_item_id = row.get("order_item_id")
+        if order_item_id and order_item_id.isdigit():
             rows.append(row)
 
     return rows
@@ -1014,7 +1031,7 @@ def list_buyer_history(user_id: int) -> list:
                source, archived_at, created_at
         FROM orbit_buyer_history
         WHERE user_id = %s
-        ORDER BY purchase_date DESC NULLS LAST, id DESC
+        ORDER BY agent_serial_no ASC NULLS LAST, id DESC
         """,
         (user_id,),
     )
