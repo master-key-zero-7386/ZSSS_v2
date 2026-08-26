@@ -696,7 +696,8 @@ ORBIT_BUYER_HISTORY_COLUMNS = {
     "agent_serial_no": "INTEGER",  # N番（発送代行会社の管理連番）
 
     "buyer_key": "TEXT",      # 住所正規化キー（郵便番号+住所1）。買い手照合用
-    "archived_at": "TEXT",    # orbit_ordersからの移動日時（sheet_importはNULL）
+    "archived_at": "TEXT",    # orbit_ordersからの移動日時（sheet_importはNULL。ただしagent_serial_noは
+                               # スプレッドシート側の"N-No"列があればsheet_importでも取り込まれる）
     "source": "TEXT",         # 'archived' | 'sheet_import'
     "created_at": "TEXT",
 }

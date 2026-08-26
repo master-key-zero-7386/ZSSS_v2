@@ -288,6 +288,20 @@ def parse_order_report(text: str) -> list:
 
             row[dst_col] = value
 
+        # "N-No"はAmazon注文レポートには存在しない列で、買い手履歴の旧データを
+        # スプレッドシートから取り込む際にのみ付与される（発送代行の管理連番=N番）。
+        # IMPORT_COLUMNSには含めない（通常の受注インポート・エクスポート列構成に影響させないため）。
+        serial_raw = raw.get("N-No")
+        if serial_raw is not None:
+            serial_raw = serial_raw.strip()
+        serial_value = None
+        if serial_raw:
+            try:
+                serial_value = int(serial_raw)
+            except ValueError:
+                serial_value = None
+        row["agent_serial_no"] = serial_value
+
         if row.get("order_item_id"):
             rows.append(row)
 
@@ -345,7 +359,7 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
 
-    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["buyer_key", "source", "created_at"]
+    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["agent_serial_no", "buyer_key", "source", "created_at"]
     col_list = ", ".join(insert_cols)
     placeholders = ", ".join(["%s"] * len(insert_cols))
 
@@ -358,7 +372,7 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     imported = 0
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [buyer_key, "sheet_import", now]
+        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [row.get("agent_serial_no"), buyer_key, "sheet_import", now]
         cur.execute(sql, values)
         imported += cur.rowcount
 
