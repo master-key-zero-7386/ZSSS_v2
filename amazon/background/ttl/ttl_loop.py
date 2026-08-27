@@ -59,6 +59,33 @@ def run_ttl_loop(app, db_dir):
         JST = timezone(timedelta(hours=9))
         loop_count = 0 # LOOPカウント処理
 
+        # ★修正: 従来は catalog と pricing を同じ try で囲っていたため、
+        #        catalog 側が毎サイクル例外を投げる状態になると
+        #        pricing（＝仕入価格 home_price の更新）がサイクルごと
+        #        まるごとスキップされ、仕入価格が何日も更新されない
+        #        致命的な状態になっていた。系統ごとにエラーを隔離し、
+        #        片方が落ちてももう片方は必ず回るようにする。
+        def _run_ttl_leg(leg_name, fn):
+            try:
+                fn(db_dir)
+            except Exception as e:
+                import traceback
+                print(f"### TTL LOOP ERROR [{leg_name}] ###")
+                print(e)
+                traceback.print_exc()
+                app.logger.error("### TTL LOOP ERROR [%s] ###", leg_name, exc_info=True)
+
+                # ★エラー内容をファイルにも記録（CMDのログが流れて消えても後から確認できるように）
+                try:
+                    os.makedirs(os.path.join(db_dir, "logs"), exist_ok=True)
+                    log_path = os.path.join(db_dir, "logs", "ttl_error.log")
+                    with open(log_path, "a", encoding="utf-8") as f:
+                        f.write(f"\n[{datetime.datetime.now(JST).strftime('%Y-%m-%d %H:%M:%S')}] ERROR [{leg_name}]\n")
+                        f.write(traceback.format_exc())
+                        f.write("\n")
+                except Exception:
+                    pass
+
         while True:
             # === ★loop動作確認用（API関係なし） ===============================================
             loop_count += 1 # LOOPカウント処理
@@ -66,28 +93,9 @@ def run_ttl_loop(app, db_dir):
             print(f"[{datetime.datetime.now(JST).strftime('%H:%M:%S')}] [TTL][LOOP][ALIVE]")
             # =================================================================================
 
-            try:
-                load_catalog_ttl_targets(db_dir)   
-                load_pricing_ttl_targets(db_dir)   
+            _run_ttl_leg("catalog", load_catalog_ttl_targets)
+            _run_ttl_leg("pricing", load_pricing_ttl_targets)
 
-            except Exception as e:
-                import traceback
-                print("### TTL LOOP ERROR ###")
-                print(e)
-                traceback.print_exc()
-                app.logger.error("### TTL LOOP ERROR ###", exc_info=True)
-
-                # ★追加：エラー内容をファイルにも記録（CMDのログが流れて消えても後から確認できるように）
-                try:
-                    os.makedirs(os.path.join(db_dir, "logs"), exist_ok=True)
-                    log_path = os.path.join(db_dir, "logs", "ttl_error.log")
-                    with open(log_path, "a", encoding="utf-8") as f:
-                        f.write(f"\n[{datetime.datetime.now(JST).strftime('%Y-%m-%d %H:%M:%S')}] ERROR\n")
-                        f.write(traceback.format_exc())
-                        f.write("\n")
-                except Exception:
-                    pass
-                    
             # --- ▼ TTL進行更新（last_id）▼ ---
             try:
                 conn = get_conn("a_pricing_settings.db")
@@ -130,7 +138,11 @@ def load_catalog_ttl_targets(db_dir: str):
                 settings_row = cur_settings.fetchone()
                 conn_settings.close()
 
-                ttl_limit_home_pricing = settings_row["ttl_limit_home_catalog"]
+                # ★修正: 未設定(NULL)だと "LIMIT NULL" ＝ 無制限になり、
+                #        期限切れ全件を1サイクルで一気に叩いて429スロットリング
+                #        を誘発し、以降 api_error で TTL 時計が進まず何日も
+                #        更新されない状態に陥る。未設定時は安全側の既定値でキャップする。
+                ttl_limit_home_pricing = settings_row["ttl_limit_home_catalog"] or 50
 
                 cur_li.execute("""
                     SELECT
@@ -206,7 +218,7 @@ def load_catalog_ttl_targets(db_dir: str):
                 settings_row = cur_settings.fetchone()
                 conn_settings.close()
 
-                ttl_limit_home_pricing = settings_row["ttl_limit_region_catalog"]
+                ttl_limit_home_pricing = settings_row["ttl_limit_region_catalog"] or 50  # ★NULL=無制限を回避
 
                 cur_li.execute("""
                     SELECT
@@ -340,7 +352,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 settings_row = cur_settings.fetchone()
                 conn_settings.close()
 
-                ttl_limit_home_pricing = settings_row["ttl_limit_home_pricing"]
+                ttl_limit_home_pricing = settings_row["ttl_limit_home_pricing"] or 50  # ★NULL=無制限を回避
 
                 cur_li.execute("""
                     SELECT
@@ -413,7 +425,7 @@ def load_pricing_ttl_targets(db_dir: str):
                 settings_row = cur_settings.fetchone()
                 conn_settings.close()
 
-                ttl_limit_home_pricing = settings_row["ttl_limit_region_pricing"]
+                ttl_limit_home_pricing = settings_row["ttl_limit_region_pricing"] or 50  # ★NULL=無制限を回避
 
                 cur_li.execute("""
                     SELECT
