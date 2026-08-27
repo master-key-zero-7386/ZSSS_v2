@@ -136,11 +136,22 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         conn = get_conn(listed_db)
         try:
             cur = conn.cursor()
+            # ★修正: 従来はINACTIVE化するだけで home_price（仕入価格）を消して
+            #        いなかったため、JP新品の出品者が0件になっても画面には
+            #        「消えた過去の仕入価格」がそのまま残り、しかも他系統の
+            #        更新で updated_at だけ進むので鮮度も誤認させていた。
+            #        出品者0件＝有効な仕入価格なし、なので home_price と
+            #        そこから算出される min/max/final/利益率も併せてNULL化する。
             cur.execute("""
                 UPDATE listed_items
                 SET information_status = 'INACTIVE',
                     inactive_reason = %s,
                     ttl_stop_status = %s,
+                    home_price = NULL,
+                    min_price = NULL,
+                    max_price = NULL,
+                    final_price = NULL,
+                    profit_rate = NULL,
                     updated_at = %s
                 WHERE user_id = %s
                 AND asin = %s
