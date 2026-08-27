@@ -341,15 +341,21 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
     );
 
     thead.innerHTML = columns.map(col => {
-        const extraHeadClass = [
+        let extraHeadClass = [
             (col.group && !col.groupHead) ? `orbit-group-${col.group}` : "",
             col.highlight ? "orbit-check-highlight" : "",
             col.profitHighlight ? "orbit-profit-highlight" : "",
         ].filter(Boolean).join(" ");
+        if (col.key === "agent_serial_no") extraHeadClass = `${extraHeadClass} orbit-serial-cell`.trim();
         const groupClass = extraHeadClass ? ` ${extraHeadClass}` : "";
         const toggleBtn = col.groupHead
             ? `<button type="button" class="orbit-group-toggle-btn" data-group="${col.group}" title="折りたたみ/展開">${collapsedGroups.has(col.group) ? "▸" : "▾"}</button> `
             : "";
+
+        // 手数料見積り列のヘッダーには、表示中の全行分をまとめて取得する一括ボタンを出す
+        if (col.fetchFeeEstimateButton) {
+            return `<th class="${groupClass.trim()}"><button type="button" class="orbit-fetch-fee-all-btn btn-blue" title="表示中の「手数料取得」対象行をまとめて取得します">一括取得</button></th>`;
+        }
 
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
             return `<th class="${groupClass.trim()}">${toggleBtn}${col.label}</th>`;
@@ -405,6 +411,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
             if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
             if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
+            if (col.key === "agent_serial_no") cellClass = `${cellClass} orbit-serial-cell`.trim();
 
             if (col.shippedToggle) {
                 const done = !!r[col.key];
@@ -742,7 +749,8 @@ window.initOrbit = function () {
     // 受注一覧テーブルは列見出しクリックでの並び替え・↕での手動移動ができる
     // （N番号の連番はこの「今の画面の表示順」を基準に振られる）
     let ordersRowsCache = [];
-    let ordersSortState = null; // { key, dir }
+    // 初期表示はN番号の昇順（全チェックの基準がN番号のため）。↕ボタンや他列の見出しクリックで解除できる
+    let ordersSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
 
     function renderOrdersTable() {
         const rows = ordersSortState
@@ -788,7 +796,8 @@ window.initOrbit = function () {
     // 発注管理テーブルは列見出しクリックで並び替えできる（表示確認用。N番号の連番自体は受注一覧タブで
     // 決める並び順を基準に振られるため、この並び替えは連番には影響しない）
     let dispatchRowsCache = [];
-    let dispatchSortState = null; // { key, dir }
+    // 初期表示はN番号の昇順（出荷チェックをN番号で行うため）。列見出しクリックで並び替え可
+    let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
 
     function renderDispatchTable() {
         const rows = dispatchSortState
@@ -814,11 +823,11 @@ window.initOrbit = function () {
                 if (data.status === "success") {
                     ordersRowsCache = data.rows;
                     renderOrdersTable();
-                    // 発注管理・仕入れ管理はN番号の列を持つため、受注一覧での並び替えとは独立に、
-                    // 常にid順(取込順)を初期表示順にして連番との対応を追いやすくする
-                    const idOrderedRows = [...data.rows].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, idOrderedRows, { grayShipped: true });
-                    dispatchRowsCache = idOrderedRows;
+                    // 発注管理・仕入れ管理は出荷チェックを常にN番号で行うため、N番号の昇順で表示する
+                    // （N番号未設定の行は末尾。受注一覧での並び替えとは独立）
+                    const serialOrderedRows = sortRowsByKey(data.rows, "agent_serial_no", "asc");
+                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, serialOrderedRows, { grayShipped: true });
+                    dispatchRowsCache = serialOrderedRows;
                     renderDispatchTable();
                     syncOrdersTopScrollWidth();
                     syncDispatchTopScrollWidth();
@@ -1109,6 +1118,53 @@ window.initOrbit = function () {
                 btn.disabled = false;
                 btn.textContent = originalLabel;
             });
+    });
+
+    // --- ▼ SECTION 01-2c-2: 仕入れ管理：手数料見積りの一括取得（手数料列ヘッダーのボタン） ▼ ---
+    //     表示中の「手数料取得」ボタンを1件ずつ順番に叩く（SP-APIのレート制限対策で直列実行）。
+    procThead?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-fetch-fee-all-btn");
+        if (!btn) return;
+
+        const rowBtns = Array.from(procTbody?.querySelectorAll(".orbit-fetch-fee-btn") || []);
+        const ids = rowBtns.map(b => b.dataset.orderItemId).filter(Boolean);
+        if (!ids.length) {
+            window.showToast?.("取得対象の行がありません", "error");
+            return;
+        }
+        if (!confirm(`表示中の${ids.length}件の手数料見積りをまとめて取得します。よろしいですか？`)) return;
+
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
+        rowBtns.forEach(b => { b.disabled = true; });
+
+        let ok = 0;
+        let ng = 0;
+
+        const runNext = (i) => {
+            if (i >= ids.length) {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+                window.showToast?.(`手数料一括取得：成功${ok}件 / 失敗${ng}件`, ng ? "error" : "success");
+                loadOrders();
+                return;
+            }
+            btn.textContent = `取得中... ${i + 1}/${ids.length}`;
+            fetch("/orbit/orders/fetch_fee_estimate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_item_id: ids[i] }),
+            })
+                .then(res => res.json())
+                .then(data => { if (data.status === "success") ok++; else ng++; })
+                .catch(err => {
+                    console.error("orbit/orders/fetch_fee_estimate (bulk) error:", err);
+                    ng++;
+                })
+                .finally(() => runNext(i + 1));
+        };
+
+        runNext(0);
     });
 
     // --- ▼ SECTION 01-2d: 仕入れ管理：出荷完了フラグの切り替え（押し間違えてももう一度押せば解除できる） ▼ ---

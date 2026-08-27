@@ -151,6 +151,18 @@
   background-color: #e0f7fa !important;
 }
 
+/* N番号は全チェックの基準になる番号なので、他の列より大きく太く表示する */
+.orbit-page table th.orbit-serial-cell,
+.orbit-page table td.orbit-serial-cell {
+  font-size: 1.35em;
+  font-weight: bold;
+}
+.orbit-page table td.orbit-serial-cell input {
+  font-size: inherit;
+  font-weight: bold;
+  width: 4.5em;
+}
+
 /* 実利益（入金額・送料・利益）を目立たせる */
 .orbit-page table th.orbit-profit-highlight,
 .orbit-page table td.orbit-profit-highlight {
