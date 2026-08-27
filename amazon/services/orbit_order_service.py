@@ -12,6 +12,7 @@ import unicodedata
 from datetime import datetime
 
 from amazon.db import get_conn
+from amazon.db_migrate import ORBIT_ORDERS_COLUMNS
 from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import fetch_dispatch_sheet_preview
@@ -1235,8 +1236,10 @@ def list_archive_candidates(user_id: int) -> list:
 # アーカイブは注文明細の「移動」であって削除ではない。ただしorbit_buyer_historyが持つのは
 # Amazon注文レポートの生データ（IMPORT_COLUMNS）＋N番（agent_serial_no）だけ＝過去の購入価格・
 # 送料・利益等ZSSS側の計算結果は引き継がない（「この住所は過去に買ったことがあるか」だけを
-# チェックするための台帳のため）。
+# チェックするための台帳のため）。仕入額・トラッキング番号・代行会社とのやり取り等の全データは
+# 別途orbit_procurement_historyへ全列そのまま退避する（領収書発行・経理・返品対応時の参照用）。
 _BUYER_HISTORY_ARCHIVE_COLUMNS = IMPORT_COLUMNS + ["agent_serial_no"]
+_PROCUREMENT_HISTORY_COLUMNS = [c for c in ORBIT_ORDERS_COLUMNS if c != "id"]
 
 
 def archive_orders(user_id: int, order_item_ids: list) -> int:
@@ -1245,7 +1248,7 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
 
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
-    cols_sql = ", ".join(["order_item_id"] + [c for c in _BUYER_HISTORY_ARCHIVE_COLUMNS if c != "order_item_id"])
+    cols_sql = ", ".join(["order_item_id"] + [c for c in _PROCUREMENT_HISTORY_COLUMNS if c != "order_item_id"])
     cur.execute(
         f"SELECT {cols_sql} FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
         (user_id, order_item_ids),
@@ -1257,19 +1260,31 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
 
     now = datetime.utcnow().isoformat()
 
-    insert_cols = ["user_id"] + _BUYER_HISTORY_ARCHIVE_COLUMNS + ["buyer_key", "source", "archived_at", "created_at"]
-    col_list = ", ".join(insert_cols)
-    placeholders = ", ".join(["%s"] * len(insert_cols))
-    insert_sql = f"""
-        INSERT INTO orbit_buyer_history ({col_list})
-        VALUES ({placeholders})
+    buyer_history_insert_cols = ["user_id"] + _BUYER_HISTORY_ARCHIVE_COLUMNS + ["buyer_key", "source", "archived_at", "created_at"]
+    buyer_history_col_list = ", ".join(buyer_history_insert_cols)
+    buyer_history_placeholders = ", ".join(["%s"] * len(buyer_history_insert_cols))
+    buyer_history_sql = f"""
+        INSERT INTO orbit_buyer_history ({buyer_history_col_list})
+        VALUES ({buyer_history_placeholders})
+        ON CONFLICT (user_id, order_item_id) DO NOTHING
+    """
+
+    procurement_insert_cols = _PROCUREMENT_HISTORY_COLUMNS + ["archived_at"]
+    procurement_col_list = ", ".join(procurement_insert_cols)
+    procurement_placeholders = ", ".join(["%s"] * len(procurement_insert_cols))
+    procurement_sql = f"""
+        INSERT INTO orbit_procurement_history ({procurement_col_list})
+        VALUES ({procurement_placeholders})
         ON CONFLICT (user_id, order_item_id) DO NOTHING
     """
 
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        values = [user_id] + [row.get(c) for c in _BUYER_HISTORY_ARCHIVE_COLUMNS] + [buyer_key, "archived", now, now]
-        cur.execute(insert_sql, values)
+        buyer_history_values = [user_id] + [row.get(c) for c in _BUYER_HISTORY_ARCHIVE_COLUMNS] + [buyer_key, "archived", now, now]
+        cur.execute(buyer_history_sql, buyer_history_values)
+
+        procurement_values = [row.get(c) for c in _PROCUREMENT_HISTORY_COLUMNS] + [now]
+        cur.execute(procurement_sql, procurement_values)
 
     archived_ids = [r["order_item_id"] for r in rows]
     cur.execute(

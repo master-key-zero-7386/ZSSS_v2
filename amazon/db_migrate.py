@@ -626,6 +626,13 @@ ORBIT_ORDERS_COLUMNS = {
     "updated_at": "TEXT",
 }
 
+# --- ▼ SECTION : 仕入れ履歴（ORBIT: 買い手履歴へのアーカイブ時に、orbit_ordersの行を退避する専用
+#     テーブル。orbit_buyer_historyは住所チェック用の名簿に留める設計のため、仕入額・仕入先・
+#     トラッキング番号・代行会社とのやり取り等ZSSS側の全データはこちらに残す
+#     （領収書発行・経理・返品対応時に仕入額等を参照する用途）。列構成はorbit_ordersと同一。 ---
+ORBIT_PROCUREMENT_HISTORY_COLUMNS = dict(ORBIT_ORDERS_COLUMNS)
+ORBIT_PROCUREMENT_HISTORY_COLUMNS["archived_at"] = "TEXT"  # orbit_ordersからの退避日時
+
 # --- ▼ SECTION : 決済トランザクション明細（ORBIT: 実利益計算用。セラーセントラル「支払い」→
 #     「トランザクション」画面からのCSVダウンロード。1行=1注文の集計済みデータで、
 #     「合計」列に既にAmazon手数料等を差し引いた後の入金額が入っている） ---
@@ -863,6 +870,8 @@ def migrate_db(db_name):
         migrate_table(conn, "orbit_settlement_lines", ORBIT_SETTLEMENT_LINES_COLUMNS)
     elif base.endswith("_orbit_buyer_history.db"):
         migrate_table(conn, "orbit_buyer_history", ORBIT_BUYER_HISTORY_COLUMNS)
+    elif base.endswith("_orbit_procurement_history.db"):
+        migrate_table(conn, "orbit_procurement_history", ORBIT_PROCUREMENT_HISTORY_COLUMNS)
     elif base.endswith("_orbit_buyer_security_notes.db"):
         migrate_table(conn, "orbit_buyer_security_notes", ORBIT_BUYER_SECURITY_NOTES_COLUMNS)
     elif base.endswith("_google_oauth_tokens.db"):
@@ -1029,6 +1038,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_history_buyer_key "
         "ON orbit_buyer_history(user_id, buyer_key)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_procurement_history.db ---
+    conn = get_conn("a_orbit_procurement_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_procurement_history_unique "
+        "ON orbit_procurement_history(user_id, order_item_id)"
     )
     conn.commit()
     conn.close()
@@ -1320,6 +1339,7 @@ def main():
         "a_orbit_orders.db",
         "a_orbit_settlement_lines.db",
         "a_orbit_buyer_history.db",
+        "a_orbit_procurement_history.db",
         "a_orbit_buyer_security_notes.db",
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
