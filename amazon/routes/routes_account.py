@@ -12,6 +12,7 @@ from amazon.constants import BASE_DIR
 from amazon.db import get_conn
 from amazon.adapters.api_usage_summary import get_api_usage_summary
 from amazon.adapters.api_429_summary import get_api_429_summary
+from amazon.adapters.ttl_home_pricing_summary import get_ttl_home_pricing_summary
 from datetime import datetime
 
 # --- ▼ SECTION 01: account_master + marketplaces_master → marketplaces へコピー ▼ ---
@@ -804,4 +805,21 @@ def api_429_summary():
 
     data = get_api_429_summary(user_id)
     return jsonify({"status": "ok", "data": data})
+
+
+# --- ▼ SECTION 15: HOME Pricing TTL 稼働状況サマリー（Dashboard表示用・読み取り専用） ▼ ---
+@account_bp.route("/ttl-home-pricing-summary", methods=["GET"])
+@login_required
+def ttl_home_pricing_summary():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "not logged in"}), 401
+
+    try:
+        data = get_ttl_home_pricing_summary(user_id)
+        return jsonify({"status": "ok", "data": data})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 

@@ -1,0 +1,82 @@
+<!-- ttl_home_pricing_panel.html : HOME Pricing TTL 稼働状況（Dashboard表示用） -->
+
+<style>
+.ttlhp-wrap { font-size: 15px; line-height: 1.7; }
+.ttlhp-wrap h4 { margin-bottom: 4px; }
+
+.ttlhp-desc { font-size: 12px; color: #666; margin: 4px 0 10px; }
+
+.ttlhp-cover-bar {
+    position: relative;
+    height: 22px;
+    border-radius: 4px;
+    background: #eee;
+    overflow: hidden;
+    margin: 6px 0 10px;
+}
+.ttlhp-cover-fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: #2c7be5;
+    transition: width .4s ease;
+}
+.ttlhp-cover-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 13px; color: #111;
+}
+
+.ttlhp-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+}
+.ttlhp-kpi {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #fafafa;
+}
+.ttlhp-kpi .k { font-size: 11px; color: #777; }
+.ttlhp-kpi .v { font-size: 20px; font-weight: bold; }
+.ttlhp-kpi .v small { font-size: 12px; font-weight: normal; color: #888; }
+.ttlhp-kpi.warn { border-color: #e2b400; background: #fff8e1; }
+.ttlhp-kpi.bad  { border-color: #dc3545; background: #fdecea; }
+
+.ttlhp-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.ttlhp-table th, .ttlhp-table td { border-bottom: 1px solid #eee; padding: 4px 6px; text-align: right; }
+.ttlhp-table th:first-child, .ttlhp-table td:first-child { text-align: left; }
+.ttlhp-table thead th { border-bottom: 2px solid #ccc; }
+
+.ttlhp-hist { display: flex; gap: 4px; align-items: flex-end; height: 60px; margin-top: 6px; }
+.ttlhp-hist .bar { flex: 1; background: #7db3f0; border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+.ttlhp-hist .bar.stale { background: #e6a23c; }
+.ttlhp-hist .bar.dead  { background: #dc3545; }
+.ttlhp-hist-labels { display: flex; gap: 4px; font-size: 10px; color: #888; margin-top: 2px; }
+.ttlhp-hist-labels span { flex: 1; text-align: center; }
+
+.ttlhp-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:bold; }
+.ttlhp-badge.ok   { background:#e3f5e1; color:#1a7f37; }
+.ttlhp-badge.stuck{ background:#fdecea; color:#c0392b; }
+
+.ttlhp-updated { font-size: 11px; color: #999; margin-top: 8px; }
+</style>
+
+<div class="dashboard-block ttlhp-wrap">
+
+    <h4>HOME Pricing TTL 稼働状況</h4>
+    <div class="ttlhp-desc">
+        仕入価格（JP新品最安）の定期更新が「全ASINに行き渡っているか」を表示します。<br>
+        対象＝enable_home_pricing=1・ブラック/在庫0/価格固定でない出品。カバー率＝TTL期限内に取得済みの割合。
+    </div>
+
+    <button id="ttlhpReload" class="btn-blue">UPDATE</button>
+
+    <hr style="margin:14px 0;">
+
+    <div id="ttlhp-body">読み込み中...</div>
+
+    <div class="ttlhp-updated">Last updated: <span id="ttlhp-updated-at">---</span></div>
+</div>
+
+<script src="/static/js/ttl_home_pricing_panel.js"></script>

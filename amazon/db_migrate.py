@@ -488,6 +488,22 @@ TTL_STATE_COLUMNS = {
     "last_id": "INTEGER",
 }
 
+# --- ▼ ttl_cycle_log（TTL 1サイクルごとの稼働記録：ダッシュボード表示用） ---
+# leg は現状 'home_pricing' のみ書き込むが、将来 region_pricing / home_catalog /
+# region_catalog へ拡張できるよう汎用列にしてある。
+TTL_CYCLE_LOG_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "leg": "TEXT NOT NULL",              # 'home_pricing' 等
+    "started_at": "TEXT NOT NULL",       # UTC ISO
+    "finished_at": "TEXT",              # UTC ISO
+    "backlog_count": "INTEGER",         # サイクル開始時点の期限切れ総数（LIMIT前）
+    "target_count": "INTEGER",          # LIMIT で実際に取得した件数
+    "dispatched_count": "INTEGER",      # 実際に更新関数を呼んだ件数
+    "error_count": "INTEGER",           # 例外が出た件数
+    "oldest_before": "TEXT",            # サイクル前 MIN(h_pricing_ttl_at)
+    "oldest_after": "TEXT",             # サイクル後 MIN(h_pricing_ttl_at)
+}
+
 # --- ▲ Pricing Setting設定　SECTION ▲ ---
 
 # --- ▼  SECTION : shipping rates（送料テーブル） ---
@@ -821,7 +837,8 @@ def migrate_db(db_name):
         migrate_table(conn, "shipping_config", SHIPPING_CONFIG_COLUMNS)
         migrate_table(conn, "offer_filter_rules", OFFER_FILTER_RULES_COLUMNS)
         migrate_table(conn, "pricing_master_rules", PRICING_MASTER_RULES_COLUMNS)
-        migrate_table(conn, "ttl_state", TTL_STATE_COLUMNS) 
+        migrate_table(conn, "ttl_state", TTL_STATE_COLUMNS)
+        migrate_table(conn, "ttl_cycle_log", TTL_CYCLE_LOG_COLUMNS)
     elif base.endswith("_pricing_cache.db"):
         migrate_table(conn, "pricing_cache", PRICING_CACHE_COLUMNS)
     elif base.endswith("_marketplaces_master.db"):
