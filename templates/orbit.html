@@ -81,6 +81,12 @@
 .orbit-deadline-orange { background-color: #ffe0b2 !important; }
 .orbit-deadline-red    { background-color: #ffcdd2 !important; font-weight: bold; }
 
+/* order-id をマーケットプレイス別に色分け（先頭桁で判定。1:US=白／7:CA=薄いオレンジ／2・5:AU=水色）。
+   出荷完了行のグレーアウト(!important)が優先されるため、完了行はこれまで通りグレーになる。 */
+.orbit-page table td.orbit-market-us { background-color: #ffffff !important; }
+.orbit-page table td.orbit-market-ca { background-color: #ffe0b2 !important; }
+.orbit-page table td.orbit-market-au { background-color: #d0e8f7 !important; }
+
 .orbit-page select.orbit-manual {
   border: none;
   background: transparent;

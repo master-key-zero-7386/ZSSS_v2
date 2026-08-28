@@ -198,7 +198,7 @@ const PROCUREMENT_COLUMNS = [
     { key: "agent_confirmed_weight", label: "確定重量" },
     { key: "agent_shipping_fee_total", label: "送料合計" },
 
-    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
+    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell", marketColor: true },
     { key: "order_item_id", label: "order-item-id" },
     // JANをグループの先頭にしてトグルボタンを表示（JAN自体はgroupHeadなので折りたたんでも隠れない）。
     // 折りたたみ対象は商品名〜国まで（仕入先以降の入力欄は常に表示する）
@@ -302,6 +302,16 @@ function getDeadlineColorClass(promiseDate) {
     if (diffDays <= 0) return "orbit-deadline-red";
     if (diffDays === 1) return "orbit-deadline-orange";
     if (diffDays === 2 || diffDays === 3) return "orbit-deadline-blue";
+    return "";
+}
+
+// order-idの先頭桁でマーケットプレイスを判定して色分け（旧スプレッドシートと同じ基準）。
+// 1→US(白) ／ 7→CA(薄いオレンジ) ／ 2・5→AU(水色)。出荷完了行のグレーアウトが優先される。
+function getOrderMarketColorClass(orderId) {
+    const s = String(orderId ?? "").trim();
+    if (/^1/.test(s)) return "orbit-market-us";
+    if (/^7/.test(s)) return "orbit-market-ca";
+    if (/^[25]/.test(s)) return "orbit-market-au";
     return "";
 }
 
@@ -420,6 +430,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
             if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
             if (col.key === "agent_serial_no") cellClass = `${cellClass} orbit-serial-cell`.trim();
+            if (col.marketColor) cellClass = `${cellClass} ${getOrderMarketColorClass(r[col.key])}`.trim();
 
             if (col.shippedToggle) {
                 const done = !!r[col.key];
