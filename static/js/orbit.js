@@ -200,15 +200,16 @@ const PROCUREMENT_COLUMNS = [
 
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
     { key: "order_item_id", label: "order-item-id" },
-    // JANをグループの先頭にしてトグルボタンを表示（JAN自体はgroupHeadなので折りたたんでも隠れない）
+    // JANをグループの先頭にしてトグルボタンを表示（JAN自体はgroupHeadなので折りたたんでも隠れない）。
+    // 折りたたみ対象は商品名〜国まで（仕入先以降の入力欄は常に表示する）
     { key: "jan_code", label: "JAN", editable: "text", group: "procShrink", groupHead: true },
     { key: "product_name", label: "商品名", group: "procShrink" },
     { key: "quantity_purchased", label: "数量", group: "procShrink" },
     { key: "ship_country", label: "国", group: "procShrink" },
 
-    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS, group: "procShrink" },
-    { key: "supplier_order_number", label: "注文番号", editable: "text", group: "procShrink" },
-    { key: "supplier_shop_name", label: "ショップ名", editable: "text", group: "procShrink" },
+    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
+    { key: "supplier_order_number", label: "注文番号", editable: "text" },
+    { key: "supplier_shop_name", label: "ショップ名", editable: "text" },
     { key: "supplier_link", label: "注文リンク", computed: true },
     { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
 
