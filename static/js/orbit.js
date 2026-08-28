@@ -36,7 +36,7 @@ const ORBIT_COLUMNS = [
     { key: "delete", label: "", deleteButton: true },
 
     // --- 買い手照合（住所ベース。過去の購入履歴・返品セキュリティメモとの突き合わせ結果） ---
-    { key: "repeat_badge", label: "🔁", repeatBadge: true },
+    { key: "repeat_badge", label: "回", repeatBadge: true },
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
 
     // --- N番号（発送代行会社の管理連番。↕で並び替えてから先頭行に開始番号を入れると、
@@ -481,8 +481,9 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 
             if (col.repeatBadge) {
                 const count = r.repeat_buyer_count || 0;
-                if (!count) return "<td></td>";
-                return `<td class="orbit-repeat-flag" style="text-align:center;" title="過去${count}回購入しています">🔁${count}</td>`;
+                // 初回（履歴0〜1件）は表示しない。2件以上一致したときだけリピーターとして数字を出す。
+                if (count < 2) return "<td></td>";
+                return `<td class="orbit-repeat-flag" style="text-align:center;" title="過去${count}回購入しています">${count}</td>`;
             }
 
             if (col.securityBadge) {
