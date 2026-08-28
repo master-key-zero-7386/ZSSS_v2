@@ -402,7 +402,14 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
     rows.forEach(r => {
         const tr = document.createElement("tr");
         tr.dataset.orderItemId = r.order_item_id;
-        if (grayShipped && r.shipped_completed) tr.classList.add("orbit-row-shipped");
+        // キャンセル注文（発送種別＝キャンセル）は仕入れ時の誤発注防止のため全タブで行を緑にする。
+        // 出荷完了を押したら、他の完了行と同じくグレーアウトへ切り替える。
+        const isCancelOrder = (r.shipping_type || "").trim() === "キャンセル";
+        if (r.shipped_completed && (grayShipped || isCancelOrder)) {
+            tr.classList.add("orbit-row-shipped");
+        } else if (isCancelOrder) {
+            tr.classList.add("orbit-row-cancel");
+        }
 
         tr.innerHTML = columns.map(col => {
             let cellClass = col.deadline ? getDeadlineColorClass(r[col.key]) : "";

@@ -120,6 +120,12 @@
   color: #888;
 }
 
+/* キャンセル：発送種別が「キャンセル」の注文は、出荷完了を押すまで行全体を緑で塗りつぶし、
+   仕入れ時の誤発注を防ぐ（全タブ共通。出荷完了後は上のグレーアウトへ切り替わる）。 */
+.orbit-page table tbody tr.orbit-row-cancel td {
+  background-color: #c6efce !important;
+}
+
 /* 発送重量記入日（出荷完了を押すまで赤字）・利益率マイナスなど、注意喚起の赤字表示 */
 .orbit-page table td.orbit-text-red {
   color: #dc3545 !important;
