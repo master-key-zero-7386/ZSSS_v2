@@ -352,9 +352,9 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
             ? `<button type="button" class="orbit-group-toggle-btn" data-group="${col.group}" title="折りたたみ/展開">${collapsedGroups.has(col.group) ? "▸" : "▾"}</button> `
             : "";
 
-        // 手数料見積り列のヘッダーには、表示中の全行分をまとめて取得する一括ボタンを出す
+        // 手数料見積り列のヘッダーには、表示中の未取得行だけをまとめて取得する一括ボタンを出す
         if (col.fetchFeeEstimateButton) {
-            return `<th class="${groupClass.trim()}"><button type="button" class="orbit-fetch-fee-all-btn btn-blue" title="表示中の「手数料取得」対象行をまとめて取得します">一括取得</button></th>`;
+            return `<th class="${groupClass.trim()}"><button type="button" class="orbit-fetch-fee-all-btn btn-blue" title="表示中の未取得（「手数料取得」）行だけをまとめて取得します">一括取得</button></th>`;
         }
 
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
@@ -450,8 +450,9 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 // 決済トランザクション実績が既にあれば手数料見積りは不要。
                 // item_priceが無くても、ボタン側でAmazon注文詳細(Orders API)から自動取得する。
                 if (r.net_proceeds != null || !r.asin) return "<td></td>";
-                const label = r.fee_estimate_amount != null ? "手数料再取得" : "手数料取得";
-                return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}">${label}</button></td>`;
+                const fetched = r.fee_estimate_amount != null;
+                const label = fetched ? "手数料再取得" : "手数料取得";
+                return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}"${fetched ? ' data-fee-fetched="1"' : ''}>${label}</button></td>`;
             }
 
             if (col.percentCell) {
@@ -1133,13 +1134,15 @@ window.initOrbit = function () {
         const btn = e.target.closest(".orbit-fetch-fee-all-btn");
         if (!btn) return;
 
-        const rowBtns = Array.from(procTbody?.querySelectorAll(".orbit-fetch-fee-btn") || []);
+        // 未取得分（「手数料取得」）のみ対象。既に取得済み（「手数料再取得」）の行はスキップする。
+        const rowBtns = Array.from(procTbody?.querySelectorAll(".orbit-fetch-fee-btn") || [])
+            .filter(b => !b.dataset.feeFetched);
         const ids = rowBtns.map(b => b.dataset.orderItemId).filter(Boolean);
         if (!ids.length) {
-            window.showToast?.("取得対象の行がありません", "error");
+            window.showToast?.("未取得の行がありません", "error");
             return;
         }
-        if (!confirm(`表示中の${ids.length}件の手数料見積りをまとめて取得します。よろしいですか？`)) return;
+        if (!confirm(`表示中の未取得${ids.length}件の手数料見積りをまとめて取得します。よろしいですか？`)) return;
 
         const originalLabel = btn.textContent;
         btn.disabled = true;
