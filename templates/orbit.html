@@ -83,8 +83,8 @@
 .orbit-page table th.orbit-deadline-col,
 .orbit-page table td.orbit-deadline-col {
   font-weight: bold;
-  border-left: 2px solid #f9a825;
-  border-right: 2px solid #f9a825;
+  /* border-collapse 環境でも隣のセルに負けず左右とも確実に出したいので inset shadow で描く */
+  box-shadow: inset 3px 0 0 #f9a825, inset -3px 0 0 #f9a825;
 }
 /* ヘッダーは警告色が付かないので、こちらは淡いオレンジで塗って列頭を分かりやすく */
 .orbit-page table th.orbit-deadline-col {
