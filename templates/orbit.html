@@ -76,6 +76,21 @@
     line-height: 1.6;
 }
 
+/* 出荷期日の列は業務上いちばん大事なので、列を追いやすいよう常に強調する。
+   ただしセルの背景色は「期日◯日前」の警告（青／橙／赤）専用なので、
+   ここでは背景を塗らず、太字＋左右のオレンジ罫線（列レール）で示す。
+   → 罫線があれば「大事な列」、背景色が付いていれば「期日が近い」と区別できる。 */
+.orbit-page table th.orbit-deadline-col,
+.orbit-page table td.orbit-deadline-col {
+  font-weight: bold;
+  border-left: 2px solid #f9a825;
+  border-right: 2px solid #f9a825;
+}
+/* ヘッダーは警告色が付かないので、こちらは淡いオレンジで塗って列頭を分かりやすく */
+.orbit-page table th.orbit-deadline-col {
+  background-color: #fff3e0 !important;
+}
+
 /* 出荷期日の警告色（今日からの残り日数基準） */
 .orbit-deadline-blue   { background-color: #e3f2fd !important; }
 .orbit-deadline-orange { background-color: #ffe0b2 !important; }

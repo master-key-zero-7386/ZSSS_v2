@@ -356,6 +356,7 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
             (col.group && !col.groupHead) ? `orbit-group-${col.group}` : "",
             col.highlight ? "orbit-check-highlight" : "",
             col.profitHighlight ? "orbit-profit-highlight" : "",
+            col.deadline ? "orbit-deadline-col" : "",
         ].filter(Boolean).join(" ");
         if (col.key === "agent_serial_no") extraHeadClass = `${extraHeadClass} orbit-serial-cell`.trim();
         const groupClass = extraHeadClass ? ` ${extraHeadClass}` : "";
@@ -423,7 +424,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
         }
 
         tr.innerHTML = columns.map(col => {
-            let cellClass = col.deadline ? getDeadlineColorClass(r[col.key]) : "";
+            let cellClass = col.deadline ? `orbit-deadline-col ${getDeadlineColorClass(r[col.key])}`.trim() : "";
             if (col.group && !col.groupHead) cellClass = `${cellClass} orbit-group-${col.group}`.trim();
             if (col.checkFlagKey && r[col.checkFlagKey]) cellClass = `${cellClass} orbit-issue-flag`.trim();
             if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
