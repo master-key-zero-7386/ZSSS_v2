@@ -7,6 +7,73 @@
   overflow: auto;
 }
 
+/* ───────────────────────────────────────────────────────────────
+   orbitタブは「h2＋サブタブ」を上部に固定し、その下のアクティブ
+   ペインだけをスクロールさせる。
+   従来は .table-wrapper の高さが固定値(calc(100vh - 260px))で、
+   説明文や操作ボタンの分だけ必ず縦にあふれ、外側(.tab-content)の
+   スクロールバーが出てサブタブごと上に動いてしまっていた。
+   → 全体を flex 縦積みにし、表エリアを「残り高さ」へ自動フィットさせる。
+   ─────────────────────────────────────────────────────────────── */
+#orbit.tab-content.active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;              /* 外側は自前でスクロールさせない */
+}
+.orbit-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 上部固定：見出しとサブタブ（スクロールしても動かない） */
+.orbit-page > h2,
+.orbit-page > .st-subtabs {
+  flex: none;
+}
+/* アクティブなペインだけが縦フレックス＆残り高さを占有する */
+.orbit-page > .st-subtab-pane.active {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.orbit-page > .st-subtab-pane.active > .card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* カード内で伸縮するのは表エリアだけ。説明文・操作ボタン・上部スクロールバーは自然高さ */
+.orbit-page .st-subtab-pane > .card > .master-description,
+.orbit-page .st-subtab-pane > .card > .orbit-actions,
+.orbit-page .st-subtab-pane > .card > .orbit-top-scroll {
+  flex: none;
+}
+.orbit-page .st-subtab-pane > .card > .table-wrapper {
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: none;
+}
+
+/* 買い手履歴ペインは表が2つ＋見出しがあるので、ペインごと縦スクロールさせる */
+#orbit-pane-buyer-history.st-subtab-pane.active,
+#orbit-pane-buyer-history.st-subtab-pane.active > .card {
+  display: block;
+  overflow: visible;
+}
+#orbit-pane-buyer-history.st-subtab-pane.active {
+  overflow-y: auto;
+}
+#orbit-pane-buyer-history .table-wrapper {
+  flex: none;
+  /* 既定の min-height:calc(100vh - 260px) を打ち消す（インラインの max-height:40vh は活きる） */
+  min-height: 0;
+}
+
 /* 行数が少ない時、本体の横スクロールバーが画面下に隠れてしまうため、上部にも操作用のスクロールバーを置く */
 .orbit-top-scroll {
   overflow-x: auto;
@@ -247,9 +314,6 @@
     <div class="card">
 
       <div class="master-description">
-          ラフ版です。CA/US(このPC)＋AU(ATLAS)を1つにまとめて、発送代行会社の「依頼書」シートと同じ形式で表示・編集します。<br>
-          AUの取込(Googleドライブ共有フォルダ経由)はまだ未実装のため、現時点ではCA/US分のみ表示されます。<br>
-          N番号は受注一覧タブで入力します(ここでは読取専用)。<br>
           JAN(仕入れ管理で入力)・トラッキング(代行会社が入力)は読取専用です。仕入価格欄は判断待ちのため空欄のままにしています。
       </div>
 
