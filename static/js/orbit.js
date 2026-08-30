@@ -750,6 +750,16 @@ window.initOrbit = function () {
         new ResizeObserver(() => syncProcurementTopScrollWidth()).observe(procTable);
     }
 
+    // 受注一覧／発注管理テーブルの状態（並び順キャッシュ・ソート状態）は、早期returnの前に宣言しておく。
+    // （2回目以降のinitOrbit()は下の早期returnで抜けるため、ここより後ろで let 宣言すると
+    //   loadOrders() の .then が未初期化の変数（TDZ）に触れて ReferenceError となり、
+    //   .catch に落ちて「注文一覧の取得に失敗しました」トーストが毎回出てしまう。買い手履歴側と同じ理由。）
+    // どちらも初期表示はN番号の昇順（全チェック・出荷チェックの基準がN番号のため）。列見出しクリック等で解除できる。
+    let ordersRowsCache = [];
+    let ordersSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    let dispatchRowsCache = [];
+    let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+
     if (tbody.dataset.orbitInitialized === "true") {
         loadOrders();
         loadBuyerHistory();
@@ -770,9 +780,7 @@ window.initOrbit = function () {
 
     // 受注一覧テーブルは列見出しクリックでの並び替え・↕での手動移動ができる
     // （N番号の連番はこの「今の画面の表示順」を基準に振られる）
-    let ordersRowsCache = [];
-    // 初期表示はN番号の昇順（全チェックの基準がN番号のため）。↕ボタンや他列の見出しクリックで解除できる
-    let ordersSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    // ※ ordersRowsCache / ordersSortState の宣言は早期returnより前へ移動済み（上部参照）
 
     function renderOrdersTable() {
         const rows = ordersSortState
@@ -817,9 +825,7 @@ window.initOrbit = function () {
 
     // 発注管理テーブルは列見出しクリックで並び替えできる（表示確認用。N番号の連番自体は受注一覧タブで
     // 決める並び順を基準に振られるため、この並び替えは連番には影響しない）
-    let dispatchRowsCache = [];
-    // 初期表示はN番号の昇順（出荷チェックをN番号で行うため）。列見出しクリックで並び替え可
-    let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    // ※ dispatchRowsCache / dispatchSortState の宣言は早期returnより前へ移動済み（上部参照）
 
     function renderDispatchTable() {
         const rows = dispatchSortState
