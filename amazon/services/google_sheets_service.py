@@ -298,6 +298,35 @@ def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str) -> li
 # --- ▼ SECTION 06-2: シート範囲への書き込み・クリア（ZSSS_RAWタブ出力用） ▼ ---
 # valueInputOption=RAW: JAN・トラッキング番号・電話番号など桁数の多い数字文字列を
 # Sheetsが数値/日付/数式に勝手に変換しないよう、送った文字列をそのまま入れる。
+def _raise_for_sheets_write_error(resp):
+    if resp.ok:
+        return
+
+    if resp.status_code == 403:
+        raise RuntimeError(
+            "書き込み権限がありません。スコープ変更後の再連携が必要です"
+            "（発注管理タブの『Google再連携』からやり直してください）。"
+        )
+
+    # Google APIのエラー本文（{"error":{"message":"Unable to parse range: ZSSS_RAW", ...}}）を拾って
+    # 「タブ名が違う」「シートが見つからない」等を切り分けられるようにする。
+    detail = ""
+    try:
+        detail = ((resp.json() or {}).get("error") or {}).get("message") or ""
+    except ValueError:
+        detail = (resp.text or "")[:300]
+
+    if resp.status_code == 400 and "parse range" in detail.lower():
+        raise RuntimeError(
+            f"タブが見つかりません（{detail}）。書き出し先スプレッドシートに指定タブ名が存在するか、"
+            f"URLとタブを作ったシートが一致しているか確認してください。"
+        )
+    if resp.status_code == 404:
+        raise RuntimeError("スプレッドシートが見つかりません。書き出し先URLを確認してください。")
+
+    raise RuntimeError(f"Sheets API エラー（HTTP {resp.status_code}）: {detail or resp.reason}")
+
+
 def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, values: list) -> dict:
     access_token = get_valid_access_token(user_id)
     if not access_token:
@@ -312,12 +341,7 @@ def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
         headers={"Authorization": f"Bearer {access_token}"},
         json={"values": values},
     )
-    if resp.status_code == 403:
-        raise RuntimeError(
-            "書き込み権限がありません。スコープ変更後の再連携が必要です"
-            "（発注管理タブの『Googleアカウントを連携する』からやり直してください）。"
-        )
-    resp.raise_for_status()
+    _raise_for_sheets_write_error(resp)
     return resp.json()
 
 
@@ -331,12 +355,7 @@ def clear_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str) -> d
         f"{requests.utils.quote(sheet_range)}:clear"
     )
     resp = requests.post(url, headers={"Authorization": f"Bearer {access_token}"})
-    if resp.status_code == 403:
-        raise RuntimeError(
-            "書き込み権限がありません。スコープ変更後の再連携が必要です"
-            "（発注管理タブの『Googleアカウントを連携する』からやり直してください）。"
-        )
-    resp.raise_for_status()
+    _raise_for_sheets_write_error(resp)
     return resp.json()
 
 

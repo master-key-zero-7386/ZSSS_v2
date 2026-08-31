@@ -1491,13 +1491,17 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         raise RuntimeError("ZSSS_RAWシートのURLが未設定です（発注管理タブの設定欄で保存してください）")
 
     spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
-    sheet_name = settings["sheet_name"] or "ZSSS_RAW"
+    sheet_name = (settings["sheet_name"] or "ZSSS_RAW").strip()
+
+    # A1記法ではシート名をシングルクォートで囲む（スペースや記号入りでも解釈できるように。
+    # 名前に含まれる ' は '' にエスケープする）。安全な名前を囲んでも無害。
+    quoted = "'" + sheet_name.replace("'", "''") + "'"
 
     matrix = build_raw_sheet_matrix(user_id)
 
     # 旧データを消してから入れ直す（前回より行数が減ったときに古い行が残らないように）
-    clear_sheet_values(user_id, spreadsheet_id, sheet_name)
-    update_sheet_values(user_id, spreadsheet_id, f"{sheet_name}!A1", matrix)
+    clear_sheet_values(user_id, spreadsheet_id, quoted)
+    update_sheet_values(user_id, spreadsheet_id, f"{quoted}!A1", matrix)
 
     return {"rows": len(matrix) - 1, "columns": len(EXPORT_COLUMNS), "sheet_name": sheet_name}
 
