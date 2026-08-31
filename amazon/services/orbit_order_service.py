@@ -15,7 +15,13 @@ from amazon.db import get_conn
 from amazon.db_migrate import ORBIT_ORDERS_COLUMNS
 from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule
 from amazon.core.fx_rate import get_exchange_rate
-from amazon.services.google_sheets_service import fetch_dispatch_sheet_preview
+from amazon.services.google_sheets_service import (
+    fetch_dispatch_sheet_preview,
+    get_raw_sheet_settings,
+    update_sheet_values,
+    clear_sheet_values,
+    _extract_spreadsheet_id,
+)
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 
@@ -1449,6 +1455,51 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
         conn.close()
 
     return output.getvalue()
+
+
+# --- ▼ SECTION 07-2: 自分の管理シート（ZSSS_RAWタブ）への書き出し ▼ ---
+# 手動CSVコピペの置き換え。ORBITが持っている項目を EXPORT_COLUMNS の並びで ZSSS_RAW タブへ書く。
+# ZSSS_RAW → 本番タブ(SLCN連携等)へは利用者がシート内の数式で転記し、本番タブ → 代行会社シートは
+# 既存の IMPORTRANGE がそのまま担う。まずは「全行を毎回入れ替え」の単純版（空タブ前提・列は今後追加）。
+# ※ export_notify_csv と違い notified_at は更新しない（CSV出力＝送信済みの目印を壊さないため）。
+_RAW_VALUE_OVERRIDES = {
+    "buyer_phone_number": "buyer_phone_number_effective",
+    "ship_state": "ship_state_effective",
+    "product_name": "product_name_effective",
+    "recipient_name": "recipient_name_effective",
+    "ship_address_1": "ship_address_1_effective",
+    "ship_address_2": "ship_address_2_effective",
+    "ship_address_3": "ship_address_3_effective",
+}
+
+
+def build_raw_sheet_matrix(user_id: int) -> list:
+    """先頭行=見出し、以降=注文1行ずつ。全セル文字列（Noneは空文字）。"""
+    rows = list_orders_with_calc(user_id)
+    matrix = [list(EXPORT_COLUMNS)]
+    for r in rows:
+        matrix.append([
+            "" if r.get(_RAW_VALUE_OVERRIDES.get(c, c)) is None else str(r.get(_RAW_VALUE_OVERRIDES.get(c, c)))
+            for c in EXPORT_COLUMNS
+        ])
+    return matrix
+
+
+def push_orders_to_raw_sheet(user_id: int) -> dict:
+    settings = get_raw_sheet_settings(user_id)
+    if not settings["spreadsheet_url"]:
+        raise RuntimeError("ZSSS_RAWシートのURLが未設定です（発注管理タブの設定欄で保存してください）")
+
+    spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
+    sheet_name = settings["sheet_name"] or "ZSSS_RAW"
+
+    matrix = build_raw_sheet_matrix(user_id)
+
+    # 旧データを消してから入れ直す（前回より行数が減ったときに古い行が残らないように）
+    clear_sheet_values(user_id, spreadsheet_id, sheet_name)
+    update_sheet_values(user_id, spreadsheet_id, f"{sheet_name}!A1", matrix)
+
+    return {"rows": len(matrix) - 1, "columns": len(EXPORT_COLUMNS), "sheet_name": sheet_name}
 
 
 # --- ▼ SECTION 08: 代行会社シートからの読み戻し（N番号でorbit_ordersと突き合わせる） ▼ ---

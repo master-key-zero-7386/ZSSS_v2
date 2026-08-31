@@ -19,6 +19,7 @@ from amazon.services.orbit_order_service import (
     import_fee_data,
     set_agent_serial_no,
     export_notify_csv,
+    push_orders_to_raw_sheet,
     sync_dispatch_sheet_status,
     import_buyer_history_csv,
     list_archive_candidates,
@@ -37,9 +38,11 @@ from amazon.services.google_sheets_service import (
     build_authorization_url,
     exchange_code_for_tokens,
     save_tokens,
-    is_connected,
+    has_working_connection,
     get_dispatch_sheet_settings,
     save_dispatch_sheet_settings,
+    get_raw_sheet_settings,
+    save_raw_sheet_settings,
 )
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
@@ -374,7 +377,8 @@ def google_oauth_status():
     if not user_id:
         return jsonify({"status": "error"}), 401
 
-    return jsonify({"status": "success", "connected": is_connected(user_id)})
+    # 行の有無だけでなく実際にトークンを更新できるかまで確認する（失効時は自動で行が消え、再連携ボタンが出る）
+    return jsonify({"status": "success", "connected": has_working_connection(user_id)})
 
 
 @orbit_bp.route("/google_oauth/start", methods=["GET"])
@@ -444,6 +448,49 @@ def dispatch_sheet_sync():
 
     try:
         result = sync_dispatch_sheet_status(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 10: 書き出し先（ZSSS_RAWタブ）設定 ▼ ---
+@orbit_bp.route("/raw_sheet_settings", methods=["GET"])
+def get_raw_sheet_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    settings = get_raw_sheet_settings(user_id)
+    return jsonify({"status": "success", **settings})
+
+
+@orbit_bp.route("/raw_sheet_settings", methods=["POST"])
+def save_raw_sheet_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    spreadsheet_url = (data.get("spreadsheet_url") or "").strip()
+    sheet_name = (data.get("sheet_name") or "").strip() or "ZSSS_RAW"
+
+    if not spreadsheet_url:
+        return jsonify({"status": "error", "message": "スプレッドシートURLが必要です"}), 400
+
+    save_raw_sheet_settings(user_id, spreadsheet_url, sheet_name)
+    return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 11: 自分の管理シート（ZSSS_RAWタブ）へ書き出し ▼ ---
+@orbit_bp.route("/raw_sheet_push", methods=["POST"])
+def raw_sheet_push():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = push_orders_to_raw_sheet(user_id)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

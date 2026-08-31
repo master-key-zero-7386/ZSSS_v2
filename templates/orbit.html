@@ -332,6 +332,20 @@
           <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
       </div>
 
+      <div class="master-description">
+          自分の管理シートの <b>ZSSS_RAW</b> タブへ ORBIT の注文データを直接書き込みます（手動コピペの置き換え）。
+          ZSSS_RAW → 本番タブはシート内の数式で転記、本番タブ → 代行会社シートは既存の IMPORTRANGE のまま。<br>
+          ※ 書き込みには読み書きスコープが必要です。「書き込み権限がありません」等が出たら「Google再連携」から連携し直してください。現状は毎回「全行入れ替え」で書き込みます。
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <button id="orbit-raw-push-btn" class="btn-blue">ZSSS_RAWへ書き込み</button>
+          <span id="orbit-raw-push-status"></span>
+          <input type="text" id="orbit-raw-sheet-url" class="file-input-text" placeholder="書き出し先スプレッドシートのURL" style="width:420px;">
+          <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="タブ名(既定: ZSSS_RAW)" style="width:220px;">
+          <button id="orbit-raw-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
+      </div>
+
       <div class="orbit-top-scroll" id="orbit-dispatch-top-scroll"><div></div></div>
 
       <div class="table-wrapper" id="orbit-dispatch-table-wrapper">

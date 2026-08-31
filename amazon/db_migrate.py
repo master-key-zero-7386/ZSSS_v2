@@ -758,6 +758,9 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
     "spreadsheet_url": "TEXT",     # 依頼書スプレッドシートのURL（ブラウザからそのまま貼り付け）
     "sheet_name": "TEXT",          # シート名（例: 【発送確認用】依頼書）
+    # ORBIT → 自分の管理スプレッドシートへの書き出し先（ZSSS_RAWタブ）。読み戻し用(spreadsheet_url/sheet_name)とは別。
+    "raw_spreadsheet_url": "TEXT", # 書き出し先スプレッドシートのURL（代行会社とIMPORTRANGE連携済みの自分のシート）
+    "raw_sheet_name": "TEXT",      # 書き出し先タブ名（既定: ZSSS_RAW）
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }

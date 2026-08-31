@@ -22,17 +22,29 @@ GOOGLE_REDIRECT_URI = "http://localhost:5001/orbit/google_oauth/callback"
 
 GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly"
+# 依頼書シートの読み戻し（読取）に加え、ORBIT → 自分の管理シート（ZSSS_RAWタブ）への
+# 書き出しも行うため読み書きスコープにする。※スコープ変更後は一度Google連携をやり直す必要がある
+# （既存のrefresh_tokenは古いスコープのまま。/orbit/google_oauth/start を再実行して再同意）。
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 
 # 依頼書スプレッドシートのURL・シート名はユーザー変更可能（orbit_dispatch_sheet_settings）。
 # 未設定時のみのフォールバックとして、判明している値を初期値に使う。
 DEFAULT_DISPATCH_SHEET_URL = "https://docs.google.com/spreadsheets/d/1w4lnuf9RxwKZaPHgJJ6QoRwgihgDF7WNc1W61PGWvn4/edit"
 DEFAULT_DISPATCH_SHEET_NAME = "【発送確認用】依頼書"
+
+# ORBIT → 自分の管理シートへの書き出し先タブ名（既定）。URLはユーザーが画面から設定する。
+DEFAULT_RAW_SHEET_NAME = "ZSSS_RAW"
 DISPATCH_SHEET_FULL_COLUMN_RANGE = "A2:U"       # ヘッダー除く全列（絞り込んだ行範囲に対して使う）
 DISPATCH_SHEET_KEY_COLUMN_RANGE = "A2:B"        # 事前スキャン用：N番号・依頼日の2列だけ（軽量）
 DISPATCH_SHEET_RECENT_DAYS = 30                 # この日数より古い依頼日の行は取得しない
 
 SPREADSHEET_ID_PATTERN = re.compile(r"/d/([a-zA-Z0-9_-]+)")
+
+
+class GoogleAuthError(RuntimeError):
+    """保存済みのrefresh_tokenが失効している等、再連携が必要な状態。
+    ルート側は str(e) をそのままフロントに返すため、メッセージは日本語で操作案内まで含める。"""
+    pass
 
 
 def _parse_sheet_date(value: str):
@@ -81,6 +93,42 @@ def save_dispatch_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name:
         ON CONFLICT (user_id) DO UPDATE SET
             spreadsheet_url = EXCLUDED.spreadsheet_url,
             sheet_name = EXCLUDED.sheet_name,
+            updated_at = EXCLUDED.updated_at
+    """, (user_id, spreadsheet_url, sheet_name, now, now))
+
+    conn.commit()
+    conn.close()
+
+
+# --- ▼ SECTION 00-2: 書き出し先（ZSSS_RAWタブ）設定の取得・保存 ▼ ---
+# 読み戻し用の依頼書シート設定と同じ1行（user_idユニーク）に相乗りで保存する。
+def get_raw_sheet_settings(user_id: int) -> dict:
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT raw_spreadsheet_url, raw_sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    return {
+        "spreadsheet_url": (row["raw_spreadsheet_url"] if row and row.get("raw_spreadsheet_url") else ""),
+        "sheet_name": (row["raw_sheet_name"] if row and row.get("raw_sheet_name") else DEFAULT_RAW_SHEET_NAME),
+    }
+
+
+def save_raw_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name: str):
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+
+    cur.execute("""
+        INSERT INTO orbit_dispatch_sheet_settings (user_id, raw_spreadsheet_url, raw_sheet_name, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (user_id) DO UPDATE SET
+            raw_spreadsheet_url = EXCLUDED.raw_spreadsheet_url,
+            raw_sheet_name = EXCLUDED.raw_sheet_name,
             updated_at = EXCLUDED.updated_at
     """, (user_id, spreadsheet_url, sheet_name, now, now))
 
@@ -149,6 +197,15 @@ def save_tokens(user_id: int, token_data: dict):
     conn.close()
 
 
+# 失効した（再連携が必要な）トークン行を消す。次回の連携状態チェックで「未連携」＝再連携ボタン表示に戻す。
+def clear_tokens(user_id: int):
+    conn = get_conn("a_google_oauth_tokens.db")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM google_oauth_tokens WHERE user_id = %s", (user_id,))
+    conn.commit()
+    conn.close()
+
+
 # --- ▼ SECTION 04: 有効なaccess_tokenの取得（期限切れなら自動更新） ▼ ---
 def get_valid_access_token(user_id: int):
     conn = get_conn("a_google_oauth_tokens.db")
@@ -182,7 +239,18 @@ def get_valid_access_token(user_id: int):
         "refresh_token": row["refresh_token"],
         "grant_type": "refresh_token",
     })
-    resp.raise_for_status()
+
+    if resp.status_code >= 400:
+        # 4xx（invalid_grant等）は保存済みrefresh_tokenの失効。スコープ変更・同意画面のテスト期限切れ・
+        # ユーザーによる取消などが原因で、リトライしても直らない。死んだ行を消して再連携へ誘導する。
+        # 5xx（Google側の一時障害）は行を残し、次回リトライで回復する余地を残す。
+        if resp.status_code < 500:
+            clear_tokens(user_id)
+        raise GoogleAuthError(
+            "Google連携の有効期限が切れています。"
+            "発注管理タブの「Google再連携」からGoogleアカウントを連携し直してください。"
+        )
+
     token_data = resp.json()
     save_tokens(user_id, token_data)
     return token_data.get("access_token")
@@ -201,6 +269,20 @@ def is_connected(user_id: int) -> bool:
     return bool(row and row.get("refresh_token"))
 
 
+# refresh_tokenの行があるか（is_connected）だけでなく、実際にアクセストークンを更新できるかまで確認する。
+# 失効していれば get_valid_access_token 側で行が消えるので、以後は is_connected も False に戻る。
+def has_working_connection(user_id: int) -> bool:
+    if not is_connected(user_id):
+        return False
+    try:
+        return bool(get_valid_access_token(user_id))
+    except GoogleAuthError:
+        return False
+    except requests.RequestException:
+        # ネットワーク不調などの一時的な失敗で「未連携」に落とさない（行はまだ生きている扱い）
+        return True
+
+
 # --- ▼ SECTION 06: シート範囲の取得（IMPORTRANGEと同じ発想） ▼ ---
 def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str) -> list:
     access_token = get_valid_access_token(user_id)
@@ -211,6 +293,51 @@ def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str) -> li
     resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
     resp.raise_for_status()
     return resp.json().get("values", [])
+
+
+# --- ▼ SECTION 06-2: シート範囲への書き込み・クリア（ZSSS_RAWタブ出力用） ▼ ---
+# valueInputOption=RAW: JAN・トラッキング番号・電話番号など桁数の多い数字文字列を
+# Sheetsが数値/日付/数式に勝手に変換しないよう、送った文字列をそのまま入れる。
+def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, values: list) -> dict:
+    access_token = get_valid_access_token(user_id)
+    if not access_token:
+        raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
+
+    url = (
+        f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+        f"{requests.utils.quote(sheet_range)}?valueInputOption=RAW"
+    )
+    resp = requests.put(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"values": values},
+    )
+    if resp.status_code == 403:
+        raise RuntimeError(
+            "書き込み権限がありません。スコープ変更後の再連携が必要です"
+            "（発注管理タブの『Googleアカウントを連携する』からやり直してください）。"
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def clear_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str) -> dict:
+    access_token = get_valid_access_token(user_id)
+    if not access_token:
+        raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
+
+    url = (
+        f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+        f"{requests.utils.quote(sheet_range)}:clear"
+    )
+    resp = requests.post(url, headers={"Authorization": f"Bearer {access_token}"})
+    if resp.status_code == 403:
+        raise RuntimeError(
+            "書き込み権限がありません。スコープ変更後の再連携が必要です"
+            "（発注管理タブの『Googleアカウントを連携する』からやり直してください）。"
+        )
+    resp.raise_for_status()
+    return resp.json()
 
 
 # --- ▼ SECTION 07: 依頼書シートの直近分取得 ▼ ---

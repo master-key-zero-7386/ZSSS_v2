@@ -1350,7 +1350,7 @@ window.initOrbit = function () {
         window.location.href = "/orbit/export";
     });
 
-    // --- ▼ SECTION 02-1b: Google連携状態の表示（未連携ならボタンを出す） ▼ ---
+    // --- ▼ SECTION 02-1b: Google連携状態の表示（連携/再連携ボタンは常に表示） ▼ ---
     const googleConnectLink = document.getElementById("orbit-google-connect-link");
     const googleConnectStatus = document.getElementById("orbit-google-connect-status");
 
@@ -1358,11 +1358,12 @@ window.initOrbit = function () {
         .then(res => res.json())
         .then(data => {
             if (data.status !== "success") return;
-            if (data.connected) {
-                if (googleConnectStatus) googleConnectStatus.textContent = "Google連携済み";
-            } else if (googleConnectLink) {
+            // 連携済みでも「Google再連携」として常に出す（スコープ変更・トークン失効時に押せる導線が必要なため）
+            if (googleConnectLink) {
+                googleConnectLink.textContent = data.connected ? "Google再連携" : "Googleアカウントを連携する";
                 googleConnectLink.style.display = "inline-block";
             }
+            if (googleConnectStatus) googleConnectStatus.textContent = data.connected ? "Google連携済み" : "未連携";
         })
         .catch(err => console.error("google_oauth/status error:", err));
 
@@ -1440,6 +1441,65 @@ window.initOrbit = function () {
                 console.error("dispatch_sheet_settings save error:", err);
                 window.showToast?.("保存に失敗しました", "error");
             });
+    });
+
+    // --- ▼ SECTION 04-2: ZSSS_RAWタブへの書き出し（手動コピペの置き換え） ▼ ---
+    const rawSheetUrlInput = document.getElementById("orbit-raw-sheet-url");
+    const rawSheetNameInput = document.getElementById("orbit-raw-sheet-name");
+    const rawSheetSettingsSaveBtn = document.getElementById("orbit-raw-sheet-settings-save-btn");
+    const rawPushBtn = document.getElementById("orbit-raw-push-btn");
+    const rawPushStatus = document.getElementById("orbit-raw-push-status");
+
+    fetch("/orbit/raw_sheet_settings")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (rawSheetUrlInput) rawSheetUrlInput.value = data.spreadsheet_url || "";
+            if (rawSheetNameInput) rawSheetNameInput.value = data.sheet_name || "";
+        })
+        .catch(err => console.error("raw_sheet_settings load error:", err));
+
+    rawSheetSettingsSaveBtn?.addEventListener("click", () => {
+        fetch("/orbit/raw_sheet_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                spreadsheet_url: rawSheetUrlInput?.value || "",
+                sheet_name: rawSheetNameInput?.value || "",
+            }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.("設定を保存しました", "success");
+                } else {
+                    window.showToast?.(data.message || "保存に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("raw_sheet_settings save error:", err);
+                window.showToast?.("保存に失敗しました", "error");
+            });
+    });
+
+    rawPushBtn?.addEventListener("click", () => {
+        if (rawPushStatus) rawPushStatus.textContent = "書き込み中...";
+        rawPushBtn.disabled = true;
+
+        fetch("/orbit/raw_sheet_push", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    if (rawPushStatus) rawPushStatus.textContent = `${data.rows}行 × ${data.columns}列 を ${data.sheet_name} に書き込みました`;
+                } else {
+                    if (rawPushStatus) rawPushStatus.textContent = data.message || "書き込みに失敗しました";
+                }
+            })
+            .catch(err => {
+                console.error("raw_sheet_push error:", err);
+                if (rawPushStatus) rawPushStatus.textContent = "書き込みに失敗しました";
+            })
+            .finally(() => { rawPushBtn.disabled = false; });
     });
 
     loadOrders();
