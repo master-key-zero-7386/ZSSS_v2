@@ -379,6 +379,21 @@
           <button id="orbit-delete-all-btn" class="btn-red">全件削除(リセット)</button>
       </div>
 
+      <div class="master-description">
+          AU分など、この端末のAmazonアカウント認証情報が無いマーケットの販売額・手数料見積りは、
+          そのアカウントを持つ別端末(例: ATLAS)で取得してから、ここで受け渡しできます。
+          注文データ自体は事前にどちらの端末にも通常の注文レポートで取り込んでおいてください。
+      </div>
+
+      <div class="orbit-actions">
+          <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="file" id="orbitFeeDataFileInput" accept=".csv" style="display:none;" />
+              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:340px;" />
+              <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+      </div>
+
       <div class="orbit-top-scroll" id="orbit-orders-top-scroll"><div></div></div>
 
       <div class="table-wrapper" id="orbit-orders-table-wrapper">
@@ -456,21 +471,6 @@
 
       <div class="master-description">
           商品名〜ショップ名の列は幅を取るため折りたたんであります。先頭の▸ボタンで展開できます。
-      </div>
-
-      <div class="master-description">
-          AU分など、この端末のAmazonアカウント認証情報が無いマーケットの販売額・手数料見積りは、
-          そのアカウントを持つ別端末(例: ATLAS)で取得してから、ここで受け渡しできます。
-          注文データ自体は事前にどちらの端末にも通常の注文レポートで取り込んでおいてください。
-      </div>
-
-      <div class="orbit-actions">
-          <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="file" id="orbitFeeDataFileInput" accept=".csv" style="display:none;" />
-              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:340px;" />
-              <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
       </div>
 
       <div class="master-description">
