@@ -134,7 +134,7 @@ const DISPATCH_COLUMNS = [
     { key: "ship_country", label: "国" },
     { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色（発注数量チェック）
     { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", mid: true },
-    { key: "shipping_type", label: "発送種別", editable: "text" },  // どのキャリアで発送するか
+    { key: "shipping_type", label: "発送種別", editable: "text", datalist: "orbit-dl-shipping-type" },  // 過去入力値をプルダウン候補に。新規も自由入力可
     { key: "agent_tracking_number", label: "トラッキング", copyClass: "orbit-orderid-cell" },  // 通知すべき番号（代行会社読み戻し）
     { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
     { key: "shipped_completed", label: "出荷通知", shippedToggle: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）
@@ -682,7 +682,8 @@ function dispCellInner(col, r) {
     if (col.editable) {
         const value = r[col.key] ?? "";
         const cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
-        return `<input type="${col.editable}" class="${cls}" data-field="${col.saveField || col.key}" value="${value}" title="${value}">`;
+        const listAttr = col.datalist ? ` list="${col.datalist}"` : "";
+        return `<input type="${col.editable}" class="${cls}"${listAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value}">`;
     }
     return fmtValue(col, r[col.key]);
 }
@@ -1062,12 +1063,21 @@ window.initOrbit = function () {
     // 主行ヘッダー用の列定義（先頭に±トグル列を足す）
     const dispatchHeaderCols = [{ key: "__acc", label: "", blank: true }, ...DISPATCH_PRIMARY_KEYS.map(dispatchCol)];
 
+    // 発送種別の入力候補を、これまでに入力された値から都度更新（datalist）。
+    function refreshShippingTypeDatalist() {
+        const dl = document.getElementById("orbit-dl-shipping-type");
+        if (!dl) return;
+        const vals = [...new Set(dispatchRowsCache.map(r => (r.shipping_type || "").trim()).filter(Boolean))].sort();
+        dl.innerHTML = vals.map(v => `<option value="${orbitEscapeHtml(v)}"></option>`).join("");
+    }
+
     function renderDispatchTable() {
         const rows = dispatchSortState
             ? sortRowsByKey(dispatchRowsCache, dispatchSortState.key, dispatchSortState.dir)
             : dispatchRowsCache;
         const wrapper = dispatchTbody?.closest(".table-wrapper");
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
+        refreshShippingTypeDatalist();
         renderDispatchAccordion(dispatchTbody, rows, dispatchExpanded);
         if (wrapper) wrapper.scrollLeft = scrollLeft;
     }
