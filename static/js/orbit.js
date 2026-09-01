@@ -209,6 +209,7 @@ const DISPATCH_PRIMARY_KEYS = [
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
     "shipped_completed", "purchased", "invoice_saved",
+    "fetch_fee_estimate",  // 主行に配置。列見出し＝「一括取得」ボタン、セル＝行ごとの「手数料取得/再取得」
     "remarks", "remarks_2", "remarks_3",
 ];
 
@@ -236,7 +237,8 @@ const DISPATCH_DETAIL_SECTIONS = [
     ] },
     { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"] },
     { key: "profit", label: "利益", keys: [
-        "fetch_fee_estimate", "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
+        // fetch_fee_estimate は DISPATCH_PRIMARY_KEYS（主行）へ移動済み
+        "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
         "shipping_cost_used", "profit_jpy", "profit_rate_pct",
     ] },
     { key: "ref", label: "参照", keys: ["order_item_id", "purchase_date"] },
