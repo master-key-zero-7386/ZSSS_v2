@@ -1148,9 +1148,10 @@ def import_fee_data(user_id: int, rows: list) -> int:
 # --- ▼ SECTION 06: JAN・仕入価格の手入力更新 ▼ ---
 MANUAL_FIELDS = [
     "jan_code", "purchase_price",
-    "request_date", "shipping_type", "tracking_number", "remarks",
+    "request_date", "shipping_type", "tracking_number", "remarks", "remarks_2", "remarks_3",
     "supplier", "supplier_order_number", "supplier_shop_name", "procurement_date", "arrival_date",
     "shipped_completed",
+    "invoice_saved", "points", "purchased",
     "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
     "product_name_override", "recipient_name_override",
     "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",
@@ -1158,9 +1159,17 @@ MANUAL_FIELDS = [
 ]
 
 NUMERIC_MANUAL_FIELDS = {
-    "purchase_price",
+    "purchase_price", "points",
     "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
 }
+
+# 備考は 1/2/3 に分割入力。ZSSS_RAW へは空でないものだけ半角スペースで連結して1列(remarks)にする。
+REMARKS_FIELDS = ["remarks", "remarks_2", "remarks_3"]
+
+
+def _combine_remarks(row) -> str:
+    parts = [str(row.get(f)).strip() for f in REMARKS_FIELDS if row.get(f) not in (None, "")]
+    return " ".join(p for p in parts if p)
 
 
 def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
@@ -1473,15 +1482,20 @@ _RAW_VALUE_OVERRIDES = {
 }
 
 
+def _raw_cell(r, col):
+    # remarks は 備考1/2/3 の連結値を出す（発注管理タブでは分割入力、ZSSS_RAW では1列）。
+    if col == "remarks":
+        return _combine_remarks(r)
+    value = r.get(_RAW_VALUE_OVERRIDES.get(col, col))
+    return "" if value is None else str(value)
+
+
 def build_raw_sheet_matrix(user_id: int) -> list:
     """先頭行=見出し、以降=注文1行ずつ。全セル文字列（Noneは空文字）。"""
     rows = list_orders_with_calc(user_id)
     matrix = [list(EXPORT_COLUMNS)]
     for r in rows:
-        matrix.append([
-            "" if r.get(_RAW_VALUE_OVERRIDES.get(c, c)) is None else str(r.get(_RAW_VALUE_OVERRIDES.get(c, c)))
-            for c in EXPORT_COLUMNS
-        ])
+        matrix.append([_raw_cell(r, c) for c in EXPORT_COLUMNS])
     return matrix
 
 

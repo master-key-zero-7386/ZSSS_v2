@@ -609,7 +609,10 @@ ORBIT_ORDERS_COLUMNS = {
     "request_date": "TEXT",                # 依頼日
     "shipping_type": "TEXT",               # 発送種別（暫定：手入力）
     "tracking_number": "TEXT",             # 発送会社トラッキング番号（暫定：手入力。将来自動反映を想定）
-    "remarks": "TEXT",                     # 発送代行会社への連絡事項・備考
+    "remarks": "TEXT",                     # 備考1＝通常の通知内容（発送代行会社への連絡事項）
+    "remarks_2": "TEXT",                   # 備考2＝仕入商品の追跡番号＋到着予定日（運送会社選択＋番号。v1はフリーテキスト）
+    "remarks_3": "TEXT",                   # 備考3＝他国出荷時のGST/BAT番号等（Amazon徴収済みの場合に発送時通知）
+    # ZSSS_RAW書き出し時は remarks/remarks_2/remarks_3 を空でないものだけ半角スペースで連結して1列(remarks)にする
 
     # --- 仕入れ管理（手入力） ---
     "supplier": "TEXT",                    # 仕入先（Amazon/楽天/Yahoo!など）
@@ -618,6 +621,11 @@ ORBIT_ORDERS_COLUMNS = {
     "procurement_date": "TEXT",            # 仕入日（実際に仕入先へ発注した日）
     "arrival_date": "TEXT",                # 到着予定日
     "shipped_completed": "INTEGER",        # 出荷完了フラグ（仕入れ管理のボタンで手動ON/OFF。押し間違えても解除可能）
+
+    # --- 発注管理タブのチェック欄（手入力。ZSSS_RAW・代行会社へは連携しない） ---
+    "invoice_saved": "INTEGER",            # インボイス（領収書）DL・保管済みフラグ。トグル式（再押しで解除）
+    "points": "REAL",                      # 獲得ポイント（目安の数値を入力するだけ。計算・連携なし）
+    "purchased": "INTEGER",                # 仕入確認フラグ。トグル式（日付非連動、キャンセル時に解除可能）。未仕入れ行の視認用
 
     # --- 発送代行への通知状況 ---
     "notified_at": "TEXT",

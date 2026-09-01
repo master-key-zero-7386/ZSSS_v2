@@ -111,31 +111,76 @@ const DISPATCH_ISSUE_FLAGS = [
     { key: "flag_postal_code_missing", label: "郵便番号(未入力)" },
 ];
 
-// --- ▼ SECTION 00-1b: 発注管理（依頼書シート形式）列定義 ▼ ---
-// CA/US/AU全市場をまとめて、発送代行会社の「依頼書」シートと同じ並びで表示・編集する。
+// --- ▼ SECTION 00-1a: 仕入先の選択肢（発注管理・仕入れ管理で共用） ▼ ---
+const SUPPLIER_OPTIONS = [
+    "-", "Amazon", "Rakuten", "Rakuten2", "Qoo10",
+    "marunishi", "marunishi2", "marunishi3",
+    "ﾔﾏﾀﾞｳｪﾌﾞｺﾑ", "PayPay", "Yahoo", "au",
+];
+
+// --- ▼ SECTION 00-1b: 発注管理（＝作業タブ）列定義 ▼ ---
+// 取込後の確認・チェック・仕入入力・代行会社連絡をこの1タブで完結させる。
+// CA/US/AU全市場をまとめて表示。仕入れ管理タブとは同じ orbit_orders の同じ列を編集する（両方編集可）。
 const DISPATCH_COLUMNS = [
+    // --- 警告・チェック ---
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "security_badge", label: "⚠要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
-    { key: "agent_serial_no", label: "N番号", highlight: true },  // 受注一覧タブで入力（読取専用）
-    { key: "request_date", label: "依頼日" },  // 仕入れ管理で仕入日を入力した値を反映（読取専用）
-    { key: "jan_code", label: "JAN" },  // 仕入れ管理で入力した値を反映（読取専用）
-    { key: "shipping_type", label: "発送種別", editable: "text" },
-    { key: "quantity_purchased", label: "数量" },
-    { key: "agent_tracking_number", label: "トラッキング(海外向け)" },  // 代行会社シートから読み戻し（読取専用）
-    // 代行会社シートの「インボイス価格（円）」＝仕入原価ではなく販売額基準（アンダーバリュー防止のため
-    // 販売額の97%で算出、自動算定のみで手入力不可）
-    { key: "invoice_price_jpy", label: "仕入価格(インボイス円)" },
-    { key: "remarks", label: "備考", editable: "text" },
+    { key: "shipped_completed", label: "出荷完了", shippedToggle: true },
+    { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
+    { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
+    { key: "points", label: "ポイント", editable: "number" },
 
-    // --- 代行会社シートからの読み戻し（読取専用。依頼書J〜U列） ---
-    // Excelの列グループのように折りたたみ可能（先頭列にトグルボタンを表示、他は折りたたみ時に非表示）
-    { key: "agent_thankyou_letter", label: "サンクスレター内容", group: "agentReadback", groupHead: true },
+    // --- 基本 ---
+    { key: "agent_serial_no", label: "N番号", highlight: true },  // 受注一覧タブで採番（読取専用）
+    { key: "request_date", label: "依頼日" },  // 仕入日を入れると自動反映（読取専用）
+    { key: "asin", label: "ASIN", copyClass: "asin-cell" },
+    { key: "jan_code", label: "JAN", editable: "text" },  // 仕入れ管理と両方編集可
+    { key: "shipping_type", label: "発送種別", editable: "text" },
+    { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色付け（発注数量チェック）
+
+    // --- 代行会社連絡（備考3分割。ZSSS_RAWへは連結して1列で出力） ---
+    { key: "remarks", label: "備考1", editable: "text", wide: true },
+    { key: "remarks_2", label: "備考2", editable: "text", wide: true },
+    { key: "remarks_3", label: "備考3", editable: "text", wide: true },
+
+    // --- 宛名・住所編集〔折りたたみ可〕（黄色ハイライト＝未解消。*_overrideに保存） ---
+    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: "flag_phone_country_code", editable: "text", saveField: "buyer_phone_number_override", group: "shipEdit", groupHead: true },
+    { key: "buyer_phone_extension_effective", label: "内線", editable: "text", saveField: "buyer_phone_extension_override", group: "shipEdit" },
+    { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", wide: true, group: "shipEdit" },
+    { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override", wide: true, group: "shipEdit" },
+    { key: "ship_address_1_effective", label: "住所1", checkFlagKey: "flag_address1_length", editable: "text", saveField: "ship_address_1_override", wide: true, group: "shipEdit" },
+    { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", wide: true, group: "shipEdit" },
+    { key: "ship_address_3_effective", label: "住所3", checkFlagKey: "flag_address3_length", editable: "text", saveField: "ship_address_3_override", wide: true, group: "shipEdit" },
+    { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override", group: "shipEdit" },
+    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing", group: "shipEdit" },
+    { key: "ship_country", label: "国", group: "shipEdit" },
+
+    // --- 想定発送重量・寸法〔折りたたみ可〕（代行会社の梱包基準で丸めた自動算定・読取専用） ---
+    { key: "agent_shipping_weight_kg", label: "想定発送重量(kg)", group: "dims", groupHead: true },
+    { key: "agent_length_cm", label: "長さ(cm)", group: "dims" },
+    { key: "agent_width_cm", label: "幅(cm)", group: "dims" },
+    { key: "agent_height_cm", label: "高さ(cm)", group: "dims" },
+
+    // --- 仕入情報〔折りたたみ可〕 ---
+    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS, group: "procInfo", groupHead: true },
+    { key: "supplier_order_number", label: "注文番号", editable: "text", group: "procInfo" },
+    { key: "supplier_shop_name", label: "ショップ名", editable: "text", group: "procInfo" },
+    { key: "supplier_link", label: "注文リンク", computed: true, group: "procInfo" },
+    { key: "procurement_date", label: "仕入日", editable: "text", group: "procInfo" },
+    { key: "arrival_date", label: "到着予定日", editable: "text", group: "procInfo" },
+    { key: "purchase_price", label: "仕入価格(円)", editable: "number", group: "procInfo" },
+    // インボイス価格（円）＝仕入原価ではなく販売額基準（アンダーバリュー防止で販売額の97%。自動算定のみ）
+    { key: "invoice_price_jpy", label: "インボイス価格(円)", group: "procInfo" },
+
+    // --- 代行会社シートからの読み戻し〔折りたたみ可・依頼書G/J〜U列〕（読取専用） ---
+    { key: "agent_tracking_number", label: "トラッキング(海外向け)", group: "agentReadback", groupHead: true, copyClass: "orbit-orderid-cell" },
+    { key: "agent_thankyou_letter", label: "サンクスレター内容", group: "agentReadback" },
     { key: "agent_option_content", label: "オプション内容", group: "agentReadback" },
     { key: "agent_option_fee", label: "オプション料計", group: "agentReadback" },
     { key: "agent_non_deliverable_weight", label: "配送不可重量", group: "agentReadback" },
     { key: "agent_shipping_weight", label: "発送重量", group: "agentReadback" },
-    { key: "agent_weight_recorded_date", label: "発送重量記入日(=出荷済み)", group: "agentReadback" },
+    { key: "agent_weight_recorded_date", label: "発送重量記入日(=出荷済み)", group: "agentReadback", redUntilShipped: true },
     { key: "agent_confirmed_weight", label: "確定重量", group: "agentReadback" },
     { key: "agent_deadline", label: "期限", group: "agentReadback" },
     { key: "agent_status", label: "状況", group: "agentReadback" },
@@ -144,39 +189,26 @@ const DISPATCH_COLUMNS = [
     { key: "agent_delivery_area", label: "配送エリア", group: "agentReadback" },
     { key: "agent_synced_at", label: "読戻し日時", group: "agentReadback" },
 
+    // --- 期日 ---
+    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
+    { key: "purchase_date", label: "注文日", dateOnly: true },
+
+    // --- 実利益〔折りたたみ可〕（入金額＝決済実績＞手数料見積り概算、送料＝代行会社確定＞ZSSS予測） ---
+    { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
+    { key: "sale_price_used", label: "販売額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split", group: "profit", groupHead: true },
+    { key: "net_proceeds_used", label: "入金額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
+    { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
+    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", group: "profit" },
+    { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
+    { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true, group: "profit" },
+
     // --- 参照用（読み取り専用） ---
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
     { key: "order_item_id", label: "order-item-id" },
-
-    // --- 代行会社シートへの貼り付け前チェック（黄色ハイライト＝未解消。解消されると自動で消える） ---
-    // 自動修正してよいのは電話番号(国番号除去)と州(正式表記化)の2項目だけ。商品名・宛名・住所1〜3は
-    // 自動修正せず必ず人の目で編集する。いずれも編集可能で、入力内容は*_overrideに保存
-    // （Amazon注文レポートの再取込で上書きされない。貼り付け用CSV出力にも反映）。
-    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: "flag_phone_country_code", editable: "text", saveField: "buyer_phone_number_override" },
-    { key: "buyer_phone_extension_effective", label: "内線", editable: "text", saveField: "buyer_phone_extension_override" },
-    { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", wide: true },
-    { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override", wide: true },
-    { key: "ship_address_1_effective", label: "住所1", checkFlagKey: "flag_address1_length", editable: "text", saveField: "ship_address_1_override", wide: true },
-    { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", wide: true },
-    { key: "ship_address_3_effective", label: "住所3", checkFlagKey: "flag_address3_length", editable: "text", saveField: "ship_address_3_override", wide: true },
-    { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override" },
-    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing" },
-
-    { key: "ship_country", label: "国" },
-
-    // --- 依頼書シートAV〜AY列（代行会社の梱包基準で丸めた想定発送重量・寸法。読取専用の自動算定） ---
-    { key: "agent_shipping_weight_kg", label: "想定発送重量(kg)" },
-    { key: "agent_length_cm", label: "長さ(cm)" },
-    { key: "agent_width_cm", label: "幅(cm)" },
-    { key: "agent_height_cm", label: "高さ(cm)" },
 ];
 
 // --- ▼ SECTION 00-2: 仕入れ管理 列定義 ▼ ---
-const SUPPLIER_OPTIONS = [
-    "-", "Amazon", "Rakuten", "Rakuten2", "Qoo10",
-    "marunishi", "marunishi2", "marunishi3",
-    "ﾔﾏﾀﾞｳｪﾌﾞｺﾑ", "PayPay", "Yahoo", "au",
-];
+// SUPPLIER_OPTIONS は SECTION 00-1a で定義済み（発注管理と共用）。
 
 const PROCUREMENT_COLUMNS = [
     // --- 出荷完了フラグ（押し間違えてもボタンをもう一度押せば解除できる。行全体がグレーアウトされる） ---
@@ -192,7 +224,9 @@ const PROCUREMENT_COLUMNS = [
     { key: "purchase_date", label: "注文日", dateOnly: true },
 
     // --- 発注管理で代行会社シートを取り込むと入る項目（出荷に必要な情報を1画面で確認できるようここにも表示） ---
-    { key: "remarks", label: "備考" },
+    { key: "remarks", label: "備考1(通常通知)" },
+    { key: "remarks_2", label: "備考2(仕入追跡)" },
+    { key: "remarks_3", label: "備考3(GST/BAT)" },
     { key: "agent_tracking_number", label: "トラッキング(海外向け)", copyClass: "orbit-orderid-cell" },
     { key: "agent_weight_recorded_date", label: "発送重量記入日", redUntilShipped: true },
     { key: "agent_confirmed_weight", label: "確定重量" },
@@ -421,6 +455,9 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             tr.classList.add("orbit-row-shipped");
         } else if (isCancelOrder) {
             tr.classList.add("orbit-row-cancel");
+        } else if (!r.purchased && !r.shipped_completed) {
+            // 仕入確認が未チェックの行を薄黄色に（仕入れ忘れ防止。キャンセル緑・出荷完了グレーが優先）
+            tr.classList.add("orbit-row-unpurchased");
         }
 
         tr.innerHTML = columns.map(col => {
@@ -432,10 +469,16 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
             if (col.key === "agent_serial_no") cellClass = `${cellClass} orbit-serial-cell`.trim();
             if (col.marketColor) cellClass = `${cellClass} ${getOrderMarketColorClass(r[col.key])}`.trim();
+            if (col.qtyWarn && Number(r[col.key]) >= 2) cellClass = `${cellClass} orbit-qty-warn`.trim();
 
             if (col.shippedToggle) {
                 const done = !!r[col.key];
                 return `<td class="${cellClass}" style="text-align:center;"><button type="button" class="orbit-shipped-toggle-btn ${done ? "btn-red" : "btn-blue"}" data-order-item-id="${r.order_item_id}" data-shipped="${done ? 1 : 0}">${done ? "解除" : "出荷完了"}</button></td>`;
+            }
+
+            if (col.flagToggle) {
+                const on = !!r[col.key];
+                return `<td class="${cellClass}" style="text-align:center;"><button type="button" class="orbit-flag-toggle-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="${col.key}" data-value="${on ? 1 : 0}">${on ? (col.flagOnLabel || "ON") : (col.flagOffLabel || "OFF")}</button></td>`;
             }
 
             if (col.key === "supplier_link") {
@@ -538,7 +581,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 
 function saveManualField(orderItemId, field, value, onDone) {
     const payload = { order_item_id: orderItemId };
-    payload[field] = (field === "purchase_price")
+    payload[field] = (field === "purchase_price" || field === "points")
         ? (value ? parseFloat(value) : null)
         : (value || null);
 
@@ -1112,8 +1155,8 @@ window.initOrbit = function () {
             });
     });
 
-    // --- ▼ SECTION 01-2c: 仕入れ管理：出荷前の概算利益用に手数料見積りを取得 ▼ ---
-    procTbody?.addEventListener("click", (e) => {
+    // --- ▼ SECTION 01-2c: 仕入れ管理／発注管理：出荷前の概算利益用に手数料見積りを取得 ▼ ---
+    const fetchFeeHandler = (e) => {
         const btn = e.target.closest(".orbit-fetch-fee-btn");
         if (!btn) return;
 
@@ -1146,16 +1189,21 @@ window.initOrbit = function () {
                 btn.disabled = false;
                 btn.textContent = originalLabel;
             });
-    });
+    };
+    procTbody?.addEventListener("click", fetchFeeHandler);
+    dispatchTbody?.addEventListener("click", fetchFeeHandler);
 
-    // --- ▼ SECTION 01-2c-2: 仕入れ管理：手数料見積りの一括取得（手数料列ヘッダーのボタン） ▼ ---
+    // --- ▼ SECTION 01-2c-2: 手数料見積りの一括取得（仕入れ管理・発注管理の手数料列ヘッダーのボタン） ▼ ---
     //     表示中の「手数料取得」ボタンを1件ずつ順番に叩く（SP-APIのレート制限対策で直列実行）。
-    procThead?.addEventListener("click", (e) => {
+    const fetchFeeAllHandler = (e) => {
         const btn = e.target.closest(".orbit-fetch-fee-all-btn");
         if (!btn) return;
 
+        // クリックされたヘッダーと同じテーブルの tbody を対象にする（仕入れ管理・発注管理の両対応）。
+        const ownTbody = btn.closest("table")?.querySelector("tbody");
+
         // 未取得分（「手数料取得」）のみ対象。既に取得済み（「手数料再取得」）の行はスキップする。
-        const rowBtns = Array.from(procTbody?.querySelectorAll(".orbit-fetch-fee-btn") || [])
+        const rowBtns = Array.from(ownTbody?.querySelectorAll(".orbit-fetch-fee-btn") || [])
             .filter(b => !b.dataset.feeFetched);
         const ids = rowBtns.map(b => b.dataset.orderItemId).filter(Boolean);
         if (!ids.length) {
@@ -1195,10 +1243,12 @@ window.initOrbit = function () {
         };
 
         runNext(0);
-    });
+    };
+    procThead?.addEventListener("click", fetchFeeAllHandler);
+    dispatchThead?.addEventListener("click", fetchFeeAllHandler);
 
-    // --- ▼ SECTION 01-2d: 仕入れ管理：出荷完了フラグの切り替え（押し間違えてももう一度押せば解除できる） ▼ ---
-    procTbody?.addEventListener("click", (e) => {
+    // --- ▼ SECTION 01-2d: 出荷完了フラグの切り替え（仕入れ管理・発注管理共通。再押しで解除） ▼ ---
+    const shippedToggleHandler = (e) => {
         const btn = e.target.closest(".orbit-shipped-toggle-btn");
         if (!btn) return;
 
@@ -1227,7 +1277,44 @@ window.initOrbit = function () {
                 window.showToast?.("更新に失敗しました", "error");
                 btn.disabled = false;
             });
-    });
+    };
+    procTbody?.addEventListener("click", shippedToggleHandler);
+    dispatchTbody?.addEventListener("click", shippedToggleHandler);
+
+    // --- ▼ SECTION 01-2e: 発注管理タブのチェック系トグル（仕入確認 purchased / 領収書 invoice_saved。再押しで解除） ▼ ---
+    const flagToggleHandler = (e) => {
+        const btn = e.target.closest(".orbit-flag-toggle-btn");
+        if (!btn) return;
+
+        const orderItemId = btn.dataset.orderItemId;
+        const field = btn.dataset.field;
+        if (!orderItemId || !field) return;
+        const next = btn.dataset.value === "1" ? 0 : 1;
+
+        btn.disabled = true;
+
+        fetch("/orbit/orders/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_item_id: orderItemId, [field]: next }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    loadOrders();
+                } else {
+                    window.showToast?.(data.message || "更新に失敗しました", "error");
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error("orbit/orders/update (flag toggle) error:", err);
+                window.showToast?.("更新に失敗しました", "error");
+                btn.disabled = false;
+            });
+    };
+    procTbody?.addEventListener("click", flagToggleHandler);
+    dispatchTbody?.addEventListener("click", flagToggleHandler);
 
     // --- ▼ SECTION 01-3: 全件削除（リセット） ▼ ---
     document.getElementById("orbit-delete-all-btn")?.addEventListener("click", () => {
