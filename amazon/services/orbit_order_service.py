@@ -1496,6 +1496,11 @@ def _raw_cell(r, col):
     # remarks は 備考1/2/3 の連結値を出す（発注管理タブでは分割入力、ZSSS_RAW では1列）。
     if col == "remarks":
         return _combine_remarks(r)
+    # N番はDB上は数字のみ保持だが、代行会社シート/マスターシートの慣習は "N5187" の接頭辞付き
+    # （数値誤認防止のテキストキー）。ZSSS_RAW へ吐き出すときに "N" を付ける。未採番は空のまま。
+    if col == "agent_serial_no":
+        value = r.get("agent_serial_no")
+        return "" if value in (None, "") else f"N{value}"
     value = r.get(_RAW_VALUE_OVERRIDES.get(col, col))
     return "" if value is None else str(value)
 
