@@ -220,9 +220,10 @@ const DISPATCH_DETAIL_SECTIONS = [
         "ship_state_effective", "ship_postal_code",
     ] },
     { key: "proc", label: "仕入れ情報", keys: [
+        "asin", "jan_code",
         "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
         "procurement_date", "request_date", "arrival_date",
-        "purchase_price", "invoice_price_jpy", "points", "jan_code", "asin",
+        "purchase_price", "invoice_price_jpy", "points",
     ] },
     { key: "agent", label: "代行会社", keys: [
         "agent_thankyou_letter", "agent_option_content", "agent_option_fee", "agent_non_deliverable_weight",
