@@ -213,6 +213,7 @@ const DISPATCH_PRIMARY_KEYS = [
 // 展開部のセクション（ラベル＋列キー）。振り分け・順番はここを編集。
 // key はセクション見出しの色分け用（CSS: .orbit-acc-sec-<key>）。
 const DISPATCH_DETAIL_SECTIONS = [
+    { key: "memo", label: "バイヤーメモ", custom: "buyerMemo" },
     { key: "buyer", label: "注文者情報", keys: [
         "recipient_name_effective", "buyer_phone_number_effective", "buyer_phone_extension_effective",
         "ship_address_1_effective", "ship_address_2_effective", "ship_address_3_effective",
@@ -562,7 +563,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.securityBadge) {
                 const notes = r.security_notes || [];
                 if (!notes.length) return "<td></td>";
-                return `<td class="orbit-security-flag" style="text-align:center;" title="${notes.join(" / ")}">⚠要注意</td>`;
+                return `<td class="orbit-security-flag" style="text-align:center;" title="${notes.map(n => n.note).join(" / ")}">⚠要注意</td>`;
             }
 
             if (col.securityNoteButton) {
@@ -633,7 +634,7 @@ function dispCellInner(col, r) {
     }
     if (col.securityBadge) {
         const notes = r.security_notes || [];
-        return notes.length ? `<span class="orbit-security-flag" title="${notes.join(" / ")}">⚠要注意</span>` : "";
+        return notes.length ? `<span class="orbit-security-flag" title="${notes.map(n => n.note).join(" / ")}">⚠要注意</span>` : "";
     }
     if (col.securityNoteButton) {
         return `<button type="button" class="orbit-security-note-btn" data-order-item-id="${r.order_item_id}">📝</button>`;
@@ -686,6 +687,32 @@ function dispCellInner(col, r) {
     return fmtValue(col, r[col.key]);
 }
 
+function orbitEscapeHtml(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
+
+// 展開部「バイヤーメモ」：リピーター購入回数＋返品/セキュリティメモ全文（住所キーで突き合わせ済み）。
+function renderBuyerMemoBlock(r) {
+    const count = r.repeat_buyer_count || 0;
+    const notes = r.security_notes || [];
+
+    const repeatHtml = count >= 2
+        ? `<span class="orbit-memo-repeat is-repeat" title="過去${count}回購入しています">リピーター ${count}回</span>`
+        : `<span class="orbit-memo-repeat">初回</span>`;
+
+    const notesHtml = notes.length
+        ? `<ul class="orbit-memo-list">` + notes.map(n => {
+            const d = (n.created_at || "").slice(0, 10);
+            return `<li><span class="orbit-memo-date">${orbitEscapeHtml(d)}</span> ${orbitEscapeHtml(n.note)}</li>`;
+        }).join("") + `</ul>`
+        : `<span class="orbit-memo-none">メモなし</span>`;
+
+    return `${repeatHtml}${notesHtml}` +
+        `<button type="button" class="orbit-security-note-btn orbit-memo-add-btn" data-order-item-id="${r.order_item_id}">📝メモ追加</button>`;
+}
+
 function renderDispatchAccordion(tbody, rows, expandedSet) {
     if (!tbody) return;
     const primaryCols = DISPATCH_PRIMARY_KEYS.map(dispatchCol);
@@ -705,15 +732,21 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
             `<td class="${dispCellClass(col, r)}">${dispCellInner(col, r)}</td>`
         ).join("");
 
-        const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => `
-            <div class="orbit-acc-section orbit-acc-sec-${sec.key || "x"}">
-                <span class="orbit-acc-section-label">${sec.label}</span>
-                ${sec.keys.map(dispatchCol).map(col => `
+        const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => {
+            const body = sec.custom === "buyerMemo"
+                ? renderBuyerMemoBlock(r)
+                : (sec.keys || []).map(dispatchCol).map(col => `
                     <span class="orbit-acc-field ${dispCellClass(col, r)}">
                         <span class="orbit-acc-field-label">${col.label}</span>
                         <span class="orbit-acc-field-value">${dispCellInner(col, r)}</span>
-                    </span>`).join("")}
-            </div>`).join("");
+                    </span>`).join("");
+            const hasNotes = sec.custom === "buyerMemo" && (r.security_notes || []).length ? " has-notes" : "";
+            return `
+                <div class="orbit-acc-section orbit-acc-sec-${sec.key || "x"}${hasNotes}">
+                    <span class="orbit-acc-section-label">${sec.label}</span>
+                    ${body}
+                </div>`;
+        }).join("");
 
         return `
             <tr class="${rowCls}" data-order-item-id="${oid}">

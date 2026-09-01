@@ -1010,7 +1010,7 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT buyer_key, note
+        SELECT buyer_key, note, created_at
         FROM orbit_buyer_security_notes
         WHERE user_id = %s
         ORDER BY created_at ASC
@@ -1020,9 +1020,13 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     rows = cur.fetchall()
     conn.close()
 
+    # 発注管理タブの「バイヤーメモ」セクションで本文＋日時を表示するため dict のリストで返す
+    # （従来は本文文字列のみ。⚠要注意バッジ側も .note を参照するよう更新済み）。
     notes_by_key = {}
     for r in rows:
-        notes_by_key.setdefault(r["buyer_key"], []).append(r["note"])
+        notes_by_key.setdefault(r["buyer_key"], []).append(
+            {"note": r["note"], "created_at": r["created_at"]}
+        )
     return notes_by_key
 
 

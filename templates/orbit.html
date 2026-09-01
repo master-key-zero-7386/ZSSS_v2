@@ -229,6 +229,8 @@
 }
 
 /* グループ別の色分け（展開部） */
+.orbit-acc-sec-memo   { background: #f2f3f5; border-left-color: #c0c4c9; }
+.orbit-acc-sec-memo.has-notes { background: #fdecea; border-left-color: #d9534f; }
 .orbit-acc-sec-buyer  { background: #e8f1fb; border-left-color: #4a90d9; }
 .orbit-acc-sec-proc   { background: #e9f6ea; border-left-color: #56ac5c; }
 .orbit-acc-sec-agent  { background: #fff2e0; border-left-color: #e39b3c; }
@@ -238,6 +240,16 @@
 .orbit-acc-sec-buyer .orbit-acc-section-label  { color: #2f6db0; }
 .orbit-acc-sec-proc .orbit-acc-section-label   { color: #3a8440; }
 .orbit-acc-sec-agent .orbit-acc-section-label  { color: #b3701f; }
+.orbit-acc-sec-memo.has-notes .orbit-acc-section-label { color: #c0392b; }
+
+/* バイヤーメモの中身 */
+.orbit-memo-repeat { font-size: 12px; color: #666; }
+.orbit-memo-repeat.is-repeat { color: #c0392b; font-weight: bold; }
+.orbit-memo-none { font-size: 12px; color: #999; }
+.orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; font-size: 12px; }
+.orbit-memo-list li { padding: 1px 0; }
+.orbit-memo-date { color: #999; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.orbit-memo-add-btn { font-size: 11px; padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
 .orbit-acc-field.orbit-issue-flag { background: #fff3cd; border-radius: 3px; padding: 0 3px; }
 .orbit-acc-field-label { font-size: 11px; color: #8b949e; }
