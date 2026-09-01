@@ -633,7 +633,7 @@ ORBIT_ORDERS_COLUMNS = {
 
     # --- 発送代行会社からの読み戻し（依頼書シートJ〜U列・緑項目。Google Sheets API経由で取込） ---
     "agent_tracking_number": "TEXT",       # G列 海外向けトラッキング
-    "agent_thankyou_letter": "TEXT",       # J列 サンクスレター内容
+    "agent_thankyou_letter": "TEXT",       # J列「出荷に関する通知」＝代行会社→セラーへの連絡内容（列名は互換のため据え置き）
     "agent_option_content": "TEXT",        # K列 オプション内容
     "agent_option_fee": "TEXT",            # L列 オプション料計
     "agent_non_deliverable_weight": "TEXT",# M列 配送不可重量

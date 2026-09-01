@@ -132,6 +132,7 @@ const DISPATCH_COLUMNS = [
     { key: "security_badge", label: "要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
     { key: "ship_country", label: "国" },
+    { key: "agent_notice_flag", label: "代行連絡", agentNoticeFlag: true },  // 代行会社→セラーの出荷連絡。未完了なら主行に警告
     { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色（発注数量チェック）
     { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", mid: true },
     { key: "shipping_type", label: "発送種別", editable: "text", datalist: "orbit-dl-shipping-type" },  // 過去入力値をプルダウン候補に。新規も自由入力可
@@ -167,7 +168,7 @@ const DISPATCH_COLUMNS = [
     { key: "jan_code", label: "JAN", editable: "text" },
     { key: "asin", label: "ASIN", copyClass: "asin-cell" },
 
-    { key: "agent_thankyou_letter", label: "サンクスレター内容" },
+    { key: "agent_thankyou_letter", label: "出荷に関する通知" },  // 依頼書J列。代行会社→セラーへの連絡内容（出荷前に対応が要ることがある）
     { key: "agent_option_content", label: "オプション内容" },
     { key: "agent_option_fee", label: "オプション料計" },
     { key: "agent_non_deliverable_weight", label: "配送不可重量" },
@@ -204,7 +205,7 @@ const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 // 主行に出す列（左から順）。「これ主行に上げて」「順番入れ替え」はこの配列を編集するだけ。
 const DISPATCH_PRIMARY_KEYS = [
     "agent_serial_no", "order_id", "promise_date",
-    "issue_summary", "security_badge", "security_note_add",
+    "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
     "shipped_completed", "purchased", "invoice_saved",
@@ -658,6 +659,11 @@ function dispCellInner(col, r) {
     if (col.securityNoteButton) {
         return `<button type="button" class="orbit-security-note-btn" data-order-item-id="${r.order_item_id}">📝</button>`;
     }
+    if (col.agentNoticeFlag) {
+        const txt = (r.agent_thankyou_letter || "").trim();
+        if (!txt || r.shipped_completed) return "";
+        return `<span class="orbit-agent-notice" title="${orbitEscapeHtml(txt)}">📩要対応</span>`;
+    }
     if (col.shippedToggle) {
         const done = !!r[col.key];
         return `<button type="button" class="orbit-shipped-toggle-btn ${done ? "btn-red" : "btn-blue"}" data-order-item-id="${r.order_item_id}" data-shipped="${done ? 1 : 0}">${done ? "解除" : (col.label || "出荷完了")}</button>`;
@@ -749,6 +755,8 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
         let rowCls = "orbit-acc-main";
         if (r.shipped_completed) rowCls += " orbit-row-shipped";
         else if (isCancel) rowCls += " orbit-row-cancel";
+        // 代行会社からの出荷連絡が入っていて未完了 → 主行を橙背景（閉じていても気づけるように）
+        if (!r.shipped_completed && (r.agent_thankyou_letter || "").trim()) rowCls += " orbit-row-agent-notice";
 
         const open = expandedSet.has(oid);
 
