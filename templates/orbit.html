@@ -448,11 +448,7 @@
   <div id="orbit-pane-dispatch" class="st-subtab-pane">
     <div class="card">
 
-      <div class="master-description">
-          JAN(仕入れ管理で入力)・トラッキング(代行会社が入力)は読取専用です。仕入価格欄は判断待ちのため空欄のままにしています。
-      </div>
-
-      <div class="orbit-actions">
+      <div class="orbit-actions" style="flex-wrap:wrap;">
           <button id="orbit-dispatch-refresh-btn" class="btn-blue">再読込</button>
           <button id="orbit-dispatch-expand-all-btn" class="btn-blue">全部展開</button>
           <button id="orbit-dispatch-collapse-all-btn" class="btn-blue">全部畳む</button>
@@ -461,33 +457,18 @@
           <span id="orbit-dispatch-sync-status"></span>
           <a id="orbit-google-connect-link" href="/orbit/google_oauth/start" class="btn-blue" style="display:none; text-decoration:none;">Googleアカウントを連携する</a>
           <span id="orbit-google-connect-status"></span>
+          <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="file" id="orbitFeeDataFileInput" accept=".csv" style="display:none;" />
+              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:300px;" />
+              <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
           <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
           <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
           <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
-      </div>
-
-      <div class="master-description">
-          AU分など、この端末のAmazonアカウント認証情報が無いマーケットの販売額・手数料見積りは、
-          そのアカウントを持つ別端末(例: ATLAS)で取得してから、ここで受け渡しできます。
-          注文データ自体は事前にどちらの端末にも通常の注文レポートで取り込んでおいてください。
-      </div>
-
-      <div class="orbit-actions">
-          <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="file" id="orbitFeeDataFileInput" accept=".csv" style="display:none;" />
-              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:340px;" />
-              <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
-      </div>
-
-      <div class="master-description">
-          自分の管理シートの <b>ZSSS_RAW</b> タブへ ORBIT の注文データを直接書き込みます（手動コピペの置き換え）。
-          ZSSS_RAW → 本番タブはシート内の数式で転記、本番タブ → 代行会社シートは既存の IMPORTRANGE のまま。<br>
-          ※ 書き込みには読み書きスコープが必要です。「書き込み権限がありません」等が出たら「Google再連携」から連携し直してください。現状は毎回「全行入れ替え」で書き込みます。
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
