@@ -118,93 +118,122 @@ const SUPPLIER_OPTIONS = [
     "ﾔﾏﾀﾞｳｪﾌﾞｺﾑ", "PayPay", "Yahoo", "au",
 ];
 
-// --- ▼ SECTION 00-1b: 発注管理（＝作業タブ）列定義 ▼ ---
-// 取込後の確認・チェック・仕入入力・代行会社連絡をこの1タブで完結させる。
-// CA/US/AU全市場をまとめて表示。仕入れ管理タブとは同じ orbit_orders の同じ列を編集する（両方編集可）。
+// --- ▼ SECTION 00-1b: 発注管理（＝唯一の作業タブ）列定義 ▼ ---
+// アコーディオン行：1注文＝主行1行（±で展開）。展開すると下に「注文者情報／仕入れ情報／…」が段組みで開く。
+// 横に伸びない。取込後の確認・チェック・仕入入力・代行会社連絡をこの1タブで完結させる。
+//
+// 主行↔展開部の振り分け・順番は下記 DISPATCH_PRIMARY_KEYS / DISPATCH_DETAIL_SECTIONS を編集するだけで変えられる。
+// 各キーのセルの見た目（編集可否・トグル・色付け等）は DISPATCH_COLUMNS のレジストリで定義。
 const DISPATCH_COLUMNS = [
-    // --- 警告・チェック ---
+    { key: "agent_serial_no", label: "N番", highlight: true },  // 受注一覧タブで採番
+    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell", marketColor: true },  // クリックでコピー＋マーケット色
+    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
     { key: "issue_summary", label: "⚠", issueSummary: true },
-    { key: "security_badge", label: "⚠要注意", securityBadge: true },
+    { key: "security_badge", label: "要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
-    { key: "shipped_completed", label: "出荷完了", shippedToggle: true },
+    { key: "ship_country", label: "国" },
+    { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色（発注数量チェック）
+    { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", mid: true },
+    { key: "shipping_type", label: "発送種別", editable: "text" },  // どのキャリアで発送するか
+    { key: "agent_tracking_number", label: "トラッキング", copyClass: "orbit-orderid-cell" },  // 通知すべき番号（代行会社読み戻し）
+    { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
+    { key: "shipped_completed", label: "出荷通知", shippedToggle: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）
     { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
     { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
+    { key: "remarks", label: "備考1", editable: "text", mid: true },
+    { key: "remarks_2", label: "備考2", editable: "text", mid: true },
+    { key: "remarks_3", label: "備考3", editable: "text", mid: true },
+
+    // 展開部
+    { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override" },
+    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: "flag_phone_country_code", editable: "text", saveField: "buyer_phone_number_override" },
+    { key: "buyer_phone_extension_effective", label: "内線", editable: "text", saveField: "buyer_phone_extension_override" },
+    { key: "ship_address_1_effective", label: "住所1", checkFlagKey: "flag_address1_length", editable: "text", saveField: "ship_address_1_override", mid: true },
+    { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", mid: true },
+    { key: "ship_address_3_effective", label: "住所3", checkFlagKey: "flag_address3_length", editable: "text", saveField: "ship_address_3_override", mid: true },
+    { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override" },
+    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing" },
+
+    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
+    { key: "supplier_order_number", label: "仕入注文番号", editable: "text" },
+    { key: "supplier_shop_name", label: "ショップ名", editable: "text" },
+    { key: "supplier_link", label: "リンク", computed: true },
+    { key: "procurement_date", label: "仕入日", editable: "text" },
+    { key: "request_date", label: "依頼日" },  // 仕入日を入れると自動反映
+    { key: "arrival_date", label: "到着予定", editable: "text" },
+    { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
+    { key: "invoice_price_jpy", label: "インボイス価格(円)" },  // 販売額の97%。自動算定のみ
     { key: "points", label: "ポイント", editable: "number" },
-
-    // --- 基本 ---
-    { key: "agent_serial_no", label: "N番号", highlight: true },  // 受注一覧タブで採番（読取専用）
-    { key: "request_date", label: "依頼日" },  // 仕入日を入れると自動反映（読取専用）
+    { key: "jan_code", label: "JAN", editable: "text" },
     { key: "asin", label: "ASIN", copyClass: "asin-cell" },
-    { key: "jan_code", label: "JAN", editable: "text" },  // 仕入れ管理と両方編集可
-    { key: "shipping_type", label: "発送種別", editable: "text" },
-    { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色付け（発注数量チェック）
 
-    // --- 代行会社連絡（備考3分割。ZSSS_RAWへは連結して1列で出力） ---
-    { key: "remarks", label: "備考1", editable: "text", wide: true },
-    { key: "remarks_2", label: "備考2", editable: "text", wide: true },
-    { key: "remarks_3", label: "備考3", editable: "text", wide: true },
+    { key: "agent_thankyou_letter", label: "サンクスレター内容" },
+    { key: "agent_option_content", label: "オプション内容" },
+    { key: "agent_option_fee", label: "オプション料計" },
+    { key: "agent_non_deliverable_weight", label: "配送不可重量" },
+    { key: "agent_shipping_weight", label: "発送重量" },
+    { key: "agent_confirmed_weight", label: "確定重量" },
+    { key: "agent_deadline", label: "期限" },
+    { key: "agent_status", label: "状況" },
+    { key: "agent_shipping_fee", label: "送料" },
+    { key: "agent_shipping_fee_total", label: "送料合計" },
+    { key: "agent_delivery_area", label: "配送エリア" },
+    { key: "agent_synced_at", label: "読戻し日時" },
 
-    // --- 宛名・住所編集〔折りたたみ可〕（黄色ハイライト＝未解消。*_overrideに保存） ---
-    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: "flag_phone_country_code", editable: "text", saveField: "buyer_phone_number_override", group: "shipEdit", groupHead: true },
-    { key: "buyer_phone_extension_effective", label: "内線", editable: "text", saveField: "buyer_phone_extension_override", group: "shipEdit" },
-    { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", wide: true, group: "shipEdit" },
-    { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override", wide: true, group: "shipEdit" },
-    { key: "ship_address_1_effective", label: "住所1", checkFlagKey: "flag_address1_length", editable: "text", saveField: "ship_address_1_override", wide: true, group: "shipEdit" },
-    { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", wide: true, group: "shipEdit" },
-    { key: "ship_address_3_effective", label: "住所3", checkFlagKey: "flag_address3_length", editable: "text", saveField: "ship_address_3_override", wide: true, group: "shipEdit" },
-    { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override", group: "shipEdit" },
-    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing", group: "shipEdit" },
-    { key: "ship_country", label: "国", group: "shipEdit" },
+    { key: "agent_shipping_weight_kg", label: "想定重量(kg)" },
+    { key: "agent_length_cm", label: "長さ" },
+    { key: "agent_width_cm", label: "幅" },
+    { key: "agent_height_cm", label: "高さ" },
 
-    // --- 想定発送重量・寸法〔折りたたみ可〕（代行会社の梱包基準で丸めた自動算定・読取専用） ---
-    { key: "agent_shipping_weight_kg", label: "想定発送重量(kg)", group: "dims", groupHead: true },
-    { key: "agent_length_cm", label: "長さ(cm)", group: "dims" },
-    { key: "agent_width_cm", label: "幅(cm)", group: "dims" },
-    { key: "agent_height_cm", label: "高さ(cm)", group: "dims" },
+    { key: "fetch_fee_estimate", label: "手数料見積り", fetchFeeEstimateButton: true },
+    { key: "sale_price_used", label: "販売額", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
+    { key: "net_proceeds_used", label: "入金額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
+    { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
+    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
+    { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
+    { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 
-    // --- 仕入情報〔折りたたみ可〕 ---
-    { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS, group: "procInfo", groupHead: true },
-    { key: "supplier_order_number", label: "注文番号", editable: "text", group: "procInfo" },
-    { key: "supplier_shop_name", label: "ショップ名", editable: "text", group: "procInfo" },
-    { key: "supplier_link", label: "注文リンク", computed: true, group: "procInfo" },
-    { key: "procurement_date", label: "仕入日", editable: "text", group: "procInfo" },
-    { key: "arrival_date", label: "到着予定日", editable: "text", group: "procInfo" },
-    { key: "purchase_price", label: "仕入価格(円)", editable: "number", group: "procInfo" },
-    // インボイス価格（円）＝仕入原価ではなく販売額基準（アンダーバリュー防止で販売額の97%。自動算定のみ）
-    { key: "invoice_price_jpy", label: "インボイス価格(円)", group: "procInfo" },
-
-    // --- 代行会社シートからの読み戻し〔折りたたみ可・依頼書G/J〜U列〕（読取専用） ---
-    { key: "agent_tracking_number", label: "トラッキング(海外向け)", group: "agentReadback", groupHead: true, copyClass: "orbit-orderid-cell" },
-    { key: "agent_thankyou_letter", label: "サンクスレター内容", group: "agentReadback" },
-    { key: "agent_option_content", label: "オプション内容", group: "agentReadback" },
-    { key: "agent_option_fee", label: "オプション料計", group: "agentReadback" },
-    { key: "agent_non_deliverable_weight", label: "配送不可重量", group: "agentReadback" },
-    { key: "agent_shipping_weight", label: "発送重量", group: "agentReadback" },
-    { key: "agent_weight_recorded_date", label: "発送重量記入日(=出荷済み)", group: "agentReadback", redUntilShipped: true },
-    { key: "agent_confirmed_weight", label: "確定重量", group: "agentReadback" },
-    { key: "agent_deadline", label: "期限", group: "agentReadback" },
-    { key: "agent_status", label: "状況", group: "agentReadback" },
-    { key: "agent_shipping_fee", label: "送料", group: "agentReadback" },
-    { key: "agent_shipping_fee_total", label: "送料合計", group: "agentReadback" },
-    { key: "agent_delivery_area", label: "配送エリア", group: "agentReadback" },
-    { key: "agent_synced_at", label: "読戻し日時", group: "agentReadback" },
-
-    // --- 期日 ---
-    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
+    { key: "order_item_id", label: "order-item-id", copyClass: "orbit-orderid-cell" },
     { key: "purchase_date", label: "注文日", dateOnly: true },
+];
 
-    // --- 実利益〔折りたたみ可〕（入金額＝決済実績＞手数料見積り概算、送料＝代行会社確定＞ZSSS予測） ---
-    { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
-    { key: "sale_price_used", label: "販売額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split", group: "profit", groupHead: true },
-    { key: "net_proceeds_used", label: "入金額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
-    { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
-    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", group: "profit" },
-    { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split", group: "profit" },
-    { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true, group: "profit" },
+const DISPATCH_COL_DEFS = Object.fromEntries(DISPATCH_COLUMNS.map(c => [c.key, c]));
+const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 
-    // --- 参照用（読み取り専用） ---
-    { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell" },
-    { key: "order_item_id", label: "order-item-id" },
+// 主行に出す列（左から順）。「これ主行に上げて」「順番入れ替え」はこの配列を編集するだけ。
+const DISPATCH_PRIMARY_KEYS = [
+    "agent_serial_no", "order_id", "promise_date",
+    "issue_summary", "security_badge", "security_note_add",
+    "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
+    "agent_tracking_number", "agent_weight_recorded_date",
+    "shipped_completed", "purchased", "invoice_saved",
+    "remarks", "remarks_2", "remarks_3",
+];
+
+// 展開部のセクション（ラベル＋列キー）。振り分け・順番はここを編集。
+// key はセクション見出しの色分け用（CSS: .orbit-acc-sec-<key>）。
+const DISPATCH_DETAIL_SECTIONS = [
+    { key: "buyer", label: "注文者情報", keys: [
+        "recipient_name_effective", "buyer_phone_number_effective", "buyer_phone_extension_effective",
+        "ship_address_1_effective", "ship_address_2_effective", "ship_address_3_effective",
+        "ship_state_effective", "ship_postal_code",
+    ] },
+    { key: "proc", label: "仕入れ情報", keys: [
+        "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
+        "procurement_date", "request_date", "arrival_date",
+        "purchase_price", "invoice_price_jpy", "points", "jan_code", "asin",
+    ] },
+    { key: "agent", label: "代行会社", keys: [
+        "agent_thankyou_letter", "agent_option_content", "agent_option_fee", "agent_non_deliverable_weight",
+        "agent_shipping_weight", "agent_confirmed_weight", "agent_deadline", "agent_status",
+        "agent_shipping_fee", "agent_shipping_fee_total", "agent_delivery_area", "agent_synced_at",
+    ] },
+    { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"] },
+    { key: "profit", label: "利益", keys: [
+        "fetch_fee_estimate", "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
+        "shipping_cost_used", "profit_jpy", "profit_rate_pct",
+    ] },
+    { key: "ref", label: "参照", keys: ["order_item_id", "purchase_date"] },
 ];
 
 // --- ▼ SECTION 00-2: 仕入れ管理 列定義 ▼ ---
@@ -568,7 +597,9 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 
             if (col.editable) {
                 const value = r[col.key] ?? "";
-                const inputClass = col.wide ? "orbit-manual orbit-manual-wide" : "orbit-manual";
+                const inputClass = col.wide ? "orbit-manual orbit-manual-wide"
+                    : col.mid ? "orbit-manual orbit-manual-mid"
+                    : "orbit-manual";
                 return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}" data-field="${col.saveField || col.key}" value="${value}" title="${value}"></td>`;
             }
 
@@ -577,6 +608,124 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 
         tbody.appendChild(tr);
     });
+}
+
+// ===== 発注管理タブ：アコーディオン行レンダラ =====
+// 1注文＝主行1行（±で展開）＋ 隠し詳細行（段組み）。横に伸びない。
+// セルの見た目ロジックは renderTableRows と重複するが、詳細部は <td> ではなく label+value の
+// インライン要素で描くため専用に持つ（他タブのレンダラには影響させない）。
+function dispCellClass(col, r) {
+    let c = col.deadline ? `orbit-deadline-col ${getDeadlineColorClass(r[col.key])}`.trim() : "";
+    if (col.checkFlagKey && r[col.checkFlagKey]) c += " orbit-issue-flag";
+    if (col.highlight) c += " orbit-check-highlight";
+    if (col.profitHighlight) c += " orbit-profit-highlight";
+    if (col.redUntilShipped && r[col.key] && !r.shipped_completed) c += " orbit-text-red";
+    if (col.key === "agent_serial_no") c += " orbit-serial-cell";
+    if (col.marketColor) c += " " + getOrderMarketColorClass(r[col.key]);
+    if (col.qtyWarn && Number(r[col.key]) >= 2) c += " orbit-qty-warn";
+    return c.trim();
+}
+
+function dispCellInner(col, r) {
+    if (col.issueSummary) {
+        const active = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
+        return active.length ? `<span class="orbit-issue-flag" title="${active.map(f => f.label).join(" / ")}">⚠</span>` : "";
+    }
+    if (col.securityBadge) {
+        const notes = r.security_notes || [];
+        return notes.length ? `<span class="orbit-security-flag" title="${notes.join(" / ")}">⚠要注意</span>` : "";
+    }
+    if (col.securityNoteButton) {
+        return `<button type="button" class="orbit-security-note-btn" data-order-item-id="${r.order_item_id}">📝</button>`;
+    }
+    if (col.shippedToggle) {
+        const done = !!r[col.key];
+        return `<button type="button" class="orbit-shipped-toggle-btn ${done ? "btn-red" : "btn-blue"}" data-order-item-id="${r.order_item_id}" data-shipped="${done ? 1 : 0}">${done ? "解除" : (col.label || "出荷完了")}</button>`;
+    }
+    if (col.flagToggle) {
+        const on = !!r[col.key];
+        return `<button type="button" class="orbit-flag-toggle-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="${col.key}" data-value="${on ? 1 : 0}">${on ? (col.flagOnLabel || "ON") : (col.flagOffLabel || "OFF")}</button>`;
+    }
+    if (col.key === "supplier_link") {
+        const link = buildSupplierLink(r.supplier, r.supplier_order_number);
+        return link ? `<a href="${link}" target="_blank" rel="noopener">開く</a>` : "";
+    }
+    if (col.fetchFeeEstimateButton) {
+        if (r.net_proceeds != null || !r.asin) return "";
+        const fetched = r.fee_estimate_amount != null;
+        return `<button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}"${fetched ? ' data-fee-fetched="1"' : ""}>${fetched ? "手数料再取得" : "手数料取得"}</button>`;
+    }
+    if (col.percentCell) {
+        if (r[col.key] == null) return "";
+        const neg = r[col.key] < 0 ? ' class="orbit-text-red"' : "";
+        return `<span${neg}>${(Math.round(r[col.key] * 10) / 10).toLocaleString()}%</span>`;
+    }
+    if (col.saleAmountCell) {
+        if (r[col.key] == null) return "";
+        const amount = Math.round(r[col.key] * 100) / 100;
+        const currency = r[col.currencyKey] || "";
+        return `${amount.toLocaleString()} ${currency}${estimateSuffix(col, r)}`;
+    }
+    if (col.estimateFlagKey || col.splitFlagKey) {
+        const suffix = r[col.key] != null ? estimateSuffix(col, r) : "";
+        return `${fmtValue(col, r[col.key])}${suffix}`;
+    }
+    if (col.copyClass && !col.editable) {
+        return `<span class="${col.copyClass}" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${fmtValue(col, r[col.key])}</span>`;
+    }
+    if (col.editable === "select") {
+        const current = r[col.key] ?? "";
+        const options = col.options.map(o => `<option value="${o}"${o === current ? " selected" : ""}>${o}</option>`).join("");
+        return `<select class="orbit-manual" data-field="${col.key}">${options}</select>`;
+    }
+    if (col.editable) {
+        const value = r[col.key] ?? "";
+        const cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
+        return `<input type="${col.editable}" class="${cls}" data-field="${col.saveField || col.key}" value="${value}" title="${value}">`;
+    }
+    return fmtValue(col, r[col.key]);
+}
+
+function renderDispatchAccordion(tbody, rows, expandedSet) {
+    if (!tbody) return;
+    const primaryCols = DISPATCH_PRIMARY_KEYS.map(dispatchCol);
+    const colspan = primaryCols.length + 1;  // ＋トグル列
+
+    const html = rows.map(r => {
+        const oid = r.order_item_id;
+        const isCancel = (r.shipping_type || "").trim() === "キャンセル";
+        let rowCls = "orbit-acc-main";
+        if (r.shipped_completed) rowCls += " orbit-row-shipped";
+        else if (isCancel) rowCls += " orbit-row-cancel";
+        else if (!r.purchased) rowCls += " orbit-row-unpurchased";
+
+        const open = expandedSet.has(oid);
+
+        const mainCells = primaryCols.map(col =>
+            `<td class="${dispCellClass(col, r)}">${dispCellInner(col, r)}</td>`
+        ).join("");
+
+        const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => `
+            <div class="orbit-acc-section orbit-acc-sec-${sec.key || "x"}">
+                <span class="orbit-acc-section-label">${sec.label}</span>
+                ${sec.keys.map(dispatchCol).map(col => `
+                    <span class="orbit-acc-field ${dispCellClass(col, r)}">
+                        <span class="orbit-acc-field-label">${col.label}</span>
+                        <span class="orbit-acc-field-value">${dispCellInner(col, r)}</span>
+                    </span>`).join("")}
+            </div>`).join("");
+
+        return `
+            <tr class="${rowCls}" data-order-item-id="${oid}">
+                <td class="orbit-acc-toggle-cell"><button type="button" class="orbit-acc-toggle" data-order-item-id="${oid}" title="展開/縮小">${open ? "−" : "＋"}</button></td>
+                ${mainCells}
+            </tr>
+            <tr class="orbit-acc-detail" data-order-item-id="${oid}"${open ? "" : " hidden"}>
+                <td class="orbit-acc-detail-cell" colspan="${colspan}">${detailBody}</td>
+            </tr>`;
+    }).join("");
+
+    tbody.innerHTML = html;
 }
 
 function saveManualField(orderItemId, field, value, onDone) {
@@ -866,15 +1015,28 @@ window.initOrbit = function () {
         renderOrdersTable();
     }
 
-    // 発注管理テーブルは列見出しクリックで並び替えできる（表示確認用。N番号の連番自体は受注一覧タブで
-    // 決める並び順を基準に振られるため、この並び替えは連番には影響しない）
+    // 発注管理テーブル＝アコーディオン行（1注文＝主行＋±展開）。列見出しクリックで並び替え可（主行の列）。
     // ※ dispatchRowsCache / dispatchSortState の宣言は早期returnより前へ移動済み（上部参照）
+
+    // 展開中の注文（order_item_id）。localStorage に保存して再訪でも維持。
+    const dispatchExpanded = new Set(
+        (() => { try { return JSON.parse(localStorage.getItem("orbitDispatchExpanded") || "[]"); } catch { return []; } })()
+    );
+    function persistDispatchExpanded() {
+        try { localStorage.setItem("orbitDispatchExpanded", JSON.stringify([...dispatchExpanded])); } catch { /* ignore */ }
+    }
+
+    // 主行ヘッダー用の列定義（先頭に±トグル列を足す）
+    const dispatchHeaderCols = [{ key: "__acc", label: "", blank: true }, ...DISPATCH_PRIMARY_KEYS.map(dispatchCol)];
 
     function renderDispatchTable() {
         const rows = dispatchSortState
             ? sortRowsByKey(dispatchRowsCache, dispatchSortState.key, dispatchSortState.dir)
             : dispatchRowsCache;
-        renderPreservingScroll(dispatchTbody, DISPATCH_COLUMNS, rows);
+        const wrapper = dispatchTbody?.closest(".table-wrapper");
+        const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
+        renderDispatchAccordion(dispatchTbody, rows, dispatchExpanded);
+        if (wrapper) wrapper.scrollLeft = scrollLeft;
     }
 
     function onDispatchSort(key) {
@@ -883,7 +1045,7 @@ window.initOrbit = function () {
         } else {
             dispatchSortState = { key, dir: "asc" };
         }
-        if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
+        if (dispatchThead) renderTableHeader(dispatchThead, dispatchHeaderCols, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
         renderDispatchTable();
     }
 
@@ -915,7 +1077,7 @@ window.initOrbit = function () {
 
     renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
-    if (dispatchThead) renderTableHeader(dispatchThead, DISPATCH_COLUMNS, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
+    if (dispatchThead) renderTableHeader(dispatchThead, dispatchHeaderCols, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
     if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS, { sortable: true, onSort: onBuyerHistorySort, sortState: buyerHistorySortState });
     if (securityNotesThead) renderTableHeader(securityNotesThead, SECURITY_NOTES_COLUMNS);
 
@@ -1315,6 +1477,38 @@ window.initOrbit = function () {
     };
     procTbody?.addEventListener("click", flagToggleHandler);
     dispatchTbody?.addEventListener("click", flagToggleHandler);
+
+    // --- ▼ SECTION 01-2f: 発注管理アコーディオン行の ± 展開/縮小 ▼ ---
+    dispatchTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-acc-toggle");
+        if (!btn) return;
+        const oid = btn.dataset.orderItemId;
+        if (!oid) return;
+
+        const detailRow = dispatchTbody.querySelector(`tr.orbit-acc-detail[data-order-item-id="${CSS.escape(oid)}"]`);
+        if (dispatchExpanded.has(oid)) {
+            dispatchExpanded.delete(oid);
+            if (detailRow) detailRow.hidden = true;
+            btn.textContent = "＋";
+        } else {
+            dispatchExpanded.add(oid);
+            if (detailRow) detailRow.hidden = false;
+            btn.textContent = "−";
+        }
+        persistDispatchExpanded();
+    });
+
+    // 全部展開 / 全部畳む
+    document.getElementById("orbit-dispatch-expand-all-btn")?.addEventListener("click", () => {
+        dispatchRowsCache.forEach(r => dispatchExpanded.add(r.order_item_id));
+        persistDispatchExpanded();
+        renderDispatchTable();
+    });
+    document.getElementById("orbit-dispatch-collapse-all-btn")?.addEventListener("click", () => {
+        dispatchExpanded.clear();
+        persistDispatchExpanded();
+        renderDispatchTable();
+    });
 
     // --- ▼ SECTION 01-3: 全件削除（リセット） ▼ ---
     document.getElementById("orbit-delete-all-btn")?.addEventListener("click", () => {

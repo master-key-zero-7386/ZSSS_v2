@@ -126,6 +126,11 @@
   width: 70ch;
 }
 
+/* 発注管理タブの商品名・備考など：横幅を出しすぎない中間サイズ（全文は title でツールチップ） */
+.orbit-page input.orbit-manual-mid {
+  width: 200px;
+}
+
 .orbit-actions {
   display: flex;
   gap: 8px;
@@ -202,13 +207,43 @@
   display: none;
 }
 
-/* 発注管理（作業タブ）：宛名住所編集 / 寸法 / 仕入情報 / 利益 の列グループ折りたたみ */
-.orbit-page table.orbit-collapsed-shipEdit .orbit-group-shipEdit,
-.orbit-page table.orbit-collapsed-dims .orbit-group-dims,
-.orbit-page table.orbit-collapsed-procInfo .orbit-group-procInfo,
-.orbit-page table.orbit-collapsed-profit .orbit-group-profit {
-  display: none;
+/* === 発注管理（唯一の作業タブ）：アコーディオン行 === */
+/* 主行＝1注文1行。± で下の詳細行を開閉。横に伸びない。 */
+.orbit-acc-table .orbit-acc-toggle-cell { text-align: center; width: 28px; }
+.orbit-acc-toggle {
+  width: 20px; height: 20px; line-height: 1;
+  border: 1px solid #bbb; border-radius: 3px; background: #fff;
+  font-weight: bold; cursor: pointer; padding: 0;
 }
+.orbit-acc-table tr.orbit-acc-main > td { white-space: nowrap; }
+.orbit-acc-table tr.orbit-acc-detail > td.orbit-acc-detail-cell {
+  background: #f6f8fa; padding: 6px 10px 10px 34px;
+}
+.orbit-acc-section {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+  padding: 5px 8px; margin-bottom: 3px; border-radius: 4px;
+  border-left: 4px solid transparent;
+}
+.orbit-acc-section-label {
+  font-weight: bold; color: #57606a; min-width: 84px; font-size: 12px;
+}
+
+/* グループ別の色分け（展開部） */
+.orbit-acc-sec-buyer  { background: #e8f1fb; border-left-color: #4a90d9; }
+.orbit-acc-sec-proc   { background: #e9f6ea; border-left-color: #56ac5c; }
+.orbit-acc-sec-agent  { background: #fff2e0; border-left-color: #e39b3c; }
+.orbit-acc-sec-dims   { background: #f1eef7; border-left-color: #9784c2; }
+.orbit-acc-sec-profit { background: #e6f4f1; border-left-color: #46a99a; }
+.orbit-acc-sec-ref    { background: #f2f3f5; border-left-color: #c0c4c9; }
+.orbit-acc-sec-buyer .orbit-acc-section-label  { color: #2f6db0; }
+.orbit-acc-sec-proc .orbit-acc-section-label   { color: #3a8440; }
+.orbit-acc-sec-agent .orbit-acc-section-label  { color: #b3701f; }
+.orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
+.orbit-acc-field.orbit-issue-flag { background: #fff3cd; border-radius: 3px; padding: 0 3px; }
+.orbit-acc-field-label { font-size: 11px; color: #8b949e; }
+.orbit-acc-field-value input.orbit-manual,
+.orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; }
+.orbit-acc-field-value input.orbit-manual-mid { width: 240px; }
 
 /* 発注数量チェック：数量が2以上の行だけ数字を赤太字で目立たせる（列は増やさず視覚化のみ） */
 .orbit-page table td.orbit-qty-warn {
@@ -358,6 +393,8 @@
 
       <div class="orbit-actions">
           <button id="orbit-dispatch-refresh-btn" class="btn-blue">再読込</button>
+          <button id="orbit-dispatch-expand-all-btn" class="btn-blue">全部展開</button>
+          <button id="orbit-dispatch-collapse-all-btn" class="btn-blue">全部畳む</button>
           <button id="orbit-export-btn" class="btn-blue">発送代行へ出力(CSV)</button>
           <button id="orbit-dispatch-sync-btn" class="btn-blue">代行会社シートから取り込む</button>
           <span id="orbit-dispatch-sync-status"></span>
@@ -388,7 +425,7 @@
       <div class="orbit-top-scroll" id="orbit-dispatch-top-scroll"><div></div></div>
 
       <div class="table-wrapper" id="orbit-dispatch-table-wrapper">
-        <table id="orbit-dispatch-table">
+        <table id="orbit-dispatch-table" class="orbit-acc-table">
           <thead>
             <tr>
               <!-- JSで描画 -->
