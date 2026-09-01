@@ -1808,7 +1808,7 @@ window.initOrbit = function () {
             });
     });
 
-    // --- ▼ SECTION 04-2: ZSSS_RAWタブへの書き出し（手動コピペの置き換え） ▼ ---
+    // --- ▼ SECTION 04-2: 管理シート（書き出し先スプレッドシートURL・タブ名は設定必須）への書き出し（手動コピペの置き換え） ▼ ---
     const rawSheetUrlInput = document.getElementById("orbit-raw-sheet-url");
     const rawSheetNameInput = document.getElementById("orbit-raw-sheet-name");
     const rawSheetSettingsSaveBtn = document.getElementById("orbit-raw-sheet-settings-save-btn");
@@ -1825,6 +1825,14 @@ window.initOrbit = function () {
         .catch(err => console.error("raw_sheet_settings load error:", err));
 
     rawSheetSettingsSaveBtn?.addEventListener("click", () => {
+        if (!(rawSheetUrlInput?.value || "").trim()) {
+            window.showToast?.("書き出し先スプレッドシートのURLを入力してください", "error");
+            return;
+        }
+        if (!(rawSheetNameInput?.value || "").trim()) {
+            window.showToast?.("書き込み先のタブ名を入力してください", "error");
+            return;
+        }
         fetch("/orbit/raw_sheet_settings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

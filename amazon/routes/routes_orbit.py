@@ -473,10 +473,12 @@ def save_raw_sheet_settings_route():
 
     data = request.get_json(silent=True) or {}
     spreadsheet_url = (data.get("spreadsheet_url") or "").strip()
-    sheet_name = (data.get("sheet_name") or "").strip() or "ZSSS_RAW"
+    sheet_name = (data.get("sheet_name") or "").strip()
 
     if not spreadsheet_url:
         return jsonify({"status": "error", "message": "スプレッドシートURLが必要です"}), 400
+    if not sheet_name:
+        return jsonify({"status": "error", "message": "書き込み先のタブ名が必要です"}), 400
 
     save_raw_sheet_settings(user_id, spreadsheet_url, sheet_name)
     return jsonify({"status": "success"})

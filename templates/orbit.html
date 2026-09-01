@@ -472,11 +472,14 @@
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
-          <button id="orbit-raw-push-btn" class="btn-blue">ZSSS_RAWへ書き込み</button>
+          <button id="orbit-raw-push-btn" class="btn-blue">管理シートへ書き出し</button>
           <span id="orbit-raw-push-status"></span>
-          <input type="text" id="orbit-raw-sheet-url" class="file-input-text" placeholder="書き出し先スプレッドシートのURL" style="width:420px;">
-          <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="タブ名(既定: ZSSS_RAW)" style="width:220px;">
+          <input type="text" id="orbit-raw-sheet-url" class="file-input-text" placeholder="スプレッドシートのURL（リンクをそのまま貼り付け）" style="width:420px;">
+          <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="書き込み先のタブ名" style="width:220px;">
           <button id="orbit-raw-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
+      </div>
+      <div style="font-size:12px; color:#888; margin:2px 0 10px;">
+          注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しのたびにそのタブの内容は<strong>全て上書き</strong>されます。
       </div>
 
       <!-- 発送種別の入力候補（過去に入力した値。JSで都度更新。新しい値も自由に入力可） -->

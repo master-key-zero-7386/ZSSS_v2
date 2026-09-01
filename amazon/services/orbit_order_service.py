@@ -1476,10 +1476,11 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
     return output.getvalue()
 
 
-# --- ▼ SECTION 07-2: 自分の管理シート（ZSSS_RAWタブ）への書き出し ▼ ---
-# 手動CSVコピペの置き換え。ORBITが持っている項目を EXPORT_COLUMNS の並びで ZSSS_RAW タブへ書く。
-# ZSSS_RAW → 本番タブ(SLCN連携等)へは利用者がシート内の数式で転記し、本番タブ → 代行会社シートは
-# 既存の IMPORTRANGE がそのまま担う。まずは「全行を毎回入れ替え」の単純版（空タブ前提・列は今後追加）。
+# --- ▼ SECTION 07-2: 管理シート（書き出し先タブ）への書き出し ▼ ---
+# 手動CSVコピペの置き換え。ORBITが持っている項目を EXPORT_COLUMNS の並びで、利用者が設定した
+# スプレッドシート／タブへ書く（URL・タブ名とも必須。タブは事前に作成しておく前提）。
+# 書き出し先タブ → 利用者の本番タブへはシート内の数式で転記する運用。まずは「全行を毎回入れ替え」
+# の単純版（列セットは今後調整）。
 # ※ export_notify_csv と違い notified_at は更新しない（CSV出力＝送信済みの目印を壊さないため）。
 _RAW_VALUE_OVERRIDES = {
     "buyer_phone_number": "buyer_phone_number_effective",
@@ -1517,10 +1518,12 @@ def build_raw_sheet_matrix(user_id: int) -> list:
 def push_orders_to_raw_sheet(user_id: int) -> dict:
     settings = get_raw_sheet_settings(user_id)
     if not settings["spreadsheet_url"]:
-        raise RuntimeError("ZSSS_RAWシートのURLが未設定です（発注管理タブの設定欄で保存してください）")
+        raise RuntimeError("書き出し先スプレッドシートのURLが未設定です（発注管理タブの設定欄で保存してください）")
+    if not (settings["sheet_name"] or "").strip():
+        raise RuntimeError("書き込み先のタブ名が未設定です（発注管理タブの設定欄で保存してください）")
 
     spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
-    sheet_name = (settings["sheet_name"] or "ZSSS_RAW").strip()
+    sheet_name = settings["sheet_name"].strip()
 
     # A1記法ではシート名をシングルクォートで囲む（スペースや記号入りでも解釈できるように。
     # 名前に含まれる ' は '' にエスケープする）。安全な名前を囲んでも無害。

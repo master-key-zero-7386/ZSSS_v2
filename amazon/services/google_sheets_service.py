@@ -32,8 +32,8 @@ SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 DEFAULT_DISPATCH_SHEET_URL = "https://docs.google.com/spreadsheets/d/1w4lnuf9RxwKZaPHgJJ6QoRwgihgDF7WNc1W61PGWvn4/edit"
 DEFAULT_DISPATCH_SHEET_NAME = "【発送確認用】依頼書"
 
-# ORBIT → 自分の管理シートへの書き出し先タブ名（既定）。URLはユーザーが画面から設定する。
-DEFAULT_RAW_SHEET_NAME = "ZSSS_RAW"
+# ORBIT → 管理シートへの書き出し先（スプレッドシートURL・タブ名）は必須。既定値は持たず、
+# ユーザーが画面から明示的に設定する（未設定なら書き出しはエラーになる）。
 DISPATCH_SHEET_FULL_COLUMN_RANGE = "A2:U"       # ヘッダー除く全列（絞り込んだ行範囲に対して使う）
 DISPATCH_SHEET_KEY_COLUMN_RANGE = "A2:B"        # 事前スキャン用：N番号・依頼日の2列だけ（軽量）
 DISPATCH_SHEET_RECENT_DAYS = 30                 # この日数より古い依頼日の行は取得しない
@@ -100,8 +100,9 @@ def save_dispatch_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name:
     conn.close()
 
 
-# --- ▼ SECTION 00-2: 書き出し先（ZSSS_RAWタブ）設定の取得・保存 ▼ ---
+# --- ▼ SECTION 00-2: 書き出し先（管理シートのタブ）設定の取得・保存 ▼ ---
 # 読み戻し用の依頼書シート設定と同じ1行（user_idユニーク）に相乗りで保存する。
+# URL・タブ名とも既定値は持たない（未設定なら空文字を返し、画面はプレースホルダ表示のまま）。
 def get_raw_sheet_settings(user_id: int) -> dict:
     conn = get_conn("a_orbit_dispatch_sheet_settings.db")
     cur = conn.cursor()
@@ -114,7 +115,7 @@ def get_raw_sheet_settings(user_id: int) -> dict:
 
     return {
         "spreadsheet_url": (row["raw_spreadsheet_url"] if row and row.get("raw_spreadsheet_url") else ""),
-        "sheet_name": (row["raw_sheet_name"] if row and row.get("raw_sheet_name") else DEFAULT_RAW_SHEET_NAME),
+        "sheet_name": (row["raw_sheet_name"] if row and row.get("raw_sheet_name") else ""),
     }
 
 
