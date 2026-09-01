@@ -228,8 +228,9 @@ const DISPATCH_DETAIL_SECTIONS = [
         "procurement_date", "request_date", "arrival_date",
         "purchase_price", "invoice_price_jpy", "points",
     ] },
+    // agent_thankyou_letter（出荷に関する通知）は展開部の先頭に全幅アラートで別表示（長文でも全文が読める）
     { key: "agent", label: "代行会社", keys: [
-        "agent_thankyou_letter", "agent_option_content", "agent_option_fee", "agent_non_deliverable_weight",
+        "agent_option_content", "agent_option_fee", "agent_non_deliverable_weight",
         "agent_shipping_weight", "agent_confirmed_weight", "agent_deadline", "agent_status",
         "agent_shipping_fee", "agent_shipping_fee_total", "agent_delivery_area", "agent_synced_at",
     ] },
@@ -780,13 +781,22 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
                 </div>`;
         }).join("");
 
+        // 出荷に関する通知（agent_thankyou_letter）は展開部の先頭に全幅アラートで。長文でも折り返して全文表示。
+        const noticeTxt = (r.agent_thankyou_letter || "").trim();
+        const noticeBlock = noticeTxt
+            ? `<div class="orbit-acc-notice${r.shipped_completed ? " is-done" : ""}">
+                   <span class="orbit-acc-notice-label">📩 出荷に関する通知</span>
+                   <span class="orbit-acc-notice-text">${orbitEscapeHtml(noticeTxt)}</span>
+               </div>`
+            : "";
+
         return `
             <tr class="${rowCls}" data-order-item-id="${oid}">
                 <td class="orbit-acc-toggle-cell"><button type="button" class="orbit-acc-toggle" data-order-item-id="${oid}" title="展開/縮小">${open ? "−" : "＋"}</button></td>
                 ${mainCells}
             </tr>
             <tr class="orbit-acc-detail" data-order-item-id="${oid}"${open ? "" : " hidden"}>
-                <td class="orbit-acc-detail-cell" colspan="${colspan}">${detailBody}</td>
+                <td class="orbit-acc-detail-cell" colspan="${colspan}">${noticeBlock}${detailBody}</td>
             </tr>`;
     }).join("");
 

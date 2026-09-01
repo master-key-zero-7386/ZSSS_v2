@@ -289,6 +289,35 @@
   white-space: nowrap;
 }
 
+/* 展開部先頭の「出荷に関する通知」全幅ブロック（長文でも全文表示） */
+.orbit-acc-notice {
+  display: block;
+  background: #fdecea;
+  border-left: 4px solid #d9534f;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+}
+.orbit-acc-notice.is-done {
+  background: #eef0f2;
+  border-left-color: #adb5bd;
+}
+.orbit-acc-notice-label {
+  font-weight: bold;
+  color: #c0392b;
+  font-size: 12px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+.orbit-acc-notice.is-done .orbit-acc-notice-label { color: #6c757d; }
+.orbit-acc-notice-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #c0392b;
+  font-weight: bold;
+}
+.orbit-acc-notice.is-done .orbit-acc-notice-text { color: #495057; font-weight: normal; }
+
 /* チェック系トグルボタン（仕入確認・領収書）。ON/OFFで色を変える */
 .orbit-flag-toggle-btn {
   border-radius: 3px;
