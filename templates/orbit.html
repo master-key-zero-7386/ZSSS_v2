@@ -269,6 +269,12 @@
   background-color: #fffde7;
 }
 
+/* 発注管理：「未仕入」トグルボタンの文字だけ赤字（行の色分けは従来どおり：出荷完了グレー／キャンセル緑） */
+.orbit-flag-toggle-btn[data-field="purchased"].is-off {
+  color: #c62828;
+  font-weight: bold;
+}
+
 /* チェック系トグルボタン（仕入確認・領収書）。ON/OFFで色を変える */
 .orbit-flag-toggle-btn {
   border-radius: 3px;

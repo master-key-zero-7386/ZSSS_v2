@@ -723,10 +723,10 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
     const html = rows.map(r => {
         const oid = r.order_item_id;
         const isCancel = (r.shipping_type || "").trim() === "キャンセル";
+        // 出荷完了＝グレー、キャンセル＝緑（従来どおり）。未仕入れは「未仕入」ボタンの文字だけ赤字にする（CSS）。
         let rowCls = "orbit-acc-main";
         if (r.shipped_completed) rowCls += " orbit-row-shipped";
         else if (isCancel) rowCls += " orbit-row-cancel";
-        else if (!r.purchased) rowCls += " orbit-row-unpurchased";
 
         const open = expandedSet.has(oid);
 
