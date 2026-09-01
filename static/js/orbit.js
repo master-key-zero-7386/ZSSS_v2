@@ -653,7 +653,10 @@ function dispCellClass(col, r) {
 function dispCellInner(col, r) {
     if (col.issueSummary) {
         const active = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
-        return active.length ? `<span class="orbit-issue-flag" title="${active.map(f => f.label).join(" / ")}">⚠</span>` : "";
+        if (!active.length) return "";
+        const tip = active.map(f => f.label).join(" / ");
+        const n = active.length > 1 ? ` ${active.length}` : "";
+        return `<span class="orbit-issue-badge" title="${tip}">⚠ 不備${n}</span>`;
     }
     if (col.securityBadge) {
         const notes = r.security_notes || [];
@@ -760,6 +763,9 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
         else if (isCancel) rowCls += " orbit-row-cancel";
         // 代行会社からの出荷連絡が入っていて未完了 → 主行を橙背景（閉じていても気づけるように）
         if (!r.shipped_completed && (r.agent_thankyou_letter || "").trim()) rowCls += " orbit-row-agent-notice";
+        // 貼り付け前チェックで不備がある未完了行 → 主行を赤背景（閉じていても気づけるように）
+        const issueFlags = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
+        if (!r.shipped_completed && !isCancel && issueFlags.length) rowCls += " orbit-row-issue";
 
         const open = expandedSet.has(oid);
 
@@ -783,6 +789,14 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
                 </div>`;
         }).join("");
 
+        // 貼り付け前チェックの不備は展開部の先頭に赤バナーで列挙（どの項目を直すのか一目で分かるように）。
+        const issueBlock = issueFlags.length
+            ? `<div class="orbit-acc-issues">
+                   <span class="orbit-acc-issues-label">⚠ 要確認項目（発送代行へ出す前に修正）</span>
+                   <ul class="orbit-acc-issues-list">${issueFlags.map(f => `<li>${orbitEscapeHtml(f.label)}</li>`).join("")}</ul>
+               </div>`
+            : "";
+
         // 出荷に関する通知（agent_thankyou_letter）は展開部の先頭に全幅アラートで。長文でも折り返して全文表示。
         const noticeTxt = (r.agent_thankyou_letter || "").trim();
         const noticeBlock = noticeTxt
@@ -798,7 +812,7 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
                 ${mainCells}
             </tr>
             <tr class="orbit-acc-detail" data-order-item-id="${oid}"${open ? "" : " hidden"}>
-                <td class="orbit-acc-detail-cell" colspan="${colspan}">${noticeBlock}${detailBody}</td>
+                <td class="orbit-acc-detail-cell" colspan="${colspan}">${issueBlock}${noticeBlock}${detailBody}</td>
             </tr>`;
     }).join("");
 

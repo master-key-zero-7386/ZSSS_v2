@@ -251,7 +251,10 @@
 .orbit-memo-date { color: #999; margin-right: 6px; font-variant-numeric: tabular-nums; }
 .orbit-memo-add-btn { font-size: 11px; padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
-.orbit-acc-field.orbit-issue-flag { background: #fff3cd; border-radius: 3px; padding: 0 3px; }
+.orbit-acc-field.orbit-issue-flag {
+  background: #fdecea; border: 1px solid #e53935; border-radius: 3px; padding: 0 4px;
+}
+.orbit-acc-field.orbit-issue-flag .orbit-acc-field-label { color: #c0392b; font-weight: bold; }
 .orbit-acc-field-label { font-size: 11px; color: #8b949e; }
 .orbit-acc-field-value input.orbit-manual,
 .orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; }
@@ -279,6 +282,44 @@
 .orbit-acc-table tbody tr.orbit-row-agent-notice.orbit-acc-main > td {
   background-color: #ffe0b2;
 }
+
+/* 貼り付け前チェックの不備がある未完了行：主行を赤背景に（橙の出荷連絡より優先＝後勝ち） */
+.orbit-acc-table tbody tr.orbit-row-issue.orbit-acc-main > td {
+  background-color: #fdd8d5;
+}
+
+/* 主行の「⚠ 不備」バッジ（記号だけだと見落とすので赤地・白抜き・文字付き） */
+.orbit-issue-badge {
+  background-color: #d32f2f;
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* 展開部先頭：不備項目を赤バナーで列挙（どの項目を直すのか一目で分かるように） */
+.orbit-acc-issues {
+  display: block;
+  background: #fdecea;
+  border-left: 4px solid #d32f2f;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+}
+.orbit-acc-issues-label {
+  font-weight: bold;
+  color: #c0392b;
+  font-size: 12px;
+}
+.orbit-acc-issues-list {
+  margin: 3px 0 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: #b03a2e;
+}
+.orbit-acc-issues-list li { padding: 1px 0; }
 .orbit-agent-notice {
   background-color: #e65100;
   color: #fff;
