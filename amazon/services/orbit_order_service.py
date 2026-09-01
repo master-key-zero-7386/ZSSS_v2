@@ -860,6 +860,12 @@ def list_orders_with_calc(user_id: int) -> list:
         row["predicted_shipping_fee"] = None
         row["dims_source"] = "listed_items" if (row.get("length_cm") and row.get("width_cm") and row.get("height_cm")) else None
 
+        # 販売マーケット（＝セラーセントラルのドメイン判定に使う。ship-countryは発送先であって
+        # 販売マーケットではないため使えない）。order-id先頭桁 → marketplace_id → country_code。
+        _row_marketplace_id = _resolve_row_marketplace_id(row.get("order_id"), prefix_map)
+        row["marketplace_id"] = _row_marketplace_id
+        row["marketplace_country"] = marketplace_country_map.get(_row_marketplace_id)
+
         _apply_dispatch_checks(row)
 
         # listed_itemsとの突き合わせが取れない場合は、SKUから直接ASINを抽出（表示用フォールバック）

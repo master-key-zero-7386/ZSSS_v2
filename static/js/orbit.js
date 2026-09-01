@@ -195,6 +195,7 @@ const DISPATCH_COLUMNS = [
 
     { key: "order_item_id", label: "order-item-id", copyClass: "orbit-orderid-cell" },
     { key: "purchase_date", label: "注文日", dateOnly: true },
+    { key: "sellercentral_link", label: "セラセン", computed: true },  // 該当注文ページ（バイヤー連絡もここから）
 ];
 
 const DISPATCH_COL_DEFS = Object.fromEntries(DISPATCH_COLUMNS.map(c => [c.key, c]));
@@ -215,6 +216,7 @@ const DISPATCH_PRIMARY_KEYS = [
 const DISPATCH_DETAIL_SECTIONS = [
     { key: "memo", label: "バイヤーメモ", custom: "buyerMemo" },
     { key: "buyer", label: "注文者情報", keys: [
+        "sellercentral_link",
         "recipient_name_effective", "buyer_phone_number_effective", "buyer_phone_extension_effective",
         "ship_address_1_effective", "ship_address_2_effective", "ship_address_3_effective",
         "ship_state_effective", "ship_postal_code",
@@ -351,6 +353,22 @@ function buildSupplierLink(supplier, orderNumber) {
         default:
             return "";
     }
+}
+
+// セラーセントラルの該当注文ページ（バイヤーへの連絡もここから1クリック）。
+// 販売マーケット（marketplace_country）で地域ドメインを切り替える。
+function buildSellerCentralLink(orderId, country) {
+    if (!orderId) return "";
+    const domain = {
+        US: "sellercentral.amazon.com",
+        CA: "sellercentral.amazon.ca",
+        AU: "sellercentral.amazon.com.au",
+        SG: "sellercentral.amazon.sg",
+        JP: "sellercentral.amazon.co.jp",
+        UK: "sellercentral.amazon.co.uk",
+        DE: "sellercentral.amazon.de",
+    }[String(country || "").toUpperCase()] || "sellercentral.amazon.com";
+    return `https://${domain}/orders-v3/order/${encodeURIComponent(orderId)}`;
 }
 
 // 出荷期日（promise-date）の残り日数に応じた警告クラス（3日前:青／1日前:オレンジ／当日〜超過:赤）
@@ -651,6 +669,10 @@ function dispCellInner(col, r) {
     if (col.key === "supplier_link") {
         const link = buildSupplierLink(r.supplier, r.supplier_order_number);
         return link ? `<a href="${link}" target="_blank" rel="noopener">開く</a>` : "";
+    }
+    if (col.key === "sellercentral_link") {
+        const link = buildSellerCentralLink(r.order_id, r.marketplace_country);
+        return link ? `<a href="${link}" target="_blank" rel="noopener">注文ページ→連絡</a>` : "";
     }
     if (col.fetchFeeEstimateButton) {
         if (r.net_proceeds != null || !r.asin) return "";
