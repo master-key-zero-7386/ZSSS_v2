@@ -10,6 +10,7 @@ import math
 import re
 import unicodedata
 from datetime import datetime
+from decimal import Decimal
 
 import requests
 
@@ -1534,6 +1535,31 @@ _RAW_VALUE_OVERRIDES = {
 }
 
 
+# ZSSS_RAW に出す数値の整形。psycopg2 が返す float/Decimal をそのまま str() すると
+# 89.94999999999 や 4501.0 のようになるので丸める。丸め方は利用者指定：
+#   ・円の列        → 整数（切り上げ）      例) 17074
+#   ・サイズ/現地通貨等 → 小数第2位（切り上げ、0埋めで必ず2桁） 例) 10.05, 11.50
+# 「切り上げ」は正の値を上へ。負の利益(profit_jpy 等)は +∞方向＝ゼロ方向へ丸まるが許容。
+_RAW_JPY_INT_KEYS = frozenset({
+    "invoice_price_jpy", "predicted_shipping_fee",
+    "net_proceeds_used_jpy", "sale_price_used_jpy",
+    "profit_jpy", "shipping_cost_used", "purchase_price",
+})
+_RAW_CEIL_EPS = 1e-6  # 10.05 が浮動小数誤差で 10.06 に繰り上がるのを防ぐ吸収幅
+
+
+def _fmt_raw_number(value, col) -> str:
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if x != x:  # NaN
+        return ""
+    if col in _RAW_JPY_INT_KEYS:
+        return str(math.ceil(x - _RAW_CEIL_EPS))
+    return f"{math.ceil(x * 100 - _RAW_CEIL_EPS) / 100:.2f}"
+
+
 def _raw_cell(r, col):
     # remarks は 備考1/2/3 の連結値を出す（発注管理タブでは分割入力、ZSSS_RAW では1列）。
     if col == "remarks":
@@ -1546,8 +1572,12 @@ def _raw_cell(r, col):
     value = r.get(_RAW_VALUE_OVERRIDES.get(col, col))
     if value is None or value == [] or value == {}:
         return ""
+    if isinstance(value, bool):
+        return str(value)
     if isinstance(value, (list, dict)):
         return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, (float, Decimal)):
+        return _fmt_raw_number(value, col)
     return str(value)
 
 
