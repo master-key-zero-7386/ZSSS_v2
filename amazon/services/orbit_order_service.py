@@ -259,14 +259,31 @@ NUMERIC_TEXT_EXPORT_COLUMNS = {
 
 # --- ZSSS_RAW シート専用の列セット ---
 # A〜BE（=EXPORT_COLUMNS の57列）はCSV書き出し（発送代行へ出力）と共通で、内容は固定。
-# BF以降は「まだ ZSSS_RAW に出していない orbit_orders の項目を全部」並べたもの。利用者が実データを
-# 見ながら、代行会社向けに必要な列の取捨選択・並べ替えを決めるための当面のレビュー用。
-# （id / user_id だけは意味がないので除外。ここは push_orders_to_raw_sheet だけが使う。）
+# BF以降は「まだ ZSSS_RAW に出していない項目を全部」並べたもの。利用者が実データを見ながら、
+# 代行会社向けに必要な列の取捨選択・並べ替えを決めるための当面のレビュー用。列は
+#   ① orbit_orders のうち EXPORT_COLUMNS に無いDB列（スキーマ順、id/user_id 除く）
+#   ② list_orders_with_calc が計算で足す派生キー（入金予定額・実利益・各フラグ等。初出順）
+# の順で、実際の行データから動的に組み立てる（列の取りこぼしを防ぐため）。
 _RAW_SHEET_EXTRA_COLUMNS = [
     c for c in ORBIT_ORDERS_COLUMNS
     if c not in set(EXPORT_COLUMNS) and c not in ("id", "user_id")
 ]
-RAW_SHEET_COLUMNS = list(EXPORT_COLUMNS) + _RAW_SHEET_EXTRA_COLUMNS
+
+
+def _raw_sheet_columns_for(orders) -> list:
+    """EXPORT_COLUMNS → 未出力DB列 → 計算派生キー の順に、実データのキーを全部拾って列順を作る。"""
+    cols = list(EXPORT_COLUMNS)
+    seen = set(cols) | {"id", "user_id"}
+    for c in _RAW_SHEET_EXTRA_COLUMNS:
+        if c not in seen:
+            cols.append(c)
+            seen.add(c)
+    for r in orders:
+        for k in r.keys():
+            if k not in seen:
+                cols.append(k)
+                seen.add(k)
+    return cols
 
 
 # --- ▼ SECTION 02: CSV/TSV解析（Amazon注文レポート形式） ▼ ---
@@ -1527,12 +1544,16 @@ def _raw_cell(r, col):
         value = r.get("agent_serial_no")
         return "" if value in (None, "") else f"N{value}"
     value = r.get(_RAW_VALUE_OVERRIDES.get(col, col))
-    return "" if value is None else str(value)
+    if value is None or value == [] or value == {}:
+        return ""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
 
 
-def _raw_sheet_row(r) -> list:
-    """注文1件を RAW_SHEET_COLUMNS の並びで1行ぶんの文字列リストにする（Noneは空文字）。"""
-    return [_raw_cell(r, c) for c in RAW_SHEET_COLUMNS]
+def _raw_sheet_row(r, columns) -> list:
+    """注文1件を columns の並びで1行ぶんの文字列リストにする（Noneは空文字）。"""
+    return [_raw_cell(r, c) for c in columns]
 
 
 def _a1_col(n: int) -> str:
@@ -1557,7 +1578,10 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
     # A1記法ではシート名をシングルクォートで囲む（スペースや記号入りでも解釈できるように。
     # 名前に含まれる ' は '' にエスケープする）。安全な名前を囲んでも無害。
     quoted = "'" + sheet_name.replace("'", "''") + "'"
-    last_col = _a1_col(len(RAW_SHEET_COLUMNS))
+
+    orders = list_orders_with_calc(user_id)
+    columns = _raw_sheet_columns_for(orders)
+    last_col = _a1_col(len(columns))
 
     # --- 既存シートの A列(N番) を軽量取得して N番→行番号(1始まり) の対応表を作る ---
     # 末尾の空行はAPI側で落ちるので len(existing) が「最後にデータのある行」。
@@ -1572,12 +1596,13 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
             f"タブ名が正しいか、そのタブが存在するか確認してください。"
         )
     # A列が「N5187」「5187」のように"シリアルそのもの"の行だけを対象にする。
-    # ヘッダーの上に足した説明行（例「最終更新 2026/9/3」）を誤ってシリアル扱いしないよう、
-    # 数字混じりの自由文は弾く（純粋な数字/Nプレフィックスのみ許可）。
+    # ヘッダー上に足した説明行（例「最終更新 2026/9/3」）や列位置メモ（"56" "57" 等）を
+    # 誤ってシリアル扱いしないよう、Nプレフィックス任意＋3桁以上の数字のみ許可する
+    # （実際のN番は4桁の 5xxx 台。1〜2桁のメモ数字は弾く）。
     row_by_serial = {}
     for i, cells in enumerate(existing):
         raw = str((cells[0] if cells else "") or "").strip()
-        if not re.fullmatch(r"[Nn]?\s*\d+", raw):
+        if not re.fullmatch(r"[Nn]?\s*\d{3,}", raw):
             continue
         serial = _parse_agent_serial_no(raw)
         if serial is not None and serial not in row_by_serial:
@@ -1585,7 +1610,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
 
     updates = []   # batch_update_sheet_values 用: [{"range": ..., "values": [row]}]
     appends = []   # 末尾追加ぶんの行データ
-    header = list(RAW_SHEET_COLUMNS)
+    header = list(columns)
     if not existing:
         header_row, next_row = 1, 2
     else:
@@ -1594,11 +1619,11 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         # データがまだ無ければ、既存の最終行（＝見出しらしき行）を見出し行とみなす。
         header_row = (min(row_by_serial.values()) - 1) if row_by_serial else len(existing)
     if header_row >= 1:
-        # 毎回 RAW_SHEET_COLUMNS で見出しを貼り直す（列を増やしたぶんヘッダーも合わせる）。
+        # 毎回 columns で見出しを貼り直す（列を増やしたぶんヘッダーも合わせる）。
         updates.append({"range": f"{quoted}!A{header_row}:{last_col}{header_row}", "values": [header]})
 
     n_update = n_append = skip_notified = skip_no_serial = 0
-    for r in list_orders_with_calc(user_id):
+    for r in orders:
         if int(r.get("shipped_completed") or 0) == 1:
             skip_notified += 1
             continue
@@ -1606,7 +1631,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         if serial is None:
             skip_no_serial += 1
             continue
-        line = _raw_sheet_row(r)
+        line = _raw_sheet_row(r, columns)
         rownum = row_by_serial.get(serial)
         if rownum:
             updates.append({"range": f"{quoted}!A{rownum}:{last_col}{rownum}", "values": [line]})
@@ -1626,7 +1651,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         "appended": n_append,
         "skipped_notified": skip_notified,
         "skipped_no_serial": skip_no_serial,
-        "columns": len(RAW_SHEET_COLUMNS),
+        "columns": len(columns),
         "sheet_name": sheet_name,
     }
 
