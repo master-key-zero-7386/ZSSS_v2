@@ -159,9 +159,9 @@ const DISPATCH_COLUMNS = [
     { key: "supplier_order_number", label: "仕入注文番号", editable: "text" },
     { key: "supplier_shop_name", label: "ショップ名", editable: "text" },
     { key: "supplier_link", label: "リンク", computed: true },
-    { key: "procurement_date", label: "仕入日", editable: "text" },
+    { key: "procurement_date", label: "仕入日", editable: "date" },
     { key: "request_date", label: "依頼日" },  // 仕入日を入れると自動反映
-    { key: "arrival_date", label: "到着予定", editable: "text" },
+    { key: "arrival_date", label: "到着予定", editable: "date" },
     { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
     { key: "invoice_price_jpy", label: "インボイス価格(円)" },  // 販売額の97%。自動算定のみ
     { key: "points", label: "ポイント", editable: "number" },
@@ -254,8 +254,8 @@ const PROCUREMENT_COLUMNS = [
     // --- 仕入れ・出荷時に頻繁にチェックする項目（発注管理側のN番号と対応づけて左端に配置） ---
     { key: "agent_serial_no", label: "N番号", highlight: true },  // 発注管理タブで入力（読取専用）
     { key: "asin", label: "ASIN", copyClass: "asin-cell", highlight: true },
-    { key: "procurement_date", label: "仕入日", editable: "text", highlight: true },
-    { key: "arrival_date", label: "到着予定日", editable: "text", highlight: true },
+    { key: "procurement_date", label: "仕入日", editable: "date", highlight: true },
+    { key: "arrival_date", label: "到着予定日", editable: "date", highlight: true },
 
     { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
     { key: "purchase_date", label: "注文日", dateOnly: true },
@@ -409,6 +409,18 @@ function estimateSuffix(col, r) {
     if (col.estimateFlagKey && r[col.estimateFlagKey]) return " (概算)";
     if (col.splitFlagKey && r[col.splitFlagKey]) return " (按分)";
     return "";
+}
+
+// 日付欄はネイティブ <input type="date"> で扱う。表示は ISO(YYYY-MM-DD) が必須なので
+// 保存済みの値（既存データは "YYYY/MM/DD"）を ISO へ変換して value に入れる。
+// 保存時は逆変換してスラッシュ区切りへ戻し、DB・代行会社CSV・依頼書シートの形式を従来どおりに保つ。
+function orbitDateToISO(v) {
+    if (v === null || v === undefined || v === "") return "";
+    const s = String(v).trim().slice(0, 10).replace(/\//g, "-");
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+function orbitISOToSlash(v) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(v || "") ? v.replace(/-/g, "/") : (v || "");
 }
 
 function fmtValue(col, value) {
@@ -620,7 +632,8 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             }
 
             if (col.editable) {
-                const value = r[col.key] ?? "";
+                const raw = r[col.key] ?? "";
+                const value = col.editable === "date" ? orbitDateToISO(raw) : raw;
                 const inputClass = col.wide ? "orbit-manual orbit-manual-wide"
                     : col.mid ? "orbit-manual orbit-manual-mid"
                     : "orbit-manual";
@@ -715,7 +728,8 @@ function dispCellInner(col, r) {
         return `<select class="orbit-manual" data-field="${col.key}">${options}</select>`;
     }
     if (col.editable) {
-        const value = r[col.key] ?? "";
+        const raw = r[col.key] ?? "";
+        const value = col.editable === "date" ? orbitDateToISO(raw) : raw;
         const cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
         const listAttr = col.datalist ? ` list="${col.datalist}"` : "";
         return `<input type="${col.editable}" class="${cls}"${listAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value}">`;
@@ -848,8 +862,10 @@ function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
     const handler = (e) => {
         const target = e.target;
         if (!target.classList?.contains("orbit-manual")) return;
-        if (target.tagName === "SELECT" && e.type !== "change") return;
-        if (target.tagName !== "SELECT" && e.type !== "focusout") return;
+        // select と date(カレンダー選択) は change で確定。それ以外のテキスト系は focusout で確定。
+        const savesOnChange = target.tagName === "SELECT" || target.type === "date";
+        if (savesOnChange && e.type !== "change") return;
+        if (!savesOnChange && e.type !== "focusout") return;
 
         const tr = target.closest("tr");
         const orderItemId = tr?.dataset?.orderItemId;
@@ -883,7 +899,9 @@ function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
             return;
         }
 
-        saveManualField(orderItemId, field, target.value, onSaved);
+        // date欄はブラウザ内部値がISO。DB・CSV・シートは従来どおり "YYYY/MM/DD" で保存する。
+        const outValue = target.type === "date" ? orbitISOToSlash(target.value) : target.value;
+        saveManualField(orderItemId, field, outValue, onSaved);
     };
 
     tbody.addEventListener("focusout", handler);
