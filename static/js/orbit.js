@@ -1897,7 +1897,10 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    if (rawPushStatus) rawPushStatus.textContent = `${data.rows}行 × ${data.columns}列 を ${data.sheet_name} に書き込みました`;
+                    let msg = `${data.sheet_name}: 更新 ${data.updated}件 / 追加 ${data.appended}件`;
+                    if (data.skipped_notified) msg += ` / 通知済スキップ ${data.skipped_notified}件`;
+                    if (data.skipped_no_serial) msg += ` / N番なしスキップ ${data.skipped_no_serial}件`;
+                    if (rawPushStatus) rawPushStatus.textContent = msg;
                 } else {
                     if (rawPushStatus) rawPushStatus.textContent = data.message || "書き込みに失敗しました";
                 }

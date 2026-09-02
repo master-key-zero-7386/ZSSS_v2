@@ -346,6 +346,27 @@ def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
     return resp.json()
 
 
+def batch_update_sheet_values(user_id: int, spreadsheet_id: str, data: list) -> dict:
+    """複数の範囲を1リクエストでまとめて書き込む（N番一致の行だけ上書きする用途）。
+    data = [{"range": "'ZSSS_RAW'!A5:BE5", "values": [[...]]}, ...]。
+    valueInputOption=RAW は update_sheet_values と同じ理由（数字文字列をそのまま入れる）。
+    """
+    if not data:
+        return {}
+    access_token = get_valid_access_token(user_id)
+    if not access_token:
+        raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
+
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values:batchUpdate"
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"valueInputOption": "RAW", "data": data},
+    )
+    _raise_for_sheets_write_error(resp)
+    return resp.json()
+
+
 def clear_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str) -> dict:
     access_token = get_valid_access_token(user_id)
     if not access_token:

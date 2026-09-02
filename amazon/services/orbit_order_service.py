@@ -11,15 +11,18 @@ import re
 import unicodedata
 from datetime import datetime
 
+import requests
+
 from amazon.db import get_conn
 from amazon.db_migrate import ORBIT_ORDERS_COLUMNS
 from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import (
     fetch_dispatch_sheet_preview,
+    fetch_sheet_range,
     get_raw_sheet_settings,
     update_sheet_values,
-    clear_sheet_values,
+    batch_update_sheet_values,
     _extract_spreadsheet_id,
 )
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
@@ -253,6 +256,17 @@ NUMERIC_TEXT_EXPORT_COLUMNS = {
     "buyer_phone_number", "buyer_phone_number_effective", "buyer_phone_extension_effective",
     "buyer_identification_number",
 }
+
+# --- ZSSS_RAW シート専用の列セット ---
+# A〜BE（=EXPORT_COLUMNS の57列）はCSV書き出し（発送代行へ出力）と共通で、内容は固定。
+# BF以降は「まだ ZSSS_RAW に出していない orbit_orders の項目を全部」並べたもの。利用者が実データを
+# 見ながら、代行会社向けに必要な列の取捨選択・並べ替えを決めるための当面のレビュー用。
+# （id / user_id だけは意味がないので除外。ここは push_orders_to_raw_sheet だけが使う。）
+_RAW_SHEET_EXTRA_COLUMNS = [
+    c for c in ORBIT_ORDERS_COLUMNS
+    if c not in set(EXPORT_COLUMNS) and c not in ("id", "user_id")
+]
+RAW_SHEET_COLUMNS = list(EXPORT_COLUMNS) + _RAW_SHEET_EXTRA_COLUMNS
 
 
 # --- ▼ SECTION 02: CSV/TSV解析（Amazon注文レポート形式） ▼ ---
@@ -1479,8 +1493,18 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
 # --- ▼ SECTION 07-2: 管理シート（書き出し先タブ）への書き出し ▼ ---
 # 手動CSVコピペの置き換え。ORBITが持っている項目を EXPORT_COLUMNS の並びで、利用者が設定した
 # スプレッドシート／タブへ書く（URL・タブ名とも必須。タブは事前に作成しておく前提）。
-# 書き出し先タブ → 利用者の本番タブへはシート内の数式で転記する運用。まずは「全行を毎回入れ替え」
-# の単純版（列セットは今後調整）。
+# 書き出し先タブ → 利用者の本番タブへはシート内の数式で転記する運用。
+#
+# 【N番 upsert 方式】以前は「毎回全消し＋全貼り直し」だったが、出荷通知が終わるまでは
+# 仕入れ内容・代行会社への連絡内容が頻繁に変わるため、その都度反映しつつ、通知済みの行は
+# 確定として固定したい。そこで：
+#   1. ZSSS_RAW のA列(N番)を読み、N番→行番号 の対応表を作る
+#   2. 書き出し対象 = shipped_completed=0（出荷通知まだ）かつ N番あり の注文
+#      - 同じN番の行があれば その行の A〜(最終列) だけ全項目上書き
+#      - なければ 既存データの最終行の下に追加
+#   3. shipped_completed=1（出荷通知済み）はどの書き込み範囲にも入れない → 既存行は凍結
+#      （通知解除で 0 に戻れば次回また上書き対象になる）
+#   4. N番なし（採番ミス）はスキップ。ORBITから消えた／アーカイブ済みのN番の行は放置。
 # ※ export_notify_csv と違い notified_at は更新しない（CSV出力＝送信済みの目印を壊さないため）。
 _RAW_VALUE_OVERRIDES = {
     "buyer_phone_number": "buyer_phone_number_effective",
@@ -1506,13 +1530,18 @@ def _raw_cell(r, col):
     return "" if value is None else str(value)
 
 
-def build_raw_sheet_matrix(user_id: int) -> list:
-    """先頭行=見出し、以降=注文1行ずつ。全セル文字列（Noneは空文字）。"""
-    rows = list_orders_with_calc(user_id)
-    matrix = [list(EXPORT_COLUMNS)]
-    for r in rows:
-        matrix.append([_raw_cell(r, c) for c in EXPORT_COLUMNS])
-    return matrix
+def _raw_sheet_row(r) -> list:
+    """注文1件を RAW_SHEET_COLUMNS の並びで1行ぶんの文字列リストにする（Noneは空文字）。"""
+    return [_raw_cell(r, c) for c in RAW_SHEET_COLUMNS]
+
+
+def _a1_col(n: int) -> str:
+    """1始まりの列番号をA1記法の列名に（1→A, 26→Z, 27→AA, 57→BE）。"""
+    name = ""
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        name = chr(65 + rem) + name
+    return name
 
 
 def push_orders_to_raw_sheet(user_id: int) -> dict:
@@ -1528,14 +1557,78 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
     # A1記法ではシート名をシングルクォートで囲む（スペースや記号入りでも解釈できるように。
     # 名前に含まれる ' は '' にエスケープする）。安全な名前を囲んでも無害。
     quoted = "'" + sheet_name.replace("'", "''") + "'"
+    last_col = _a1_col(len(RAW_SHEET_COLUMNS))
 
-    matrix = build_raw_sheet_matrix(user_id)
+    # --- 既存シートの A列(N番) を軽量取得して N番→行番号(1始まり) の対応表を作る ---
+    # 末尾の空行はAPI側で落ちるので len(existing) が「最後にデータのある行」。
+    try:
+        existing = fetch_sheet_range(user_id, spreadsheet_id, f"{quoted}!A:A")
+    except requests.HTTPError as e:
+        status = getattr(e.response, "status_code", None)
+        if status == 404:
+            raise RuntimeError("スプレッドシートが見つかりません。書き出し先URLを確認してください。")
+        raise RuntimeError(
+            f"書き出し先タブ「{sheet_name}」を読めませんでした。"
+            f"タブ名が正しいか、そのタブが存在するか確認してください。"
+        )
+    # A列が「N5187」「5187」のように"シリアルそのもの"の行だけを対象にする。
+    # ヘッダーの上に足した説明行（例「最終更新 2026/9/3」）を誤ってシリアル扱いしないよう、
+    # 数字混じりの自由文は弾く（純粋な数字/Nプレフィックスのみ許可）。
+    row_by_serial = {}
+    for i, cells in enumerate(existing):
+        raw = str((cells[0] if cells else "") or "").strip()
+        if not re.fullmatch(r"[Nn]?\s*\d+", raw):
+            continue
+        serial = _parse_agent_serial_no(raw)
+        if serial is not None and serial not in row_by_serial:
+            row_by_serial[serial] = i + 1
 
-    # 旧データを消してから入れ直す（前回より行数が減ったときに古い行が残らないように）
-    clear_sheet_values(user_id, spreadsheet_id, quoted)
-    update_sheet_values(user_id, spreadsheet_id, f"{quoted}!A1", matrix)
+    updates = []   # batch_update_sheet_values 用: [{"range": ..., "values": [row]}]
+    appends = []   # 末尾追加ぶんの行データ
+    header = list(RAW_SHEET_COLUMNS)
+    if not existing:
+        header_row, next_row = 1, 2
+    else:
+        next_row = len(existing) + 1
+        # 見出し行はデータ行の1つ上（ヘッダーの上に説明行を足していても崩れない）。
+        # データがまだ無ければ、既存の最終行（＝見出しらしき行）を見出し行とみなす。
+        header_row = (min(row_by_serial.values()) - 1) if row_by_serial else len(existing)
+    if header_row >= 1:
+        # 毎回 RAW_SHEET_COLUMNS で見出しを貼り直す（列を増やしたぶんヘッダーも合わせる）。
+        updates.append({"range": f"{quoted}!A{header_row}:{last_col}{header_row}", "values": [header]})
 
-    return {"rows": len(matrix) - 1, "columns": len(EXPORT_COLUMNS), "sheet_name": sheet_name}
+    n_update = n_append = skip_notified = skip_no_serial = 0
+    for r in list_orders_with_calc(user_id):
+        if int(r.get("shipped_completed") or 0) == 1:
+            skip_notified += 1
+            continue
+        serial = _parse_agent_serial_no(r.get("agent_serial_no"))
+        if serial is None:
+            skip_no_serial += 1
+            continue
+        line = _raw_sheet_row(r)
+        rownum = row_by_serial.get(serial)
+        if rownum:
+            updates.append({"range": f"{quoted}!A{rownum}:{last_col}{rownum}", "values": [line]})
+            n_update += 1
+        else:
+            appends.append(line)
+            n_append += 1
+
+    if updates:
+        batch_update_sheet_values(user_id, spreadsheet_id, updates)
+    if appends:
+        end_row = next_row + len(appends) - 1
+        update_sheet_values(user_id, spreadsheet_id, f"{quoted}!A{next_row}:{last_col}{end_row}", appends)
+
+    return {
+        "updated": n_update,
+        "appended": n_append,
+        "skipped_notified": skip_notified,
+        "skipped_no_serial": skip_no_serial,
+        "columns": len(RAW_SHEET_COLUMNS),
+        "sheet_name": sheet_name,
+    }
 
 
 # --- ▼ SECTION 08: 代行会社シートからの読み戻し（N番号でorbit_ordersと突き合わせる） ▼ ---
