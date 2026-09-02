@@ -225,8 +225,10 @@
   border-left: 4px solid transparent;
 }
 .orbit-acc-section-label {
-  font-weight: bold; color: #57606a; min-width: 84px; font-size: 12px;
+  font-weight: bold; color: #57606a; min-width: 84px; font-size: 13px;
 }
+/* 展開部の入力欄・プレーン表示テキストの基準サイズ（主行の td と揃える） */
+.orbit-acc-detail-cell { font-size: 13px; }
 
 /* グループ別の色分け（展開部） */
 .orbit-acc-sec-memo   { background: #f2f3f5; border-left-color: #c0c4c9; }
@@ -243,21 +245,21 @@
 .orbit-acc-sec-memo.has-notes .orbit-acc-section-label { color: #c0392b; }
 
 /* バイヤーメモの中身 */
-.orbit-memo-repeat { font-size: 12px; color: #666; }
+.orbit-memo-repeat { font-size: 13px; color: #666; }
 .orbit-memo-repeat.is-repeat { color: #c0392b; font-weight: bold; }
-.orbit-memo-none { font-size: 12px; color: #999; }
-.orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; font-size: 12px; }
+.orbit-memo-none { font-size: 13px; color: #999; }
+.orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; font-size: 13px; }
 .orbit-memo-list li { padding: 1px 0; }
 .orbit-memo-date { color: #999; margin-right: 6px; font-variant-numeric: tabular-nums; }
-.orbit-memo-add-btn { font-size: 11px; padding: 1px 6px; margin-left: 4px; }
+.orbit-memo-add-btn { font-size: 12px; padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
 .orbit-acc-field.orbit-issue-flag {
   background: #fdecea; border: 1px solid #e53935; border-radius: 3px; padding: 0 4px;
 }
 .orbit-acc-field.orbit-issue-flag .orbit-acc-field-label { color: #c0392b; font-weight: bold; }
-.orbit-acc-field-label { font-size: 11px; color: #8b949e; }
+.orbit-acc-field-label { font-size: 12px; color: #8b949e; }
 .orbit-acc-field-value input.orbit-manual,
-.orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; }
+.orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; font-size: 13px; }
 .orbit-acc-field-value input.orbit-manual-mid { width: 240px; }
 
 /* 発注数量チェック：数量が2以上の行だけ数字を赤太字で目立たせる（列は増やさず視覚化のみ） */
@@ -311,12 +313,12 @@
 .orbit-acc-issues-label {
   font-weight: bold;
   color: #c0392b;
-  font-size: 12px;
+  font-size: 13px;
 }
 .orbit-acc-issues-list {
   margin: 3px 0 0;
   padding-left: 20px;
-  font-size: 12px;
+  font-size: 13px;
   color: #b03a2e;
 }
 .orbit-acc-issues-list li { padding: 1px 0; }
@@ -346,7 +348,7 @@
 .orbit-acc-notice-label {
   font-weight: bold;
   color: #c0392b;
-  font-size: 12px;
+  font-size: 13px;
   margin-right: 8px;
   white-space: nowrap;
 }
