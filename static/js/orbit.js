@@ -440,11 +440,12 @@ function orbitHolidayInfo(dateStr) {
     return { nonWorking: false, reason: "" };
 }
 
-// 出荷期日など「表示専用の日付セル」用：休業日なら日付の右に付ける「祝」マーク
+// 出荷期日など「表示専用の日付セル」用：休業日なら日付の右に付ける「休」マーク
+// （土日も含むので「祝」ではなく「休」）
 function orbitHolidayMark(dateStr) {
     const info = orbitHolidayInfo(dateStr);
     if (!info.nonWorking) return "";
-    return ` <span class="orbit-holiday-mark" title="${orbitEscapeHtml(info.reason)}">祝</span>`;
+    return ` <span class="orbit-holiday-mark" title="${orbitEscapeHtml(info.reason)}">休</span>`;
 }
 
 // order-idの先頭桁でマーケットプレイスを判定して色分け（旧スプレッドシートと同じ基準）。
@@ -2242,7 +2243,7 @@ window.initOrbit = function () {
                 renderClosuresTable();
                 renderJpHolidaysTable();
                 // 祝日データは注文一覧より後に届くことがある。既に描画済みなら、
-                // 到着予定日のグレー＋赤太字／出荷期日の「祝」マークを反映するため描き直す。
+                // 到着予定日のグレー＋赤太字／出荷期日の「休」マークを反映するため描き直す。
                 if (ordersRowsCache.length) renderOrdersTable();
                 if (dispatchRowsCache.length) renderDispatchTable();
                 if (procTbody && ordersRowsCache.length) {
