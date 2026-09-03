@@ -942,7 +942,7 @@ function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
 
         // date欄はブラウザ内部値がISO。DB・CSV・シートは従来どおり "YYYY/MM/DD" で保存する。
         const outValue = target.type === "date" ? orbitISOToSlash(target.value) : target.value;
-        saveManualField(orderItemId, field, outValue, onSaved);
+        saveManualField(orderItemId, field, outValue, () => onSaved?.(orderItemId, field, outValue));
     };
 
     tbody.addEventListener("focusout", handler);
@@ -1833,7 +1833,44 @@ window.initOrbit = function () {
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
     attachSaveHandlers(tbody, { onSaved: loadOrders, getOrderedIds: getOrdersOrderedIds });
     if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
-    if (dispatchTbody) attachSaveHandlers(dispatchTbody, { onSaved: loadOrders });
+
+    // 発注管理アコーディオンだけは、欄を保存するたびに全体を innerHTML で作り直すと入力中の
+    // DOM ごと差し替わって「入れ終わる前にリロードされて入力できない」状態になる。
+    // そこで保存直後はキャッシュへ値を反映するだけに留め、編集欄からフォーカスが完全に抜けて
+    // 落ち着いたタイミングで1回だけ全体を取り直す（仕入日→依頼日の自動反映・利益の再計算など
+    // サーバ側の派生値をまとめて更新する）。
+    if (dispatchTbody) {
+        let dispatchReloadPending = false;
+        let dispatchReloadTimer = null;
+
+        const scheduleDispatchReload = () => {
+            clearTimeout(dispatchReloadTimer);
+            dispatchReloadTimer = setTimeout(() => {
+                if (!dispatchReloadPending) return;
+                const ae = document.activeElement;
+                // まだ発注管理の入力欄を触っている間は再描画せず、さらに先送りする
+                if (ae && dispatchTbody.contains(ae) && ae.classList?.contains("orbit-manual")) {
+                    scheduleDispatchReload();
+                    return;
+                }
+                dispatchReloadPending = false;
+                loadOrders();
+            }, 400);
+        };
+
+        const onDispatchFieldSaved = (orderItemId, field, value) => {
+            const r = dispatchRowsCache.find(x => String(x.order_item_id) === String(orderItemId));
+            if (r) {
+                r[field] = (field === "purchase_price" || field === "points")
+                    ? (value === "" || value == null ? null : parseFloat(value))
+                    : (value || null);
+            }
+            dispatchReloadPending = true;
+            scheduleDispatchReload();
+        };
+
+        attachSaveHandlers(dispatchTbody, { onSaved: onDispatchFieldSaved });
+    }
 
     // --- ▼ 受注一覧: 行ごとの上下移動 ▼ ---
     tbody.addEventListener("click", (e) => {
