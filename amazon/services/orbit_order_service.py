@@ -24,6 +24,8 @@ from amazon.services.google_sheets_service import (
     get_raw_sheet_settings,
     update_sheet_values,
     batch_update_sheet_values,
+    append_sheet_values,
+    clear_sheet_values,
     _extract_spreadsheet_id,
 )
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
@@ -1683,7 +1685,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         end_row = next_row + len(appends) - 1
         update_sheet_values(user_id, spreadsheet_id, f"{quoted}!A{next_row}:{last_col}{end_row}", appends)
 
-    return {
+    result = {
         "updated": n_update,
         "appended": n_append,
         "skipped_notified": skip_notified,
@@ -1691,6 +1693,32 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         "columns": len(columns),
         "sheet_name": sheet_name,
     }
+
+    # --- 代行会社シートへの直接ミラー（IMPORTRANGE置き換え） ---
+    # ZSSS_RAWタブの A〜BE(=EXPORT_COLUMNSの57列) を読み返し、代行会社ファイルの指定タブへ
+    # まるごと上書きコピーする。凍結済み(通知済み)行や過去行も含めて ZSSS_RAW の内容そのまま。
+    # 失敗しても ZSSS_RAW 書き込み自体は成功済みなので、例外にせず result にエラーを載せる。
+    mirror_url = (settings.get("mirror_spreadsheet_url") or "").strip()
+    mirror_name = (settings.get("mirror_sheet_name") or "").strip()
+    if mirror_url and mirror_name:
+        agency_last_col = _a1_col(len(EXPORT_COLUMNS))  # 57 → "BE"
+        mquoted = "'" + mirror_name.replace("'", "''") + "'"
+        try:
+            mirror_id = _extract_spreadsheet_id(mirror_url)
+            # 型を保つため UNFORMATTED_VALUE（数値・boolはそのまま返る）
+            rows = fetch_sheet_range(
+                user_id, spreadsheet_id, f"{quoted}!A:{agency_last_col}",
+                value_render_option="UNFORMATTED_VALUE",
+            )
+            clear_sheet_values(user_id, mirror_id, f"{mquoted}!A:{agency_last_col}")
+            if rows:
+                append_sheet_values(user_id, mirror_id, f"{mquoted}!A1", rows)
+            result["mirrored_rows"] = len(rows)
+            result["mirror_sheet_name"] = mirror_name
+        except Exception as e:
+            result["mirror_error"] = str(e)
+
+    return result
 
 
 # --- ▼ SECTION 08: 代行会社シートからの読み戻し（N番号でorbit_ordersと突き合わせる） ▼ ---

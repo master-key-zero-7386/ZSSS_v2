@@ -770,6 +770,10 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     # ORBIT → 自分の管理スプレッドシートへの書き出し先（ZSSS_RAWタブ）。読み戻し用(spreadsheet_url/sheet_name)とは別。
     "raw_spreadsheet_url": "TEXT", # 書き出し先スプレッドシートのURL（代行会社とIMPORTRANGE連携済みの自分のシート）
     "raw_sheet_name": "TEXT",      # 書き出し先タブ名（既定: ZSSS_RAW）
+    # ZSSS_RAWタブの内容(A〜BEの57列)を、代行会社シートの中のタブへ直接ミラー書き込みする先。
+    # IMPORTRANGE（頻繁に「内部エラー」になる）を廃止して置き換えるための設定。空なら書き込まない。
+    "raw_mirror_spreadsheet_url": "TEXT",  # ミラー先スプレッドシートのURL（代行会社ファイル）
+    "raw_mirror_sheet_name": "TEXT",       # そのタブ名（例: ujihara2）。毎回まるごと上書き
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }

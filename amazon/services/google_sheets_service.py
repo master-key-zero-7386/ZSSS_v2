@@ -107,7 +107,8 @@ def get_raw_sheet_settings(user_id: int) -> dict:
     conn = get_conn("a_orbit_dispatch_sheet_settings.db")
     cur = conn.cursor()
     cur.execute(
-        "SELECT raw_spreadsheet_url, raw_sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+        "SELECT raw_spreadsheet_url, raw_sheet_name, raw_mirror_spreadsheet_url, raw_mirror_sheet_name "
+        "FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
         (user_id,),
     )
     row = cur.fetchone()
@@ -116,22 +117,29 @@ def get_raw_sheet_settings(user_id: int) -> dict:
     return {
         "spreadsheet_url": (row["raw_spreadsheet_url"] if row and row.get("raw_spreadsheet_url") else ""),
         "sheet_name": (row["raw_sheet_name"] if row and row.get("raw_sheet_name") else ""),
+        # 代行会社シートへの直接ミラー書き込み先（未設定なら空＝ミラーしない）
+        "mirror_spreadsheet_url": (row["raw_mirror_spreadsheet_url"] if row and row.get("raw_mirror_spreadsheet_url") else ""),
+        "mirror_sheet_name": (row["raw_mirror_sheet_name"] if row and row.get("raw_mirror_sheet_name") else ""),
     }
 
 
-def save_raw_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name: str):
+def save_raw_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name: str,
+                            mirror_spreadsheet_url: str = "", mirror_sheet_name: str = ""):
     conn = get_conn("a_orbit_dispatch_sheet_settings.db")
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
 
     cur.execute("""
-        INSERT INTO orbit_dispatch_sheet_settings (user_id, raw_spreadsheet_url, raw_sheet_name, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO orbit_dispatch_sheet_settings
+            (user_id, raw_spreadsheet_url, raw_sheet_name, raw_mirror_spreadsheet_url, raw_mirror_sheet_name, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (user_id) DO UPDATE SET
             raw_spreadsheet_url = EXCLUDED.raw_spreadsheet_url,
             raw_sheet_name = EXCLUDED.raw_sheet_name,
+            raw_mirror_spreadsheet_url = EXCLUDED.raw_mirror_spreadsheet_url,
+            raw_mirror_sheet_name = EXCLUDED.raw_mirror_sheet_name,
             updated_at = EXCLUDED.updated_at
-    """, (user_id, spreadsheet_url, sheet_name, now, now))
+    """, (user_id, spreadsheet_url, sheet_name, mirror_spreadsheet_url, mirror_sheet_name, now, now))
 
     conn.commit()
     conn.close()
@@ -285,15 +293,44 @@ def has_working_connection(user_id: int) -> bool:
 
 
 # --- ▼ SECTION 06: シート範囲の取得（IMPORTRANGEと同じ発想） ▼ ---
-def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str) -> list:
+def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str,
+                      value_render_option: str = None) -> list:
     access_token = get_valid_access_token(user_id)
     if not access_token:
         raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{requests.utils.quote(sheet_range)}"
+    # UNFORMATTED_VALUE を指定すると数値/真偽はJSONの数値・boolのまま返る（既定のFORMATTED_VALUEは
+    # 全部文字列化される）。ZSSS_RAW→代行会社シートのミラーで型を保つのに使う。
+    if value_render_option:
+        url += f"?valueRenderOption={value_render_option}"
     resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
     resp.raise_for_status()
     return resp.json().get("values", [])
+
+
+def append_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, values: list,
+                        insert_data_option: str = "OVERWRITE") -> dict:
+    """values.append。update と違いグリッド行数を自動拡張するので、行数上限(既定1000)を気にせず
+    まるごと書ける。事前に clear した上で range=タブ名!A1 を渡せば1行目から詰めて書き込まれる。"""
+    if not values:
+        return {}
+    access_token = get_valid_access_token(user_id)
+    if not access_token:
+        raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
+
+    url = (
+        f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+        f"{requests.utils.quote(sheet_range)}:append"
+        f"?valueInputOption=RAW&insertDataOption={insert_data_option}"
+    )
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"values": values},
+    )
+    _raise_for_sheets_write_error(resp)
+    return resp.json()
 
 
 # --- ▼ SECTION 06-2: シート範囲への書き込み・クリア（ZSSS_RAWタブ出力用） ▼ ---

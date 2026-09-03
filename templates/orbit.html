@@ -525,8 +525,13 @@
           <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="書き込み先のタブ名" style="width:220px;">
           <button id="orbit-raw-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
       </div>
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <input type="text" id="orbit-raw-mirror-url" class="file-input-text" placeholder="（任意）代行会社シートのURL ＝ ミラー先" style="width:420px;">
+          <input type="text" id="orbit-raw-mirror-name" class="file-input-text" placeholder="ミラー先のタブ名" style="width:220px;">
+      </div>
       <div style="font-size:12px; color:#888; margin:2px 0 10px;">
-          注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しでは<strong>N番で行を突き合わせて更新</strong>し、無い行は末尾に追加します（タブ全体の消去はしません）。見出し行も毎回貼り直します。<strong>出荷通知を出した注文は書き出し対象外</strong>になり、その行はそのまま残ります（通知を解除すればまた更新対象に戻ります）。列は A〜BE が代行会社向けの確定項目、BF 以降は未確定項目を確認用に全部出しています。
+          注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しでは<strong>N番で行を突き合わせて更新</strong>し、無い行は末尾に追加します（タブ全体の消去はしません）。見出し行も毎回貼り直します。<strong>出荷通知を出した注文は書き出し対象外</strong>になり、その行はそのまま残ります（通知を解除すればまた更新対象に戻ります）。列は A〜BE が代行会社向けの確定項目、BF 以降は未確定項目を確認用に全部出しています。<br>
+          <strong>ミラー先（任意）</strong>：設定すると、書き出しのたびに ZSSS_RAW の <strong>A〜BE（57列）</strong>を、指定した代行会社シートのタブへ<strong>まるごと上書きコピー</strong>します（そのタブは事前に作成し、数式は入れない）。これで代行会社側の <code>IMPORTRANGE</code>（頻繁に「内部エラー」になる）を廃止できます。不要なら両方空のままにしてください。
       </div>
 
       <!-- 発送種別の入力候補（過去に入力した値。JSで都度更新。新しい値も自由に入力可） -->

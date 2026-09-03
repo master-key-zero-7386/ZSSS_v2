@@ -474,13 +474,18 @@ def save_raw_sheet_settings_route():
     data = request.get_json(silent=True) or {}
     spreadsheet_url = (data.get("spreadsheet_url") or "").strip()
     sheet_name = (data.get("sheet_name") or "").strip()
+    mirror_spreadsheet_url = (data.get("mirror_spreadsheet_url") or "").strip()
+    mirror_sheet_name = (data.get("mirror_sheet_name") or "").strip()
 
     if not spreadsheet_url:
         return jsonify({"status": "error", "message": "スプレッドシートURLが必要です"}), 400
     if not sheet_name:
         return jsonify({"status": "error", "message": "書き込み先のタブ名が必要です"}), 400
+    # ミラーはURL・タブ名の両方セットで有効。片方だけはミス防止のためエラー。
+    if bool(mirror_spreadsheet_url) != bool(mirror_sheet_name):
+        return jsonify({"status": "error", "message": "ミラー先はURLとタブ名の両方を入力してください（不要なら両方空に）"}), 400
 
-    save_raw_sheet_settings(user_id, spreadsheet_url, sheet_name)
+    save_raw_sheet_settings(user_id, spreadsheet_url, sheet_name, mirror_spreadsheet_url, mirror_sheet_name)
     return jsonify({"status": "success"})
 
 

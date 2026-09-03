@@ -1845,6 +1845,8 @@ window.initOrbit = function () {
     // --- ▼ SECTION 04-2: 管理シート（書き出し先スプレッドシートURL・タブ名は設定必須）への書き出し（手動コピペの置き換え） ▼ ---
     const rawSheetUrlInput = document.getElementById("orbit-raw-sheet-url");
     const rawSheetNameInput = document.getElementById("orbit-raw-sheet-name");
+    const rawMirrorUrlInput = document.getElementById("orbit-raw-mirror-url");
+    const rawMirrorNameInput = document.getElementById("orbit-raw-mirror-name");
     const rawSheetSettingsSaveBtn = document.getElementById("orbit-raw-sheet-settings-save-btn");
     const rawPushBtn = document.getElementById("orbit-raw-push-btn");
     const rawPushStatus = document.getElementById("orbit-raw-push-status");
@@ -1855,6 +1857,8 @@ window.initOrbit = function () {
             if (data.status !== "success") return;
             if (rawSheetUrlInput) rawSheetUrlInput.value = data.spreadsheet_url || "";
             if (rawSheetNameInput) rawSheetNameInput.value = data.sheet_name || "";
+            if (rawMirrorUrlInput) rawMirrorUrlInput.value = data.mirror_spreadsheet_url || "";
+            if (rawMirrorNameInput) rawMirrorNameInput.value = data.mirror_sheet_name || "";
         })
         .catch(err => console.error("raw_sheet_settings load error:", err));
 
@@ -1867,12 +1871,20 @@ window.initOrbit = function () {
             window.showToast?.("書き込み先のタブ名を入力してください", "error");
             return;
         }
+        const mirrorUrl = (rawMirrorUrlInput?.value || "").trim();
+        const mirrorName = (rawMirrorNameInput?.value || "").trim();
+        if (!!mirrorUrl !== !!mirrorName) {
+            window.showToast?.("ミラー先はURLとタブ名の両方を入力してください（不要なら両方空に）", "error");
+            return;
+        }
         fetch("/orbit/raw_sheet_settings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 spreadsheet_url: rawSheetUrlInput?.value || "",
                 sheet_name: rawSheetNameInput?.value || "",
+                mirror_spreadsheet_url: mirrorUrl,
+                mirror_sheet_name: mirrorName,
             }),
         })
             .then(res => res.json())
@@ -1900,6 +1912,8 @@ window.initOrbit = function () {
                     let msg = `${data.sheet_name}: 更新 ${data.updated}件 / 追加 ${data.appended}件`;
                     if (data.skipped_notified) msg += ` / 通知済スキップ ${data.skipped_notified}件`;
                     if (data.skipped_no_serial) msg += ` / N番なしスキップ ${data.skipped_no_serial}件`;
+                    if (data.mirror_error) msg += ` ／ ミラー失敗: ${data.mirror_error}`;
+                    else if (data.mirror_sheet_name) msg += ` ／ ミラー(${data.mirror_sheet_name}) ${data.mirrored_rows}行`;
                     if (rawPushStatus) rawPushStatus.textContent = msg;
                 } else {
                     if (rawPushStatus) rawPushStatus.textContent = data.message || "書き込みに失敗しました";
