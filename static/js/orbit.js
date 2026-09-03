@@ -222,9 +222,10 @@ const DISPATCH_DETAIL_SECTIONS = [
     { key: "memo", label: "バイヤーメモ", custom: "buyerMemo" },
     { key: "buyer", label: "注文者情報", keys: [
         "sellercentral_link",
-        "recipient_name_effective", "buyer_phone_number_effective", "buyer_phone_extension_effective",
+        // 郵便番号は遠隔地ハイライトを見落とさないよう、視線が最初に通る宛名〜電話番号の間に置く。
+        "recipient_name_effective", "ship_postal_code", "buyer_phone_number_effective", "buyer_phone_extension_effective",
         "ship_address_1_effective", "ship_address_2_effective", "ship_address_3_effective",
-        "ship_state_effective", "ship_postal_code",
+        "ship_state_effective",
     ] },
     { key: "proc", label: "仕入れ情報", keys: [
         "jan_code",  // asin は主行(DISPATCH_PRIMARY_KEYS)の order_id 左へ移動
@@ -766,8 +767,11 @@ function dispCellInner(col, r) {
     if (col.remoteAreaCell) {
         const val = fmtValue(col, r[col.key]);
         const note = r.remote_area_note || "";
-        const badge = (r.flag_remote_area_dhl || r.flag_remote_area_fedex)
-            ? ` <span class="orbit-remote-badge" title="${orbitEscapeHtml(note)}">遠隔</span>`
+        const dhl = !!r.flag_remote_area_dhl, fedex = !!r.flag_remote_area_fedex;
+        // どのキャリアで該当かをバッジ文言で明示（色分けだけだと判別できないため）
+        const carrier = dhl && fedex ? "DHL/FedEx" : fedex ? "FedEx" : dhl ? "DHL" : "";
+        const badge = carrier
+            ? ` <span class="orbit-remote-badge" title="${orbitEscapeHtml(note)}">${carrier}遠隔</span>`
             : "";
         return note ? `<span title="${orbitEscapeHtml(note)}">${val}</span>${badge}` : `${val}${badge}`;
     }
