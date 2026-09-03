@@ -1578,11 +1578,12 @@ def _raw_cell(r, col):
         return ""
     if col in NUMERIC_TEXT_EXPORT_COLUMNS:
         return str(value)  # 桁数の多い数字の羅列は文字列のまま
-    if isinstance(value, bool):
+    if isinstance(value, bool):          # bool は int のサブクラスなので先に判定
         return value
     if isinstance(value, (list, dict)):
         return json.dumps(value, ensure_ascii=False)
-    if isinstance(value, (float, Decimal)):
+    if isinstance(value, (int, float, Decimal)):
+        # 代行会社向け丸め値(agent_shipping_weight_kg / agent_*_cm)等は int で来るので int も数値扱い
         return _raw_number(value, col)
     return str(value)
 
