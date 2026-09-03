@@ -27,6 +27,10 @@ from amazon.services.orbit_order_service import (
     add_security_note,
     list_buyer_history,
     list_security_notes,
+    list_credit_cards,
+    add_credit_card,
+    update_credit_card,
+    delete_credit_card,
     MANUAL_FIELDS,
     NUMERIC_MANUAL_FIELDS,
 )
@@ -202,6 +206,63 @@ def list_security_notes_route():
 
     rows = list_security_notes(user_id)
     return jsonify({"status": "success", "rows": rows})
+
+
+# --- ▼ SECTION 02-3: クレジットカードマスタ（仕入れ利用カードの選択肢＋締め日/支払日） ▼ ---
+@orbit_bp.route("/credit_cards", methods=["GET"])
+def list_credit_cards_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    return jsonify({"status": "success", "cards": list_credit_cards(user_id)})
+
+
+@orbit_bp.route("/credit_cards/insert", methods=["POST"])
+def insert_credit_card_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    data = request.get_json(silent=True) or {}
+    card_name = (data.get("card_name") or "").strip()
+    if not card_name:
+        return jsonify({"status": "error", "message": "カード名を入力してください"}), 400
+    new_id = add_credit_card(
+        user_id, card_name,
+        (data.get("closing_day") or "").strip(),
+        (data.get("payment_day") or "").strip(),
+    )
+    return jsonify({"status": "success", "id": new_id})
+
+
+@orbit_bp.route("/credit_cards/update", methods=["POST"])
+def update_credit_card_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    data = request.get_json(silent=True) or {}
+    card_id = data.get("id")
+    card_name = (data.get("card_name") or "").strip()
+    if not card_id or not card_name:
+        return jsonify({"status": "error", "message": "idとカード名が必要です"}), 400
+    update_credit_card(
+        user_id, card_id, card_name,
+        (data.get("closing_day") or "").strip(),
+        (data.get("payment_day") or "").strip(),
+    )
+    return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/credit_cards/delete", methods=["POST"])
+def delete_credit_card_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    data = request.get_json(silent=True) or {}
+    card_id = data.get("id")
+    if not card_id:
+        return jsonify({"status": "error", "message": "idが必要です"}), 400
+    delete_credit_card(user_id, card_id)
+    return jsonify({"status": "success"})
 
 
 @orbit_bp.route("/archive/candidates", methods=["GET"])

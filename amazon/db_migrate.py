@@ -620,6 +620,7 @@ ORBIT_ORDERS_COLUMNS = {
     "supplier_shop_name": "TEXT",          # モール内のショップ名（楽天/Yahoo!等）
     "procurement_date": "TEXT",            # 仕入日（実際に仕入先へ発注した日）
     "arrival_date": "TEXT",                # 到着予定日
+    "procurement_credit_card": "TEXT",     # 仕入れに使ったクレジットカード（orbit_credit_cards.card_name を選択。締め支払い集計は後日）
     "shipped_completed": "INTEGER",        # 出荷完了フラグ（仕入れ管理のボタンで手動ON/OFF。押し間違えても解除可能）
 
     # --- 発注管理タブのチェック欄（手入力。ZSSS_RAW・代行会社へは連携しない） ---
@@ -657,6 +658,20 @@ ORBIT_ORDERS_COLUMNS = {
 #     （領収書発行・経理・返品対応時に仕入額等を参照する用途）。列構成はorbit_ordersと同一。 ---
 ORBIT_PROCUREMENT_HISTORY_COLUMNS = dict(ORBIT_ORDERS_COLUMNS)
 ORBIT_PROCUREMENT_HISTORY_COLUMNS["archived_at"] = "TEXT"  # orbit_ordersからの退避日時
+
+# --- ▼ SECTION : クレジットカードマスタ（ORBIT: 仕入れ利用カードの選択肢＋締め日/支払日） ---
+#     発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補になる。締め支払いの集計は後日追加予定で、
+#     締め日・支払日は「月末」「翌月27日」等の表記ゆれを許すフリーテキストで持つ（集計搭載時にパースする想定）。
+ORBIT_CREDIT_CARDS_COLUMNS = {
+    "id":          "SERIAL PRIMARY KEY",
+    "user_id":     "INTEGER NOT NULL",
+    "card_name":   "TEXT NOT NULL",         # プルダウンに出す名前（例: JCB / Amex）
+    "closing_day": "TEXT",                  # 締め日（例: 月末 / 15日 / 20日）
+    "payment_day": "TEXT",                  # 支払日（例: 翌月10日 / 翌月27日）
+    "sort_order":  "INTEGER DEFAULT 0",     # プルダウン・一覧の表示順
+    "created_at":  "TEXT",
+    "updated_at":  "TEXT",
+}
 
 # --- ▼ SECTION : 決済トランザクション明細（ORBIT: 実利益計算用。セラーセントラル「支払い」→
 #     「トランザクション」画面からのCSVダウンロード。1行=1注文の集計済みデータで、
@@ -905,6 +920,8 @@ def migrate_db(db_name):
         migrate_table(conn, "orbit_settlement_lines", ORBIT_SETTLEMENT_LINES_COLUMNS)
     elif base.endswith("_orbit_buyer_history.db"):
         migrate_table(conn, "orbit_buyer_history", ORBIT_BUYER_HISTORY_COLUMNS)
+    elif base.endswith("_orbit_credit_cards.db"):
+        migrate_table(conn, "orbit_credit_cards", ORBIT_CREDIT_CARDS_COLUMNS)
     elif base.endswith("_orbit_procurement_history.db"):
         migrate_table(conn, "orbit_procurement_history", ORBIT_PROCUREMENT_HISTORY_COLUMNS)
     elif base.endswith("_orbit_buyer_security_notes.db"):
@@ -1097,6 +1114,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_security_notes_buyer_key "
         "ON orbit_buyer_security_notes(user_id, buyer_key)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_credit_cards.db ---
+    conn = get_conn("a_orbit_credit_cards.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_credit_cards_user "
+        "ON orbit_credit_cards(user_id, sort_order, id)"
     )
     conn.commit()
     conn.close()
@@ -1382,6 +1409,7 @@ def main():
         "a_orbit_buyer_security_notes.db",
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
+        "a_orbit_credit_cards.db",
     ]
 
     # 固定DB migrate

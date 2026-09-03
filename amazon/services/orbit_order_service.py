@@ -1369,6 +1369,7 @@ MANUAL_FIELDS = [
     "jan_code", "purchase_price",
     "request_date", "shipping_type", "tracking_number", "remarks", "remarks_2", "remarks_3",
     "supplier", "supplier_order_number", "supplier_shop_name", "procurement_date", "arrival_date",
+    "procurement_credit_card",
     "shipped_completed",
     "invoice_saved", "points", "purchased",
     "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
@@ -1450,6 +1451,74 @@ def delete_all_orders(user_id: int) -> int:
     conn.commit()
     conn.close()
     return deleted
+
+
+# --- ▼ SECTION 06-2: クレジットカードマスタ（仕入れ利用カードの選択肢＋締め日/支払日） ▼ ---
+# 発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補。締め支払いの集計は後日追加予定で、
+# 締め日・支払日は「月末」「翌月27日」等のフリーテキストのまま保持する（集計搭載時にパースする）。
+def list_credit_cards(user_id: int) -> list:
+    conn = get_conn("a_orbit_credit_cards.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, card_name, closing_day, payment_day, sort_order "
+        "FROM orbit_credit_cards WHERE user_id = %s "
+        "ORDER BY sort_order ASC, id ASC",
+        (user_id,),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def add_credit_card(user_id: int, card_name: str, closing_day: str, payment_day: str) -> int:
+    now = datetime.utcnow().isoformat()
+    conn = get_conn("a_orbit_credit_cards.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order "
+        "FROM orbit_credit_cards WHERE user_id = %s",
+        (user_id,),
+    )
+    next_order = cur.fetchone()["next_order"]
+    cur.execute(
+        "INSERT INTO orbit_credit_cards "
+        "(user_id, card_name, closing_day, payment_day, sort_order, created_at, updated_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+        (user_id, card_name, closing_day or None, payment_day or None, next_order, now, now),
+    )
+    new_id = cur.fetchone()["id"]
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def update_credit_card(user_id: int, card_id: int, card_name: str, closing_day: str, payment_day: str) -> int:
+    now = datetime.utcnow().isoformat()
+    conn = get_conn("a_orbit_credit_cards.db")
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE orbit_credit_cards "
+        "SET card_name = %s, closing_day = %s, payment_day = %s, updated_at = %s "
+        "WHERE user_id = %s AND id = %s",
+        (card_name, closing_day or None, payment_day or None, now, user_id, card_id),
+    )
+    n = cur.rowcount
+    conn.commit()
+    conn.close()
+    return n
+
+
+def delete_credit_card(user_id: int, card_id: int) -> int:
+    conn = get_conn("a_orbit_credit_cards.db")
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM orbit_credit_cards WHERE user_id = %s AND id = %s",
+        (user_id, card_id),
+    )
+    n = cur.rowcount
+    conn.commit()
+    conn.close()
+    return n
 
 
 # --- ▼ SECTION 06-1b: アーカイブ候補の検出・実行（決済確定＋出荷完了の注文をFBMバイヤー履歴へ移動） ▼ ---

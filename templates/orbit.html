@@ -503,6 +503,7 @@
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入れ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">買い手履歴</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
   </div>
 
   <div id="orbit-pane-orders" class="st-subtab-pane active">
@@ -715,6 +716,47 @@
           <thead>
             <tr>
               <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-credit-cards" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          仕入れに使うクレジットカードの一覧です。ここで登録した「カード名」が、発注管理タブの「仕入れ情報 → 利用クレカ」プルダウンに出ます。<br>
+          締め日・支払日は、いまは表記の決まった文字で入力してください（締め日＝「月末」「15日」など／支払日＝「翌月10日」「翌月27日」など）。締め・支払いの集計機能は後日追加予定で、そのときにこの文字を実際の日付へ変換します。
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <input type="text" id="orbit-cc-new-name" class="file-input-text" placeholder="カード名（例: JCB）" style="width:200px;">
+          <input type="text" id="orbit-cc-new-closing" class="file-input-text" list="orbit-dl-cc-closing" placeholder="締め日（例: 月末）" style="width:170px;">
+          <input type="text" id="orbit-cc-new-payment" class="file-input-text" list="orbit-dl-cc-payment" placeholder="支払日（例: 翌月27日）" style="width:190px;">
+          <button type="button" id="orbit-cc-add-btn" class="btn-blue">追加</button>
+      </div>
+      <datalist id="orbit-dl-cc-closing">
+          <option value="月末"></option><option value="10日"></option><option value="15日"></option>
+          <option value="20日"></option><option value="25日"></option><option value="末日"></option>
+      </datalist>
+      <datalist id="orbit-dl-cc-payment">
+          <option value="翌月4日"></option><option value="翌月10日"></option><option value="翌月15日"></option>
+          <option value="翌月27日"></option><option value="翌々月4日"></option><option value="翌々月10日"></option>
+      </datalist>
+
+      <div class="table-wrapper" id="orbit-credit-cards-table-wrapper">
+        <table id="orbit-credit-cards-table">
+          <thead>
+            <tr>
+              <th style="width:220px;">カード名</th>
+              <th style="width:170px;">締め日</th>
+              <th style="width:190px;">支払日</th>
+              <th style="width:90px;">操作</th>
             </tr>
           </thead>
           <tbody>

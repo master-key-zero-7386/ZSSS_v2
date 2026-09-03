@@ -118,6 +118,10 @@ const SUPPLIER_OPTIONS = [
     "ﾔﾏﾀﾞｳｪﾌﾞｺﾑ", "PayPay", "Yahoo", "au",
 ];
 
+// 仕入れ利用クレカの選択肢。クレカマスタ(/orbit/credit_cards)から initOrbit 内で取得して
+// 中身を入れ替える（DISPATCH_COLUMNS の options がこの配列参照を掴んでいるので、参照は保つ）。
+const CREDIT_CARD_OPTIONS = ["-"];
+
 // --- ▼ SECTION 00-1b: 発注管理（＝唯一の作業タブ）列定義 ▼ ---
 // アコーディオン行：1注文＝主行1行（±で展開）。展開すると下に「注文者情報／仕入れ情報／…」が段組みで開く。
 // 横に伸びない。取込後の確認・チェック・仕入入力・代行会社連絡をこの1タブで完結させる。
@@ -158,6 +162,7 @@ const DISPATCH_COLUMNS = [
     { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing", remoteAreaCell: true },
 
     { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
+    { key: "procurement_credit_card", label: "利用クレカ", editable: "select", options: CREDIT_CARD_OPTIONS },
     { key: "supplier_order_number", label: "仕入注文番号", editable: "text" },
     { key: "supplier_shop_name", label: "ショップ名", editable: "text" },
     { key: "supplier_link", label: "リンク", computed: true },
@@ -230,6 +235,7 @@ const DISPATCH_DETAIL_SECTIONS = [
     { key: "proc", label: "仕入れ情報", keys: [
         "jan_code",  // asin は主行(DISPATCH_PRIMARY_KEYS)の order_id 左へ移動
         "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
+        "procurement_credit_card",  // リンクと仕入日の間（利用クレカ選択）
         "procurement_date", "request_date", "arrival_date",
         "purchase_price", "invoice_price_jpy", "points",
     ] },
@@ -2004,7 +2010,119 @@ window.initOrbit = function () {
             .finally(() => { rawPushBtn.disabled = false; });
     });
 
+    // --- ▼ SECTION 05: クレジットカードマスタ（仕入れ利用カードの選択肢＋締め日/支払日） ▼ ---
+    const ccTbody = document.getElementById("orbit-credit-cards-table")?.querySelector("tbody");
+    const ccNewName = document.getElementById("orbit-cc-new-name");
+    const ccNewClosing = document.getElementById("orbit-cc-new-closing");
+    const ccNewPayment = document.getElementById("orbit-cc-new-payment");
+    const ccAddBtn = document.getElementById("orbit-cc-add-btn");
+    let creditCardsCache = [];
+
+    function applyCreditCardOptions() {
+        // 参照は保ったまま中身だけ入れ替える（DISPATCH_COLUMNS の利用クレカ列がこの配列を掴んでいる）
+        CREDIT_CARD_OPTIONS.length = 0;
+        CREDIT_CARD_OPTIONS.push("-", ...creditCardsCache.map(c => c.card_name).filter(Boolean));
+    }
+
+    function renderCreditCardsTable() {
+        if (!ccTbody) return;
+        if (!creditCardsCache.length) {
+            ccTbody.innerHTML = `<tr><td colspan="4" style="color:#888;">カード未登録です。上のフォームから追加してください。</td></tr>`;
+            return;
+        }
+        ccTbody.innerHTML = creditCardsCache.map(c => `
+            <tr data-id="${c.id}">
+                <td><input type="text" class="orbit-cc-edit file-input-text" data-field="card_name" value="${orbitEscapeHtml(c.card_name || "")}" style="width:200px;"></td>
+                <td><input type="text" class="orbit-cc-edit file-input-text" data-field="closing_day" list="orbit-dl-cc-closing" value="${orbitEscapeHtml(c.closing_day || "")}" style="width:150px;"></td>
+                <td><input type="text" class="orbit-cc-edit file-input-text" data-field="payment_day" list="orbit-dl-cc-payment" value="${orbitEscapeHtml(c.payment_day || "")}" style="width:170px;"></td>
+                <td><button type="button" class="orbit-cc-delete-btn btn-red" data-id="${c.id}">削除</button></td>
+            </tr>`).join("");
+    }
+
+    function loadCreditCards() {
+        return fetch("/orbit/credit_cards")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") return;
+                creditCardsCache = data.cards || [];
+                applyCreditCardOptions();
+                renderCreditCardsTable();
+                if (dispatchTbody) renderDispatchTable();
+            })
+            .catch(err => console.error("credit_cards load error:", err));
+    }
+
+    ccAddBtn?.addEventListener("click", () => {
+        const name = (ccNewName?.value || "").trim();
+        if (!name) { window.showToast?.("カード名を入力してください", "error"); return; }
+        fetch("/orbit/credit_cards/insert", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                card_name: name,
+                closing_day: ccNewClosing?.value || "",
+                payment_day: ccNewPayment?.value || "",
+            }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    if (ccNewName) ccNewName.value = "";
+                    if (ccNewClosing) ccNewClosing.value = "";
+                    if (ccNewPayment) ccNewPayment.value = "";
+                    loadCreditCards();
+                } else {
+                    window.showToast?.(data.message || "追加に失敗しました", "error");
+                }
+            })
+            .catch(err => { console.error("credit_cards insert error:", err); window.showToast?.("追加に失敗しました", "error"); });
+    });
+
+    ccTbody?.addEventListener("focusout", (e) => {
+        const input = e.target;
+        if (!input.classList?.contains("orbit-cc-edit")) return;
+        const tr = input.closest("tr");
+        const id = tr?.dataset?.id;
+        if (!id) return;
+        const cardName = (tr.querySelector('[data-field="card_name"]')?.value || "").trim();
+        if (!cardName) { window.showToast?.("カード名は空にできません", "error"); loadCreditCards(); return; }
+        fetch("/orbit/credit_cards/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: Number(id),
+                card_name: cardName,
+                closing_day: (tr.querySelector('[data-field="closing_day"]')?.value || "").trim(),
+                payment_day: (tr.querySelector('[data-field="payment_day"]')?.value || "").trim(),
+            }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") { loadCreditCards(); }
+                else { window.showToast?.(data.message || "保存に失敗しました", "error"); }
+            })
+            .catch(err => { console.error("credit_cards update error:", err); window.showToast?.("保存に失敗しました", "error"); });
+    });
+
+    ccTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-cc-delete-btn");
+        if (!btn) return;
+        if (!confirm("このカードを削除しますか？（既存の注文に入力済みのカード名はそのまま残ります）")) return;
+        fetch("/orbit/credit_cards/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: Number(btn.dataset.id) }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") { loadCreditCards(); }
+                else { window.showToast?.(data.message || "削除に失敗しました", "error"); }
+            })
+            .catch(err => { console.error("credit_cards delete error:", err); window.showToast?.("削除に失敗しました", "error"); });
+    });
+
     loadOrders();
     loadBuyerHistory();
     loadSecurityNotes();
+    loadCreditCards();
 };
