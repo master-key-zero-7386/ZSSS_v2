@@ -142,6 +142,27 @@
   margin-bottom: 12px;
 }
 
+/* スプレッドシート連携の設定（ファイルパス等）：項目が増えて入力枠が圧迫されるため、
+   注文者情報と同じように普段は畳んでおける折りたたみにする（<details>）。 */
+.orbit-sheet-settings {
+  border: 1px solid #d0d7de; border-radius: 6px;
+  margin: 0 0 12px; background: #fafbfc;
+}
+.orbit-sheet-settings > summary {
+  cursor: pointer; padding: 8px 12px; font-weight: bold; font-size: 14px;
+  color: #1f2328; list-style: none; user-select: none;
+}
+.orbit-sheet-settings > summary::-webkit-details-marker { display: none; }
+.orbit-sheet-settings > summary::before { content: "▸ "; color: #666; }
+.orbit-sheet-settings[open] > summary::before { content: "▾ "; }
+.orbit-sheet-settings[open] > summary { border-bottom: 1px solid #e1e4e8; }
+.orbit-sheet-settings-body { padding: 10px 12px; }
+.orbit-sheet-group { margin-bottom: 10px; }
+.orbit-sheet-group-label {
+  font-size: 13px; font-weight: bold; color: #333a42; margin-bottom: 4px;
+}
+.orbit-sheet-group .orbit-actions { margin-bottom: 0; }
+
 .master-description {
     margin: 8px 0 12px;
     padding: 10px 12px;
@@ -530,6 +551,8 @@
           <button id="orbit-export-btn" class="btn-blue">発送代行へ出力(CSV)</button>
           <button id="orbit-dispatch-sync-btn" class="btn-blue">代行会社シートから取り込む</button>
           <span id="orbit-dispatch-sync-status"></span>
+          <button id="orbit-raw-push-btn" class="btn-blue">管理シートへ書き出し</button>
+          <span id="orbit-raw-push-status"></span>
           <a id="orbit-google-connect-link" href="/orbit/google_oauth/start" class="btn-blue" style="display:none; text-decoration:none;">Googleアカウントを連携する</a>
           <span id="orbit-google-connect-status"></span>
           <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
@@ -540,27 +563,43 @@
           </div>
       </div>
 
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
-          <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
-          <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
-      </div>
+      <details class="orbit-sheet-settings">
+          <summary>スプレッドシート連携　ファイルパス設定</summary>
+          <div class="orbit-sheet-settings-body">
 
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <button id="orbit-raw-push-btn" class="btn-blue">管理シートへ書き出し</button>
-          <span id="orbit-raw-push-status"></span>
-          <input type="text" id="orbit-raw-sheet-url" class="file-input-text" placeholder="スプレッドシートのURL（リンクをそのまま貼り付け）" style="width:420px;">
-          <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="書き込み先のタブ名" style="width:220px;">
-          <button id="orbit-raw-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
-      </div>
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <input type="text" id="orbit-raw-mirror-url" class="file-input-text" placeholder="（任意）代行会社シートのURL ＝ ミラー先" style="width:420px;">
-          <input type="text" id="orbit-raw-mirror-name" class="file-input-text" placeholder="ミラー先のタブ名" style="width:220px;">
-      </div>
-      <div style="font-size:12px; color:#888; margin:2px 0 10px;">
-          注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しでは<strong>N番で行を突き合わせて更新</strong>し、無い行は末尾に追加します（タブ全体の消去はしません）。見出し行も毎回貼り直します。<strong>出荷通知を出した注文は書き出し対象外</strong>になり、その行はそのまま残ります（通知を解除すればまた更新対象に戻ります）。列は A〜BE が代行会社向けの確定項目、BF 以降は未確定項目を確認用に全部出しています。<br>
-          <strong>ミラー先（任意）</strong>：設定すると、書き出しのたびに ZSSS_RAW の <strong>A〜BE（57列）</strong>を、指定した代行会社シートのタブへ<strong>まるごと上書きコピー</strong>します（そのタブは事前に作成し、数式は入れない）。これで代行会社側の <code>IMPORTRANGE</code>（頻繁に「内部エラー」になる）を廃止できます。不要なら両方空のままにしてください。
-      </div>
+              <div class="orbit-sheet-group">
+                  <div class="orbit-sheet-group-label">・発送代行シートから読込</div>
+                  <div class="orbit-actions" style="flex-wrap:wrap;">
+                      <input type="text" id="orbit-dispatch-sheet-url" class="file-input-text" placeholder="依頼書スプレッドシートのURL" style="width:420px;">
+                      <input type="text" id="orbit-dispatch-sheet-name" class="file-input-text" placeholder="シート名(例: 【発送確認用】依頼書)" style="width:220px;">
+                      <button id="orbit-dispatch-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
+                  </div>
+              </div>
+
+              <div class="orbit-sheet-group">
+                  <div class="orbit-sheet-group-label">・発送代行シートへの書込（任意：ZSSS_RAW の A〜BE をそのままミラー）</div>
+                  <div class="orbit-actions" style="flex-wrap:wrap;">
+                      <input type="text" id="orbit-raw-mirror-url" class="file-input-text" placeholder="（任意）代行会社シートのURL ＝ ミラー先" style="width:420px;">
+                      <input type="text" id="orbit-raw-mirror-name" class="file-input-text" placeholder="ミラー先のタブ名" style="width:220px;">
+                  </div>
+              </div>
+
+              <div class="orbit-sheet-group">
+                  <div class="orbit-sheet-group-label">・自分用管理シート</div>
+                  <div class="orbit-actions" style="flex-wrap:wrap;">
+                      <input type="text" id="orbit-raw-sheet-url" class="file-input-text" placeholder="スプレッドシートのURL（リンクをそのまま貼り付け）" style="width:420px;">
+                      <input type="text" id="orbit-raw-sheet-name" class="file-input-text" placeholder="書き込み先のタブ名" style="width:220px;">
+                      <button id="orbit-raw-sheet-settings-save-btn" class="btn-blue">設定を保存</button>
+                      <span style="font-size:12px; color:#888;">（「発送代行シートへの書込」と「自分用管理シート」をまとめて保存します）</span>
+                  </div>
+              </div>
+
+              <div style="font-size:12px; color:#888; margin:2px 0 0;">
+                  注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しでは<strong>N番で行を突き合わせて更新</strong>し、無い行は末尾に追加します（タブ全体の消去はしません）。見出し行も毎回貼り直します。<strong>出荷通知を出した注文は書き出し対象外</strong>になり、その行はそのまま残ります（通知を解除すればまた更新対象に戻ります）。列は A〜BE が代行会社向けの確定項目、BF 以降は未確定項目を確認用に全部出しています。<br>
+                  <strong>ミラー先（任意）</strong>：設定すると、書き出しのたびに ZSSS_RAW の <strong>A〜BE（57列）</strong>を、指定した代行会社シートのタブへ<strong>まるごと上書きコピー</strong>します（そのタブは事前に作成し、数式は入れない）。これで代行会社側の <code>IMPORTRANGE</code>（頻繁に「内部エラー」になる）を廃止できます。不要なら両方空のままにしてください。
+              </div>
+          </div>
+      </details>
 
       <!-- 発送種別の入力候補（過去に入力した値。JSで都度更新。新しい値も自由に入力可） -->
       <datalist id="orbit-dl-shipping-type"></datalist>
