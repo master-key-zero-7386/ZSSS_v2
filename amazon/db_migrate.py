@@ -727,6 +727,8 @@ ORBIT_BUYER_HISTORY_COLUMNS = {
 
     "agent_serial_no": "INTEGER",  # N番（発送代行会社の管理連番）
 
+    "asin": "TEXT",          # SKUに埋め込まれたASINをインポート/アーカイブ時に解決して保存（ASINカウント用）
+
     "buyer_key": "TEXT",      # 住所正規化キー（郵便番号+住所1）。買い手照合用
     "archived_at": "TEXT",    # orbit_ordersからの移動日時（sheet_importはNULL。ただしagent_serial_noは
                                # スプレッドシート側の"N-No"列があればsheet_importでも取り込まれる）
@@ -1071,6 +1073,10 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_history_buyer_key "
         "ON orbit_buyer_history(user_id, buyer_key)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_buyer_history_asin "
+        "ON orbit_buyer_history(user_id, asin)"
     )
     conn.commit()
     conn.close()

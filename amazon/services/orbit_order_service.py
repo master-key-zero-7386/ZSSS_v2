@@ -31,9 +31,25 @@ from amazon.services.google_sheets_service import (
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 
-# SKUに埋め込まれたASIN（10桁英数字）を抽出するフォールバック用
-# 例: "Z_CA_B0GP95SH1F_20260511_NEW001" / "NEW_S_AU_B013S7YU3Y_20240512"
-# ※ "_" は正規表現の \w に含まれるため \b では区切れない。"_" 区切りで分割して各断片を照合する。
+# SKUに埋め込まれたASIN（10桁英数字）を抽出する。過去に複数の他社ツールを使ってきた経緯で
+# SKUの命名規則がツールごとに違うため、既知の接頭辞パターンを順に照合し、外れた場合のみ
+# 汎用フォールバック（"_"区切りの10桁断片 → 文字列中の "B0" 始まり10桁）に落とす。
+#   他社1 : OMEGA-B07QFW3R7Y                → "OMEGA-" の後
+#   他社2a: NEW_S_AU_B000PD3LZS_20230717    → "NEW_S_<2文字国コード>_" の後
+#   他社2b: new_S_B00955MRX4_20221005       → "NEW_S_" の後（小文字表記あり。upper()で吸収）
+#   他社3 : N-B00LWY22E0                    → "N-" の後
+#   ZSSS  : Z_AU_B0051YM7BA_20260708_NEW001 → "Z_<2文字国コード>_" の後
+_ASIN_TOKEN = r"([A-Z0-9]{10})"
+_ASIN_SKU_PREFIX_PATTERNS = [
+    re.compile(r"^OMEGA-" + _ASIN_TOKEN),
+    re.compile(r"^NEW_S_[A-Z]{2}_" + _ASIN_TOKEN),
+    re.compile(r"^NEW_S_" + _ASIN_TOKEN),
+    re.compile(r"^N-" + _ASIN_TOKEN),
+    re.compile(r"^Z_[A-Z]{2}_" + _ASIN_TOKEN),
+]
+# 既知パターンに当てはまらないSKU用の保険。実運用上ASINはほぼ "B0" + 英数字8桁。
+_ASIN_GENERIC_PATTERN = re.compile(r"B0[0-9A-Z]{8}")
+# "_" 区切りでちょうど10桁の断片（旧ロジック。ハイフン結合のSKUは拾えないが後方互換で残す）。
 ASIN_IN_SKU_PATTERN = re.compile(r"^[A-Z0-9]{10}$")
 
 
@@ -41,10 +57,43 @@ def _extract_asin_from_sku(sku):
     if not sku:
         return None
 
-    for part in sku.upper().split("_"):
+    s = sku.upper()
+
+    for pattern in _ASIN_SKU_PREFIX_PATTERNS:
+        m = pattern.match(s)
+        if m:
+            return m.group(1)
+
+    for part in s.split("_"):
         if ASIN_IN_SKU_PATTERN.match(part):
             return part
+
+    m = _ASIN_GENERIC_PATTERN.search(s)
+    if m:
+        return m.group(0)
+
     return None
+
+
+# listed_items（SKU→ASINの対応を持つ）を1クエリでまとめて引く。listed_itemsに登録が無い
+# 商品（他アカウント由来・出品削除済み等）はSKUからの抽出にフォールバックする。
+def _load_listed_items_asin_map(user_id: int) -> dict:
+    conn = get_conn("listed_items")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT sku, asin FROM listed_items "
+        "WHERE user_id = %s AND sku IS NOT NULL AND asin IS NOT NULL",
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return {r["sku"]: r["asin"] for r in rows}
+
+
+def _resolve_asin(sku, listed_items_map: dict):
+    if not sku:
+        return None
+    return listed_items_map.get(sku) or _extract_asin_from_sku(sku)
 
 
 # --- ▼ SECTION 01-1: 発送代行会社への貼り付け前チェック（発注管理画面）用の補正・判定 ▼ ---
@@ -417,7 +466,9 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
 
-    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["agent_serial_no", "buyer_key", "source", "created_at"]
+    listed_items_map = _load_listed_items_asin_map(user_id)
+
+    insert_cols = ["user_id"] + IMPORT_COLUMNS + ["agent_serial_no", "asin", "buyer_key", "source", "created_at"]
     col_list = ", ".join(insert_cols)
     placeholders = ", ".join(["%s"] * len(insert_cols))
 
@@ -430,7 +481,8 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
     imported = 0
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [row.get("agent_serial_no"), buyer_key, "sheet_import", now]
+        asin = _resolve_asin(row.get("sku"), listed_items_map)
+        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [row.get("agent_serial_no"), asin, buyer_key, "sheet_import", now]
         cur.execute(sql, values)
         imported += cur.rowcount
 
@@ -1017,10 +1069,14 @@ def list_orders_with_calc(user_id: int) -> list:
     # --- リピーター判定・返品セキュリティメモの反映（買い手＝住所キーで突き合わせ） ---
     buyer_history_counts = _load_buyer_history_counts(user_id)
     buyer_security_notes = _load_buyer_security_notes(user_id)
+    # ASINカウント：その商品が過去に何回売れたか（買い手履歴内の同一ASINの明細数）。
+    # 初売れ（0回）はキャンセル時に返品対応でAmazon仕入れが基本になるため、仕入先選定の目安にする。
+    asin_sold_counts = _load_asin_sold_counts(user_id)
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
         row["repeat_buyer_count"] = buyer_history_counts.get(buyer_key, 0) if buyer_key else 0
         row["security_notes"] = buyer_security_notes.get(buyer_key, []) if buyer_key else []
+        row["asin_sold_count"] = asin_sold_counts.get(row.get("asin"), 0) if row.get("asin") else 0
 
     return rows
 
@@ -1043,6 +1099,23 @@ def _load_buyer_history_counts(user_id: int) -> dict:
     rows = cur.fetchall()
     conn.close()
     return {r["buyer_key"]: r["cnt"] for r in rows}
+
+
+def _load_asin_sold_counts(user_id: int) -> dict:
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT asin, COUNT(*) AS cnt
+        FROM orbit_buyer_history
+        WHERE user_id = %s AND asin IS NOT NULL
+        GROUP BY asin
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return {r["asin"]: r["cnt"] for r in rows}
 
 
 def _load_buyer_security_notes(user_id: int) -> dict:
@@ -1318,8 +1391,9 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
         return 0
 
     now = datetime.utcnow().isoformat()
+    listed_items_map = _load_listed_items_asin_map(user_id)
 
-    buyer_history_insert_cols = ["user_id"] + _BUYER_HISTORY_ARCHIVE_COLUMNS + ["buyer_key", "source", "archived_at", "created_at"]
+    buyer_history_insert_cols = ["user_id"] + _BUYER_HISTORY_ARCHIVE_COLUMNS + ["asin", "buyer_key", "source", "archived_at", "created_at"]
     buyer_history_col_list = ", ".join(buyer_history_insert_cols)
     buyer_history_placeholders = ", ".join(["%s"] * len(buyer_history_insert_cols))
     buyer_history_sql = f"""
@@ -1339,7 +1413,8 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
 
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
-        buyer_history_values = [user_id] + [row.get(c) for c in _BUYER_HISTORY_ARCHIVE_COLUMNS] + [buyer_key, "archived", now, now]
+        asin = _resolve_asin(row.get("sku"), listed_items_map)
+        buyer_history_values = [user_id] + [row.get(c) for c in _BUYER_HISTORY_ARCHIVE_COLUMNS] + [asin, buyer_key, "archived", now, now]
         cur.execute(buyer_history_sql, buyer_history_values)
 
         procurement_values = [row.get(c) for c in _PROCUREMENT_HISTORY_COLUMNS] + [now]

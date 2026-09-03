@@ -444,6 +444,22 @@
 .orbit-page table td.orbit-profit-highlight {
   background-color: #e8f5e9 !important;
 }
+
+/* ASINの右の「過去の販売回数」。×N は控えめ、初売れ（0回）だけ赤で強調（仕入先選定の注意喚起） */
+.orbit-page .orbit-asin-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.85em;
+  color: #666;
+  white-space: nowrap;
+}
+.orbit-page .orbit-asin-count.is-zero {
+  background-color: #e53935;
+  color: #fff;
+  font-weight: bold;
+  border-radius: 3px;
+  padding: 0 5px;
+}
 </style>
 
 <div class="main-container orbit-page">

@@ -166,7 +166,8 @@ const DISPATCH_COLUMNS = [
     { key: "invoice_price_jpy", label: "インボイス価格(円)" },  // 販売額の97%。自動算定のみ
     { key: "points", label: "ポイント", editable: "number" },
     { key: "jan_code", label: "JAN", editable: "text" },
-    { key: "asin", label: "ASIN", copyClass: "asin-cell" },
+    // ASINの右に「過去の販売回数」を表示（0＝初売れは赤。キャンセル時の返品対応でAmazon仕入れが基本になるため仕入先選定の目安）
+    { key: "asin", label: "ASIN", copyClass: "asin-cell", asinCount: true },
 
     { key: "agent_thankyou_letter", label: "出荷に関する通知" },  // 依頼書J列。代行会社→セラーへの連絡内容（出荷前に対応が要ることがある）
     { key: "agent_option_content", label: "オプション内容" },
@@ -718,6 +719,16 @@ function dispCellInner(col, r) {
     if (col.estimateFlagKey || col.splitFlagKey) {
         const suffix = r[col.key] != null ? estimateSuffix(col, r) : "";
         return `${fmtValue(col, r[col.key])}${suffix}`;
+    }
+    if (col.asinCount) {
+        const asin = r.asin;
+        if (!asin) return "";
+        const link = `<span class="asin-cell" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${orbitEscapeHtml(asin)}</span>`;
+        const n = r.asin_sold_count || 0;
+        const badge = n === 0
+            ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（買い手履歴に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
+            : `<span class="orbit-asin-count" title="買い手履歴内の同一ASINの販売回数">×${n}</span>`;
+        return `${link} ${badge}`;
     }
     if (col.copyClass && !col.editable) {
         return `<span class="${col.copyClass}" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${fmtValue(col, r[col.key])}</span>`;
