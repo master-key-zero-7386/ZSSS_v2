@@ -30,6 +30,7 @@ from amazon.services.google_sheets_service import (
 )
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
+from utils.remote_area_parser import is_in_range
 
 # SKUに埋め込まれたASIN（10桁英数字）を抽出する。過去に複数の他社ツールを使ってきた経緯で
 # SKUの命名規則がツールごとに違うため、既知の接頭辞パターンを順に照合し、外れた場合のみ
@@ -228,7 +229,72 @@ OVERRIDE_FIELD_MAP = {
 }
 
 
-def _apply_dispatch_checks(row):
+# --- ▼ SECTION 01-1b: 遠隔地（DHL/FedEx キャリア別）郵便番号判定 ▼ ---
+# 発注管理の貼り付け前チェック用。遠隔地に該当すると代行会社側で追加料金が発生するため、
+# 発送代行へ出す前に気付けるようにする。判定データは「遠隔地郵便番号管理」タブで取り込んだ
+# carrier_remote_area_codes（DHL/FedEx × 国ごとの postal_from〜postal_to レンジ）を使う。
+# 行数分クエリを投げないよう、list_orders_with_calc の頭で国別レンジを1回だけ読む。
+_REMOTE_AREA_CARRIERS = ("DHL", "FEDEX")
+
+
+def _load_remote_area_ranges() -> dict:
+    """{(carrier, country_code): [(postal_from, postal_to), ...]} を丸ごと1クエリで組み立てる。"""
+    conn = get_conn("a_carrier_remote_area.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT carrier, country_code, postal_from, postal_to FROM carrier_remote_area_codes"
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    ranges: dict = {}
+    for r in rows:
+        key = ((r["carrier"] or "").strip().upper(), (r["country_code"] or "").strip().upper())
+        ranges.setdefault(key, []).append((r["postal_from"], r["postal_to"]))
+    return ranges
+
+
+# US の "90210-1234"（ZIP+4）のように Amazon 注文レポートに混じるハイフン付き拡張は、
+# マスタが5桁で登録されているためレンジ判定前に基本部分だけへ落とす。
+def _postal_for_remote_check(postal_code, country: str) -> str:
+    code = (postal_code or "").strip()
+    if country == "US" and "-" in code:
+        code = code.split("-", 1)[0].strip()
+    return code
+
+
+def _apply_remote_area_check(row, remote_area_ranges: dict):
+    # 該当時のみ画面で郵便番号セルを着色（案A）。remote_area_note はセルのホバー表示に使う。
+    row["flag_remote_area_dhl"] = False
+    row["flag_remote_area_fedex"] = False
+    row["remote_area_note"] = ""
+
+    country = (row.get("ship_country") or "").strip().upper()
+    postal = _postal_for_remote_check(row.get("ship_postal_code"), country)
+    if not postal or not country:
+        return
+
+    # その国のレンジが1件も取り込まれていなければ「判定不可」。着色はせず、ホバーでだけ知らせる。
+    if not any(c == country for _carrier, c in remote_area_ranges):
+        row["remote_area_note"] = f"遠隔地マスタ未登録（{country}）"
+        return
+
+    notes = []
+    for carrier in _REMOTE_AREA_CARRIERS:
+        matched = None
+        for postal_from, postal_to in remote_area_ranges.get((carrier, country), []):
+            if is_in_range(postal, postal_from, postal_to):
+                matched = (postal_from, postal_to)
+                break
+        label = "DHL" if carrier == "DHL" else "FedEx"
+        row["flag_remote_area_dhl" if carrier == "DHL" else "flag_remote_area_fedex"] = matched is not None
+        if matched:
+            notes.append(f"{label}遠隔地（{matched[0]}〜{matched[1]}）")
+
+    row["remote_area_note"] = " / ".join(notes) if notes else f"遠隔地対象外（{country}）"
+
+
+def _apply_dispatch_checks(row, remote_area_ranges=None):
     # 商品名・宛名・住所1〜3：自動修正は一切行わない。人が入力したoverrideがあればそれを表示・出力する。
     for base_field, override_field in OVERRIDE_FIELD_MAP.items():
         row[f"{base_field}_effective"] = _effective(row.get(base_field), row.get(override_field))
@@ -270,6 +336,9 @@ def _apply_dispatch_checks(row):
         and state_effective.isalpha()
     )
     row["flag_postal_code_missing"] = not row.get("ship_postal_code")
+
+    # 遠隔地（DHL/FedEx）：ship_country × ship_postal_code をキャリア別レンジに突き合わせる。
+    _apply_remote_area_check(row, remote_area_ranges or {})
 
 # --- ▼ SECTION 01: Amazon注文レポート列 → DB列 対応表 ▼ ---
 COLUMN_MAP = {
@@ -972,6 +1041,7 @@ def list_orders_with_calc(user_id: int) -> list:
     rate_cache = {}
     marketplace_country_map = _load_marketplace_country_map()
     pricing_rule_cache = {}
+    remote_area_ranges = _load_remote_area_ranges()
 
     for row in rows:
         row["billable_weight_kg"] = None
@@ -984,7 +1054,7 @@ def list_orders_with_calc(user_id: int) -> list:
         row["marketplace_id"] = _row_marketplace_id
         row["marketplace_country"] = marketplace_country_map.get(_row_marketplace_id)
 
-        _apply_dispatch_checks(row)
+        _apply_dispatch_checks(row, remote_area_ranges)
 
         # listed_itemsとの突き合わせが取れない場合は、SKUから直接ASINを抽出（表示用フォールバック）
         if not row.get("asin"):

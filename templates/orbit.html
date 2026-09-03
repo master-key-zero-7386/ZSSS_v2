@@ -261,6 +261,18 @@
   background: #fdecea; border: 1px solid #e53935; border-radius: 3px; padding: 0 4px;
 }
 .orbit-acc-field.orbit-issue-flag .orbit-acc-field-label { color: #c0392b; font-weight: bold; }
+
+/* 遠隔地（DHL/FedEx）該当時だけ郵便番号セルを着色（案A）。DHLのみ=橙／FedExのみ=赤／両方=濃赤。
+   非該当行は無着色のまま（情報量を増やさない）。詳しい該当レンジはセルのホバー(title)で表示。 */
+.orbit-acc-field.orbit-remote-area { border-radius: 3px; padding: 0 4px; }
+.orbit-acc-field.orbit-remote-area.is-dhl   { background: #fff3e0; border: 1px solid #fb8c00; }
+.orbit-acc-field.orbit-remote-area.is-fedex { background: #fdecea; border: 1px solid #e53935; }
+.orbit-acc-field.orbit-remote-area.is-both  { background: #fcd5ce; border: 1px solid #c62828; }
+.orbit-acc-field.orbit-remote-area .orbit-acc-field-label { color: #c0392b; font-weight: bold; }
+.orbit-remote-badge {
+  background: #c62828; color: #fff; font-weight: bold; font-size: 10px;
+  padding: 0 4px; border-radius: 3px; margin-left: 2px; vertical-align: middle;
+}
 .orbit-acc-field-label { font-size: 12px; color: #333a42; font-weight: bold; }
 .orbit-acc-field-value input.orbit-manual,
 .orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; font-size: 13px; }

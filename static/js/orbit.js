@@ -155,7 +155,7 @@ const DISPATCH_COLUMNS = [
     { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", mid: true },
     { key: "ship_address_3_effective", label: "住所3", checkFlagKey: "flag_address3_length", editable: "text", saveField: "ship_address_3_override", mid: true },
     { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override" },
-    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing" },
+    { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing", remoteAreaCell: true },
 
     { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
     { key: "supplier_order_number", label: "仕入注文番号", editable: "text" },
@@ -656,9 +656,21 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 // 1注文＝主行1行（±で展開）＋ 隠し詳細行（段組み）。横に伸びない。
 // セルの見た目ロジックは renderTableRows と重複するが、詳細部は <td> ではなく label+value の
 // インライン要素で描くため専用に持つ（他タブのレンダラには影響させない）。
+// 遠隔地（DHL/FedEx）該当時だけ郵便番号セルを着色（案A）。非該当は無着色でクラッターを増やさない。
+// DHLのみ＝橙 / FedExのみ＝赤 / 両方＝濃赤。ホバーで該当レンジ（remote_area_note）を表示。
+function remoteAreaCellClass(r) {
+    const dhl = !!r.flag_remote_area_dhl;
+    const fedex = !!r.flag_remote_area_fedex;
+    if (dhl && fedex) return " orbit-remote-area is-both";
+    if (fedex) return " orbit-remote-area is-fedex";
+    if (dhl) return " orbit-remote-area is-dhl";
+    return "";
+}
+
 function dispCellClass(col, r) {
     let c = col.deadline ? `orbit-deadline-col ${getDeadlineColorClass(r[col.key])}`.trim() : "";
     if (col.checkFlagKey && r[col.checkFlagKey]) c += " orbit-issue-flag";
+    if (col.remoteAreaCell) c += remoteAreaCellClass(r);
     if (col.highlight) c += " orbit-check-highlight";
     if (col.profitHighlight) c += " orbit-profit-highlight";
     if (col.redUntilShipped && r[col.key] && !r.shipped_completed) c += " orbit-text-red";
@@ -750,6 +762,14 @@ function dispCellInner(col, r) {
         const phVal = (!value && col.placeholderKey) ? (r[col.placeholderKey] || "") : "";
         const phAttr = phVal ? ` placeholder="${orbitEscapeHtml(phVal)}"` : "";
         return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value || phVal}">`;
+    }
+    if (col.remoteAreaCell) {
+        const val = fmtValue(col, r[col.key]);
+        const note = r.remote_area_note || "";
+        const badge = (r.flag_remote_area_dhl || r.flag_remote_area_fedex)
+            ? ` <span class="orbit-remote-badge" title="${orbitEscapeHtml(note)}">遠隔</span>`
+            : "";
+        return note ? `<span title="${orbitEscapeHtml(note)}">${val}</span>${badge}` : `${val}${badge}`;
     }
     return fmtValue(col, r[col.displayKey] ?? r[col.key]);
 }
