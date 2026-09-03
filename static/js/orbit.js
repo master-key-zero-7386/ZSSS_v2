@@ -204,7 +204,7 @@ const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 
 // 主行に出す列（左から順）。「これ主行に上げて」「順番入れ替え」はこの配列を編集するだけ。
 const DISPATCH_PRIMARY_KEYS = [
-    "agent_serial_no", "order_id", "promise_date",
+    "agent_serial_no", "asin", "order_id", "promise_date",
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
@@ -224,7 +224,7 @@ const DISPATCH_DETAIL_SECTIONS = [
         "ship_state_effective", "ship_postal_code",
     ] },
     { key: "proc", label: "仕入れ情報", keys: [
-        "asin", "jan_code",
+        "jan_code",  // asin は主行(DISPATCH_PRIMARY_KEYS)の order_id 左へ移動
         "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
         "procurement_date", "request_date", "arrival_date",
         "purchase_price", "invoice_price_jpy", "points",
