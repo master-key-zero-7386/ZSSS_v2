@@ -416,27 +416,200 @@ NUMERIC_TEXT_EXPORT_COLUMNS = {
 # 代行会社向けに必要な列の取捨選択・並べ替えを決めるための当面のレビュー用。列は
 #   ① orbit_orders のうち EXPORT_COLUMNS に無いDB列（スキーマ順、id/user_id 除く）
 #   ② list_orders_with_calc が計算で足す派生キー（入金予定額・実利益・各フラグ等。初出順）
+#   ③ _RAW_SHEET_APPEND_COLUMNS（後から足したDB列。②より後ろ＝最右端に固定）
 # の順で、実際の行データから動的に組み立てる（列の取りこぼしを防ぐため）。
+#
+# ★ シート側で VLOOKUP して正規シートへ転記しているため、既存列の位置は絶対に動かさない。
+#    新しい列は必ず _RAW_SHEET_APPEND_COLUMNS に足して最右端へ回すこと（スキーマ途中に
+#    列を増やすと ② 以降が丸ごと1列ずれ、貼り直されない行（出荷通知済み等）とヘッダーが
+#    食い違う）。
+_RAW_SHEET_APPEND_COLUMNS = [
+    "procurement_credit_card",   # 仕入れ利用クレカ（2026-09 追加）
+]
+
 _RAW_SHEET_EXTRA_COLUMNS = [
     c for c in ORBIT_ORDERS_COLUMNS
-    if c not in set(EXPORT_COLUMNS) and c not in ("id", "user_id")
+    if c not in set(EXPORT_COLUMNS)
+    and c not in ("id", "user_id")
+    and c not in set(_RAW_SHEET_APPEND_COLUMNS)
 ]
 
 
 def _raw_sheet_columns_for(orders) -> list:
-    """EXPORT_COLUMNS → 未出力DB列 → 計算派生キー の順に、実データのキーを全部拾って列順を作る。"""
+    """EXPORT_COLUMNS → 未出力DB列 → 計算派生キー → 後付けDB列(最右端) の順に列を組む。"""
     cols = list(EXPORT_COLUMNS)
     seen = set(cols) | {"id", "user_id"}
     for c in _RAW_SHEET_EXTRA_COLUMNS:
         if c not in seen:
             cols.append(c)
             seen.add(c)
+    # 後付けDB列は最右端へ回すので、行データ走査では拾わないよう先に seen に入れておく
+    seen |= set(_RAW_SHEET_APPEND_COLUMNS)
     for r in orders:
         for k in r.keys():
             if k not in seen:
                 cols.append(k)
                 seen.add(k)
+    cols.extend(_RAW_SHEET_APPEND_COLUMNS)
     return cols
+
+
+# ZSSS_RAW のヘッダーは英語キーだけだと何の値か分かりにくいので、日本語ラベルを前置して
+# 「日本語ラベル ／ 英語キー」の形で1セルに出す（見出し行は1行のまま。VLOOKUP は列番号指定
+# なのでラベル文字を変えても数式に影響しない）。未定義のキーは英語キーだけを出す。
+_RAW_SHEET_HEADER_LABELS = {
+    "agent_serial_no": "N番",
+    "request_date": "依頼日",
+    "jan_code": "JAN",
+    "shipping_type": "発送種別",
+    "quantity_purchased": "数量",
+    "tracking_number": "追跡番号(発送)",
+    "invoice_price_jpy": "インボイス価格(円)",
+    "remarks": "備考(1+2+3連結)",
+    "asin": "ASIN",
+    "length_cm": "長さ(cm)",
+    "width_cm": "幅(cm)",
+    "height_cm": "高さ(cm)",
+    "billable_weight_kg": "請求重量(kg)",
+    "predicted_shipping_fee": "予測送料(円)",
+    "notified_at": "代行通知日時",
+    "order_id": "注文番号",
+    "order_item_id": "注文明細ID",
+    "purchase_date": "注文日",
+    "payments_date": "支払処理日",
+    "reporting_date": "レポート日",
+    "promise_date": "出荷期日",
+    "days_past_promise": "期日超過日数",
+    "buyer_email": "購入者メール",
+    "buyer_name": "購入者名",
+    "buyer_phone_number": "購入者電話番号",
+    "sku": "SKU",
+    "product_name": "商品名",
+    "quantity_shipped": "数量(出荷済)",
+    "quantity_to_ship": "数量(未出荷)",
+    "ship_service_level": "配送サービスレベル",
+    "recipient_name": "宛名",
+    "ship_address_1": "住所1",
+    "ship_address_2": "住所2",
+    "ship_address_3": "住所3",
+    "ship_city": "市区町村",
+    "ship_state": "州",
+    "ship_postal_code": "郵便番号",
+    "ship_country": "国",
+    "is_business_order": "法人注文か",
+    "purchase_order_number": "発注番号(購入者)",
+    "price_designation": "価格区分",
+    "is_transparency": "Transparency対象か",
+    "verge_of_cancellation": "キャンセル間近",
+    "verge_of_late_shipment": "出荷遅延間近",
+    "signature_confirmation_recommended": "署名確認推奨",
+    "buyer_identification_number": "購入者識別番号",
+    "buyer_identification_type": "購入者識別種別",
+    "order_currency": "注文通貨",
+    "item_price": "商品価格(現地)",
+    "shipping_price": "送料(購入者負担)",
+    "buyer_phone_number_effective": "電話番号(補正後)",
+    "buyer_phone_extension_effective": "内線(補正後)",
+    "agent_shipping_weight_kg": "代行用 想定重量(kg)",
+    "agent_length_cm": "代行用 長さ(cm)",
+    "agent_width_cm": "代行用 幅(cm)",
+    "agent_height_cm": "代行用 高さ(cm)",
+    "purchase_price": "仕入価格(円)",
+    "fee_estimate_amount": "手数料見積り額",
+    "fee_estimate_currency": "手数料見積り通貨",
+    "fee_estimate_fetched_at": "手数料見積り取得日時",
+    "product_name_override": "商品名(手修正)",
+    "recipient_name_override": "宛名(手修正)",
+    "ship_address_1_override": "住所1(手修正)",
+    "ship_address_2_override": "住所2(手修正)",
+    "ship_address_3_override": "住所3(手修正)",
+    "buyer_phone_number_override": "電話番号(手修正)",
+    "buyer_phone_extension_override": "内線(手修正)",
+    "ship_state_override": "州(手修正)",
+    "manual_length_cm": "長さ(手入力cm)",
+    "manual_width_cm": "幅(手入力cm)",
+    "manual_height_cm": "高さ(手入力cm)",
+    "manual_weight_kg": "重量(手入力kg)",
+    "remarks_2": "備考2(仕入追跡)",
+    "remarks_3": "備考3(GST/税番号)",
+    "supplier": "仕入先",
+    "supplier_order_number": "仕入注文番号",
+    "supplier_shop_name": "ショップ名",
+    "procurement_date": "仕入日",
+    "arrival_date": "到着予定日",
+    "shipped_completed": "出荷完了フラグ",
+    "invoice_saved": "領収書保存済",
+    "points": "獲得ポイント",
+    "purchased": "仕入確認フラグ",
+    "agent_tracking_number": "代行 トラッキング番号",
+    "agent_thankyou_letter": "代行 出荷に関する通知",
+    "agent_option_content": "代行 オプション内容",
+    "agent_option_fee": "代行 オプション料計",
+    "agent_non_deliverable_weight": "代行 配送不可重量",
+    "agent_shipping_weight": "代行 発送重量",
+    "agent_weight_recorded_date": "代行 発送重量記入日",
+    "agent_confirmed_weight": "代行 確定重量",
+    "agent_deadline": "代行 期限",
+    "agent_status": "代行 状況",
+    "agent_shipping_fee": "代行 送料",
+    "agent_shipping_fee_total": "代行 送料合計",
+    "agent_delivery_area": "代行 配送エリア",
+    "agent_synced_at": "代行 最終取込日時",
+    "created_at": "作成日時",
+    "updated_at": "更新日時",
+    "ship_notified": "出荷通知済",
+    "actual_weight_kg": "実重量(kg)",
+    "override_weight_class": "重量区分(上書き)",
+    "dims_source": "寸法の取得元",
+    "marketplace_id": "マーケットプレイスID",
+    "marketplace_country": "販売マーケット国",
+    "product_name_effective": "商品名(表示用)",
+    "recipient_name_effective": "宛名(表示用)",
+    "ship_address_1_effective": "住所1(表示用)",
+    "ship_address_2_effective": "住所2(表示用)",
+    "ship_address_3_effective": "住所3(表示用)",
+    "ship_state_effective": "州(表示用)",
+    "tax_registration_note": "税番号(自動導出)",
+    "remarks_3_effective": "備考3(表示用)",
+    "flag_phone_country_code": "警告:電話に国番号",
+    "flag_product_name": "警告:商品名(70字/｜)",
+    "flag_recipient_name": "警告:宛名フルネーム",
+    "flag_address1_length": "警告:住所1が40字超",
+    "flag_address2_length": "警告:住所2が40字超",
+    "flag_address3_length": "警告:住所3が40字超",
+    "flag_state_expanded": "警告:州の正式表記化",
+    "flag_postal_code_missing": "警告:郵便番号なし",
+    "flag_remote_area_dhl": "遠隔地(DHL)該当",
+    "flag_remote_area_fedex": "遠隔地(FedEx)該当",
+    "remote_area_note": "遠隔地 判定メモ",
+    "net_proceeds": "入金額(決済実績)",
+    "sale_price": "販売額(決済実績)",
+    "fees_total": "手数料合計(決済実績)",
+    "settlement_currency": "決済通貨",
+    "deposit_date": "入金日",
+    "settlement_is_split": "決済が分割",
+    "shipping_cost_used": "送料(円・採用値)",
+    "shipping_cost_is_estimate": "送料が概算",
+    "net_proceeds_used": "入金額(現地・採用値)",
+    "net_proceeds_used_currency": "入金額 通貨",
+    "net_proceeds_used_jpy": "入金額(円)",
+    "net_proceeds_is_estimate": "入金額が概算",
+    "profit_jpy": "利益(円)",
+    "profit_is_estimate": "利益が概算",
+    "profit_rate_pct": "利益率(%)",
+    "sale_price_used": "販売額(現地・採用値)",
+    "sale_price_used_currency": "販売額 通貨",
+    "sale_price_used_jpy": "販売額(円)",
+    "repeat_buyer_count": "リピート購入回数",
+    "security_notes": "セキュリティメモ(JSON)",
+    "asin_sold_count": "同ASIN販売回数",
+    "procurement_credit_card": "利用クレカ",
+}
+
+
+def _raw_header_label(col: str) -> str:
+    jp = _RAW_SHEET_HEADER_LABELS.get(col)
+    return f"{jp} ／ {col}" if jp else col
 
 
 # --- ▼ SECTION 02: CSV/TSV解析（Amazon注文レポート形式） ▼ ---
@@ -1902,7 +2075,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
 
     updates = []   # batch_update_sheet_values 用: [{"range": ..., "values": [row]}]
     appends = []   # 末尾追加ぶんの行データ
-    header = list(columns)
+    header = [_raw_header_label(c) for c in columns]   # 「日本語ラベル ／ 英語キー」
     if not existing:
         header_row, next_row = 1, 2
     else:
