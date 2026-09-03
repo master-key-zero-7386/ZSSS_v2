@@ -493,6 +493,24 @@
   border-radius: 3px;
   padding: 0 5px;
 }
+
+/* 到着予定日が休業日（土日祝＋発送代行の長期休業）＝入力欄をグレー背景＋赤太字。
+   商品が休業日に到着すると受け取りができないため、選択した時点で気づけるようにする。 */
+.orbit-page input.orbit-date-holiday {
+  background-color: #d9d9d9 !important;
+  color: #dc3545 !important;
+  font-weight: bold;
+}
+
+/* 出荷期日が休業日＝日付の右に「祝」マーク（赤）。残り日数の背景色はそのまま残す。 */
+.orbit-page .orbit-holiday-mark {
+  display: inline-block;
+  margin-left: 4px;
+  color: #dc3545;
+  font-weight: bold;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
 </style>
 
 <div class="main-container orbit-page">
@@ -504,6 +522,7 @@
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入れ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">買い手履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
   </div>
 
   <div id="orbit-pane-orders" class="st-subtab-pane active">
@@ -757,6 +776,68 @@
               <th style="width:170px;">締め日</th>
               <th style="width:190px;">支払日</th>
               <th style="width:90px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-holidays" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          発送代行会社の休業日を管理します。<strong>土日</strong>と<strong>日本の祝日</strong>（内閣府データを毎日自動取得）は自動で休業日扱いになります。<br>
+          夏季休暇・年末年始などの<strong>長期休業</strong>はここで期間を登録してください。<br>
+          発注管理・仕入れ管理タブで、<strong>到着予定日</strong>が休業日なら入力欄がグレー＋赤太字に、<strong>出荷期日</strong>が休業日なら日付の右に <span class="orbit-holiday-mark">祝</span> が付きます。
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap; align-items:flex-end;">
+          <label style="display:flex; flex-direction:column; font-size:12px; color:#555;">開始日
+              <input type="date" id="orbit-closure-new-start" class="file-input-text" style="width:170px;">
+          </label>
+          <label style="display:flex; flex-direction:column; font-size:12px; color:#555;">終了日（単日なら開始日と同じ）
+              <input type="date" id="orbit-closure-new-end" class="file-input-text" style="width:170px;">
+          </label>
+          <label style="display:flex; flex-direction:column; font-size:12px; color:#555;">ラベル
+              <input type="text" id="orbit-closure-new-label" class="file-input-text" list="orbit-dl-closure-label" placeholder="例: 夏季休暇" style="width:200px;">
+          </label>
+          <button type="button" id="orbit-closure-add-btn" class="btn-blue">追加</button>
+      </div>
+      <datalist id="orbit-dl-closure-label">
+          <option value="夏季休暇"></option><option value="年末年始"></option>
+          <option value="GW"></option><option value="臨時休業"></option>
+      </datalist>
+
+      <div class="table-wrapper" id="orbit-closures-table-wrapper">
+        <table id="orbit-closures-table">
+          <thead>
+            <tr>
+              <th style="width:150px;">開始日</th>
+              <th style="width:150px;">終了日</th>
+              <th style="width:200px;">ラベル</th>
+              <th style="width:90px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="master-description" style="margin-top:18px;">
+          取り込み済みの日本の祝日（直近・今後分）
+      </div>
+      <div class="table-wrapper" id="orbit-jp-holidays-table-wrapper" style="max-height:320px; overflow-y:auto;">
+        <table id="orbit-jp-holidays-table">
+          <thead>
+            <tr>
+              <th style="width:150px;">日付</th>
+              <th style="width:120px;">曜日</th>
+              <th>祝日名</th>
             </tr>
           </thead>
           <tbody>

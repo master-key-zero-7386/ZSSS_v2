@@ -31,6 +31,10 @@ from amazon.services.orbit_order_service import (
     add_credit_card,
     update_credit_card,
     delete_credit_card,
+    list_jp_holidays,
+    list_agent_closures,
+    add_agent_closure,
+    delete_agent_closure,
     MANUAL_FIELDS,
     NUMERIC_MANUAL_FIELDS,
 )
@@ -262,6 +266,55 @@ def delete_credit_card_route():
     if not card_id:
         return jsonify({"status": "error", "message": "idが必要です"}), 400
     delete_credit_card(user_id, card_id)
+    return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 02-4: 休日設定（日本の祝日 ＋ 発送代行会社の長期休業） ▼ ---
+# フロント（orbit.js）が到着予定日・出荷期日の休業日色付けに使う。
+@orbit_bp.route("/holidays", methods=["GET"])
+def list_holidays_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    # 過去分まで返しても意味が薄いので、少し前（前年頭）以降だけ渡す
+    from datetime import date
+    from_date = f"{date.today().year - 1}-01-01"
+
+    return jsonify({
+        "status": "success",
+        "jp_holidays": list_jp_holidays(from_date),
+        "closures": list_agent_closures(user_id),
+    })
+
+
+@orbit_bp.route("/agent_closures/insert", methods=["POST"])
+def insert_agent_closure_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    data = request.get_json(silent=True) or {}
+    start_date = (data.get("start_date") or "").strip()
+    end_date = (data.get("end_date") or "").strip()
+    if not start_date:
+        return jsonify({"status": "error", "message": "開始日を入力してください"}), 400
+    try:
+        new_id = add_agent_closure(user_id, start_date, end_date, data.get("label") or "")
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    return jsonify({"status": "success", "id": new_id})
+
+
+@orbit_bp.route("/agent_closures/delete", methods=["POST"])
+def delete_agent_closure_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+    data = request.get_json(silent=True) or {}
+    closure_id = data.get("id")
+    if not closure_id:
+        return jsonify({"status": "error", "message": "idが必要です"}), 400
+    delete_agent_closure(user_id, closure_id)
     return jsonify({"status": "success"})
 
 

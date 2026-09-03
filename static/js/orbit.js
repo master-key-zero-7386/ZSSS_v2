@@ -65,7 +65,7 @@ const ORBIT_COLUMNS = [
     { key: "purchase_date", label: "purchase-date", dateOnly: true },
     { key: "payments_date", label: "payments-date", dateOnly: true },
     { key: "reporting_date", label: "reporting-date", dateOnly: true },
-    { key: "promise_date", label: "promise-date", dateOnly: true },
+    { key: "promise_date", label: "promise-date", dateOnly: true, holidayMark: true },
     { key: "days_past_promise", label: "days-past-promise" },
     { key: "buyer_email", label: "buyer-email" },
     { key: "buyer_name", label: "buyer-name" },
@@ -131,7 +131,7 @@ const CREDIT_CARD_OPTIONS = ["-"];
 const DISPATCH_COLUMNS = [
     { key: "agent_serial_no", label: "N番", highlight: true },  // 受注一覧タブで採番
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell", marketColor: true },  // クリックでコピー＋マーケット色
-    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
+    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true, holidayMark: true },
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "security_badge", label: "要注意", securityBadge: true },
     { key: "security_note_add", label: "📝", securityNoteButton: true },
@@ -168,7 +168,7 @@ const DISPATCH_COLUMNS = [
     { key: "supplier_link", label: "リンク", computed: true },
     { key: "procurement_date", label: "仕入日", editable: "date" },
     { key: "request_date", label: "依頼日" },  // 仕入日を入れると自動反映
-    { key: "arrival_date", label: "到着予定", editable: "date" },
+    { key: "arrival_date", label: "到着予定", editable: "date", holidayInput: true },
     { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
     { key: "invoice_price_jpy", label: "インボイス価格(円)" },  // 販売額の97%。自動算定のみ
     { key: "points", label: "ポイント", editable: "number" },
@@ -265,9 +265,9 @@ const PROCUREMENT_COLUMNS = [
     { key: "agent_serial_no", label: "N番号", highlight: true },  // 発注管理タブで入力（読取専用）
     { key: "asin", label: "ASIN", copyClass: "asin-cell", highlight: true },
     { key: "procurement_date", label: "仕入日", editable: "date", highlight: true },
-    { key: "arrival_date", label: "到着予定日", editable: "date", highlight: true },
+    { key: "arrival_date", label: "到着予定日", editable: "date", highlight: true, holidayInput: true },
 
-    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true },
+    { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true, holidayMark: true },
     { key: "purchase_date", label: "注文日", dateOnly: true },
 
     // --- 発注管理で代行会社シートを取り込むと入る項目（出荷に必要な情報を1画面で確認できるようここにも表示） ---
@@ -400,6 +400,51 @@ function getDeadlineColorClass(promiseDate) {
     if (diffDays === 1) return "orbit-deadline-orange";
     if (diffDays === 2 || diffDays === 3) return "orbit-deadline-blue";
     return "";
+}
+
+// --- ▼ SECTION 00-3b: 休業日（発送代行会社の休日）判定 ▼ ---
+// 内閣府の祝日(jp_holidays)＋手動登録の長期休業(orbit_agent_closures)＋土日を「休業日」とみなす。
+// 商品が休業日に到着すると受け取れない／祝日は出荷できないため、到着予定日・出荷期日に色付けして
+// 出荷期限の前倒し依頼に気づけるようにする。データは initOrbit 内の loadHolidays() で取得。
+const HOLIDAY_STATE = {
+    jpHolidays: new Map(),   // "YYYY-MM-DD" -> 祝日名
+    closures: [],            // [{ start_date, end_date, label }]
+};
+
+// "YYYY/MM/DD" も "YYYY-MM-DD" も、時刻付きも受けて "YYYY-MM-DD" に正規化（不正なら""）
+function orbitHolidayKey(dateStr) {
+    if (!dateStr) return "";
+    const s = String(dateStr).trim().slice(0, 10).replace(/\//g, "-");
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+}
+
+// 休業日判定。戻り値 { nonWorking: bool, reason: 表示用の理由文 }
+function orbitHolidayInfo(dateStr) {
+    const key = orbitHolidayKey(dateStr);
+    if (!key) return { nonWorking: false, reason: "" };
+
+    const jpName = HOLIDAY_STATE.jpHolidays.get(key);
+    if (jpName) return { nonWorking: true, reason: `祝日（${jpName}）` };
+
+    for (const c of HOLIDAY_STATE.closures) {
+        if (key >= c.start_date && key <= c.end_date) {
+            return { nonWorking: true, reason: c.label ? `休業（${c.label}）` : "休業" };
+        }
+    }
+
+    // 土日（ローカルタイムのずれを避けるため正午でパース）
+    const dow = new Date(`${key}T12:00:00`).getDay();
+    if (dow === 0) return { nonWorking: true, reason: "日曜" };
+    if (dow === 6) return { nonWorking: true, reason: "土曜" };
+
+    return { nonWorking: false, reason: "" };
+}
+
+// 出荷期日など「表示専用の日付セル」用：休業日なら日付の右に付ける「祝」マーク
+function orbitHolidayMark(dateStr) {
+    const info = orbitHolidayInfo(dateStr);
+    if (!info.nonWorking) return "";
+    return ` <span class="orbit-holiday-mark" title="${orbitEscapeHtml(info.reason)}">祝</span>`;
 }
 
 // order-idの先頭桁でマーケットプレイスを判定して色分け（旧スプレッドシートと同じ基準）。
@@ -644,15 +689,20 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.editable) {
                 const raw = r[col.key] ?? "";
                 const value = col.editable === "date" ? orbitDateToISO(raw) : raw;
-                const inputClass = col.wide ? "orbit-manual orbit-manual-wide"
+                let inputClass = col.wide ? "orbit-manual orbit-manual-wide"
                     : col.mid ? "orbit-manual orbit-manual-mid"
                     : "orbit-manual";
                 const phVal = (!value && col.placeholderKey) ? (r[col.placeholderKey] || "") : "";
                 const phAttr = phVal ? ` placeholder="${orbitEscapeHtml(phVal)}"` : "";
-                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}"${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value || phVal}"></td>`;
+                // 到着予定日が休業日（土日祝＋長期休業）なら入力欄をグレー＋赤太字にする
+                const hol = col.holidayInput ? orbitHolidayInfo(value) : null;
+                if (hol && hol.nonWorking) inputClass += " orbit-date-holiday";
+                const titleTxt = (hol && hol.nonWorking) ? hol.reason : (value || phVal);
+                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}"${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${orbitEscapeHtml(titleTxt)}"></td>`;
             }
 
-            return `<td class="${cellClass}">${fmtValue(col, r[col.displayKey] ?? r[col.key])}</td>`;
+            const holMark = col.holidayMark ? orbitHolidayMark(r[col.key]) : "";
+            return `<td class="${cellClass}">${fmtValue(col, r[col.displayKey] ?? r[col.key])}${holMark}</td>`;
         }).join("");
 
         tbody.appendChild(tr);
@@ -764,11 +814,15 @@ function dispCellInner(col, r) {
     if (col.editable) {
         const raw = r[col.key] ?? "";
         const value = col.editable === "date" ? orbitDateToISO(raw) : raw;
-        const cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
+        let cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
         const listAttr = col.datalist ? ` list="${col.datalist}"` : "";
         const phVal = (!value && col.placeholderKey) ? (r[col.placeholderKey] || "") : "";
         const phAttr = phVal ? ` placeholder="${orbitEscapeHtml(phVal)}"` : "";
-        return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value || phVal}">`;
+        // 到着予定日が休業日（土日祝＋長期休業）なら入力欄をグレー＋赤太字にする
+        const hol = col.holidayInput ? orbitHolidayInfo(value) : null;
+        if (hol && hol.nonWorking) cls += " orbit-date-holiday";
+        const titleTxt = (hol && hol.nonWorking) ? hol.reason : (value || phVal);
+        return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${orbitEscapeHtml(titleTxt)}">`;
     }
     if (col.remoteAreaCell) {
         const val = fmtValue(col, r[col.key]);
@@ -781,7 +835,8 @@ function dispCellInner(col, r) {
             : "";
         return note ? `<span title="${orbitEscapeHtml(note)}">${val}</span>${badge}` : `${val}${badge}`;
     }
-    return fmtValue(col, r[col.displayKey] ?? r[col.key]);
+    const holMark = col.holidayMark ? orbitHolidayMark(r[col.key]) : "";
+    return `${fmtValue(col, r[col.displayKey] ?? r[col.key])}${holMark}`;
 }
 
 function orbitEscapeHtml(s) {
@@ -944,6 +999,13 @@ function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
                     window.showToast?.("連番の設定に失敗しました", "error");
                 });
             return;
+        }
+
+        // 到着予定日：選択した時点で休業日なら入力欄を即グレー＋赤太字に（サーバー再取得を待たない）
+        if (target.type === "date" && field === "arrival_date") {
+            const info = orbitHolidayInfo(target.value);
+            target.classList.toggle("orbit-date-holiday", info.nonWorking);
+            target.title = info.nonWorking ? info.reason : (target.value || "");
         }
 
         // date欄はブラウザ内部値がISO。DB・CSV・シートは従来どおり "YYYY/MM/DD" で保存する。
@@ -2121,6 +2183,122 @@ window.initOrbit = function () {
             .catch(err => { console.error("credit_cards delete error:", err); window.showToast?.("削除に失敗しました", "error"); });
     });
 
+    // --- ▼ SECTION 06: 休日設定（発送代行会社の休業日：日本の祝日＋長期休業） ▼ ---
+    const closuresTbody = document.getElementById("orbit-closures-table")?.querySelector("tbody");
+    const jpHolidaysTbody = document.getElementById("orbit-jp-holidays-table")?.querySelector("tbody");
+    const closureNewStart = document.getElementById("orbit-closure-new-start");
+    const closureNewEnd = document.getElementById("orbit-closure-new-end");
+    const closureNewLabel = document.getElementById("orbit-closure-new-label");
+    const closureAddBtn = document.getElementById("orbit-closure-add-btn");
+
+    const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+    function weekdayJp(isoDate) {
+        const d = new Date(`${isoDate}T12:00:00`);
+        return isNaN(d) ? "" : `${WEEKDAY_JP[d.getDay()]}曜`;
+    }
+
+    function renderClosuresTable() {
+        if (!closuresTbody) return;
+        const rows = HOLIDAY_STATE.closures;
+        if (!rows.length) {
+            closuresTbody.innerHTML = `<tr><td colspan="4" style="color:#888;">長期休業は未登録です。夏季休暇・年末年始などがあれば上のフォームから追加してください。</td></tr>`;
+            return;
+        }
+        closuresTbody.innerHTML = rows.map(c => `
+            <tr data-id="${c.id}">
+                <td>${orbitEscapeHtml(c.start_date || "")}</td>
+                <td>${orbitEscapeHtml(c.end_date || "")}</td>
+                <td>${orbitEscapeHtml(c.label || "")}</td>
+                <td><button type="button" class="orbit-closure-delete-btn btn-red" data-id="${c.id}">削除</button></td>
+            </tr>`).join("");
+    }
+
+    function renderJpHolidaysTable() {
+        if (!jpHolidaysTbody) return;
+        const todayKey = new Date().toISOString().slice(0, 10);
+        // 直近（今日の30日前）以降だけ一覧に出す。全期間は多すぎて実用にならない。
+        const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const rows = [...HOLIDAY_STATE.jpHolidays.entries()]
+            .filter(([d]) => d >= cutoff)
+            .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+        if (!rows.length) {
+            jpHolidaysTbody.innerHTML = `<tr><td colspan="3" style="color:#888;">祝日データはまだ取得されていません（起動直後は数十秒お待ちください）。</td></tr>`;
+            return;
+        }
+        jpHolidaysTbody.innerHTML = rows.map(([d, name]) => {
+            const isPast = d < todayKey;
+            const style = isPast ? ' style="color:#999;"' : "";
+            return `<tr${style}><td>${orbitEscapeHtml(d)}</td><td>${weekdayJp(d)}</td><td>${orbitEscapeHtml(name)}</td></tr>`;
+        }).join("");
+    }
+
+    function loadHolidays() {
+        return fetch("/orbit/holidays")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") return;
+                HOLIDAY_STATE.jpHolidays = new Map((data.jp_holidays || []).map(h => [h.date, h.name]));
+                HOLIDAY_STATE.closures = data.closures || [];
+                renderClosuresTable();
+                renderJpHolidaysTable();
+                // 祝日データは注文一覧より後に届くことがある。既に描画済みなら、
+                // 到着予定日のグレー＋赤太字／出荷期日の「祝」マークを反映するため描き直す。
+                if (ordersRowsCache.length) renderOrdersTable();
+                if (dispatchRowsCache.length) renderDispatchTable();
+                if (procTbody && ordersRowsCache.length) {
+                    renderPreservingScroll(
+                        procTbody, PROCUREMENT_COLUMNS,
+                        sortRowsByKey(ordersRowsCache, "agent_serial_no", "asc"),
+                        { grayShipped: true },
+                    );
+                }
+            })
+            .catch(err => console.error("holidays load error:", err));
+    }
+
+    closureAddBtn?.addEventListener("click", () => {
+        const start = (closureNewStart?.value || "").trim();
+        const end = (closureNewEnd?.value || "").trim() || start;
+        if (!start) { window.showToast?.("開始日を入力してください", "error"); return; }
+        fetch("/orbit/agent_closures/insert", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ start_date: start, end_date: end, label: closureNewLabel?.value || "" }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    if (closureNewStart) closureNewStart.value = "";
+                    if (closureNewEnd) closureNewEnd.value = "";
+                    if (closureNewLabel) closureNewLabel.value = "";
+                    loadHolidays();  // 休業日リスト更新＋注文テーブルの色付けを描き直す
+                } else {
+                    window.showToast?.(data.message || "追加に失敗しました", "error");
+                }
+            })
+            .catch(err => { console.error("agent_closures insert error:", err); window.showToast?.("追加に失敗しました", "error"); });
+    });
+
+    closuresTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-closure-delete-btn");
+        if (!btn) return;
+        if (!confirm("この休業期間を削除しますか？")) return;
+        fetch("/orbit/agent_closures/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: Number(btn.dataset.id) }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") { loadHolidays(); }
+                else { window.showToast?.(data.message || "削除に失敗しました", "error"); }
+            })
+            .catch(err => { console.error("agent_closures delete error:", err); window.showToast?.("削除に失敗しました", "error"); });
+    });
+
+    // 祝日データと注文一覧は並行取得。どちらが先でも loadHolidays 側が届いた時点で
+    // 注文テーブルを描き直すので、到着予定・出荷期日の色付けは初回表示から反映される。
+    loadHolidays();
     loadOrders();
     loadBuyerHistory();
     loadSecurityNotes();

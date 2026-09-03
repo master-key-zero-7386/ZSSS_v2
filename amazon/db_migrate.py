@@ -202,6 +202,26 @@ FX_RATES_COLUMNS = {
     "updated_at": "TEXT"
 }
 
+# --- ▼ SECTION : jp_holidays（日本の祝日。内閣府CSVをバックグラウンドで日次取得してUPSERT） ---
+#     元データ: https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv （Shift_JIS）。
+#     ORBITの到着予定日・出荷期日が休業日（土日祝＋長期休業）に当たるかの判定に使う。
+JP_HOLIDAYS_COLUMNS = {
+    "holiday_date": "TEXT PRIMARY KEY",   # "YYYY-MM-DD"
+    "name": "TEXT",                        # 祝日名（例: 元日）
+    "updated_at": "TEXT",                  # このループでの最終取得日時（ISO）
+}
+
+# --- ▼ SECTION : orbit_agent_closures（発送代行会社の長期休業。夏季休暇・年末年始など手動登録） ---
+#     期間（start_date〜end_date）で登録。ORBITの休業日判定で土日祝と同じ扱いにする。
+ORBIT_AGENT_CLOSURES_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "start_date": "TEXT NOT NULL",   # "YYYY-MM-DD"
+    "end_date": "TEXT NOT NULL",     # "YYYY-MM-DD"（単日なら start_date と同じ）
+    "label": "TEXT",                  # 表示用ラベル（例: 夏季休暇 / 年末年始）
+    "created_at": "TEXT",
+}
+
 PRICING_CACHE_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
     # "user_id": "INTEGER NOT NULL",
@@ -930,6 +950,10 @@ def migrate_db(db_name):
         migrate_table(conn, "google_oauth_tokens", GOOGLE_OAUTH_TOKENS_COLUMNS)
     elif base.endswith("_orbit_dispatch_sheet_settings.db"):
         migrate_table(conn, "orbit_dispatch_sheet_settings", ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS)
+    elif base.endswith("_jp_holidays.db"):
+        migrate_table(conn, "jp_holidays", JP_HOLIDAYS_COLUMNS)
+    elif base.endswith("_orbit_agent_closures.db"):
+        migrate_table(conn, "orbit_agent_closures", ORBIT_AGENT_CLOSURES_COLUMNS)
 
 
     conn.close()
@@ -1144,6 +1168,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_dispatch_sheet_settings_unique "
         "ON orbit_dispatch_sheet_settings(user_id)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_agent_closures.db ---
+    conn = get_conn("a_orbit_agent_closures.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_agent_closures_user "
+        "ON orbit_agent_closures(user_id, start_date)"
     )
     conn.commit()
     conn.close()
@@ -1410,6 +1444,8 @@ def main():
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
         "a_orbit_credit_cards.db",
+        "a_jp_holidays.db",
+        "a_orbit_agent_closures.db",
     ]
 
     # 固定DB migrate

@@ -1694,6 +1694,96 @@ def delete_credit_card(user_id: int, card_id: int) -> int:
     return n
 
 
+# --- ▼ SECTION 06-1a2: 休日設定（日本の祝日 ＋ 発送代行会社の長期休業） ▼ ---
+# 到着予定日・出荷期日が休業日（土日祝＋長期休業）に当たるかをフロントで色付け判定するためのデータ源。
+# jp_holidays は内閣府CSVをバックグラウンド（holiday_loop）が日次で最新化する国データ（全ユーザー共通）。
+# orbit_agent_closures は夏季休暇・年末年始などを画面から手動登録するユーザー別データ。
+_DATE_ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _norm_iso_date(s: str) -> str:
+    """'YYYY/M/D' / 'YYYY-M-D' → 'YYYY-MM-DD'。不正なら空文字。"""
+    s = (s or "").strip().replace("/", "-")
+    parts = s.split("-")
+    if len(parts) != 3:
+        return ""
+    try:
+        y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+        return datetime(y, m, d).strftime("%Y-%m-%d")
+    except ValueError:
+        return ""
+
+
+def list_jp_holidays(from_date: str | None = None) -> list:
+    """jp_holidays を [{date, name}] で返す。from_date（YYYY-MM-DD）以降に絞れる。"""
+    conn = get_conn("a_jp_holidays.db")
+    cur = conn.cursor()
+    if from_date and _DATE_ISO_RE.match(from_date):
+        cur.execute(
+            "SELECT holiday_date, name FROM jp_holidays "
+            "WHERE holiday_date >= %s ORDER BY holiday_date ASC",
+            (from_date,),
+        )
+    else:
+        cur.execute(
+            "SELECT holiday_date, name FROM jp_holidays ORDER BY holiday_date ASC"
+        )
+    rows = [{"date": r["holiday_date"], "name": r["name"]} for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def list_agent_closures(user_id: int) -> list:
+    conn = get_conn("a_orbit_agent_closures.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, start_date, end_date, label FROM orbit_agent_closures "
+        "WHERE user_id = %s ORDER BY start_date ASC, id ASC",
+        (user_id,),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def add_agent_closure(user_id: int, start_date: str, end_date: str, label: str) -> int:
+    start_iso = _norm_iso_date(start_date)
+    end_iso = _norm_iso_date(end_date) or start_iso
+    if not start_iso:
+        raise ValueError("開始日が不正です（YYYY-MM-DD）")
+    if not end_iso:
+        raise ValueError("終了日が不正です（YYYY-MM-DD）")
+    if end_iso < start_iso:
+        start_iso, end_iso = end_iso, start_iso  # 逆順で入れられても許容
+
+    now = datetime.utcnow().isoformat()
+    conn = get_conn("a_orbit_agent_closures.db")
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO orbit_agent_closures "
+        "(user_id, start_date, end_date, label, created_at) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (user_id, start_iso, end_iso, (label or "").strip() or None, now),
+    )
+    new_id = cur.fetchone()["id"]
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def delete_agent_closure(user_id: int, closure_id: int) -> int:
+    conn = get_conn("a_orbit_agent_closures.db")
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM orbit_agent_closures WHERE user_id = %s AND id = %s",
+        (user_id, closure_id),
+    )
+    n = cur.rowcount
+    conn.commit()
+    conn.close()
+    return n
+
+
 # --- ▼ SECTION 06-1b: アーカイブ候補の検出・実行（決済確定＋出荷完了の注文をFBMバイヤー履歴へ移動） ▼ ---
 # 「決済確定」はorbit_settlement_linesに実績行があるかどうかで判定する。時間ベースの自動実行はせず、
 # 半自動（候補を確認してからボタンで実行）にする：セラーセントラルの決済レポートをいつ・どの期間分

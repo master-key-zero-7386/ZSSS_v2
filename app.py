@@ -33,6 +33,7 @@ from amazon.background.first.first_loop import run_first_loop
 from amazon.background.first.first_regioncheck import run_first_regioncheck 
 from amazon.background.ttl.ttl_loop import run_ttl_loop
 from amazon.background.fx.fx_loop import run_fx_loop
+from amazon.background.holiday.holiday_loop import run_holiday_loop
 from amazon.routes.routes_override_seller import override_seller_bp
 from amazon.routes.routes_orbit import orbit_bp
 
@@ -143,7 +144,22 @@ def start_fx_runner(app):
         daemon=True
     )
     t.start()
-    print("[FX] runner STARTED")   
+    print("[FX] runner STARTED")
+
+# holiday loop常駐起動（日本の祝日CSVを日次取得）
+def start_holiday_runner(app):
+    if getattr(app, "_holiday_runner_started", False):
+        return
+
+    app._holiday_runner_started = True
+
+    t = threading.Thread(
+        target=run_holiday_loop,
+        args=(app,),
+        daemon=True
+    )
+    t.start()
+    print("[HOLIDAY] runner STARTED")
 
 # ✅ 追加：すべてのHTMLテンプレートで「今のモード(dev/zsss/atlas)」を使えるようにする
 @app.context_processor
@@ -168,6 +184,7 @@ if __name__ == "__main__":
     start_first_regioncheck_runner(app)
     start_ttl_runner(app)
     start_fx_runner(app)
+    start_holiday_runner(app)
 
     file_handler = RotatingFileHandler(
         'app_error.log', maxBytes=1024 * 1024, backupCount=2, encoding='utf-8'
