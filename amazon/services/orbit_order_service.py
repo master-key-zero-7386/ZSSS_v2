@@ -190,6 +190,33 @@ def _effective(value, override):
     return override if override not in (None, "") else value
 
 
+# Amazonがマーケットプレイス税（仕向国のGST）を購入時に前徴収・納付する際の登録番号。
+# 国外発送の通関書類に記載しないと仕向国で二重課税されるため、代行会社への備考3へ自動で載せる。
+# キー = (発送先 ship_country, 販売マーケットの marketplace_country)。Amazon（みなし供給者）の
+# 登録番号なのでセラーを問わず共通。番号が変わったらこの表だけ直す（旧スプレッドシートの
+# ARRAYFORMULA 相当。US/AUマーケット × 豪州/NZ仕向けの4通り）。
+_MARKETPLACE_TAX_REGISTRATION = {
+    ("AU", "US"): "ARN:3000 1599 7688",
+    ("NZ", "US"): "GST：129-994-118",
+    ("AU", "AU"): "ABN:30 616 935 623",
+    ("NZ", "AU"): "GST：124-807-859",
+}
+
+
+def _derive_marketplace_tax_registration(row):
+    # キャンセルは通関書類自体を出さないので空。
+    if (row.get("shipping_type") or "").strip() == "キャンセル":
+        return ""
+    # 荷物は販売マーケットに関わらず日本→仕向国へ輸入されるため、仕向国が豪州/NZなら
+    # （AUマーケット→豪州のような同一国でも）その国のマーケットプレイス税番号が要る。
+    # 番号はどのAmazon法人経由の販売か（marketplace_country）で変わる。表に無い組合せは空。
+    dest = (row.get("ship_country") or "").strip().upper()
+    market = (row.get("marketplace_country") or "").strip().upper()
+    if not dest or not market:
+        return ""
+    return _MARKETPLACE_TAX_REGISTRATION.get((dest, market), "")
+
+
 # 手修正が必要な項目（商品名・宛名・住所1〜3）は、Amazon注文レポートの再取込で
 # 元の値に上書きされないよう別カラム(*_override)に保存し、あれば優先して使う。
 OVERRIDE_FIELD_MAP = {
@@ -215,6 +242,11 @@ def _apply_dispatch_checks(row):
 
     state_auto = _expand_us_state(row.get("ship_state"), row.get("ship_country"))
     row["ship_state_effective"] = _effective(state_auto, row.get("ship_state_override"))
+
+    # 備考3＝他国出荷時のマーケットプレイス税番号。(発送先, 販売マーケット)から自動導出し、
+    # 手入力の remarks_3 があればそちらを優先する（初めての仕向国などその場で手入力するケース用）。
+    row["tax_registration_note"] = _derive_marketplace_tax_registration(row)
+    row["remarks_3_effective"] = _effective(row["tax_registration_note"], row.get("remarks_3"))
 
     product_name = row.get("product_name_effective") or ""
     recipient_name = (row.get("recipient_name_effective") or "").strip()
@@ -1285,7 +1317,14 @@ REMARKS_FIELDS = ["remarks", "remarks_2", "remarks_3"]
 
 
 def _combine_remarks(row) -> str:
-    parts = [str(row.get(f)).strip() for f in REMARKS_FIELDS if row.get(f) not in (None, "")]
+    # 備考3は手入力が無ければ (発送先, 販売マーケット) から自動導出した税登録番号を使う
+    # （_apply_dispatch_checks が remarks_3_effective をセット済み。未通過の行は素の remarks_3）。
+    def _val(f):
+        if f == "remarks_3":
+            return row.get("remarks_3_effective", row.get("remarks_3"))
+        return row.get(f)
+
+    parts = [str(_val(f)).strip() for f in REMARKS_FIELDS if _val(f) not in (None, "")]
     return " ".join(p for p in parts if p)
 
 

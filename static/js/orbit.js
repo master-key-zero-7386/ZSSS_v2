@@ -143,7 +143,9 @@ const DISPATCH_COLUMNS = [
     { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
     { key: "remarks", label: "備考1", editable: "text", mid: true },
     { key: "remarks_2", label: "備考2", editable: "text", mid: true },
-    { key: "remarks_3", label: "備考3", editable: "text", mid: true },
+    // 備考3：手入力が無ければ (発送先×販売マーケット) から自動導出したマーケットプレイス税番号を
+    // プレースホルダで表示（保存はされず、代行会社シート/ZSSS_RAW には自動値が流れる）。手入力すると上書き。
+    { key: "remarks_3", label: "備考3", editable: "text", mid: true, placeholderKey: "remarks_3_effective" },
 
     // 展開部
     { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override" },
@@ -264,7 +266,7 @@ const PROCUREMENT_COLUMNS = [
     // --- 発注管理で代行会社シートを取り込むと入る項目（出荷に必要な情報を1画面で確認できるようここにも表示） ---
     { key: "remarks", label: "備考1(通常通知)" },
     { key: "remarks_2", label: "備考2(仕入追跡)" },
-    { key: "remarks_3", label: "備考3(GST/BAT)" },
+    { key: "remarks_3", label: "備考3(GST/BAT)", displayKey: "remarks_3_effective" },  // 手入力が無ければ自動導出したマーケットプレイス税番号を表示
     { key: "agent_tracking_number", label: "トラッキング(海外向け)", copyClass: "orbit-orderid-cell" },
     { key: "agent_weight_recorded_date", label: "発送重量記入日", redUntilShipped: true },
     { key: "agent_confirmed_weight", label: "確定重量" },
@@ -638,10 +640,12 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 const inputClass = col.wide ? "orbit-manual orbit-manual-wide"
                     : col.mid ? "orbit-manual orbit-manual-mid"
                     : "orbit-manual";
-                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}" data-field="${col.saveField || col.key}" value="${value}" title="${value}"></td>`;
+                const phVal = (!value && col.placeholderKey) ? (r[col.placeholderKey] || "") : "";
+                const phAttr = phVal ? ` placeholder="${orbitEscapeHtml(phVal)}"` : "";
+                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}"${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value || phVal}"></td>`;
             }
 
-            return `<td class="${cellClass}">${fmtValue(col, r[col.key])}</td>`;
+            return `<td class="${cellClass}">${fmtValue(col, r[col.displayKey] ?? r[col.key])}</td>`;
         }).join("");
 
         tbody.appendChild(tr);
@@ -743,9 +747,11 @@ function dispCellInner(col, r) {
         const value = col.editable === "date" ? orbitDateToISO(raw) : raw;
         const cls = col.wide ? "orbit-manual orbit-manual-wide" : col.mid ? "orbit-manual orbit-manual-mid" : "orbit-manual";
         const listAttr = col.datalist ? ` list="${col.datalist}"` : "";
-        return `<input type="${col.editable}" class="${cls}"${listAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value}">`;
+        const phVal = (!value && col.placeholderKey) ? (r[col.placeholderKey] || "") : "";
+        const phAttr = phVal ? ` placeholder="${orbitEscapeHtml(phVal)}"` : "";
+        return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${value || phVal}">`;
     }
-    return fmtValue(col, r[col.key]);
+    return fmtValue(col, r[col.displayKey] ?? r[col.key]);
 }
 
 function orbitEscapeHtml(s) {
