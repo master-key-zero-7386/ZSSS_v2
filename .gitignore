@@ -49,8 +49,9 @@ logs/
 # VSCode
 .vscode/
 
-# Claude Code (ローカル権限設定はPCごとに異なるため対象外)
+# Claude Code (ローカル権限設定・プレビュー起動設定はPCごとに異なるため対象外)
 .claude/settings.local.json
+.claude/launch.json
 
 # OS
 Thumbs.db
