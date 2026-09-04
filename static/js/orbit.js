@@ -190,6 +190,7 @@ const DISPATCH_COLUMNS = [
     { key: "agent_synced_at", label: "読戻し日時" },
 
     { key: "agent_shipping_weight_kg", label: "想定重量(kg)" },
+    { key: "actual_weight_kg", label: "実重量(kg)" },  // listed_items→catalog_cache→手入力 で取得したカタログ実重量
     { key: "agent_length_cm", label: "長さ" },
     { key: "agent_width_cm", label: "幅" },
     { key: "agent_height_cm", label: "高さ" },
@@ -245,7 +246,7 @@ const DISPATCH_DETAIL_SECTIONS = [
         "agent_shipping_weight", "agent_confirmed_weight", "agent_deadline", "agent_status",
         "agent_shipping_fee", "agent_shipping_fee_total", "agent_delivery_area", "agent_synced_at",
     ] },
-    { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"] },
+    { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "actual_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"] },
     { key: "profit", label: "利益", keys: [
         // fetch_fee_estimate は DISPATCH_PRIMARY_KEYS（主行）へ移動済み
         "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
@@ -484,6 +485,7 @@ function fmtValue(col, value) {
     if (col.dateOnly && typeof value === "string") return value.slice(0, 10);
     if (col.key === "notified_at") return value ? "済" : "";
     if (JPY_ROUNDED_KEYS.includes(col.key) && typeof value === "number") return Math.round(value).toLocaleString();
+    if (col.key === "actual_weight_kg" && typeof value === "number") return (Math.round(value * 1000) / 1000).toLocaleString();
     return value;
 }
 
