@@ -298,6 +298,13 @@
 .orbit-acc-field-value input.orbit-manual,
 .orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; font-size: 14px; }
 .orbit-acc-field-value input.orbit-manual-mid { width: 240px; }
+/* 仕入れ情報の未入力欄＝淡いピンク（入力忘れ防止。見た目のみ・保存値には無関係）。
+   到着予定の休業日グレー（input.orbit-date-holiday）は !important なので従来どおり優先される。 */
+.orbit-page .orbit-acc-sec-proc .orbit-acc-field.is-empty input.orbit-manual,
+.orbit-page .orbit-acc-sec-proc .orbit-acc-field.is-empty select.orbit-manual {
+  background: #ffe3ec;
+  border-color: #f3a9c0;
+}
 
 /* 発注数量チェック：数量が2以上の行だけ数字を赤太字で目立たせる（列は増やさず視覚化のみ） */
 .orbit-page table td.orbit-qty-warn {

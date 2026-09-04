@@ -895,11 +895,20 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
         const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => {
             const body = sec.custom === "buyerMemo"
                 ? renderBuyerMemoBlock(r)
-                : (sec.keys || []).map(dispatchCol).map(col => `
-                    <span class="orbit-acc-field ${dispCellClass(col, r)}">
+                : (sec.keys || []).map(dispatchCol).map(col => {
+                    // 仕入れ情報の手入力欄が未入力なら淡いピンク（入力忘れ防止・見た目のみ）。
+                    // リンク・依頼日・インボイス価格は editable が無いので自動的に対象外。
+                    const v = r[col.key];
+                    // select は placeholder の "-" も未選択扱い
+                    const isBlank = v === null || v === undefined || v === ""
+                        || (col.editable === "select" && v === "-");
+                    const emptyCls = (sec.key === "proc" && col.editable && isBlank) ? " is-empty" : "";
+                    return `
+                    <span class="orbit-acc-field ${dispCellClass(col, r)}${emptyCls}">
                         <span class="orbit-acc-field-label">${col.label}</span>
                         <span class="orbit-acc-field-value">${dispCellInner(col, r)}</span>
-                    </span>`).join("");
+                    </span>`;
+                }).join("");
             const hasNotes = sec.custom === "buyerMemo" && (r.security_notes || []).length ? " has-notes" : "";
             return `
                 <div class="orbit-acc-section orbit-acc-sec-${sec.key || "x"}${hasNotes}">
@@ -1946,6 +1955,22 @@ window.initOrbit = function () {
         };
 
         attachSaveHandlers(dispatchTbody, { onSaved: onDispatchFieldSaved });
+
+        // 仕入れ情報の未入力ピンクを、入力・選択のたびに即座に付け外し（保存・再描画を待たない）
+        const refreshProcEmptyHighlight = (el) => {
+            const field = el.closest(".orbit-acc-sec-proc .orbit-acc-field");
+            if (!field) return;
+            const input = field.querySelector("input, select");
+            if (!input) return;
+            const val = (input.value ?? "").trim();
+            const blank = val === "" || (input.tagName === "SELECT" && val === "-");
+            field.classList.toggle("is-empty", blank);
+        };
+        const procHighlightHandler = (e) => {
+            if (e.target.classList?.contains("orbit-manual")) refreshProcEmptyHighlight(e.target);
+        };
+        dispatchTbody.addEventListener("input", procHighlightHandler);
+        dispatchTbody.addEventListener("change", procHighlightHandler);
     }
 
     // --- ▼ 受注一覧: 行ごとの上下移動 ▼ ---
