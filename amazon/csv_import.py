@@ -150,15 +150,10 @@ def check_csv():
         # CSV取込
         if file:
 
-            filename = secure_filename(file.filename)
-            save_path = os.path.join(_get_user_upload_dir(user_id), filename)
-            file.save(save_path)
-
-            with open(save_path, newline="", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                asin_list = [row[0].strip() for row in reader if row]
-
-            os.remove(save_path)
+            # アップロードCSVはディスクに保存せずメモリ上で読む（Windowsのファイルロック回避）
+            raw = file.read().decode("utf-8-sig", errors="replace")
+            reader = csv.reader(io.StringIO(raw))
+            asin_list = [row[0].strip() for row in reader if row]
 
             records = []
 
@@ -789,31 +784,25 @@ def import_external_listed_asin():
 
         region_marketplace_id = row_mp["marketplace_id"]
 
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
-        file.save(save_path)
+        # アップロードCSVはディスクに保存せずメモリ上で読む（Windowsのファイルロック回避）
+        raw = file.read().decode("utf-8-sig", errors="replace")
+        reader = csv.reader(io.StringIO(raw))
+        headers = next(reader, None)
+
+        if not headers or headers[0].strip().upper() != "ASIN":
+            return jsonify({
+                "status": "error",
+                "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
+            }), 400
 
         asin_rows = []
-        with open(save_path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
-            headers = next(reader, None)
-
-            if not headers or headers[0].strip().upper() != "ASIN":
-                os.remove(save_path)
-                return jsonify({
-                    "status": "error",
-                    "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
-                }), 400
-
-            for row in reader:
-                if not row or not row[0].strip():
-                    continue
-                asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
-                note = row[1].strip() if len(row) > 1 and row[1].strip() else ""
-                if asin:
-                    asin_rows.append({"asin": asin, "note": note})
-
-        os.remove(save_path)
+        for row in reader:
+            if not row or not row[0].strip():
+                continue
+            asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
+            note = row[1].strip() if len(row) > 1 and row[1].strip() else ""
+            if asin:
+                asin_rows.append({"asin": asin, "note": note})
 
         if not asin_rows:
             return jsonify({"status": "error", "message": "有効なASINがありません"}), 400
@@ -893,30 +882,24 @@ def delete_external_listed_asin():
 
         region_marketplace_id = row_mp["marketplace_id"]
 
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
-        file.save(save_path)
+        # アップロードCSVはディスクに保存せずメモリ上で読む（Windowsのファイルロック回避）
+        raw = file.read().decode("utf-8-sig", errors="replace")
+        reader = csv.reader(io.StringIO(raw))
+        headers = next(reader, None)
+
+        if not headers or headers[0].strip().upper() != "ASIN":
+            return jsonify({
+                "status": "error",
+                "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
+            }), 400
 
         asin_list = []
-        with open(save_path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
-            headers = next(reader, None)
-
-            if not headers or headers[0].strip().upper() != "ASIN":
-                os.remove(save_path)
-                return jsonify({
-                    "status": "error",
-                    "message": "CSVのフォーマットが不正です。1列目は『ASIN』にしてください。"
-                }), 400
-
-            for row in reader:
-                if not row or not row[0].strip():
-                    continue
-                asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
-                if asin:
-                    asin_list.append(asin)
-
-        os.remove(save_path)
+        for row in reader:
+            if not row or not row[0].strip():
+                continue
+            asin = re.sub(r"[^A-Z0-9]", "", row[0].strip().upper())
+            if asin:
+                asin_list.append(asin)
 
         if not asin_list:
             return jsonify({"status": "error", "message": "有効なASINがありません"}), 400
@@ -992,30 +975,24 @@ def delete_listed_items_by_sku():
 
         marketplace_id = row_mp["marketplace_id"]
 
-        filename = secure_filename(file.filename)
-        save_path = os.path.join(_get_user_upload_dir(user_id), filename)
-        file.save(save_path)
+        # アップロードCSVはディスクに保存せずメモリ上で読む（Windowsのファイルロック回避）
+        raw = file.read().decode("utf-8-sig", errors="replace")
+        reader = csv.reader(io.StringIO(raw))
+        headers = next(reader, None)
+
+        if not headers or headers[0].strip().upper() != "SKU":
+            return jsonify({
+                "status": "error",
+                "message": "CSVのフォーマットが不正です。1列目は『SKU』にしてください。"
+            }), 400
 
         sku_list = []
-        with open(save_path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.reader(f)
-            headers = next(reader, None)
-
-            if not headers or headers[0].strip().upper() != "SKU":
-                os.remove(save_path)
-                return jsonify({
-                    "status": "error",
-                    "message": "CSVのフォーマットが不正です。1列目は『SKU』にしてください。"
-                }), 400
-
-            for row in reader:
-                if not row or not row[0].strip():
-                    continue
-                sku = row[0].strip()
-                if sku:
-                    sku_list.append(sku)
-
-        os.remove(save_path)
+        for row in reader:
+            if not row or not row[0].strip():
+                continue
+            sku = row[0].strip()
+            if sku:
+                sku_list.append(sku)
 
         sku_list = list(dict.fromkeys(sku_list))  # 重複除去（順序維持）
 
