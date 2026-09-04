@@ -1475,6 +1475,11 @@ window.initOrbit = function () {
             });
     });
 
+    // 買い手購入履歴のCSVバックアップ出力（上のUPLOADでそのまま取り込み直せる形式）
+    document.getElementById("orbitBuyerHistoryExportBtn")?.addEventListener("click", () => {
+        window.location.href = "/orbit/buyer_history/export";
+    });
+
     document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-buyer-history-refresh-btn")?.addEventListener("click", () => {

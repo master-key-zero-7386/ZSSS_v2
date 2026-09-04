@@ -698,7 +698,13 @@
               <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="買い手購入履歴CSV/TSVを選択してください" readonly style="width:340px;" />
               <button type="button" id="orbitBuyerHistoryUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
+          <button type="button" id="orbitBuyerHistoryExportBtn" class="btn-blue">CSVエクスポート</button>
           <button id="orbit-buyer-history-refresh-btn" class="btn-blue">再読込</button>
+      </div>
+
+      <div class="master-description">
+          「CSVエクスポート」は現在の買い手購入履歴をCSVで保存します（バックアップ用）。
+          出力ファイルは上のUPLOADでそのまま取り込み直せます（未登録のorder-item-idだけが復元されます）。
       </div>
 
       <div class="master-description">

@@ -3,6 +3,8 @@
 # 目的: ORBIT（注文管理）Blueprint
 # ==========================================
 
+from datetime import datetime
+
 from flask import Blueprint, request, jsonify, session, Response, redirect
 
 from amazon.services.orbit_order_service import (
@@ -22,6 +24,7 @@ from amazon.services.orbit_order_service import (
     push_orders_to_raw_sheet,
     sync_dispatch_sheet_status,
     import_buyer_history_csv,
+    export_buyer_history_csv,
     list_archive_candidates,
     archive_orders,
     add_security_note,
@@ -190,6 +193,22 @@ def import_buyer_history_route():
     count = import_buyer_history_csv(user_id, rows)
 
     return jsonify({"status": "success", "imported": count})
+
+
+# 既存の買い手履歴UPLOADでそのまま取り込み直せる形式のCSVバックアップ（buyer_historyのみ）。
+@orbit_bp.route("/buyer_history/export", methods=["GET"])
+def export_buyer_history_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    csv_text = export_buyer_history_csv(user_id)
+    filename = f"buyer_history_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @orbit_bp.route("/buyer_history/list", methods=["GET"])

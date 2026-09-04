@@ -626,11 +626,16 @@ def parse_order_report(text: str) -> list:
 
     sample = text[:2048]
     try:
-        dialect = csv.Sniffer().sniff(sample, delimiters="\t,")
+        delimiter = csv.Sniffer().sniff(sample, delimiters="\t,").delimiter
     except csv.Error:
-        dialect = csv.excel_tab  # Amazon標準レポートはタブ区切り
+        delimiter = "\t"  # Amazon標準レポートはタブ区切り
 
-    reader = csv.reader(io.StringIO(text), dialect=dialect)
+    # csv.Sniffer は doublequote を検出できず False を返すことがある（Python既知の制限）。
+    # Amazon注文レポートもスプレッドシート書き出しも、クォート内の " は "" で表す形式なので
+    # doublequote=True を明示する（これが無いと "1/4"" のような値の末尾に " が余分に残る）。
+    reader = csv.reader(
+        io.StringIO(text), delimiter=delimiter, quotechar='"', doublequote=True
+    )
 
     # 標準のAmazon注文レポートは1行目がヘッダーだが、スプレッドシートを手動整形した
     # CSV（買い手履歴の旧データ取込用など）はタイトル行・空行が先頭に入っていることがある。
@@ -1437,6 +1442,38 @@ def list_buyer_history(user_id: int) -> list:
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+# --- ▼ SECTION 05-1c: 買い手購入履歴のCSVバックアップ出力 ▼ ---
+# 既存の買い手履歴UPLOAD（parse_order_report）でそのまま取り込み直せる形式で書き出す。
+# ヘッダーはAmazon注文レポート形式（COLUMN_MAPのキー）にし、レポートに無いN番だけ末尾に
+# "N-No"（値は "N123" 形式）で付ける。派生列（asin/buyer_key）は取込時に再計算されるため出さない。
+# 取込は ON CONFLICT DO NOTHING のため「消えた行の復旧」用。既存行の上書き修復はされない。
+_REPORT_HEADER_BY_DB_COL = {db_col: src_col for src_col, db_col in COLUMN_MAP.items()}
+
+
+def export_buyer_history_csv(user_id: int) -> str:
+    conn = get_conn("a_orbit_buyer_history.db")
+    cur = conn.cursor()
+    cur.execute(
+        f"SELECT {', '.join(IMPORT_COLUMNS)}, agent_serial_no "
+        "FROM orbit_buyer_history WHERE user_id = %s "
+        "ORDER BY agent_serial_no ASC NULLS LAST, id ASC",
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    output.write('﻿')  # UTF-8 BOM（Excelの文字化け対策。parse_order_report側で除去される）
+    writer = csv.writer(output)
+    writer.writerow([_REPORT_HEADER_BY_DB_COL[c] for c in IMPORT_COLUMNS] + ["N-No"])
+    for r in rows:
+        line = [r.get(c) for c in IMPORT_COLUMNS]
+        serial = r.get("agent_serial_no")
+        line.append(f"N{serial}" if serial not in (None, "") else "")
+        writer.writerow(line)
+    return output.getvalue()
 
 
 def list_security_notes(user_id: int) -> list:
