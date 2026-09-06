@@ -1277,15 +1277,25 @@ window.initOrbit = function () {
         const unshippedRows = rows.filter(r =>
             !r.shipped_completed && (r.shipping_type || "").trim() !== ORBIT_CANCEL);
 
+        // 発送種別の列まとめ：DHL_DDP / DHL_DAP_… →「DHL」、FedEx_DDP / FedEx_DAP_… →「FedEx」に集約。
+        // （関税条件 DDP/DAP や荷受人表記の違いはキャリア単位の未発送数チェックには不要）。
+        const shipTypeBucket = (v) => {
+            const s = (v || "").trim();
+            if (!s) return "未設定";
+            if (/dhl/i.test(s)) return "DHL";
+            if (/fed\s*ex/i.test(s)) return "FedEx";
+            return s;
+        };
+
         const typeSet = new Set();
-        for (const r of unshippedRows) typeSet.add((r.shipping_type || "").trim() || "未設定");
+        for (const r of unshippedRows) typeSet.add(shipTypeBucket(r.shipping_type));
         const types = [...typeSet].sort();
 
         const uMap = new Map(); // マーケット -> { byType:{type:count}, total, fee }
         let grandFee = 0;
         for (const r of unshippedRows) {
             const c = (r.marketplace_country || "").trim() || "不明";
-            const t = (r.shipping_type || "").trim() || "未設定";
+            const t = shipTypeBucket(r.shipping_type);
             if (!uMap.has(c)) uMap.set(c, { byType: {}, total: 0, fee: 0 });
             const e = uMap.get(c);
             e.byType[t] = (e.byType[t] || 0) + 1;
