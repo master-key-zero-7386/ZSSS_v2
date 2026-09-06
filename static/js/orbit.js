@@ -848,6 +848,15 @@ function orbitEscapeHtml(s) {
     ));
 }
 
+// 集計パネル用：発送種別が「キャンセル」の行は売上・未出荷どちらの集計からも外す。
+const ORBIT_CANCEL = "キャンセル";
+
+// purchase_date（"2026-08-25" もしくは ISO日時）から年月を取り出す。
+function orbitYm(dateStr) {
+    const m = /^(\d{4})-(\d{2})-\d{2}/.exec((dateStr || "").slice(0, 10));
+    return m ? { y: m[1], m: m[2] } : null;
+}
+
 // 展開部「バイヤーメモ」：リピーター購入回数＋返品/セキュリティメモ全文（住所キーで突き合わせ済み）。
 function renderBuyerMemoBlock(r) {
     const count = r.repeat_buyer_count || 0;
@@ -1190,6 +1199,124 @@ window.initOrbit = function () {
     }
     tbody.dataset.orbitInitialized = "true";
 
+    // --- ▼ SECTION 12: 集計パネル（月次売上／未出荷サマリ。サブタブ非依存で常時表示） ▼ ---
+    //   loadOrders() で取得済みの ordersRowsCache をその場で集計するだけ（API追加なし）。
+    //   ※ 2回目以降の initOrbit() は上の早期returnで抜けるため、ここの登録は初回のみ。
+    //     renderOrbitSummary 自体は関数宣言の巻き上げにより早期return経路の loadOrders().then からも呼べる。
+    function renderOrbitSummary() {
+        const yearSel = document.getElementById("orbit-summary-year");
+        const monthSel = document.getElementById("orbit-summary-month");
+        const monthlyEl = document.getElementById("orbit-summary-monthly");
+        const unshippedEl = document.getElementById("orbit-summary-unshipped");
+        if (!yearSel || !monthSel || !monthlyEl || !unshippedEl) return;
+
+        const rows = ordersRowsCache || [];
+
+        // 年・月プルダウン（purchase_date に存在する年月から。現在の選択は極力維持）
+        const yms = rows.map(r => orbitYm(r.purchase_date)).filter(Boolean);
+        const years = [...new Set(yms.map(v => v.y))].sort().reverse();
+        const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+        const prevYear = yearSel.value;
+        const prevMonth = monthSel.value;
+
+        yearSel.innerHTML = years.map(y => `<option value="${y}">${y}年</option>`).join("");
+        monthSel.innerHTML = months.map(m => `<option value="${m}">${parseInt(m, 10)}月</option>`).join("");
+
+        if (years.includes(prevYear)) yearSel.value = prevYear;
+        else if (years.length) yearSel.value = years[0];
+
+        if (prevMonth && months.includes(prevMonth)) {
+            monthSel.value = prevMonth;
+        } else {
+            const latestMonth = yms.filter(v => v.y === yearSel.value).map(v => v.m).sort().pop();
+            if (latestMonth) monthSel.value = latestMonth;
+        }
+
+        const selY = yearSel.value;
+        const selM = monthSel.value;
+
+        // ===== 月次売上（注文日ベース・キャンセル除外） =====
+        const monthRows = rows.filter(r => {
+            if ((r.shipping_type || "").trim() === ORBIT_CANCEL) return false;
+            const ym = orbitYm(r.purchase_date);
+            return ym && ym.y === selY && ym.m === selM;
+        });
+
+        const mMap = new Map(); // 国 -> { count, byCcy:{CCY:amount} }
+        for (const r of monthRows) {
+            const c = (r.ship_country || "").trim() || "―";
+            if (!mMap.has(c)) mMap.set(c, { count: 0, byCcy: {} });
+            const e = mMap.get(c);
+            e.count += 1;
+            const amt = r.item_price;
+            if (typeof amt === "number" && !isNaN(amt)) {
+                const ccy = (r.order_currency || "").trim() || "?";
+                e.byCcy[ccy] = (e.byCcy[ccy] || 0) + amt;
+            }
+        }
+
+        if (!mMap.size) {
+            monthlyEl.innerHTML = `<div class="orbit-summary-note">${selY}年${parseInt(selM, 10)}月の注文はありません</div>`;
+        } else {
+            const bodyHtml = [...mMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
+                const sales = Object.entries(e.byCcy).sort()
+                    .map(([ccy, v]) => `${Math.round(v).toLocaleString()} ${orbitEscapeHtml(ccy)}`)
+                    .join("<br>") || "―";
+                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td></tr>`;
+            }).join("");
+            monthlyEl.innerHTML =
+                `<table class="orbit-summary-table">` +
+                `<thead><tr><th>国</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th></tr></thead>` +
+                `<tbody>${bodyHtml}</tbody>` +
+                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td></tr></tfoot></table>`;
+        }
+
+        // ===== 未出荷サマリ（出荷通知前・キャンセル除外・日付は無関係） =====
+        const unshippedRows = rows.filter(r =>
+            !r.ship_notified && (r.shipping_type || "").trim() !== ORBIT_CANCEL);
+
+        const typeSet = new Set();
+        for (const r of unshippedRows) typeSet.add((r.shipping_type || "").trim() || "未設定");
+        const types = [...typeSet].sort();
+
+        const uMap = new Map(); // 国 -> { byType:{type:count}, total, fee }
+        let grandFee = 0;
+        for (const r of unshippedRows) {
+            const c = (r.ship_country || "").trim() || "―";
+            const t = (r.shipping_type || "").trim() || "未設定";
+            if (!uMap.has(c)) uMap.set(c, { byType: {}, total: 0, fee: 0 });
+            const e = uMap.get(c);
+            e.byType[t] = (e.byType[t] || 0) + 1;
+            e.total += 1;
+            const f = r.predicted_shipping_fee;
+            if (typeof f === "number" && !isNaN(f)) { e.fee += f; grandFee += f; }
+        }
+
+        if (!uMap.size) {
+            unshippedEl.innerHTML = `<div class="orbit-summary-note">未出荷の注文はありません</div>`;
+        } else {
+            const headHtml = `<tr><th>国</th>${types.map(t => `<th class="num">${orbitEscapeHtml(t)}</th>`).join("")}` +
+                `<th class="num">合計</th><th class="num">未発送 概算送料(¥)</th></tr>`;
+            const bodyHtml = [...uMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
+                const tds = types.map(t => `<td class="num">${e.byType[t] || 0}</td>`).join("");
+                return `<tr><td>${orbitEscapeHtml(c)}</td>${tds}` +
+                    `<td class="num">${e.total}</td><td class="num">${Math.round(e.fee).toLocaleString()}</td></tr>`;
+            }).join("");
+            const totTds = types.map(t => {
+                const s = [...uMap.values()].reduce((acc, e) => acc + (e.byType[t] || 0), 0);
+                return `<td class="num">${s}</td>`;
+            }).join("");
+            unshippedEl.innerHTML =
+                `<table class="orbit-summary-table"><thead>${headHtml}</thead><tbody>${bodyHtml}</tbody>` +
+                `<tfoot><tr><td>合計</td>${totTds}` +
+                `<td class="num">${unshippedRows.length}</td><td class="num">${Math.round(grandFee).toLocaleString()}</td></tr>` +
+                `</table>`;
+        }
+    }
+
+    document.getElementById("orbit-summary-year")?.addEventListener("change", renderOrbitSummary);
+    document.getElementById("orbit-summary-month")?.addEventListener("change", renderOrbitSummary);
+
     // データ再読込でtbody.innerHTMLを差し替えると、テーブルを囲むtable-wrapperの
     // 横スクロール位置がブラウザによって勝手にリセットされることがあるため、明示的に保持する。
     function renderPreservingScroll(tbodyEl, columns, rows, opts) {
@@ -1294,6 +1421,7 @@ window.initOrbit = function () {
             .then(data => {
                 if (data.status === "success") {
                     ordersRowsCache = data.rows;
+                    renderOrbitSummary();
                     renderOrdersTable();
                     // 発注管理・仕入れ管理は出荷チェックを常にN番号で行うため、N番号の昇順で表示する
                     // （N番号未設定の行は末尾。受注一覧での並び替えとは独立）

@@ -519,6 +519,80 @@
   font-size: 0.9em;
   white-space: nowrap;
 }
+
+/* ───────────────────────────────────────────────────────────────
+   集計パネル：サブタブ選択に関係なく上部に常時表示。
+   閉じている間は1行だけ（画面を占領しない）。開くと月次売上／未出荷サマリ。
+   ─────────────────────────────────────────────────────────────── */
+.orbit-page > .orbit-summary {
+  flex: none;
+  margin: 4px 0 8px;
+  border: 1px solid #cfd8dc;
+  border-radius: 4px;
+  background: #f7f9fa;
+}
+.orbit-page > .orbit-summary[open] {
+  max-height: 46vh;
+  overflow: auto;
+}
+.orbit-page > .orbit-summary > summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  font-weight: bold;
+  user-select: none;
+}
+.orbit-summary-body {
+  padding: 8px 10px 12px;
+}
+.orbit-summary-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.orbit-summary-controls select {
+  height: 30px;
+  padding: 0 6px;
+}
+.orbit-summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: flex-start;
+}
+.orbit-summary-block-title {
+  font-weight: bold;
+  font-size: 0.9em;
+  margin-bottom: 4px;
+  color: #37474f;
+}
+.orbit-summary-table {
+  border-collapse: collapse;
+  font-size: 0.86em;
+  background: #fff;
+}
+.orbit-summary-table th,
+.orbit-summary-table td {
+  border: 1px solid #cfd8dc;
+  padding: 3px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.orbit-summary-table thead th {
+  background: #eceff1;
+}
+.orbit-summary-table td.num,
+.orbit-summary-table th.num {
+  text-align: right;
+}
+.orbit-summary-table tfoot td {
+  background: #eceff1;
+  font-weight: bold;
+}
+.orbit-summary-note {
+  color: #90a4ae;
+  font-size: 0.82em;
+}
 </style>
 
 <div class="main-container orbit-page">
@@ -532,6 +606,26 @@
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
   </div>
+
+  <details id="orbit-summary" class="orbit-summary">
+    <summary>📊 集計（注文日ベースの月次売上 ／ 未出荷サマリ）</summary>
+    <div class="orbit-summary-body">
+      <div class="orbit-summary-controls">
+        <label>年 <select id="orbit-summary-year"></select></label>
+        <label>月 <select id="orbit-summary-month"></select></label>
+      </div>
+      <div class="orbit-summary-grid">
+        <div class="orbit-summary-block">
+          <div class="orbit-summary-block-title">月次売上（キャンセル除外）</div>
+          <div id="orbit-summary-monthly"></div>
+        </div>
+        <div class="orbit-summary-block">
+          <div class="orbit-summary-block-title">未出荷（出荷通知前・キャンセル除外・日付は無関係）</div>
+          <div id="orbit-summary-unshipped"></div>
+        </div>
+      </div>
+    </div>
+  </details>
 
   <div id="orbit-pane-orders" class="st-subtab-pane active">
     <div class="card">
