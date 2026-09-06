@@ -1272,8 +1272,10 @@ window.initOrbit = function () {
         }
 
         // ===== 未出荷サマリ（出荷通知前・キャンセル除外・日付は無関係） =====
+        // 「出荷通知済」は shipped_completed 列（発注管理タブの「出荷通知」ボタンでON。
+        //   db_migrate.py: 出荷通知したかは shipped_completed で兼ねる）。
         const unshippedRows = rows.filter(r =>
-            !r.ship_notified && (r.shipping_type || "").trim() !== ORBIT_CANCEL);
+            !r.shipped_completed && (r.shipping_type || "").trim() !== ORBIT_CANCEL);
 
         const typeSet = new Set();
         for (const r of unshippedRows) typeSet.add((r.shipping_type || "").trim() || "未設定");
