@@ -1242,9 +1242,9 @@ window.initOrbit = function () {
             return ym && ym.y === selY && ym.m === selM;
         });
 
-        const mMap = new Map(); // 国 -> { count, byCcy:{CCY:amount} }
+        const mMap = new Map(); // マーケット -> { count, byCcy:{CCY:amount} }
         for (const r of monthRows) {
-            const c = (r.ship_country || "").trim() || "―";
+            const c = (r.marketplace_country || "").trim() || "不明";
             if (!mMap.has(c)) mMap.set(c, { count: 0, byCcy: {} });
             const e = mMap.get(c);
             e.count += 1;
@@ -1266,7 +1266,7 @@ window.initOrbit = function () {
             }).join("");
             monthlyEl.innerHTML =
                 `<table class="orbit-summary-table">` +
-                `<thead><tr><th>国</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th></tr></thead>` +
+                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th></tr></thead>` +
                 `<tbody>${bodyHtml}</tbody>` +
                 `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td></tr></tfoot></table>`;
         }
@@ -1279,10 +1279,10 @@ window.initOrbit = function () {
         for (const r of unshippedRows) typeSet.add((r.shipping_type || "").trim() || "未設定");
         const types = [...typeSet].sort();
 
-        const uMap = new Map(); // 国 -> { byType:{type:count}, total, fee }
+        const uMap = new Map(); // マーケット -> { byType:{type:count}, total, fee }
         let grandFee = 0;
         for (const r of unshippedRows) {
-            const c = (r.ship_country || "").trim() || "―";
+            const c = (r.marketplace_country || "").trim() || "不明";
             const t = (r.shipping_type || "").trim() || "未設定";
             if (!uMap.has(c)) uMap.set(c, { byType: {}, total: 0, fee: 0 });
             const e = uMap.get(c);
@@ -1295,7 +1295,7 @@ window.initOrbit = function () {
         if (!uMap.size) {
             unshippedEl.innerHTML = `<div class="orbit-summary-note">未出荷の注文はありません</div>`;
         } else {
-            const headHtml = `<tr><th>国</th>${types.map(t => `<th class="num">${orbitEscapeHtml(t)}</th>`).join("")}` +
+            const headHtml = `<tr><th>マーケット</th>${types.map(t => `<th class="num">${orbitEscapeHtml(t)}</th>`).join("")}` +
                 `<th class="num">合計</th><th class="num">未発送 概算送料(¥)</th></tr>`;
             const bodyHtml = [...uMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
                 const tds = types.map(t => `<td class="num">${e.byType[t] || 0}</td>`).join("");
