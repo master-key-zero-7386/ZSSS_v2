@@ -22,6 +22,7 @@ from amazon.services.orbit_order_service import (
     parse_fee_data_csv,
     import_fee_data,
     set_agent_serial_no,
+    assign_missing_agent_serial_no,
     export_notify_csv,
     push_orders_to_raw_sheet,
     sync_dispatch_sheet_status,
@@ -476,6 +477,17 @@ def set_serial():
         ordered_ids = None
 
     count = set_agent_serial_no(user_id, order_item_id, start_value, ordered_ids=ordered_ids)
+    return jsonify({"status": "success", "updated": count})
+
+
+# --- ▼ SECTION 03-3: 未採番の一括採番（取込順で既存の続きから連番） ▼ ---
+@orbit_bp.route("/orders/autonumber", methods=["POST"])
+def autonumber_serial():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    count = assign_missing_agent_serial_no(user_id)
     return jsonify({"status": "success", "updated": count})
 
 

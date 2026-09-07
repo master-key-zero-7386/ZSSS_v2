@@ -1665,6 +1665,28 @@ window.initOrbit = function () {
 
     document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
     document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
+
+    // 未採番の一括採番：N番が空の行を、取込順で既存の最大N番の続きから採番する
+    // （採番済みの行は触らない。開始番号の任意指定・欠番の詰め直しは従来のセル入力を使う）
+    document.getElementById("orbit-autonumber-btn")?.addEventListener("click", () => {
+        fetch("/orbit/orders/autonumber", { method: "POST" })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.(
+                        data.updated ? `${data.updated}件を採番しました` : "未採番の行はありませんでした",
+                        data.updated ? "success" : "info",
+                    );
+                    if (data.updated) loadOrders();
+                } else {
+                    window.showToast?.(data.message || "採番に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/orders/autonumber error:", err);
+                window.showToast?.("採番に失敗しました", "error");
+            });
+    });
     document.getElementById("orbit-buyer-history-refresh-btn")?.addEventListener("click", () => {
         loadBuyerHistory();
         loadSecurityNotes();

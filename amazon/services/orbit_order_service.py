@@ -2136,6 +2136,46 @@ def set_agent_serial_no(user_id: int, order_item_id: str, start_value: int, orde
     return updated
 
 
+# N番が空の行だけを対象に、取込順（id昇順＝CSVの行そのままの並び）で、
+# 既存の最大N番の続きから連番を振る。採番済みの行は一切触らない。
+# （受注一覧タブの「未採番を採番」ボタン用。開始番号を任意指定したい場合や
+#   欠番の詰め直しは従来どおり set_agent_serial_no を使う。）
+def assign_missing_agent_serial_no(user_id: int) -> int:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT COALESCE(MAX(agent_serial_no), 0) AS max_serial FROM orbit_orders WHERE user_id = %s",
+        (user_id,),
+    )
+    serial = int(cur.fetchone()["max_serial"])
+
+    cur.execute(
+        """
+        SELECT order_item_id
+        FROM orbit_orders
+        WHERE user_id = %s AND agent_serial_no IS NULL
+        ORDER BY id ASC
+        """,
+        (user_id,),
+    )
+    pending_ids = [r["order_item_id"] for r in cur.fetchall()]
+
+    now = datetime.utcnow().isoformat()
+    updated = 0
+    for oid in pending_ids:
+        serial += 1
+        cur.execute(
+            "UPDATE orbit_orders SET agent_serial_no = %s, updated_at = %s WHERE user_id = %s AND order_item_id = %s",
+            (serial, now, user_id, oid),
+        )
+        updated += 1
+
+    conn.commit()
+    conn.close()
+    return updated
+
+
 # --- ▼ SECTION 07: 発送代行への通知用CSV出力 ▼ ---
 def export_notify_csv(user_id: int, order_item_ids=None) -> str:
     rows = list_orders_with_calc(user_id)
