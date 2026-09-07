@@ -48,6 +48,7 @@ from amazon.services.orbit_settlement_service import (
     parse_settlement_report,
     import_settlement_lines,
 )
+from amazon.adapters.orbit_sales_trend import get_sales_trend
 from amazon.services.google_sheets_service import (
     build_authorization_url,
     exchange_code_for_tokens,
@@ -126,6 +127,31 @@ def get_orders():
         return jsonify({"status": "error", "message": "注文一覧の集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "rows": rows})
+
+
+# --- ▼ SECTION 02-2: 売上トレンド（Dashboard「売上トレンド」サブタブ用・読み取り専用） ▼ ---
+# マーケット別の日次販売個数（折れ線）＋ツールチップ用の総額（現地通貨）・概算利益率を返す。
+# 集計は注文一覧と同じ list_orders_with_calc を通すため、期間が長いと数秒かかることがある。
+@orbit_bp.route("/sales-trend", methods=["GET"])
+def sales_trend():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        days = int(request.args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+
+    try:
+        data = get_sales_trend(user_id, days)
+    except Exception:
+        import traceback
+        print("[orbit/sales-trend] get_sales_trend ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "売上トレンドの集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", "data": data})
 
 
 # --- ▼ SECTION 03: 手入力項目の更新（JAN・仕入価格・依頼日・発送種別・トラッキング・備考） ▼ ---

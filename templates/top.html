@@ -144,7 +144,87 @@
   background: #bbb;
 }
 
+/* ============================= */
+/* Dashboard：サブタブ           */
+/* ============================= */
+#dashboard .st-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #ddd;
+}
 
+#dashboard .st-subtab-btn {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  font-size: 15px;
+  border-radius: 6px 6px 0 0;
+}
+
+#dashboard .st-subtab-btn.active {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+}
+
+#dashboard .st-subtab-pane { display: none; }
+#dashboard .st-subtab-pane.active { display: block; }
+
+/* 売上トレンド */
+.sales-trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sales-trend-head h3 { margin: 0; font-size: 16px; }
+
+.sales-trend-period { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.stp-btn {
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.stp-btn.active {
+  background: #4a90e2;
+  color: #fff;
+  border-color: #4a90e2;
+}
+
+.stp-refresh {
+  margin-left: 10px;
+  padding: 5px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.stp-refresh:disabled { opacity: .55; cursor: default; }
+
+.sales-trend-note { margin: 0 0 10px; font-size: 12px; color: #888; line-height: 1.6; }
+
+.sales-trend-status {
+  font-size: 13px;
+  color: #666;
+  min-height: 18px;
+  margin-bottom: 6px;
+}
+
+.sales-trend-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 360px;
+}
 
 </style>
 
@@ -195,15 +275,49 @@
     <div class="main-panel">
 
         <div id="dashboard" class="subtab-content active">
-            <!-- <div class="main-container top-page"> -->
                 <h2>Dashboard</h2>
-                <div class="card">
-                    {% include 'ttl_home_pricing_panel.html' %}
+
+                <div class="st-subtabs">
+                    <button class="st-subtab-btn active" data-target="db-sales-trend">売上トレンド</button>
+                    <button class="st-subtab-btn" data-target="db-api-analysis">API分析</button>
                 </div>
-                <div class="card" style="margin-top:16px;">
-                    {% include 'api_counter.html' %}
+
+                <!-- ▼ SUBTAB: 売上トレンド（マーケット別 日次販売個数） -->
+                <div id="db-sales-trend" class="st-subtab-pane active">
+                    <div class="card">
+                        <div class="sales-trend-head">
+                            <h3>売上トレンド（マーケット別 販売個数）</h3>
+                            <div class="sales-trend-period" id="salesTrendPeriod">
+                                <button type="button" class="stp-btn" data-days="7">7日</button>
+                                <button type="button" class="stp-btn active" data-days="30">30日</button>
+                                <button type="button" class="stp-btn" data-days="90">90日</button>
+                                <button type="button" class="stp-btn" data-days="180">180日</button>
+                                <button type="button" class="stp-btn" data-days="365">1年</button>
+                                <button type="button" class="btn-blue stp-refresh" id="salesTrendRefresh">更新</button>
+                            </div>
+                        </div>
+                        <p class="sales-trend-note">
+                            注文日（purchase_date）ベース。ORBIT（注文管理）に取込済みの注文のみ集計。
+                            マーケットは注文番号から判定（判定不可は「不明」）。
+                            ツールチップの総額は item_price 合計（現地通貨・送料含まず／未取得の明細は除外）、
+                            概算利益率は Σ利益(円) ÷ Σ販売額(円)。
+                        </p>
+                        <div class="sales-trend-status" id="salesTrendStatus">「更新」を押すと集計します（全注文を再計算するため数秒かかることがあります）</div>
+                        <div class="sales-trend-canvas-wrap">
+                            <canvas id="salesTrendChart"></canvas>
+                        </div>
+                    </div>
                 </div>
-            <!-- </div>     -->
+
+                <!-- ▼ SUBTAB: API分析（旧Dashboardの内容をそのまま集約） -->
+                <div id="db-api-analysis" class="st-subtab-pane">
+                    <div class="card">
+                        {% include 'ttl_home_pricing_panel.html' %}
+                    </div>
+                    <div class="card" style="margin-top:16px;">
+                        {% include 'api_counter.html' %}
+                    </div>
+                </div>
         </div>
    
         <div id="csv-import" class="subtab-content" hidden>
