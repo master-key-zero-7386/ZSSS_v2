@@ -2005,7 +2005,17 @@ def bulk_delete_items():
 
         country_sku_map.setdefault(country_code, []).append(sku)
 
-    # --- Bulk処理（Feed + DB削除） ---
+    # --- Bulk処理 ---
+    # ★変更: 従来は「Feed送信 → DB削除」の順で、しかも Feed送信(bulk_delete_listing_item)を
+    #        try で囲っていなかったため、Feed側で1つでも例外が出ると
+    #        エンドポイント全体が500になり DB削除まで到達せず、画面上は
+    #        「何回削除しても消えない」状態になっていた。さらに DB削除は
+    #        実際の削除件数(rowcount)を見ずに sku_list 全件を無条件で "ok" と
+    #        返していたため、user_id不一致等で0件削除でも画面には成功と表示されていた。
+    #        → ①DB削除を先に確実に実行し RETURNING で「実際に消えたSKU」を確定
+    #          ②Amazon側のFeed取り下げは try で隔離（失敗しても500にしない）
+    total_deleted = 0
+
     for country_code, sku_list in country_sku_map.items():
 
         # marketplace_id取得
@@ -2020,25 +2030,15 @@ def bulk_delete_items():
         conn.close()
 
         if not row:
+            for sku in sku_list:
+                results.append({"sku": sku, "status": "error",
+                                "message": f"marketplace not found: user_id={user_id} country={country_code}"})
             continue
         marketplace_id = row["marketplace_id"]
 
-        # --- API削除（Bulk Feed） ---
-        if str(status).lower() == "listed":
-            feed_response = bulk_delete_listing_item(
-                user_id=user_id,
-                country_code=country_code,
-                marketplace_id=marketplace_id,
-                sku_list=sku_list
-            )
-            print("BULK FEED RESPONSE:", feed_response, flush=True)
-
-
-            if isinstance(feed_response, dict):
-                print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
-
-        # --- DB削除（1件ずつではなくANY(%s)でまとめて1クエリ） ---
+        # --- ① DB削除（先に実行。RETURNING で実際に消えたSKUを取得） ---
         db_name = f"a_{country_code}_listed_items.db"
+        deleted_skus = set()
 
         try:
             conn = get_conn(db_name)
@@ -2048,30 +2048,56 @@ def bulk_delete_items():
             continue
 
         cur = conn.cursor()
-
+        db_error = None
         try:
             cur.execute("""
                 DELETE FROM listed_items
                 WHERE sku = ANY(%s) AND user_id=%s
+                RETURNING sku
             """, (sku_list, user_id))
+            deleted_skus = {r["sku"] for r in cur.fetchall()}
             conn.commit()
-
-            for sku in sku_list:
-                print(f"[DB DELETE COMPLETE] SKU: {sku}", flush=True)
-                results.append({"sku": sku, "status": "ok"})
-
         except Exception as e:
             conn.rollback()
+            db_error = str(e)
             print(f"[DB DELETE ERROR] country={country_code} → {e}", flush=True)
-
-            for sku in sku_list:
-                results.append({"sku": sku, "status": "error", "message": str(e)})
-
         finally:
             conn.close()
 
+        if db_error is not None:
+            for sku in sku_list:
+                results.append({"sku": sku, "status": "error", "message": db_error})
+            continue
+
+        total_deleted += len(deleted_skus)
+        print(f"[DB DELETE] country={country_code} requested={len(sku_list)} deleted={len(deleted_skus)}", flush=True)
+
+        for sku in sku_list:
+            if sku in deleted_skus:
+                results.append({"sku": sku, "status": "ok"})
+            else:
+                results.append({"sku": sku, "status": "error",
+                                "message": "対象行なし（user_id/sku不一致 または既に削除済み）"})
+
+        # --- ② Amazon側のFeed取り下げ（失敗してもDB削除は確定済み。ここで500にしない） ---
+        if str(status).lower() == "listed" and deleted_skus:
+            try:
+                feed_response = bulk_delete_listing_item(
+                    user_id=user_id,
+                    country_code=country_code,
+                    marketplace_id=marketplace_id,
+                    sku_list=list(deleted_skus),
+                )
+                print("BULK FEED RESPONSE:", feed_response, flush=True)
+                if isinstance(feed_response, dict):
+                    print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
+            except Exception as e:
+                # Feed失敗は致命ではない：DB上は消えており、通常のTTL巡回でも取り下げ再送される
+                print(f"[BULK FEED ERROR] country={country_code} → {e}", flush=True)
+
     return jsonify({
         "status": "success",
+        "deleted_count": total_deleted,
         "results": results
     })
 

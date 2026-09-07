@@ -1781,11 +1781,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            // --- ▼ 削除成功分をその場で一覧から除去する（重いフル再読込はしない） ▼ ---
-            // 従来は loadalllisting() でテーブルを毎回 破棄→再生成→サーバー再取得して
-            // いたため、「削除完了」トーストは即出るのに一覧の反映が数秒〜十数秒遅れ、
-            // 特に100件一括だと「消えていない」ように見えていた。単発削除（ゴミ箱）と
-            // 同じく、DataTable から該当行だけ抜いて draw(false) する方式に統一する。
+            // --- ▼ 実際にDB削除できたSKUだけ、その場で一覧から抜く ▼ ---
+            // サーバーは RETURNING で「本当に消えた行」を results[].status="ok" として返す。
+            // 従来は loadalllisting() でテーブル丸ごと再生成していて反映が数秒〜十数秒遅れ、
+            // 100件一括だと「消えていない」ように見えていた。単発削除（ゴミ箱）と同じく
+            // 該当行だけ抜く方式に統一。0件しか消えなかった場合は何も抜かず失敗表示する。
             const okSkus = new Set(
                 (data.results || [])
                     .filter(r => r.status === "ok" && r.sku)
@@ -1795,17 +1795,24 @@ document.addEventListener("DOMContentLoaded", () => {
             document.querySelectorAll("#alllistingtable .row-select:checked").forEach(cb => {
                 const tr = cb.closest("tr");
                 const sku = tr.querySelector(".sku-cell")?.textContent.trim();
-                // results が空（旧経路）なら選択行を全部、あれば status:"ok" の行だけ除去
-                if (okSkus.size === 0 || (sku && okSkus.has(sku))) {
+                if (sku && okSkus.has(sku)) {
                     allDt.row(tr).remove();
                 }
             });
             allDt.draw(false);
 
-            if (failed.length > 0) {
-                window.showToast(`${failed.length}件の削除に失敗しました`, "error");
+            const deletedCount = (typeof data.deleted_count === "number")
+                ? data.deleted_count : okSkus.size;
+
+            if (deletedCount === 0) {
+                window.showToast(
+                    `削除できませんでした（0件）。${(failed[0] && failed[0].message) || ""}`,
+                    "error"
+                );
+            } else if (failed.length > 0) {
+                window.showToast(`${deletedCount}件削除／${failed.length}件失敗`, "error");
             } else {
-                window.showToast("削除完了", "success");
+                window.showToast(`${deletedCount}件削除しました`, "success");
             }
         } catch (e) {
             console.error("bulk_delete_items error:", e);
