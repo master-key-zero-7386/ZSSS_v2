@@ -80,6 +80,101 @@ def get_asin_blacklist(user_id, region_marketplace_id, country_code):
 
     return [r["asin"] for r in rows]
 
+# --- ▼ SECTION 01-B: INACTIVE時のAmazon出品取り下げ / 再出品状態の管理 ▼ ---
+# listed_items.listing_status を「Amazon側に出品が生きているか」のフラグとして使う:
+#   'LIVE'    … Amazonに出品が生きている（put_listings_item 成功後にセット）
+#   'REMOVED' … Amazonから取り下げ済み（delete_listings_item 成功後にセット）
+#   ''        … 未確定（移行前の既存データ）
+# どの理由であれ listed 商品が INACTIVE 化されたら必ずここを通し、
+# 'REMOVED' になるまで毎サイクル delete を再送する（1回失敗して放置＝出品が生き残る、を防ぐ）。
+def _ensure_amazon_offer_removed(*, user_id, asin, country_code, region_marketplace_id=None):
+    """listed 状態の出品を Amazon から取り下げ、成功したら listing_status='REMOVED' を記録する。
+    既に 'REMOVED' / 未出品なら何もしない（毎サイクルの無駄打ち・429誘発を避ける）。
+    delete がエラーを返したら listing_status は据え置き → 次サイクルで自動的に再試行される。"""
+    listed_db = f"a_{country_code.lower()}_listed_items.db"
+
+    if not region_marketplace_id:
+        conn = get_conn("a_marketplaces.db")
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT marketplace_id
+                FROM marketplaces
+                WHERE user_id = %s AND UPPER(country_code) = UPPER(%s)
+                LIMIT 1
+            """, (user_id, country_code))
+            mp = cur.fetchone()
+        finally:
+            conn.close()
+        if not mp:
+            return
+        region_marketplace_id = mp["marketplace_id"]
+
+    conn = get_conn(listed_db)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT sku, status, COALESCE(listing_status, '') AS listing_status
+            FROM listed_items
+            WHERE user_id = %s AND asin = %s AND region_marketplace_id = %s
+            LIMIT 1
+        """, (user_id, asin, region_marketplace_id))
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row or row["status"] != "listed" or not row["sku"]:
+        return
+    if row["listing_status"] == "REMOVED":
+        return
+
+    try:
+        resp = delete_listings_item(
+            user_id=user_id,
+            country_code=country_code,
+            marketplace_id=region_marketplace_id,
+            seller_sku=row["sku"],
+        )
+    except Exception as e:
+        print(f"[OFFER_REMOVE][ERR] asin={asin} mp={region_marketplace_id}: {e}", flush=True)
+        return
+
+    # Amazon側に既に無い(NOT_FOUND)は「取り下げ成功」と同じ扱いにする
+    errors = resp.get("errors") if isinstance(resp, dict) else None
+    if errors and not all(e.get("code") == "NOT_FOUND" for e in errors):
+        print(f"[OFFER_REMOVE][NG] asin={asin} mp={region_marketplace_id}: {errors}", flush=True)
+        return
+
+    conn = get_conn(listed_db)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE listed_items
+            SET listing_status = 'REMOVED',
+                updated_at = %s
+            WHERE user_id = %s AND asin = %s AND region_marketplace_id = %s
+        """, (datetime.utcnow().isoformat(), user_id, asin, region_marketplace_id))
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"[OFFER_REMOVE][OK] asin={asin} mp={region_marketplace_id} sku={row['sku']}", flush=True)
+
+
+def _mark_amazon_offer_live(*, user_id, asin, region_marketplace_id, country_code):
+    """put_listings_item 成功後に listing_status='LIVE' を記録（再出品の確定）。"""
+    listed_db = f"a_{country_code.lower()}_listed_items.db"
+    conn = get_conn(listed_db)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE listed_items
+            SET listing_status = 'LIVE'
+            WHERE user_id = %s AND asin = %s AND region_marketplace_id = %s
+        """, (user_id, asin, region_marketplace_id))
+        conn.commit()
+    finally:
+        conn.close()
+
 # --- ▼ SECTION 02:HOME Pricing 正規更新 ▼ ---
 def update_home_pricing(*, user_id: int, asin: str, country_code: str):
 
@@ -273,6 +368,14 @@ def update_home_pricing(*, user_id: int, asin: str, country_code: str):
         finally:
             conn.close()
 
+        # ★追加: HOME仕入が無くなった＝REGIONの出品も止めるべき。呼び出し側
+        #        （TTLループ / 最新取得）が即座に取り下げへ進めるよう明示的に返す。
+        return {
+            "status": "home_no_offers",
+            "asin": asin,
+            "country_code": country_code,
+        }
+
     # --- ▼ TTL更新（HOME PRICING） ▼ ---
     # ★修正: 仕入価格が見つからなかった場合（min_offerが無い）はTTL日付を更新しない
     #        → 次の巡回ですぐ再チェックされるようにする
@@ -434,6 +537,14 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
             conn_stop.commit()
         finally:
             conn_stop.close()
+
+        # ★追加: INACTIVE化したので、出品済みなら Amazon からも取り下げる
+        _ensure_amazon_offer_removed(
+            user_id=user_id,
+            asin=asin,
+            country_code=country_code,
+            region_marketplace_id=region_marketplace_id,
+        )
 
         return {
             "status": "region_price_not_found",
@@ -817,6 +928,15 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         finally:
             conn.close()
 
+        # ★追加: INACTIVE化したので、出品済みなら Amazon からも取り下げる
+        if row["status"] == "listed":
+            _ensure_amazon_offer_removed(
+                user_id=user_id,
+                asin=asin,
+                country_code=country_code,
+                region_marketplace_id=region_marketplace_id,
+            )
+
         return {
             "status": "no_catalog_skip",
             "final_price": None,
@@ -1138,12 +1258,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
     # INACTIVEの理由
     # --- ▼ ブラックリスト該当 ▼ ---
+    # ★変更: ここで個別に delete_listings_item を呼んでいたが、ガードが
+    #        「information_status がまだ INACTIVE でない瞬間」限定だったため、
+    #        先に別経路(HOME_NO_OFFERS等)で INACTIVE 化されると取り下げが一度も
+    #        走らなかった。取り下げは下部の共通処理(_ensure_amazon_offer_removed)
+    #        に一本化し、'REMOVED' になるまで毎サイクル再送する方式にした。
     if brand_ng_flag:
         status_value = 'INACTIVE'
         inactive_reason = "BLACKLIST"
-
-        if is_listed and row["information_status"] != "INACTIVE":
-            res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
     # --- ▼ 仕入HOEMPric対象なし ▼ ---
     elif final_price is None or final_price == 0:
@@ -1155,17 +1277,10 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         still_retrying = row["status"] == "pre" and (row["first_try_count"] or 0) > 0
         inactive_reason = "PRICE_PENDING" if still_retrying else "NO_PRICE"
 
-        if is_listed and row["information_status"] != "INACTIVE":
-            res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
-
     # --- ▼ Pricing設定のMAX Priceオーバー（手動固定価格は無条件でそのまま出品するためスキップ） ▼ ---
     elif max_price and final_price and float(final_price) > float(max_price) and not price_override_active:
         status_value = 'INACTIVE'
         inactive_reason = "Setting MAX_PRICE"
-
-        if is_listed and row["information_status"] != "INACTIVE":
-
-            res = delete_listings_item(user_id=user_id, country_code=country_code, marketplace_id=region_marketplace_id, seller_sku=sku)
 
     # --- ▼ RAW最安競合との差チェック（手動固定価格は無条件でそのまま出品するためスキップ） ▼ ---
     elif rules.get("max_competitor_price_ratio") and final_price and not price_override_active:
@@ -1216,17 +1331,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
 
                 if float(final_price) > float(max_allowed_price):
 
-                    status_value = 'INACTIVE' 
+                    status_value = 'INACTIVE'
                     inactive_reason = "COMPETITOR_RATIO"
-
-                    if is_listed and row["information_status"] != "INACTIVE":
-
-                        res = delete_listings_item(
-                            user_id=user_id,
-                            country_code=country_code,
-                            marketplace_id=region_marketplace_id,
-                            seller_sku=sku
-                        )
 
         except Exception:
             pass
@@ -1270,8 +1376,17 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             "submitted": False
         }
 
-    # --- ▼ Status INACTIVEはAPI叩かない  ---
+    # --- ▼ Status INACTIVE: 出品APIは送らず、既存の出品は Amazon から取り下げる ---
+    #     どの理由(BLACKLIST / NO_PRICE / MAX_PRICE / COMPETITOR_RATIO / HOME_NO_OFFERS /
+    #     NO_CATALOG 等)であっても、listed のまま INACTIVE になったら必ず取り下げる。
+    #     取り下げ済み('REMOVED')になるまで毎サイクルここで再送される。
     if status_value == 'INACTIVE':
+        _ensure_amazon_offer_removed(
+            user_id=user_id,
+            asin=asin,
+            country_code=country_code,
+            region_marketplace_id=region_marketplace_id,
+        )
         return {
             "status": "inactive_skip",
             "final_price": final_price,
@@ -1284,7 +1399,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
     sku = row["sku"]
 
     # --- Listings API送信 ---
-    # put_listings_item(  
+    # put_listings_item(
     response = put_listings_item(
         user_id=user_id,
         country_code=country_code,
@@ -1295,6 +1410,17 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
         quantity=quantity,
         handling_time=rules["default_handling_time"]
     )
+
+    # ★追加: put成功なら「再出品済み」として listing_status='LIVE' に戻す。
+    #        （在庫復活→ACTIVE→ここで再出品、が成立したことの記録）
+    put_errors = response.get("errors") if isinstance(response, dict) else None
+    if not put_errors:
+        _mark_amazon_offer_live(
+            user_id=user_id,
+            asin=asin,
+            region_marketplace_id=region_marketplace_id,
+            country_code=country_code,
+        )
 
     return {
         "status": "ok",

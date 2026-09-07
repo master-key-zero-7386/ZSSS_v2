@@ -677,11 +677,24 @@ def dispatch_ttl_execution(targets, record, country_code):
                 if not record.get("home_marketplace_id"):
                     continue
 
-                update_home_pricing(
+                home_res = update_home_pricing(
                     user_id=record["user_id"],
                     asin=record["asin"],
                     country_code=country_code,
                 )
+
+                # ★追加: HOME仕入が消えた/取得不可(HOME_NO_OFFERS等)なら、次のREGION
+                #        Pricing TTLを待たず、その場でREGION出品の取り下げまで進める。
+                #        update_listing_price 側が status=INACTIVE を確定し、
+                #        _ensure_amazon_offer_removed で Amazon から取り下げる。
+                if isinstance(home_res, dict) and home_res.get("status") in (
+                    "home_no_offers", "home_price_not_found"
+                ):
+                    update_listing_price(
+                        user_id=record["user_id"],
+                        asin=record["asin"],
+                        country_code=country_code,
+                    )
 
             # --- REGION / CATALOG ---
             elif scope == "region" and ttl_type == "catalog":
