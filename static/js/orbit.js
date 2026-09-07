@@ -1448,7 +1448,12 @@ window.initOrbit = function () {
 
     function loadOrders(attempt) {
         attempt = (typeof attempt === "number") ? attempt : 1;  // click ハンドラ等から event が渡るケースを吸収
-        setOrdersLoadingState(attempt < 2 ? "読み込み中…" : "再試行中…", { spin: true });
+        // 「読み込み中…」でテーブルを空にするのは、まだ1件も表示していないとき（初回・全件削除後・
+        // タブ再訪）だけ。発注管理での商品名編集など、既にデータが出ている状態からの再取得では
+        // 画面を消さず静かに差し替える（旧挙動）。失敗時のエラー行＋再読み込みボタンは下の catch で常に出す。
+        if (ordersRowsCache.length === 0) {
+            setOrdersLoadingState(attempt < 2 ? "読み込み中…" : "再試行中…", { spin: true });
+        }
 
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 90000);
