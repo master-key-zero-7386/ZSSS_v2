@@ -32,6 +32,27 @@ from sp_api.base.marketplaces import Marketplaces as SP_MARKETPLACES
 
 # ---- HTTP通信（Amazon審査にも問題なし / SP-API公式仕様に準拠） ----
 import requests
+from requests.adapters import HTTPAdapter
+try:
+    from urllib3.util.retry import Retry
+except Exception:  # 念のため（古い requests 同梱 urllib3 経路）
+    from requests.packages.urllib3.util.retry import Retry  # type: ignore
+
+# ---- SP-API 用 HTTP セッション（コネクション使い回し） ----
+# 従来は毎コール requests.request(...) を接続使い捨てで呼んでいたため、SP-API 1回ごとに
+# TCP接続 + TLSハンドシェイクをフルでやり直していた。有線なら誤差だが、ATLAS(AU)の携帯回線
+# では handshake だけで 0.4秒/コール + アイドル後のコールドスパイク数秒 を毎回払っていた。
+# Session + keep-alive で 2回目以降の handshake を省き、切れていた場合の接続確立のみ
+# リトライする（read/status リトライはしない＝PUT/POST の二重送信と 429 の握り潰しを避ける。
+# 429 は guard_429 側で処理）。
+_SPAPI_RETRY = Retry(
+    total=2, connect=2, read=0, status=0, redirect=0,
+    backoff_factor=0.5, status_forcelist=[], raise_on_status=False,
+)
+_SPAPI_SESSION = requests.Session()
+_SPAPI_ADAPTER = HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=_SPAPI_RETRY)
+_SPAPI_SESSION.mount("https://", _SPAPI_ADAPTER)
+_SPAPI_SESSION.mount("http://", _SPAPI_ADAPTER)
 
 # ---- ZSSS内部モジュール ----
 from amazon.auth.token_manager import get_access_token
@@ -120,7 +141,8 @@ def real_signed_request(method, path, params, host, json=None, cfg=None, user_id
 
         from urllib.parse import quote
 
-        resp = requests.request(method, url, headers=headers, params=params, json=json, timeout=15)
+        # Session 経由でコネクションを使い回す（keep-alive）。切断済みなら接続確立のみリトライ
+        resp = _SPAPI_SESSION.request(method, url, headers=headers, params=params, json=json, timeout=15)
 
         print(f"<< API RESPONSE >> status:{resp.status_code}")  # コメントアウトのみ可
 
