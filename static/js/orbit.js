@@ -1847,6 +1847,16 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
+                    // 「仕入済」0→1 のときはサーバ側で再出品を試行している
+                    const r = data.restock;
+                    if (r && r.status === "ok") {
+                        window.showToast?.(
+                            `再出品を実行しました（${(r.country_code || "").toUpperCase()} ${r.asin || ""}）`,
+                            "success"
+                        );
+                    } else if (r && r.status === "skip") {
+                        window.showToast?.("再出品対象の出品が見つかりませんでした", "info");
+                    }
                     loadOrders();
                 } else {
                     window.showToast?.(data.message || "更新に失敗しました", "error");

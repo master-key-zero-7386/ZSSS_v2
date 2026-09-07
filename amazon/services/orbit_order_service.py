@@ -1639,6 +1639,84 @@ def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
     conn.close()
 
 
+# --- ▼ SECTION 06-0a: 発注管理タブのフラグ現在値の読取（0→1遷移の判定用） ▼ ---
+def order_flag_is_set(user_id: int, order_item_id: str, column: str) -> bool:
+    # column は MANUAL_FIELDS でホワイトリストしてから f-string に埋める（SQLi防止）
+    if column not in MANUAL_FIELDS:
+        return False
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        f"SELECT {column} AS v FROM orbit_orders "
+        f"WHERE user_id = %s AND order_item_id = %s LIMIT 1",
+        (user_id, order_item_id),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return bool(row and row["v"])
+
+
+# --- ▼ SECTION 06-0b: 「仕入済」チェック時の再出品 ▼ ---
+# 発注管理タブで purchased を 0→1 にした時だけ routes 側から呼ばれる。
+# 「最新取得」ボタンと同じ経路（update_home_pricing → update_region_pricing →
+# put_listings_item）で、売れて在庫0のまま寝ている出品を復活させる。
+# JP が出品者0件／価格取得不可なら update_home_pricing 側が home_price を NULL 化＋
+# INACTIVE にするため、その場合は再出品されない（売り越しに対する二重の安全弁）。
+def relist_after_purchase(user_id: int, order_item_id: str) -> dict:
+    # --- 対象注文行から sku を引く ---
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT sku FROM orbit_orders WHERE user_id = %s AND order_item_id = %s LIMIT 1",
+        (user_id, order_item_id),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row or not row["sku"]:
+        return {"status": "skip", "reason": "no_sku"}
+
+    sku = row["sku"]
+
+    # --- sku → (asin, 販売先 country_code) を listed_items から特定 ---
+    #     region_marketplace_id 経由で marketplaces の country_code を引く。
+    conn = get_conn("listed_items")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT li.asin AS asin, m.country_code AS country_code
+        FROM listed_items li
+        JOIN marketplaces m
+          ON m.user_id = li.user_id
+         AND m.marketplace_id = li.region_marketplace_id
+        WHERE li.user_id = %s AND li.sku = %s AND li.asin IS NOT NULL
+        LIMIT 1
+        """,
+        (user_id, sku),
+    )
+    target = cur.fetchone()
+    conn.close()
+    if not target:
+        return {"status": "skip", "reason": "not_in_listed_items", "sku": sku}
+
+    asin = target["asin"]
+    country_code = target["country_code"]
+
+    # 循環importを避けるため関数内import（背景ループと同じ扱い）
+    from amazon.routes.routes_pricing_v2 import update_home_pricing, update_region_pricing
+
+    update_home_pricing(user_id=user_id, asin=asin, country_code=country_code)
+    price_result = update_region_pricing(
+        user_id=user_id, asin=asin, country_code=country_code
+    )
+
+    return {
+        "status": "ok",
+        "asin": asin,
+        "country_code": country_code,
+        "price_result": price_result,
+    }
+
+
 # --- ▼ SECTION 06-1: 注文の削除（行ごと／全件リセット） ▼ ---
 def delete_order(user_id: int, order_item_id: str) -> int:
     conn = get_conn("a_orbit_orders.db")

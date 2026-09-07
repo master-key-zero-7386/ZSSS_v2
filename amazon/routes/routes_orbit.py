@@ -14,6 +14,8 @@ from amazon.services.orbit_order_service import (
     update_manual_fields,
     delete_order,
     delete_all_orders,
+    relist_after_purchase,
+    order_flag_is_set,
     fetch_and_cache_catalog_for_asin,
     fetch_and_cache_fee_estimate,
     export_fee_data_csv,
@@ -137,9 +139,28 @@ def update_order():
             value = float(value) if value not in (None, "") else None
         fields[key] = value
 
+    # --- ▼ 「仕入済」チェックを 0→1 にした瞬間だけ再出品する ▼ ---
+    #     売れた時点では在庫0のまま（自動再出品しない）。実際にJPで仕入れた人間が
+    #     「仕入済」を押した＝JP在庫を自分の目で確認済み、というのを再出品のゲートに
+    #     する（在庫の少ない商品の売り越し防止）。もう売りたくない場合はブラック
+    #     リスト or List削除で対応する運用。1→0（チェック解除）では何もしない。
+    restock_on_purchase = (
+        fields.get("purchased") in (1, "1", True)
+        and not order_flag_is_set(user_id, order_item_id, "purchased")
+    )
+
     update_manual_fields(user_id, order_item_id, fields)
 
-    return jsonify({"status": "success"})
+    restock_result = None
+    if restock_on_purchase:
+        try:
+            restock_result = relist_after_purchase(user_id, order_item_id)
+        except Exception:
+            import traceback
+            print("[orbit/orders/update] relist_after_purchase ERROR")
+            traceback.print_exc()
+
+    return jsonify({"status": "success", "restock": restock_result})
 
 
 # --- ▼ SECTION 03-1: 注文の削除（行ごと／全件リセット） ▼ ---
