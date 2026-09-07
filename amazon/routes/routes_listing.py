@@ -17,6 +17,7 @@ import json
 import psycopg2
 import traceback
 import time
+import threading
 from datetime import datetime
 
 from amazon.db import get_conn
@@ -2013,8 +2014,12 @@ def bulk_delete_items():
     #        実際の削除件数(rowcount)を見ずに sku_list 全件を無条件で "ok" と
     #        返していたため、user_id不一致等で0件削除でも画面には成功と表示されていた。
     #        → ①DB削除を先に確実に実行し RETURNING で「実際に消えたSKU」を確定
-    #          ②Amazon側のFeed取り下げは try で隔離（失敗しても500にしない）
+    #          ②Amazon側のFeed取り下げは「レスポンスを返した後」にバックグラウンドで実行。
+    #            ATLAS(セルラー回線)だとFeed送信(doc作成→S3アップロード→submit)に数分
+    #            かかることがあり、同期実行だと画面が数分固まって「削除できてない」ように
+    #            見えていた。DB削除さえ終われば一覧からは即消せるので、Feedは待たない。
     total_deleted = 0
+    feed_jobs = []   # [(country_code, marketplace_id, [sku, ...]), ...]
 
     for country_code, sku_list in country_sku_map.items():
 
@@ -2079,21 +2084,30 @@ def bulk_delete_items():
                 results.append({"sku": sku, "status": "error",
                                 "message": "対象行なし（user_id/sku不一致 または既に削除済み）"})
 
-        # --- ② Amazon側のFeed取り下げ（失敗してもDB削除は確定済み。ここで500にしない） ---
+        # --- ② Amazon側のFeed取り下げはバックグラウンドへ回す（下でまとめて実行） ---
         if str(status).lower() == "listed" and deleted_skus:
-            try:
-                feed_response = bulk_delete_listing_item(
-                    user_id=user_id,
-                    country_code=country_code,
-                    marketplace_id=marketplace_id,
-                    sku_list=list(deleted_skus),
-                )
-                print("BULK FEED RESPONSE:", feed_response, flush=True)
-                if isinstance(feed_response, dict):
-                    print("FEED ID:", feed_response.get("feedId"), flush=True)  # 一括処理確認ログ削除NG
-            except Exception as e:
-                # Feed失敗は致命ではない：DB上は消えており、通常のTTL巡回でも取り下げ再送される
-                print(f"[BULK FEED ERROR] country={country_code} → {e}", flush=True)
+            feed_jobs.append((country_code, marketplace_id, list(deleted_skus)))
+
+    # --- ③ Feed取り下げをレスポンス後にバックグラウンド実行（画面を待たせない） ---
+    if feed_jobs:
+        _app = current_app._get_current_object()
+        _uid = user_id
+
+        def _run_feed_jobs(app, uid, jobs):
+            with app.app_context():
+                for cc, mp, skus in jobs:
+                    try:
+                        resp = bulk_delete_listing_item(
+                            user_id=uid, country_code=cc, marketplace_id=mp, sku_list=skus
+                        )
+                        print(f"[BULK FEED bg] country={cc} count={len(skus)} resp={resp}", flush=True)
+                    except Exception as e:
+                        # DB上は既に消えており、standaloneスクリプト/TTLで再取り下げ可能
+                        print(f"[BULK FEED bg ERROR] country={cc} count={len(skus)} → {e}", flush=True)
+
+        threading.Thread(
+            target=_run_feed_jobs, args=(_app, _uid, feed_jobs), daemon=True
+        ).start()
 
     return jsonify({
         "status": "success",
