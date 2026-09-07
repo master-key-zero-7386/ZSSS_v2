@@ -1567,18 +1567,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     return;
                 }
 
+                // --- 削除済み行はその場で抜く。重い loadprelisting() は呼ばない
+                //     （ALL側と挙動を統一。トーストと一覧のズレをなくす） ---
                 const table = $('#prelistingtable').DataTable();
 
                 document.querySelectorAll("#prelistingtable .row-select:checked").forEach(cb => {
                     table.row($(cb).closest("tr")).remove();
                 });
 
-                table.draw();
-
-                if (country_code) {
-                    window.savePreListingPage();
-                    window.loadprelisting(country_code);
-                }
+                table.draw(false);
 
                 if (failed.length > 0) {
                     window.showToast(`${failed.length}件の削除に失敗しました`, "error");
@@ -1784,10 +1781,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            if (country_code) {
-                window.saveAllListingPage();
-                window.loadalllisting(country_code, document.querySelector('input[name="allInfoStatus"]:checked')?.value || 'all');
-            }
+            // --- ▼ 削除成功分をその場で一覧から除去する（重いフル再読込はしない） ▼ ---
+            // 従来は loadalllisting() でテーブルを毎回 破棄→再生成→サーバー再取得して
+            // いたため、「削除完了」トーストは即出るのに一覧の反映が数秒〜十数秒遅れ、
+            // 特に100件一括だと「消えていない」ように見えていた。単発削除（ゴミ箱）と
+            // 同じく、DataTable から該当行だけ抜いて draw(false) する方式に統一する。
+            const okSkus = new Set(
+                (data.results || [])
+                    .filter(r => r.status === "ok" && r.sku)
+                    .map(r => r.sku)
+            );
+            const allDt = $("#alllistingtable").DataTable();
+            document.querySelectorAll("#alllistingtable .row-select:checked").forEach(cb => {
+                const tr = cb.closest("tr");
+                const sku = tr.querySelector(".sku-cell")?.textContent.trim();
+                // results が空（旧経路）なら選択行を全部、あれば status:"ok" の行だけ除去
+                if (okSkus.size === 0 || (sku && okSkus.has(sku))) {
+                    allDt.row(tr).remove();
+                }
+            });
+            allDt.draw(false);
 
             if (failed.length > 0) {
                 window.showToast(`${failed.length}件の削除に失敗しました`, "error");

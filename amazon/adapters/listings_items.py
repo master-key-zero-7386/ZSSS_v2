@@ -233,13 +233,10 @@ def delete_listings_feed(user_id, country_code, marketplace_id, sku_list):
 
     print("FEED ID:", feed_id, flush=True)  # 一括処理確認ログ削除NG
 
-    import time
-    time.sleep(5)
-
-    feed_status = adapter.real_signed_request(
-        "GET",
-        f"/feeds/2021-06-30/feeds/{feed_id}"
-    )
+    # ★変更: ここで time.sleep(5) して feed status を GET していたが、取得結果は
+    #        使わず捨てており（return は feed_submit）、一括削除リクエストを
+    #        毎回5秒以上ブロックして「削除したのに一覧が固まる」原因になっていた。
+    #        Feed処理はAmazon側で非同期に進むため、ここで待つ意味がない。削除。
 
     return feed_submit
 
