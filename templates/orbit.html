@@ -1,5 +1,13 @@
 <!-- orbit.html -->
 <style>
+/* 注文一覧の読み込み中スピナー（listing.css は orbit ページでは読み込まれないため自前で持つ） */
+@keyframes orbit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.orbit-load-spinner {
+  display: inline-block; width: 14px; height: 14px; vertical-align: middle; margin-right: 6px;
+  border: 2px solid rgba(0,0,0,.15); border-top-color: rgba(0,0,0,.6); border-radius: 50%;
+  animation: orbit-spin .9s linear infinite;
+}
+
 /* 作業領域は重要なので、データ件数が少なくても常に広く確保する（min-heightもmax-heightと揃える） */
 .orbit-page .table-wrapper {
   max-height: calc(100vh - 260px);

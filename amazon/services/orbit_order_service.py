@@ -984,6 +984,43 @@ def _fetch_catalog_cache_dims(asin: str):
     return normalized
 
 
+# --- ▼ SECTION 04-3b: catalog_cache 寸法・重量の ASIN 一括先読み ▼ ---
+# list_orders_with_calc() が行ごとに _fetch_catalog_cache_dims() を呼ぶと、注文件数ぶん
+# DB接続＋クエリ＋JSONパースが走り、注文が数百件あると応答が遅延してフロントの
+# fetch がタイムアウト → 「注文一覧の取得に失敗しました」トーストの原因になっていた。
+# _load_buyer_history_counts 等と同じく、必要なASINぶんを1クエリでまとめて引く。
+def _load_catalog_cache_dims_map(asins) -> dict:
+    asins = [a for a in set(asins) if a]
+    if not asins:
+        return {}
+
+    conn = get_conn("a_catalog_cache.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT DISTINCT ON (asin) asin, home_raw_json
+        FROM catalog_cache
+        WHERE asin = ANY(%s) AND home_raw_json IS NOT NULL
+        ORDER BY asin, home_updated_at DESC NULLS LAST
+        """,
+        (asins,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    adapter = NormalizedCatalogAdapter(None)
+    out = {}
+    for r in rows:
+        try:
+            raw = json.loads(r["home_raw_json"])
+        except (ValueError, TypeError):
+            continue
+        normalized = adapter._normalize_dimensions_weight(raw)
+        if normalized.get("length_cm") and normalized.get("width_cm") and normalized.get("height_cm"):
+            out[r["asin"]] = normalized
+    return out
+
+
 # --- ▼ SECTION 04-4: 寸法・重量フォールバック③ その場でHOME APIを叩いて取得（listed_items登録元を問わない） ▼ ---
 def fetch_and_cache_catalog_for_asin(user_id: int, asin: str) -> dict:
     if not asin:
@@ -1221,6 +1258,16 @@ def list_orders_with_calc(user_id: int) -> list:
     pricing_rule_cache = {}
     remote_area_ranges = _load_remote_area_ranges()
 
+    # 寸法フォールバック②(catalog_cache)用に、listed_itemsで寸法が取れない行のASINを
+    # 先に集めて1クエリで先読みする（従来は行ごとにDB接続していた＝タイムアウトの主因）。
+    _cache_asins = set()
+    for row in rows:
+        _asin = row.get("asin") or _extract_asin_from_sku(row.get("sku"))
+        _has_li_dims = bool(row.get("length_cm") and row.get("width_cm") and row.get("height_cm"))
+        if _asin and not _has_li_dims:
+            _cache_asins.add(_asin)
+    catalog_cache_dims_map = _load_catalog_cache_dims_map(_cache_asins)
+
     for row in rows:
         row["billable_weight_kg"] = None
         row["predicted_shipping_fee"] = None
@@ -1241,7 +1288,7 @@ def list_orders_with_calc(user_id: int) -> list:
         # --- 寸法・重量の3段フォールバック ---
         # ① listed_items（SKU突き合わせ、既存） → ② catalog_cache（ASIN、出品削除後も残る） → ③ 手入力
         if not row["dims_source"]:
-            cached = _fetch_catalog_cache_dims(row.get("asin"))
+            cached = catalog_cache_dims_map.get(row.get("asin"))
             if cached:
                 row["length_cm"] = cached["length_cm"]
                 row["width_cm"] = cached["width_cm"]

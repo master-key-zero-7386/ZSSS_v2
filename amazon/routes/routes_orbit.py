@@ -114,7 +114,16 @@ def get_orders():
     if not user_id:
         return jsonify({"status": "error"}), 401
 
-    rows = list_orders_with_calc(user_id)
+    # 1行でも計算で例外が出ると 500(HTML) を返し、フロントが「読み込めなかった」トースト＋
+    # 空画面になっていた。JSONでエラーを返し、原因をログに残す。
+    try:
+        rows = list_orders_with_calc(user_id)
+    except Exception:
+        import traceback
+        print("[orbit/orders] list_orders_with_calc ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "注文一覧の集計でエラーが発生しました"}), 500
+
     return jsonify({"status": "success", "rows": rows})
 
 

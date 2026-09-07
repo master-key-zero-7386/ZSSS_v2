@@ -1427,29 +1427,61 @@ window.initOrbit = function () {
         renderDispatchTable();
     }
 
-    function loadOrders() {
-        fetch("/orbit/orders")
-            .then(res => res.json())
+    // 読み込み中／失敗の状態を、画面を覆わずテーブル内の1行として出す（“固まって見える”対策）。
+    // グローバルオーバーレイは過去に不具合が多発したため使わない。
+    function setOrdersLoadingState(msg, opts) {
+        opts = opts || {};
+        const spinner = opts.spin ? '<span class="orbit-load-spinner"></span>' : "";
+        const reload = opts.retry
+            ? ' <button type="button" class="orbit-reload-btn" style="margin-left:8px;">再読み込み</button>'
+            : "";
+        const cell = `<td colspan="40" style="text-align:center;padding:16px;color:#666;">${spinner}${msg}${reload}</td>`;
+        for (const tb of [tbody, procTbody, dispatchTbody]) {
+            if (tb) tb.innerHTML = `<tr class="orbit-state-row">${cell}</tr>`;
+        }
+        if (opts.retry) {
+            document.querySelectorAll(".orbit-reload-btn").forEach(b => {
+                b.addEventListener("click", () => loadOrders());
+            });
+        }
+    }
+
+    function loadOrders(attempt) {
+        attempt = (typeof attempt === "number") ? attempt : 1;  // click ハンドラ等から event が渡るケースを吸収
+        setOrdersLoadingState(attempt < 2 ? "読み込み中…" : "再試行中…", { spin: true });
+
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 90000);
+
+        fetch("/orbit/orders", { signal: ctrl.signal })
+            .then(res => {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
             .then(data => {
-                if (data.status === "success") {
-                    ordersRowsCache = data.rows;
-                    renderOrbitSummary();
-                    renderOrdersTable();
-                    // 発注管理・仕入れ管理は出荷チェックを常にN番号で行うため、N番号の昇順で表示する
-                    // （N番号未設定の行は末尾。受注一覧での並び替えとは独立）
-                    const serialOrderedRows = sortRowsByKey(data.rows, "agent_serial_no", "asc");
-                    renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, serialOrderedRows, { grayShipped: true });
-                    dispatchRowsCache = serialOrderedRows;
-                    renderDispatchTable();
-                    syncOrdersTopScrollWidth();
-                    syncDispatchTopScrollWidth();
-                    syncProcurementTopScrollWidth();
-                } else {
-                    window.showToast?.("注文一覧の取得に失敗しました", "error");
-                }
+                clearTimeout(timer);
+                if (data.status !== "success") throw new Error(data.message || "status != success");
+                ordersRowsCache = data.rows;
+                renderOrbitSummary();
+                renderOrdersTable();
+                // 発注管理・仕入れ管理は出荷チェックを常にN番号で行うため、N番号の昇順で表示する
+                // （N番号未設定の行は末尾。受注一覧での並び替えとは独立）
+                const serialOrderedRows = sortRowsByKey(data.rows, "agent_serial_no", "asc");
+                renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, serialOrderedRows, { grayShipped: true });
+                dispatchRowsCache = serialOrderedRows;
+                renderDispatchTable();
+                syncOrdersTopScrollWidth();
+                syncDispatchTopScrollWidth();
+                syncProcurementTopScrollWidth();
             })
             .catch(err => {
-                console.error("orbit/orders error:", err);
+                clearTimeout(timer);
+                console.error("orbit/orders error (attempt " + attempt + "):", err);
+                if (attempt < 2) {
+                    setTimeout(() => loadOrders(attempt + 1), 1200);  // 瞬断は自動で1回だけ再試行
+                    return;
+                }
+                setOrdersLoadingState("注文一覧の取得に失敗しました。", { retry: true });
                 window.showToast?.("注文一覧の取得に失敗しました", "error");
             });
     }
