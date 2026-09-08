@@ -849,9 +849,17 @@ def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_we
     # そのまま各order_item_id行に適用すると同じ入金額が商品ごとに丸ごと重複してしまう。
     # 販売価格(item_price)の比率（無ければ商品数で均等割り）で按分した額を使う。
     settlement = settlement_summary.get(row.get("order_id"))
-    row["net_proceeds"] = settlement.get("net_proceeds") * settlement_weight if settlement else None
-    row["sale_price"] = settlement.get("sale_price") * settlement_weight if settlement else None
-    row["fees_total"] = settlement.get("fees_total") * settlement_weight if settlement else None
+
+    # net_proceeds/sale_price/fees_total は SUM() 集計値。対象列がその注文で全行NULL
+    # （返金のみ・調整のみの決済明細など）だと None が返るため、そのまま * settlement_weight
+    # すると「None * float」で TypeError になり注文一覧全体が500になる。値があるときだけ按分する。
+    def _weighted(key):
+        val = settlement.get(key) if settlement else None
+        return val * settlement_weight if val is not None else None
+
+    row["net_proceeds"] = _weighted("net_proceeds")
+    row["sale_price"] = _weighted("sale_price")
+    row["fees_total"] = _weighted("fees_total")
     row["settlement_currency"] = settlement.get("currency") if settlement else None
     row["deposit_date"] = settlement.get("deposit_date") if settlement else None
     row["settlement_is_split"] = bool(settlement and settlement_weight != 1.0)
