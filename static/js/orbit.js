@@ -1445,6 +1445,7 @@ window.initOrbit = function () {
         refreshShippingTypeDatalist();
         renderDispatchAccordion(dispatchTbody, rows, dispatchExpanded);
         if (wrapper) wrapper.scrollLeft = scrollLeft;
+        updateDispatchToggleAllLabel();
     }
 
     function onDispatchSort(key) {
@@ -1697,9 +1698,6 @@ window.initOrbit = function () {
     document.getElementById("orbitBuyerHistoryExportBtn")?.addEventListener("click", () => {
         window.location.href = "/orbit/buyer_history/export";
     });
-
-    document.getElementById("orbit-refresh-btn")?.addEventListener("click", loadOrders);
-    document.getElementById("orbit-dispatch-refresh-btn")?.addEventListener("click", loadOrders);
 
     // 未採番の一括採番：N番が空の行を、取込順で既存の最大N番の続きから採番する
     // （採番済みの行は触らない。開始番号の任意指定・欠番の詰め直しは従来のセル入力を使う）
@@ -1979,18 +1977,27 @@ window.initOrbit = function () {
             btn.textContent = "−";
         }
         persistDispatchExpanded();
+        updateDispatchToggleAllLabel();
     });
 
-    // 全部展開 / 全部畳む
-    document.getElementById("orbit-dispatch-expand-all-btn")?.addEventListener("click", () => {
-        dispatchRowsCache.forEach(r => dispatchExpanded.add(r.order_item_id));
+    // 全部展開 ⇔ 全部畳む（1ボタンで切り替え。全行展開済みなら「全部畳む」、それ以外は「全部展開」）
+    function isAllDispatchExpanded() {
+        return dispatchRowsCache.length > 0
+            && dispatchRowsCache.every(r => dispatchExpanded.has(r.order_item_id));
+    }
+    function updateDispatchToggleAllLabel() {
+        const btn = document.getElementById("orbit-dispatch-toggle-all-btn");
+        if (btn) btn.textContent = isAllDispatchExpanded() ? "全部畳む" : "全部展開";
+    }
+    document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
+        if (isAllDispatchExpanded()) {
+            dispatchExpanded.clear();
+        } else {
+            dispatchRowsCache.forEach(r => dispatchExpanded.add(r.order_item_id));
+        }
         persistDispatchExpanded();
         renderDispatchTable();
-    });
-    document.getElementById("orbit-dispatch-collapse-all-btn")?.addEventListener("click", () => {
-        dispatchExpanded.clear();
-        persistDispatchExpanded();
-        renderDispatchTable();
+        updateDispatchToggleAllLabel();
     });
 
     // --- ▼ SECTION 01-3: 全件削除（リセット） ▼ ---
@@ -2124,7 +2131,7 @@ window.initOrbit = function () {
             if (data.status !== "success") return;
             // 連携済みでも「Google再連携」として常に出す（スコープ変更・トークン失効時に押せる導線が必要なため）
             if (googleConnectLink) {
-                googleConnectLink.textContent = data.connected ? "Google再連携" : "Googleアカウントを連携する";
+                googleConnectLink.textContent = data.connected ? "Google再連携" : "Googleアカウント連携";
                 googleConnectLink.style.display = "inline-block";
             }
             if (googleConnectStatus) googleConnectStatus.textContent = data.connected ? "Google連携済み" : "未連携";

@@ -34,6 +34,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* ORBIT内は原則この1サイズに統一。個別のfont-size指定は増やさない
+     （例外はN番セルだけ＝基準番号なので特大）。 */
+  font-size: 16px;
 }
 /* 上部固定：見出しとサブタブ（スクロールしても動かない） */
 .orbit-page > h2,
@@ -42,7 +45,7 @@
 }
 /* ORBIT内は全体的に文字が小さめだったので一段底上げ（サブタブ〜受注一覧テーブル） */
 .orbit-page > .st-subtabs .st-subtab-btn {
-  font-size: 15px;
+  font-size: 16px;
 }
 /* アクティブなペインだけが縦フレックス＆残り高さを占有する */
 .orbit-page > .st-subtab-pane.active {
@@ -105,7 +108,7 @@
 .orbit-page table td {
   border: 1px solid #ddd;
   padding: 6px 10px;
-  font-size: 15px;
+  font-size: 16px;
   white-space: nowrap;
 }
 
@@ -118,6 +121,15 @@
 
 .orbit-page table tbody tr:nth-child(even) {
   background-color: #f9fafb;
+}
+
+/* 入力系・ボタンはUA既定フォント（小さめ）を持つので、ORBITの基準サイズを継がせる
+   （色付きの装飾バッジ <span> は対象外＝マーカーとして小さいまま） */
+.orbit-page input,
+.orbit-page select,
+.orbit-page textarea,
+.orbit-page button {
+  font-size: inherit;
 }
 
 .orbit-page input.orbit-manual {
@@ -161,7 +173,7 @@
   margin: 0 0 12px; background: #fafbfc;
 }
 .orbit-sheet-settings > summary {
-  cursor: pointer; padding: 8px 12px; font-weight: bold; font-size: 15px;
+  cursor: pointer; padding: 8px 12px; font-weight: bold;
   color: #1f2328; list-style: none; user-select: none;
 }
 .orbit-sheet-settings > summary::-webkit-details-marker { display: none; }
@@ -171,7 +183,7 @@
 .orbit-sheet-settings-body { padding: 10px 12px; }
 .orbit-sheet-group { margin-bottom: 10px; }
 .orbit-sheet-group-label {
-  font-size: 14px; font-weight: bold; color: #333a42; margin-bottom: 4px;
+  font-weight: bold; color: #333a42; margin-bottom: 4px;
 }
 .orbit-sheet-group .orbit-actions { margin-bottom: 0; }
 
@@ -181,7 +193,6 @@
     background: #f8f9fa;
     border-left: 4px solid #4a90e2;
     color: #555;
-    font-size: 14px;
     line-height: 1.6;
 }
 
@@ -231,7 +242,6 @@
   width: 18px;
   height: 18px;
   line-height: 1;
-  font-size: 11px;
   cursor: pointer;
   vertical-align: middle;
 }
@@ -262,10 +272,8 @@
   border-left: 4px solid transparent;
 }
 .orbit-acc-section-label {
-  font-weight: bold; color: #1f2328; min-width: 84px; font-size: 14px;
+  font-weight: bold; color: #1f2328; min-width: 84px;
 }
-/* 展開部の入力欄・プレーン表示テキストの基準サイズ */
-.orbit-acc-detail-cell { font-size: 14px; }
 
 /* グループ別の色分け（展開部） */
 .orbit-acc-sec-memo   { background: #f2f3f5; border-left-color: #c0c4c9; }
@@ -282,13 +290,13 @@
 .orbit-acc-sec-memo.has-notes .orbit-acc-section-label { color: #c0392b; }
 
 /* バイヤーメモの中身 */
-.orbit-memo-repeat { font-size: 13px; color: #333a42; }
+.orbit-memo-repeat { color: #333a42; }
 .orbit-memo-repeat.is-repeat { color: #c0392b; font-weight: bold; }
-.orbit-memo-none { font-size: 13px; color: #333a42; }
-.orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; font-size: 13px; }
+.orbit-memo-none { color: #333a42; }
+.orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; }
 .orbit-memo-list li { padding: 1px 0; }
 .orbit-memo-date { color: #4a525a; margin-right: 6px; font-variant-numeric: tabular-nums; }
-.orbit-memo-add-btn { font-size: 12px; padding: 1px 6px; margin-left: 4px; }
+.orbit-memo-add-btn { padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
 .orbit-acc-field.orbit-issue-flag {
   background: #fdecea; border: 1px solid #e53935; border-radius: 3px; padding: 0 4px;
@@ -306,9 +314,9 @@
   background: #c62828; color: #fff; font-weight: bold; font-size: 10px;
   padding: 0 4px; border-radius: 3px; margin-left: 2px; vertical-align: middle;
 }
-.orbit-acc-field-label { font-size: 13px; color: #333a42; font-weight: bold; }
+.orbit-acc-field-label { color: #333a42; font-weight: bold; }
 .orbit-acc-field-value input.orbit-manual,
-.orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; font-size: 14px; }
+.orbit-acc-field-value select.orbit-manual { width: 130px; border: 1px solid #d0d7de; background: #fff; }
 .orbit-acc-field-value input.orbit-manual-mid { width: 240px; }
 /* 仕入れ情報の未入力欄＝淡いピンク（入力忘れ防止。見た目のみ・保存値には無関係）。
    到着予定の休業日グレー（input.orbit-date-holiday）は !important なので従来どおり優先される。 */
@@ -369,12 +377,10 @@
 .orbit-acc-issues-label {
   font-weight: bold;
   color: #c0392b;
-  font-size: 13px;
 }
 .orbit-acc-issues-list {
   margin: 3px 0 0;
   padding-left: 20px;
-  font-size: 13px;
   color: #b03a2e;
 }
 .orbit-acc-issues-list li { padding: 1px 0; }
@@ -404,7 +410,6 @@
 .orbit-acc-notice-label {
   font-weight: bold;
   color: #c0392b;
-  font-size: 13px;
   margin-right: 8px;
   white-space: nowrap;
 }
@@ -420,7 +425,6 @@
 /* チェック系トグルボタン（仕入確認・領収書）。ON/OFFで色を変える */
 .orbit-flag-toggle-btn {
   border-radius: 3px;
-  font-size: 11px;
   padding: 2px 6px;
   cursor: pointer;
   white-space: nowrap;
@@ -568,7 +572,6 @@
 }
 .orbit-deposit {
   margin-left: 16px;
-  font-size: 14px;
   color: #37474f;
   white-space: nowrap;
 }
@@ -586,13 +589,11 @@
 }
 .orbit-summary-block-title {
   font-weight: bold;
-  font-size: 14px;
   margin-bottom: 4px;
   color: #37474f;
 }
 .orbit-summary-table {
   border-collapse: collapse;
-  font-size: 14px;
   background: #fff;
 }
 .orbit-summary-table th,
@@ -615,7 +616,6 @@
 }
 .orbit-summary-note {
   color: #90a4ae;
-  font-size: 13px;
 }
 </style>
 
@@ -657,19 +657,13 @@
   <div id="orbit-pane-orders" class="st-subtab-pane active">
     <div class="card">
 
-      <div class="master-description">
-          セラーセントラルの注文レポート(タブ区切り/CSV)を取り込みます。サイズ・重量・予測送料はZSSSの登録情報から自動表示されます。<br>
-          N番号は↕ボタンや列見出しクリックで行を並び替えたあと、先頭行に開始番号を入れると、以降の行(今の並び順)に自動で連番が振られます。
-      </div>
-
       <input type="file" id="orbitFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
 
       <div class="orbit-actions">
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="text" id="orbitFileName" class="file-input-text" placeholder="注文レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
+              <input type="text" id="orbitFileName" class="file-input-text" placeholder="セラーセントラルでダウンロードしたCSVを選択してください" readonly style="width:540px;" />
               <button type="button" id="orbitUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
-          <button id="orbit-refresh-btn" class="btn-blue">再読込</button>
           <button id="orbit-autonumber-btn" class="btn-blue" title="N番が空の行を、取込順で既存の最大N番の続きから採番します（採番済みの行は変更しません）">未採番を採番</button>
           <button id="orbit-delete-all-btn" class="btn-red">全件削除(リセット)</button>
       </div>
@@ -695,15 +689,13 @@
     <div class="card">
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
-          <button id="orbit-dispatch-refresh-btn" class="btn-blue">再読込</button>
-          <button id="orbit-dispatch-expand-all-btn" class="btn-blue">全部展開</button>
-          <button id="orbit-dispatch-collapse-all-btn" class="btn-blue">全部畳む</button>
-          <button id="orbit-export-btn" class="btn-blue">発送代行へ出力(CSV)</button>
-          <button id="orbit-dispatch-sync-btn" class="btn-blue">代行会社シートから取り込む</button>
+          <button id="orbit-dispatch-toggle-all-btn" class="btn-blue">全部展開</button>
+          <button id="orbit-export-btn" class="btn-blue">CSV出力</button>
+          <button id="orbit-dispatch-sync-btn" class="btn-blue">SLCNシート取込</button>
           <span id="orbit-dispatch-sync-status"></span>
-          <button id="orbit-raw-push-btn" class="btn-blue">管理シートへ書き出し</button>
+          <button id="orbit-raw-push-btn" class="btn-blue">管理シートへ書出</button>
           <span id="orbit-raw-push-status"></span>
-          <a id="orbit-google-connect-link" href="/orbit/google_oauth/start" class="btn-blue" style="display:none; text-decoration:none;">Googleアカウントを連携する</a>
+          <a id="orbit-google-connect-link" href="/orbit/google_oauth/start" class="btn-blue" style="display:none; text-decoration:none;">Googleアカウント連携</a>
           <span id="orbit-google-connect-status"></span>
           <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
