@@ -40,6 +40,10 @@
 .orbit-page > .st-subtabs {
   flex: none;
 }
+/* ORBIT内は全体的に文字が小さめだったので一段底上げ（サブタブ〜受注一覧テーブル） */
+.orbit-page > .st-subtabs .st-subtab-btn {
+  font-size: 15px;
+}
 /* アクティブなペインだけが縦フレックス＆残り高さを占有する */
 .orbit-page > .st-subtab-pane.active {
   flex: 1;
@@ -101,7 +105,7 @@
 .orbit-page table td {
   border: 1px solid #ddd;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
 }
 
@@ -157,7 +161,7 @@
   margin: 0 0 12px; background: #fafbfc;
 }
 .orbit-sheet-settings > summary {
-  cursor: pointer; padding: 8px 12px; font-weight: bold; font-size: 14px;
+  cursor: pointer; padding: 8px 12px; font-weight: bold; font-size: 15px;
   color: #1f2328; list-style: none; user-select: none;
 }
 .orbit-sheet-settings > summary::-webkit-details-marker { display: none; }
@@ -167,7 +171,7 @@
 .orbit-sheet-settings-body { padding: 10px 12px; }
 .orbit-sheet-group { margin-bottom: 10px; }
 .orbit-sheet-group-label {
-  font-size: 13px; font-weight: bold; color: #333a42; margin-bottom: 4px;
+  font-size: 14px; font-weight: bold; color: #333a42; margin-bottom: 4px;
 }
 .orbit-sheet-group .orbit-actions { margin-bottom: 0; }
 
@@ -177,7 +181,7 @@
     background: #f8f9fa;
     border-left: 4px solid #4a90e2;
     color: #555;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
 }
 
@@ -562,6 +566,18 @@
   height: 30px;
   padding: 0 6px;
 }
+.orbit-deposit {
+  margin-left: 16px;
+  font-size: 14px;
+  color: #37474f;
+  white-space: nowrap;
+}
+.orbit-deposit-value { font-weight: bold; }
+.orbit-deposit.is-low,
+.orbit-deposit.is-low .orbit-deposit-value {
+  color: #c62828;
+  font-weight: bold;
+}
 .orbit-summary-grid {
   display: flex;
   flex-wrap: wrap;
@@ -570,13 +586,13 @@
 }
 .orbit-summary-block-title {
   font-weight: bold;
-  font-size: 0.9em;
+  font-size: 14px;
   margin-bottom: 4px;
   color: #37474f;
 }
 .orbit-summary-table {
   border-collapse: collapse;
-  font-size: 0.86em;
+  font-size: 14px;
   background: #fff;
 }
 .orbit-summary-table th,
@@ -599,7 +615,7 @@
 }
 .orbit-summary-note {
   color: #90a4ae;
-  font-size: 0.82em;
+  font-size: 13px;
 }
 </style>
 
@@ -621,6 +637,9 @@
       <div class="orbit-summary-controls">
         <label>年 <select id="orbit-summary-year"></select></label>
         <label>月 <select id="orbit-summary-month"></select></label>
+        <span id="orbit-deposit-box" class="orbit-deposit" hidden>
+          残デポジット <span id="orbit-deposit-value" class="orbit-deposit-value">—</span>
+        </span>
       </div>
       <div class="orbit-summary-grid">
         <div class="orbit-summary-block">

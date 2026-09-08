@@ -58,6 +58,7 @@ from amazon.services.google_sheets_service import (
     save_dispatch_sheet_settings,
     get_raw_sheet_settings,
     save_raw_sheet_settings,
+    fetch_deposit_balance,
 )
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
@@ -699,6 +700,21 @@ def raw_sheet_push():
 
     try:
         result = push_orders_to_raw_sheet(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 12: 代行会社デポジット残高（依頼書シートA1） ▼ ---
+@orbit_bp.route("/deposit_balance", methods=["GET"])
+def deposit_balance():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = fetch_deposit_balance(user_id)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

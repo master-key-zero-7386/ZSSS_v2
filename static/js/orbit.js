@@ -1195,6 +1195,7 @@ window.initOrbit = function () {
         loadOrders();
         loadBuyerHistory();
         loadSecurityNotes();
+        loadOrbitDeposit();
         return;
     }
     tbody.dataset.orbitInitialized = "true";
@@ -1328,6 +1329,35 @@ window.initOrbit = function () {
 
     document.getElementById("orbit-summary-year")?.addEventListener("change", renderOrbitSummary);
     document.getElementById("orbit-summary-month")?.addEventListener("change", renderOrbitSummary);
+
+    // --- 代行会社に預けているデポジット残高（依頼書シートA1）。2万円未満は太字赤字。 ---
+    //   関数宣言の巻き上げにより、早期return経路（再訪）からも呼べる。
+    function loadOrbitDeposit() {
+        const box = document.getElementById("orbit-deposit-box");
+        const valEl = document.getElementById("orbit-deposit-value");
+        if (!box || !valEl) return;
+
+        fetch("/orbit/deposit_balance")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success" || (!data.raw && data.amount == null)) {
+                    box.hidden = true;
+                    return;
+                }
+                valEl.textContent = data.raw || `¥${Number(data.amount).toLocaleString()}`;
+                box.classList.toggle("is-low", !!data.is_low);
+                box.title = data.is_low
+                    ? `代行会社デポジットが¥${Number(data.threshold).toLocaleString()}未満です（送金の検討を）`
+                    : "代行会社に預けている送金用資金（依頼書シートA1）";
+                box.hidden = false;
+            })
+            .catch(() => { box.hidden = true; });
+    }
+    loadOrbitDeposit();
+    // 集計パネルを開いたタイミングでも最新化（Google APIなので開閉のたびは呼ばない＝開いた時だけ）
+    document.getElementById("orbit-summary")?.addEventListener("toggle", (e) => {
+        if (e.target.open) loadOrbitDeposit();
+    });
 
     // データ再読込でtbody.innerHTMLを差し替えると、テーブルを囲むtable-wrapperの
     // 横スクロール位置がブラウザによって勝手にリセットされることがあるため、明示的に保持する。

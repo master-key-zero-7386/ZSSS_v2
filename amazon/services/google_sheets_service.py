@@ -456,3 +456,35 @@ def fetch_dispatch_sheet_preview(user_id: int) -> dict:
     settings = get_dispatch_sheet_settings(user_id)
     spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
     return _fetch_recent_dispatch_rows(user_id, spreadsheet_id, settings["sheet_name"])
+
+
+# --- ▼ SECTION 08: 代行会社に預けているデポジット（送金用資金）残高 ▼ ---
+# 依頼書シート（get_dispatch_sheet_settings と同じシート）の A1 セルに代行会社が残高を出している。
+# セルは「¥15,402」等の書式付き文字列なので、数字だけ取り出して int にする。
+DEPOSIT_LOW_THRESHOLD = 20000  # これ未満は画面で太字赤字（送金タイミングの注意喚起）
+
+
+def fetch_deposit_balance(user_id: int) -> dict:
+    settings = get_dispatch_sheet_settings(user_id)
+    spreadsheet_id = _extract_spreadsheet_id(settings["spreadsheet_url"])
+    sheet_name = settings["sheet_name"]
+
+    rows = fetch_sheet_range(user_id, spreadsheet_id, f"{sheet_name}!A1")
+    raw = ""
+    if rows and rows[0]:
+        raw = str(rows[0][0]).strip()
+
+    digits = re.sub(r"[^0-9.\-]", "", raw)
+    amount = None
+    if digits not in ("", "-", ".", "-.", "--"):
+        try:
+            amount = int(round(float(digits)))
+        except ValueError:
+            amount = None
+
+    return {
+        "raw": raw,
+        "amount": amount,
+        "is_low": amount is not None and amount < DEPOSIT_LOW_THRESHOLD,
+        "threshold": DEPOSIT_LOW_THRESHOLD,
+    }
