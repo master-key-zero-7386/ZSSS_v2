@@ -625,8 +625,8 @@
   <div class="st-subtabs">
       <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
-      <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入れ管理</button>
-      <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">買い手履歴</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
   </div>
@@ -804,12 +804,12 @@
     <div class="card">
 
       <div class="master-description">
-          買い手購入履歴は、Amazon注文レポートの生データ＋N番だけを保持する台帳です（過去の購入価格・送料・利益は持ちません）。
+          バイヤー履歴は、Amazon注文レポートの生データ＋N番だけを保持する台帳です（過去の購入価格・送料・利益は持ちません）。
           「この住所は過去に買ったことがあるか」を確認するためだけに使います。
       </div>
 
       <div class="master-description">
-          過去の買い手購入履歴（例: スプレッドシート「FBMバイヤー履歴」タブ）をCSV/TSVで一括インポートします。
+          過去のバイヤー履歴（例: スプレッドシート「FBMバイヤー履歴」タブ）をCSV/TSVで一括インポートします。
           Amazon注文レポートと同じ列構成のファイルをそのまま取り込めます（一度きりの取込を想定。何度でも再実行可）。
       </div>
 
@@ -817,7 +817,7 @@
 
       <div class="orbit-actions">
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="買い手購入履歴CSV/TSVを選択してください" readonly style="width:340px;" />
+              <input type="text" id="orbitBuyerHistoryFileName" class="file-input-text" placeholder="バイヤー履歴CSV/TSVを選択してください" readonly style="width:360px;" />
               <button type="button" id="orbitBuyerHistoryUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
           <button type="button" id="orbitBuyerHistoryExportBtn" class="btn-blue">CSVエクスポート</button>
@@ -825,12 +825,12 @@
       </div>
 
       <div class="master-description">
-          「CSVエクスポート」は現在の買い手購入履歴をCSVで保存します（バックアップ用）。
+          「CSVエクスポート」は現在のバイヤー履歴をCSVで保存します（バックアップ用）。
           出力ファイルは上のUPLOADでそのまま取り込み直せます（未登録のorder-item-idだけが復元されます）。
       </div>
 
       <div class="master-description">
-          出荷完了 かつ 決済レポートで入金額・手数料が確定した注文を、受注一覧から買い手購入履歴へ移動します（削除ではなく移動。
+          出荷完了 かつ 決済レポートで入金額・手数料が確定した注文を、受注一覧からバイヤー履歴へ移動します（削除ではなく移動。
           対象期間はセラーセントラルで決済レポートをダウンロードする範囲で調整してください）。
       </div>
 
@@ -840,7 +840,7 @@
           <span id="orbit-archive-summary" style="font-size:13px; color:#555;"></span>
       </div>
 
-      <h3 style="margin-top:24px;">買い手購入履歴</h3>
+      <h3 style="margin-top:24px;">バイヤー履歴</h3>
       <div class="table-wrapper" id="orbit-buyer-history-table-wrapper" style="max-height:40vh;">
         <table id="orbit-buyer-history-table">
           <thead>
@@ -856,7 +856,7 @@
 
       <h3 style="margin-top:24px;">返品・セキュリティメモ</h3>
       <div class="master-description">
-          発注管理タブの「📝メモ追加」で登録した、買い手（住所）ごとの返品・キャンセル理由等のメモです。
+          発注管理タブの「📝メモ追加」で登録した、バイヤー（住所）ごとの返品・キャンセル理由等のメモです。
       </div>
       <div class="table-wrapper" id="orbit-security-notes-table-wrapper" style="max-height:40vh;">
         <table id="orbit-security-notes-table">

@@ -802,8 +802,8 @@ function dispCellInner(col, r) {
         const link = `<span class="asin-cell" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${orbitEscapeHtml(asin)}</span>`;
         const n = r.asin_sold_count || 0;
         const badge = n === 0
-            ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（買い手履歴に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
-            : `<span class="orbit-asin-count" title="買い手履歴内の同一ASINの販売回数">×${n}</span>`;
+            ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（バイヤー履歴に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
+            : `<span class="orbit-asin-count" title="バイヤー履歴内の同一ASINの販売回数">×${n}</span>`;
         return `${link} ${badge}`;
     }
     if (col.copyClass && !col.editable) {
@@ -1127,12 +1127,12 @@ window.initOrbit = function () {
                     buyerHistoryRowsCache = data.rows;
                     renderBuyerHistoryTable();
                 } else {
-                    window.showToast?.("買い手購入履歴の取得に失敗しました", "error");
+                    window.showToast?.("バイヤー履歴の取得に失敗しました", "error");
                 }
             })
             .catch(err => {
                 console.error("orbit/buyer_history/list error:", err);
-                window.showToast?.("買い手購入履歴の取得に失敗しました", "error");
+                window.showToast?.("バイヤー履歴の取得に失敗しました", "error");
             });
     }
 
@@ -2058,7 +2058,7 @@ window.initOrbit = function () {
             window.showToast?.("先に「アーカイブ対象を確認」を押してください", "error");
             return;
         }
-        if (!confirm(`${archiveCandidateIds.length}件を買い手購入履歴へアーカイブします。よろしいですか？`)) return;
+        if (!confirm(`${archiveCandidateIds.length}件をバイヤー履歴へアーカイブします。よろしいですか？`)) return;
 
         fetch("/orbit/archive/run", {
             method: "POST",
@@ -2092,7 +2092,7 @@ window.initOrbit = function () {
         const orderItemId = btn.dataset.orderItemId;
         if (!orderItemId) return;
 
-        const note = prompt("返品・キャンセル理由等のメモを入力してください（この買い手の住所に記録されます）");
+        const note = prompt("返品・キャンセル理由等のメモを入力してください（このバイヤーの住所に記録されます）");
         if (!note || !note.trim()) return;
 
         fetch("/orbit/security_notes/add", {
