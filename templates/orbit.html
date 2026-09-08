@@ -771,14 +771,14 @@
       </div>
 
       <div class="master-description">
-          決済レポート(Settlement Report・タブ区切り/CSV)を取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「レポート」→「決済」からダウンロードしてください。
+          取引明細CSVを取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「ファイナンス」→「支払い管理」を開き、「トランザクション」タブに切り替えて日付範囲を指定し、CSVでダウンロードしてください（「ファイナンスレポート」のSettlement Reportフラットファイルは形式が異なり取り込めません）。取り込むたびに表示言語（日付書式）は揃えてください。
       </div>
 
       <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
 
       <div class="orbit-actions">
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="決済レポートCSV(タブ区切り)を選択してください" readonly style="width:340px;" />
+              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="取引明細CSV（ファイナンス→支払い管理→トランザクション）を選択してください" readonly style="width:340px;" />
               <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
       </div>
