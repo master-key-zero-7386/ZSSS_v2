@@ -1720,10 +1720,6 @@ window.initOrbit = function () {
                 window.showToast?.("採番に失敗しました", "error");
             });
     });
-    document.getElementById("orbit-buyer-history-refresh-btn")?.addEventListener("click", () => {
-        loadBuyerHistory();
-        loadSecurityNotes();
-    });
 
     // --- ▼ SECTION 01-2: 行ごとの削除 ▼ ---
     tbody.addEventListener("click", (e) => {
