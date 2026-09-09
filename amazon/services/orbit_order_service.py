@@ -2102,46 +2102,46 @@ def add_security_note(user_id: int, order_item_id: str, note: str) -> bool:
 
 
 # --- ▼ SECTION 06-2: 代行会社連番（Nから始まる連番）の設定 ▼ ---
-# 対象行に開始番号を設定し、以降は指定された並び順で連番を振り直す。
-# ordered_ids（画面側で現在表示・ソートされている順）が渡されればそれを使い、
-# 無ければ既定の「システムに取り込まれた順（id昇順）」を使う
-# （受注日順だと、AU分を後から取り込んだ時に既存の連番の途中へ割り込んでしまうため）。
-def set_agent_serial_no(user_id: int, order_item_id: str, start_value: int, ordered_ids: list = None) -> int:
+# 指定した1行の N番(agent_serial_no) だけを設定する。他の行には一切触らない。
+# （かつては「編集行から末尾まで画面順で連番を振り直す」挙動だったが、既に正しく採番済みの
+#   行まで巻き込んで全書き換えする事故が起きたため廃止。番号の間違いは1行ずつ直す運用とし、
+#   その結果 N番が重複したら画面で赤字警告＋他操作をブロックして気づけるようにしている。
+#   未採番(NULL)の行の一括採番は assign_missing_agent_serial_no を使う＝既存は不変。）
+def set_agent_serial_no(user_id: int, order_item_id: str, value: int) -> int:
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
-
-    if not ordered_ids:
-        cur.execute(
-            """
-            SELECT order_item_id
-            FROM orbit_orders
-            WHERE user_id = %s
-            ORDER BY id ASC
-            """,
-            (user_id,),
-        )
-        ordered_ids = [r["order_item_id"] for r in cur.fetchall()]
-
-    if order_item_id not in ordered_ids:
-        conn.close()
-        return 0
-
-    start_index = ordered_ids.index(order_item_id)
     now = datetime.utcnow().isoformat()
-
-    serial = int(start_value)
-    updated = 0
-    for oid in ordered_ids[start_index:]:
-        cur.execute(
-            "UPDATE orbit_orders SET agent_serial_no = %s, updated_at = %s WHERE user_id = %s AND order_item_id = %s",
-            (serial, now, user_id, oid),
-        )
-        serial += 1
-        updated += 1
-
+    cur.execute(
+        "UPDATE orbit_orders SET agent_serial_no = %s, updated_at = %s "
+        "WHERE user_id = %s AND order_item_id = %s",
+        (int(value), now, user_id, order_item_id),
+    )
+    updated = cur.rowcount
     conn.commit()
     conn.close()
     return updated
+
+
+# N番の重複有無（同じ user_id 内で同一 agent_serial_no が2件以上）。
+# 重複がある間は N番で行を突き合わせる処理（シート書出/取込・CSV出力・アーカイブ等）が
+# 壊れるため、routes 側でこれを見て実行をブロックする。
+def has_duplicate_agent_serial_no(user_id: int) -> bool:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT 1
+        FROM orbit_orders
+        WHERE user_id = %s AND agent_serial_no IS NOT NULL
+        GROUP BY agent_serial_no
+        HAVING COUNT(*) > 1
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
 
 
 # N番が空の行だけを対象に、取込順（id昇順＝CSVの行そのままの並び）で、

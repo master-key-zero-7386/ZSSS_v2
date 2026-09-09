@@ -23,6 +23,7 @@ from amazon.services.orbit_order_service import (
     import_fee_data,
     set_agent_serial_no,
     assign_missing_agent_serial_no,
+    has_duplicate_agent_serial_no,
     export_notify_csv,
     push_orders_to_raw_sheet,
     sync_dispatch_sheet_status,
@@ -64,8 +65,30 @@ from amazon.services.google_sheets_service import (
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
 
+# --- ▼ N番重複ガード ▼ ---
+# N番(agent_serial_no)に重複がある間は、N番で行を突き合わせる処理（シート書出/取込・CSV出力・
+# アーカイブ等）や在庫連動処理が壊れるため実行させない。画面側でもブロックしているが、直接APIを
+# 叩かれても止まるようサーバー側でも弾く。
+# 除外（重複中でも常に許可）: N番を1行だけ直す set_serial / 未採番採番 autonumber / 全件削除 delete_all。
+def block_if_serial_dup(fn):
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        user_id = session.get("user_id")
+        if user_id and has_duplicate_agent_serial_no(user_id):
+            return jsonify({
+                "status": "error",
+                "message": "N番号に重複があるため実行できません。赤字のN番を修正してください。",
+            }), 409
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
 # --- ▼ SECTION 01: 注文レポートCSVインポート ▼ ---
 @orbit_bp.route("/import", methods=["POST"])
+@block_if_serial_dup
 def import_orders():
     user_id = session.get("user_id")
     if not user_id:
@@ -89,6 +112,7 @@ def import_orders():
 
 # --- ▼ SECTION 01-2: 決済レポート(Settlement Report)インポート（実利益算定用） ▼ ---
 @orbit_bp.route("/settlements/import", methods=["POST"])
+@block_if_serial_dup
 def import_settlements():
     user_id = session.get("user_id")
     if not user_id:
@@ -157,6 +181,7 @@ def sales_trend():
 
 # --- ▼ SECTION 03: 手入力項目の更新（JAN・仕入価格・依頼日・発送種別・トラッキング・備考） ▼ ---
 @orbit_bp.route("/orders/update", methods=["POST"])
+@block_if_serial_dup
 def update_order():
     user_id = session.get("user_id")
     if not user_id:
@@ -202,6 +227,7 @@ def update_order():
 
 # --- ▼ SECTION 03-1: 注文の削除（行ごと／全件リセット） ▼ ---
 @orbit_bp.route("/orders/delete", methods=["POST"])
+@block_if_serial_dup
 def delete_order_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -232,6 +258,7 @@ def delete_all_orders_route():
 
 # --- ▼ SECTION 03-1a: 買い手購入履歴アーカイブ ▼ ---
 @orbit_bp.route("/buyer_history/import", methods=["POST"])
+@block_if_serial_dup
 def import_buyer_history_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -255,6 +282,7 @@ def import_buyer_history_route():
 
 # 既存の買い手履歴UPLOADでそのまま取り込み直せる形式のCSVバックアップ（buyer_historyのみ）。
 @orbit_bp.route("/buyer_history/export", methods=["GET"])
+@block_if_serial_dup
 def export_buyer_history_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -406,6 +434,7 @@ def archive_candidates_route():
 
 
 @orbit_bp.route("/archive/run", methods=["POST"])
+@block_if_serial_dup
 def archive_run_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -422,6 +451,7 @@ def archive_run_route():
 
 # --- ▼ SECTION 03-1a-2: 返品・セキュリティメモ ▼ ---
 @orbit_bp.route("/security_notes/add", methods=["POST"])
+@block_if_serial_dup
 def add_security_note_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -442,6 +472,7 @@ def add_security_note_route():
 
 # --- ▼ SECTION 03-1b: 寸法・重量が無いASINをその場でHOME APIから取得 ▼ ---
 @orbit_bp.route("/orders/fetch_catalog", methods=["POST"])
+@block_if_serial_dup
 def fetch_catalog_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -462,6 +493,7 @@ def fetch_catalog_route():
 
 # --- ▼ SECTION 03-1c: 出荷前の概算利益用（SP-API手数料見積りをその場で取得） ▼ ---
 @orbit_bp.route("/orders/fetch_fee_estimate", methods=["POST"])
+@block_if_serial_dup
 def fetch_fee_estimate_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -481,6 +513,8 @@ def fetch_fee_estimate_route():
 
 
 # --- ▼ SECTION 03-2: 代行会社連番の設定（先頭を入れると以降は自動連番） ▼ ---
+# N番セルの編集＝その1行だけ変更。連番の一括振り直しは廃止（他の行には触らない）。
+# 重複ガードは付けない（重複を直す唯一の手段のため、重複中でも常に実行できる必要がある）。
 @orbit_bp.route("/orders/set_serial", methods=["POST"])
 def set_serial():
     user_id = session.get("user_id")
@@ -489,21 +523,17 @@ def set_serial():
 
     data = request.get_json(silent=True) or {}
     order_item_id = data.get("order_item_id")
-    start_value = data.get("start_value")
+    value = data.get("start_value")
 
-    if not order_item_id or start_value in (None, ""):
+    if not order_item_id or value in (None, ""):
         return jsonify({"status": "error"}), 400
 
     try:
-        start_value = int(start_value)
+        value = int(value)
     except (TypeError, ValueError):
-        return jsonify({"status": "error", "message": "開始番号は数値で入力してください"}), 400
+        return jsonify({"status": "error", "message": "N番は数値で入力してください"}), 400
 
-    ordered_ids = data.get("ordered_ids")
-    if ordered_ids is not None and not isinstance(ordered_ids, list):
-        ordered_ids = None
-
-    count = set_agent_serial_no(user_id, order_item_id, start_value, ordered_ids=ordered_ids)
+    count = set_agent_serial_no(user_id, order_item_id, value)
     return jsonify({"status": "success", "updated": count})
 
 
@@ -520,6 +550,7 @@ def autonumber_serial():
 
 # --- ▼ SECTION 04: 発送代行への通知用CSV出力 ▼ ---
 @orbit_bp.route("/export", methods=["GET"])
+@block_if_serial_dup
 def export_orders():
     user_id = session.get("user_id")
     if not user_id:
@@ -536,6 +567,7 @@ def export_orders():
 
 # --- ▼ SECTION 04-2: 販売額・手数料見積り結果の機体間受け渡し（ATLAS(AU)⇔ZSSS(CA/US)） ▼ ---
 @orbit_bp.route("/fee_data/export", methods=["GET"])
+@block_if_serial_dup
 def export_fee_data():
     user_id = session.get("user_id")
     if not user_id:
@@ -551,6 +583,7 @@ def export_fee_data():
 
 
 @orbit_bp.route("/fee_data/import", methods=["POST"])
+@block_if_serial_dup
 def import_fee_data_route():
     user_id = session.get("user_id")
     if not user_id:
@@ -643,6 +676,7 @@ def save_dispatch_sheet_settings_route():
 
 # --- ▼ SECTION 09: 代行会社シートの読み戻し（N番号で突き合わせてorbit_ordersに反映） ▼ ---
 @orbit_bp.route("/dispatch_sheet_sync", methods=["POST"])
+@block_if_serial_dup
 def dispatch_sheet_sync():
     user_id = session.get("user_id")
     if not user_id:
@@ -693,6 +727,7 @@ def save_raw_sheet_settings_route():
 
 # --- ▼ SECTION 11: 自分の管理シート（ZSSS_RAWタブ）へ書き出し ▼ ---
 @orbit_bp.route("/raw_sheet_push", methods=["POST"])
+@block_if_serial_dup
 def raw_sheet_push():
     user_id = session.get("user_id")
     if not user_id:

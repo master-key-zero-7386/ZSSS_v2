@@ -617,6 +617,28 @@
 .orbit-summary-note {
   color: #90a4ae;
 }
+
+/* N番の重複：セル／入力欄を赤字太字（!important で highlight 等の背景色より優先） */
+.orbit-serial-dup,
+td.orbit-serial-dup,
+input.orbit-serial-dup {
+  color: #d00 !important;
+  font-weight: bold !important;
+}
+input.orbit-serial-dup {
+  border: 1px solid #d00 !important;
+  background: #fff3f3 !important;
+}
+/* N番重複の警告バナー */
+#orbit-dup-warning {
+  margin: 6px 0 4px;
+  padding: 8px 12px;
+  border: 1px solid #d00;
+  background: #fdecec;
+  color: #b00;
+  font-weight: bold;
+  border-radius: 4px;
+}
 </style>
 
 <div class="main-container orbit-page">
@@ -629,6 +651,10 @@
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
+  </div>
+
+  <div id="orbit-dup-warning" hidden>
+      ⚠ N番号が重複しています（該当行のN番を<strong>赤字</strong>で表示）。重複を解消するまで、採番・削除以外の操作はできません。
   </div>
 
   <details id="orbit-summary" class="orbit-summary">

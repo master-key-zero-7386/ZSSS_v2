@@ -142,7 +142,7 @@ const DISPATCH_COLUMNS = [
     { key: "shipping_type", label: "発送種別", editable: "text", datalist: "orbit-dl-shipping-type" },  // 過去入力値をプルダウン候補に。新規も自由入力可
     { key: "agent_tracking_number", label: "トラッキング", copyClass: "orbit-orderid-cell" },  // 通知すべき番号（代行会社読み戻し）
     { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
-    { key: "shipped_completed", label: "出荷通知", shippedToggle: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）
+    { key: "shipped_completed", label: "出荷通知", shippedToggle: true, shippedFilterButton: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）。列見出し＝通知済の表示/非表示トグル
     { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
     { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
     { key: "remarks", label: "備考1", editable: "text", mid: true },
@@ -524,6 +524,12 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
         // 手数料見積り列のヘッダーには、表示中の未取得行だけをまとめて取得する一括ボタンを出す
         if (col.fetchFeeEstimateButton) {
             return `<th class="${groupClass.trim()}"><button type="button" class="orbit-fetch-fee-all-btn btn-blue" title="表示中の未取得（「手数料取得」）行だけをまとめて取得します">一括取得</button></th>`;
+        }
+
+        // 出荷通知列のヘッダーには、出荷通知済み（shipped_completed）の行を一覧から隠す/戻すトグルを出す。
+        // ボタン文言と色は描画後に updateDispatchHideNotifiedLabel() が現在の状態に合わせて上書きする。
+        if (col.shippedFilterButton) {
+            return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-dispatch-hide-notified-btn btn-blue" style="margin-top:2px;" title="出荷通知済みの注文を一覧から隠す/表示する">通知済を隠す</button></th>`;
         }
 
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
@@ -981,7 +987,7 @@ function saveManualField(orderItemId, field, value, onDone) {
         });
 }
 
-function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
+function attachSaveHandlers(tbody, { onSaved } = {}) {
     const handler = (e) => {
         const target = e.target;
         if (!target.classList?.contains("orbit-manual")) return;
@@ -995,29 +1001,28 @@ function attachSaveHandlers(tbody, { onSaved, getOrderedIds } = {}) {
         const field = target.dataset.field;
         if (!orderItemId || !field) return;
 
-        // N番号：先頭行に開始番号を入れると、以降の行（今の画面の並び順）に自動で連番が振られる
+        // N番：編集したその1行だけ変更する。他の行には触らない（連番の一括振り直しは廃止）。
+        // この結果 N番が重複することがあるが、重複は画面で赤字警告＋他操作ブロックして気づかせる。
         if (field === "agent_serial_no") {
-            const startValue = target.value;
-            if (startValue === "") return;
-
-            const orderedIds = getOrderedIds ? getOrderedIds() : undefined;
+            const value = target.value;
+            if (value === "") return;
 
             fetch("/orbit/orders/set_serial", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ order_item_id: orderItemId, start_value: startValue, ordered_ids: orderedIds }),
+                body: JSON.stringify({ order_item_id: orderItemId, start_value: value }),
             })
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === "success") {
                         onSaved?.();
                     } else {
-                        window.showToast?.(data.message || "連番の設定に失敗しました", "error");
+                        window.showToast?.(data.message || "N番の保存に失敗しました", "error");
                     }
                 })
                 .catch(err => {
                     console.error("orbit/orders/set_serial error:", err);
-                    window.showToast?.("連番の設定に失敗しました", "error");
+                    window.showToast?.("N番の保存に失敗しました", "error");
                 });
             return;
         }
@@ -1190,6 +1195,58 @@ window.initOrbit = function () {
     let ordersSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
     let dispatchRowsCache = [];
     let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    // 発注管理：出荷通知済み（shipped_completed）の行を一覧から隠すか。既定は全件表示。
+    // renderDispatchTable() から参照されるため（loadOrders().then 経由で早期return時も呼ばれる）ここで宣言する。
+    let dispatchHideNotified = (() => {
+        try { return localStorage.getItem("orbitDispatchHideNotified") === "1"; } catch { return false; }
+    })();
+
+    // N番(agent_serial_no)が重複している値の集合。ロードのたびに ordersRowsCache から計算し直す。
+    // 空でない＝重複あり。重複中は赤字表示＋ほぼ全操作をブロックする（recomputeDuplicateSerials / markSerialDups /
+    // orbitBlockedByDup を参照）。renderDispatchTable() など早期return経路からも参照されるためここで宣言。
+    let duplicateSerials = new Set();
+    function recomputeDuplicateSerials() {
+        const seen = new Map();
+        for (const r of ordersRowsCache) {
+            const n = r.agent_serial_no;
+            if (n === null || n === undefined || n === "") continue;
+            seen.set(n, (seen.get(n) || 0) + 1);
+        }
+        duplicateSerials = new Set([...seen].filter(([, c]) => c > 1).map(([n]) => n));
+    }
+    // 描画後の tbody を走査し、重複N番のセル（入力欄含む）に orbit-serial-dup を付ける。
+    function markSerialDups(tb) {
+        if (!tb) return;
+        tb.querySelectorAll(".orbit-serial-cell").forEach(el => {
+            const input = el.querySelector("input");
+            const raw = input ? input.value : el.textContent;
+            const n = parseInt(String(raw).replace(/[^0-9]/g, ""), 10);
+            const dup = Number.isFinite(n) && duplicateSerials.has(n);
+            el.classList.toggle("orbit-serial-dup", dup);
+            if (input) input.classList.toggle("orbit-serial-dup", dup);
+        });
+    }
+    function updateDupBanner() {
+        const el = document.getElementById("orbit-dup-warning");
+        if (el) el.hidden = duplicateSerials.size === 0;
+    }
+    // 重複中は操作系（ボタン／編集セル保存）をブロック。
+    // 常に許可: 未採番採番・全件削除・N番セル編集・タブ切替・集計パネル閲覧・並び替え・アコーディオン開閉。
+    function orbitDupGuard(e) {
+        if (duplicateSerials.size === 0) return;
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest("#orbit-autonumber-btn, #orbit-delete-all-btn, .st-subtab-btn, #orbit-summary, "
+                      + "#orbit-dup-warning, .orbit-sortable-th, .orbit-group-toggle-btn, "
+                      + ".orbit-acc-toggle, .orbit-reload-btn")) return;
+        if (t.matches && t.matches('input[data-field="agent_serial_no"]')) return;
+        const actionable = (t.closest && t.closest("button, a.btn-blue, a.btn-red"))
+            || (t.classList && t.classList.contains("orbit-manual"));
+        if (!actionable) return;
+        e.stopPropagation();
+        e.preventDefault();
+        window.showToast?.("N番号に重複があるため実行できません。赤字のN番を修正してください。", "error");
+    }
 
     if (tbody.dataset.orbitInitialized === "true") {
         loadOrders();
@@ -1199,6 +1256,14 @@ window.initOrbit = function () {
         return;
     }
     tbody.dataset.orbitInitialized = "true";
+
+    // N番重複中の操作ブロック（キャプチャフェーズで各ハンドラより先に握りつぶす）。1回だけ登録。
+    const orbitPageEl = document.querySelector(".orbit-page");
+    if (orbitPageEl) {
+        orbitPageEl.addEventListener("click", orbitDupGuard, true);
+        orbitPageEl.addEventListener("change", orbitDupGuard, true);
+        orbitPageEl.addEventListener("focusout", orbitDupGuard, true);
+    }
 
     // --- ▼ SECTION 12: 集計パネル（月次売上／未出荷サマリ。サブタブ非依存で常時表示） ▼ ---
     //   loadOrders() で取得済みの ordersRowsCache をその場で集計するだけ（API追加なし）。
@@ -1378,6 +1443,8 @@ window.initOrbit = function () {
             ? sortRowsByKey(ordersRowsCache, ordersSortState.key, ordersSortState.dir)
             : ordersRowsCache;
         renderPreservingScroll(tbody, ORBIT_COLUMNS, rows);
+        markSerialDups(tbody);
+        updateDupBanner();
     }
 
     function onOrdersSort(key) {
@@ -1390,14 +1457,7 @@ window.initOrbit = function () {
         renderOrdersTable();
     }
 
-    function getOrdersOrderedIds() {
-        const rows = ordersSortState
-            ? sortRowsByKey(ordersRowsCache, ordersSortState.key, ordersSortState.dir)
-            : ordersRowsCache;
-        return rows.map(r => r.order_item_id);
-    }
-
-    // 行を1つ上/下へ手動で移動する（列ソート中の場合は解除して、移動後の並びをそのまま正とする）
+    // 行を1つ上/下へ手動で移動する（表示上の並べ替えのみ。N番は自動で振り直さない）
     function moveOrderRow(orderItemId, direction) {
         const idx = ordersRowsCache.findIndex(r => r.order_item_id === orderItemId);
         if (idx < 0) return;
@@ -1437,15 +1497,20 @@ window.initOrbit = function () {
     }
 
     function renderDispatchTable() {
-        const rows = dispatchSortState
+        const sorted = dispatchSortState
             ? sortRowsByKey(dispatchRowsCache, dispatchSortState.key, dispatchSortState.dir)
             : dispatchRowsCache;
+        // 「通知済を隠す」がONのときだけ出荷通知済み（shipped_completed）を一覧から除外する。
+        // dispatchRowsCache 自体は絞り込まない（集計パネル・他タブ・全部展開の対象は従来どおり全件）。
+        const rows = dispatchHideNotified ? sorted.filter(r => !r.shipped_completed) : sorted;
         const wrapper = dispatchTbody?.closest(".table-wrapper");
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
         refreshShippingTypeDatalist();
         renderDispatchAccordion(dispatchTbody, rows, dispatchExpanded);
         if (wrapper) wrapper.scrollLeft = scrollLeft;
         updateDispatchToggleAllLabel();
+        updateDispatchHideNotifiedLabel();
+        markSerialDups(dispatchTbody);
     }
 
     function onDispatchSort(key) {
@@ -1498,12 +1563,14 @@ window.initOrbit = function () {
                 clearTimeout(timer);
                 if (data.status !== "success") throw new Error(data.message || "status != success");
                 ordersRowsCache = data.rows;
+                recomputeDuplicateSerials();
                 renderOrbitSummary();
                 renderOrdersTable();
                 // 発注管理・仕入れ管理は出荷チェックを常にN番号で行うため、N番号の昇順で表示する
                 // （N番号未設定の行は末尾。受注一覧での並び替えとは独立）
                 const serialOrderedRows = sortRowsByKey(data.rows, "agent_serial_no", "asc");
                 renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, serialOrderedRows, { grayShipped: true });
+                markSerialDups(procTbody);
                 dispatchRowsCache = serialOrderedRows;
                 renderDispatchTable();
                 syncOrdersTopScrollWidth();
@@ -1985,6 +2052,23 @@ window.initOrbit = function () {
         const btn = document.getElementById("orbit-dispatch-toggle-all-btn");
         if (btn) btn.textContent = isAllDispatchExpanded() ? "全部畳む" : "全部展開";
     }
+
+    // 出荷通知列ヘッダーの「通知済を隠す/表示」ボタンの文言・色を現在の状態に合わせる。
+    // renderTableHeader() が毎回ボタン要素を作り直すため、renderDispatchTable() から都度呼ぶ。
+    function updateDispatchHideNotifiedLabel() {
+        const btn = document.querySelector(".orbit-dispatch-hide-notified-btn");
+        if (!btn) return;
+        btn.textContent = dispatchHideNotified ? "通知済を表示" : "通知済を隠す";
+        btn.classList.toggle("btn-red", dispatchHideNotified);
+        btn.classList.toggle("btn-blue", !dispatchHideNotified);
+    }
+    // クリックは thead への委譲で拾う（ボタンは再描画で作り直されるため個別 addEventListener しない）。
+    dispatchThead?.addEventListener("click", (e) => {
+        if (!e.target.closest(".orbit-dispatch-hide-notified-btn")) return;
+        dispatchHideNotified = !dispatchHideNotified;
+        try { localStorage.setItem("orbitDispatchHideNotified", dispatchHideNotified ? "1" : "0"); } catch { /* ignore */ }
+        renderDispatchTable();
+    });
     document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
         if (isAllDispatchExpanded()) {
             dispatchExpanded.clear();
@@ -2158,7 +2242,7 @@ window.initOrbit = function () {
     });
 
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
-    attachSaveHandlers(tbody, { onSaved: loadOrders, getOrderedIds: getOrdersOrderedIds });
+    attachSaveHandlers(tbody, { onSaved: loadOrders });
     if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
 
     // 発注管理アコーディオンだけは、欄を保存するたびに全体を innerHTML で作り直すと入力中の
@@ -2526,6 +2610,7 @@ window.initOrbit = function () {
                         sortRowsByKey(ordersRowsCache, "agent_serial_no", "asc"),
                         { grayShipped: true },
                     );
+                    markSerialDups(procTbody);
                 }
             })
             .catch(err => console.error("holidays load error:", err));
