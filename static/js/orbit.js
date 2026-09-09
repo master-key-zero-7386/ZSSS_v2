@@ -887,12 +887,9 @@ function renderBuyerMemoBlock(r) {
         `<button type="button" class="orbit-security-note-btn orbit-memo-add-btn" data-order-item-id="${r.order_item_id}">📝メモ追加</button>`;
 }
 
-function renderDispatchAccordion(tbody, rows, expandedSet) {
-    if (!tbody) return;
-    const primaryCols = DISPATCH_PRIMARY_KEYS.map(dispatchCol);
-    const colspan = primaryCols.length + 1;  // ＋トグル列
-
-    const html = rows.map(r => {
+// 1注文ぶんの「主行＋詳細行」HTML。renderDispatchAccordion（全体描画）と
+// rerenderDispatchRowInPlace（1行だけ差し替え）で共用する。
+function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
         const oid = r.order_item_id;
         const isCancel = (r.shipping_type || "").trim() === "キャンセル";
         // 出荷完了＝グレー、キャンセル＝緑（従来どおり）。未仕入れは「未仕入」ボタンの文字だけ赤字にする（CSS）。
@@ -961,10 +958,47 @@ function renderDispatchAccordion(tbody, rows, expandedSet) {
             <tr class="orbit-acc-detail" data-order-item-id="${oid}"${open ? "" : " hidden"}>
                 <td class="orbit-acc-detail-cell" colspan="${colspan}">${issueBlock}${noticeBlock}${detailBody}</td>
             </tr>`;
-    }).join("");
-
-    tbody.innerHTML = html;
 }
+
+function renderDispatchAccordion(tbody, rows, expandedSet) {
+    if (!tbody) return;
+    const primaryCols = DISPATCH_PRIMARY_KEYS.map(dispatchCol);
+    const colspan = primaryCols.length + 1;  // ＋トグル列
+    tbody.innerHTML = rows.map(r => dispatchRowPairHtml(r, primaryCols, colspan, expandedSet)).join("");
+}
+
+// 商品名など「表示用の値＋警告フラグ」だけに影響する手入力欄用。サーバの
+// _apply_dispatch_checks のうちクライアントだけで正確に再現できる分を反映する
+// （電話番号の国番号判定・州の正式表記・郵便番号・遠隔地はサーバ計算のままなので触らない）。
+function orbitEffectiveVal(value, override) {
+    return (override !== null && override !== undefined && override !== "") ? override : value;
+}
+
+function recomputeDispatchRowChecks(r) {
+    r.product_name_effective   = orbitEffectiveVal(r.product_name, r.product_name_override);
+    r.recipient_name_effective = orbitEffectiveVal(r.recipient_name, r.recipient_name_override);
+    r.ship_address_1_effective = orbitEffectiveVal(r.ship_address_1, r.ship_address_1_override);
+    r.ship_address_2_effective = orbitEffectiveVal(r.ship_address_2, r.ship_address_2_override);
+    r.ship_address_3_effective = orbitEffectiveVal(r.ship_address_3, r.ship_address_3_override);
+    r.remarks_3_effective      = orbitEffectiveVal(r.tax_registration_note, r.remarks_3);
+
+    const pn = r.product_name_effective || "";
+    const rn = (r.recipient_name_effective || "").trim();
+    r.flag_product_name    = !!pn && (pn.length > 70 || pn.indexOf("|") !== -1);
+    r.flag_recipient_name  = !!rn && !/[ 　]/.test(rn);
+    r.flag_address1_length = (r.ship_address_1_effective || "").length > 40;
+    r.flag_address2_length = (r.ship_address_2_effective || "").length > 40;
+    r.flag_address3_length = (r.ship_address_3_effective || "").length > 40;
+}
+
+// 全体リロード不要（サーバ派生値に影響しない）＝その行だけ再描画で済む手入力欄。
+const DISPATCH_INPLACE_FIELDS = new Set([
+    "product_name_override",
+    "recipient_name_override",
+    "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",
+    "remarks_3",
+    "jan_code",
+]);
 
 function saveManualField(orderItemId, field, value, onDone) {
     const payload = { order_item_id: orderItemId };
@@ -1514,6 +1548,37 @@ window.initOrbit = function () {
         if (wrapper) wrapper.scrollLeft = scrollLeft;
         updateDispatchToggleAllLabel();
         updateDispatchHideNotifiedLabel();
+        markSerialDups(dispatchTbody);
+    }
+
+    // 1注文ぶんの主行＋詳細行だけを差し替える。商品名など「入力しながら何文字か削る」
+    // 系の手入力欄で、保存のたびに全体を innerHTML で作り直すと入力欄ごと消えて
+    // 続けて直せなくなるため、その行だけを描き直す（スクロール位置・他行・開閉状態は維持）。
+    function rerenderDispatchRowInPlace(oid) {
+        if (!dispatchTbody) return;
+        const r = dispatchRowsCache.find(x => String(x.order_item_id) === String(oid));
+        if (!r) return;
+        const esc = (window.CSS && CSS.escape) ? CSS.escape(String(oid)) : String(oid).replace(/"/g, '\\"');
+        const mainTr = dispatchTbody.querySelector(`tr.orbit-acc-main[data-order-item-id="${esc}"]`);
+        const detailTr = dispatchTbody.querySelector(`tr.orbit-acc-detail[data-order-item-id="${esc}"]`);
+        if (!mainTr) return;
+
+        // その行の入力欄をまだ触っている（保存の直後にすぐ続きを直している）間は差し替えない。
+        // 触り終えて次の保存が走ったタイミングで描き直され、警告表示もそこで最新になる。
+        const ae = document.activeElement;
+        if (ae && ae.classList?.contains("orbit-manual") &&
+            (mainTr.contains(ae) || (detailTr && detailTr.contains(ae)))) {
+            return;
+        }
+
+        const primaryCols = DISPATCH_PRIMARY_KEYS.map(dispatchCol);
+        const colspan = primaryCols.length + 1;
+        const tmp = document.createElement("tbody");
+        tmp.innerHTML = dispatchRowPairHtml(r, primaryCols, colspan, dispatchExpanded);
+        const newMain = tmp.querySelector("tr.orbit-acc-main");
+        const newDetail = tmp.querySelector("tr.orbit-acc-detail");
+        if (newMain) mainTr.replaceWith(newMain);
+        if (detailTr && newDetail) detailTr.replaceWith(newDetail);
         markSerialDups(dispatchTbody);
     }
 
@@ -2279,7 +2344,19 @@ window.initOrbit = function () {
                 r[field] = (field === "purchase_price" || field === "points")
                     ? (value === "" || value == null ? null : parseFloat(value))
                     : (value || null);
+                // JANを手入力したらサーバ側で jan_from_history が False になる（淡色マークが外れる）
+                if (field === "jan_code") r.jan_from_history = false;
             }
+
+            // 商品名・宛名・住所・備考3・JAN は「表示値＋警告フラグ」しか変わらず、依頼日や
+            // 利益などサーバ派生値には影響しない。全体リロードすると入力欄ごとDOMが差し替わって
+            // 「1・2文字消すたびにリロードされて直せない」状態になるため、その行だけ再描画する。
+            if (r && DISPATCH_INPLACE_FIELDS.has(field)) {
+                recomputeDispatchRowChecks(r);
+                rerenderDispatchRowInPlace(orderItemId);
+                return;
+            }
+
             dispatchReloadPending = true;
             scheduleDispatchReload();
         };
