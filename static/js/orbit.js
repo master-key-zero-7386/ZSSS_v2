@@ -597,6 +597,8 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
             if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
             if (col.key === "agent_serial_no") cellClass = `${cellClass} orbit-serial-cell`.trim();
+            // JANを取込時に同ASINの過去注文から自動補完した行 → 淡色マーク（手修正すると外れる）
+            if (col.key === "jan_code" && r.jan_from_history) cellClass = `${cellClass} orbit-jan-from-history`.trim();
             if (col.marketColor) cellClass = `${cellClass} ${getOrderMarketColorClass(r[col.key])}`.trim();
             if (col.qtyWarn && Number(r[col.key]) >= 2) cellClass = `${cellClass} orbit-qty-warn`.trim();
 
@@ -740,6 +742,8 @@ function dispCellClass(col, r) {
     if (col.highlight) c += " orbit-check-highlight";
     if (col.profitHighlight) c += " orbit-profit-highlight";
     if (col.redUntilShipped && r[col.key] && !r.shipped_completed) c += " orbit-text-red";
+    // JANを取込時に同ASINの過去注文から自動補完した行 → 淡色マーク（手修正すると外れる）
+    if (col.key === "jan_code" && r.jan_from_history) c += " orbit-jan-from-history";
     if (col.key === "agent_serial_no") c += " orbit-serial-cell";
     if (col.marketColor) c += " " + getOrderMarketColorClass(r[col.key]);
     if (col.qtyWarn && Number(r[col.key]) >= 2) c += " orbit-qty-warn";

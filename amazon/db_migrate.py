@@ -600,6 +600,8 @@ ORBIT_ORDERS_COLUMNS = {
 
     # --- ORBIT側で手入力（再インポートで上書きされない） ---
     "jan_code": "TEXT",
+    "jan_from_history": "BOOLEAN",         # jan_codeを取込時に同ASINの過去注文から自動補完した場合True。
+                                          # 手入力・手修正でFalseに戻す（発注管理タブで淡色表示の判定用）
     "purchase_price": "REAL",              # 仕入れ価格
 
     # --- 出荷前の概算利益用（SP-API手数料見積り。取得ボタンで都度キャッシュ） ---

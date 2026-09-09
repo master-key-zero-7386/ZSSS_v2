@@ -97,6 +97,82 @@ def _resolve_asin(sku, listed_items_map: dict):
     return listed_items_map.get(sku) or _extract_asin_from_sku(sku)
 
 
+# --- ▼ SECTION 01-0b: 取込時の JAN 履歴補完（同ASINの過去注文から最新JANを引く） ▼ ---
+# JANは物理商品（ASIN）の属性なので、同一ASINを過去に注文していれば当時入力したJANを
+# 流用できる。orbit_orders / orbit_procurement_history のどちらもASIN列を持たないため、
+# SKU→ASINを都度解決して突き合わせる。打ち間違いに気づいて直すことがある前提で「最新
+# （updated_at最大）の非空JAN」を採用し、補完した行には jan_from_history=TRUE の印を付ける
+# （発注管理タブで淡色表示。手入力・手修正で False に戻す）。
+def _load_jan_history_map(user_id: int, cur, listed_items_map: dict) -> dict:
+    """{asin: 最新のjan_code}。現行注文＋アーカイブ済み仕入れ履歴の両方が対象。"""
+    best = {}  # asin -> (updated_at文字列, jan_code)
+    for table in ("orbit_orders", "orbit_procurement_history"):
+        cur.execute(
+            f"""
+            SELECT sku, jan_code, updated_at
+            FROM {table}
+            WHERE user_id = %s AND jan_code IS NOT NULL AND jan_code <> ''
+            """,
+            (user_id,),
+        )
+        for r in cur.fetchall():
+            asin = _resolve_asin(r["sku"], listed_items_map)
+            if not asin:
+                continue
+            key = r["updated_at"] or ""   # updated_at はISO文字列なので辞書順=時系列順
+            cur_best = best.get(asin)
+            if cur_best is None or key >= cur_best[0]:
+                best[asin] = (key, r["jan_code"])
+    return {a: v[1] for a, v in best.items()}
+
+
+def _backfill_jan_from_history(user_id: int, cur, order_item_ids: list) -> int:
+    """今回取り込んだ行のうち jan_code が空のものに、同ASINの過去注文の最新JANを補完する。
+    既にJANがある行（手入力済み・前回補完済みを含む）は一切触らない。"""
+    ids = [oid for oid in (order_item_ids or []) if oid]
+    if not ids:
+        return 0
+
+    cur.execute(
+        """
+        SELECT order_item_id, sku
+        FROM orbit_orders
+        WHERE user_id = %s
+          AND order_item_id = ANY(%s)
+          AND (jan_code IS NULL OR jan_code = '')
+        """,
+        (user_id, ids),
+    )
+    targets = cur.fetchall()
+    if not targets:
+        return 0
+
+    listed_items_map = _load_listed_items_asin_map(user_id)
+    jan_map = _load_jan_history_map(user_id, cur, listed_items_map)
+    if not jan_map:
+        return 0
+
+    now = datetime.utcnow().isoformat()
+    filled = 0
+    for t in targets:
+        asin = _resolve_asin(t["sku"], listed_items_map)
+        if not asin:
+            continue
+        jan = jan_map.get(asin)
+        if not jan:
+            continue
+        cur.execute(
+            """
+            UPDATE orbit_orders
+            SET jan_code = %s, jan_from_history = TRUE, updated_at = %s
+            WHERE user_id = %s AND order_item_id = %s
+            """,
+            (jan, now, user_id, t["order_item_id"]),
+        )
+        filled += cur.rowcount
+    return filled
+
+
 # --- ▼ SECTION 01-1: 発送代行会社への貼り付け前チェック（発注管理画面）用の補正・判定 ▼ ---
 # 代行会社シートへの貼り付け時に手作業で直していた項目を自動判定・自動補正する。
 # 電話番号の国番号除去・州の正式表記化は貼り付け用CSV出力にもそのまま反映する（代行会社側の制約のため）。
@@ -425,6 +501,8 @@ NUMERIC_TEXT_EXPORT_COLUMNS = {
 #    食い違う）。
 _RAW_SHEET_APPEND_COLUMNS = [
     "procurement_credit_card",   # 仕入れ利用クレカ（2026-09 追加）
+    "jan_from_history",          # JAN自動補完フラグ（2026-09 追加）。スキーマ上は jan_code の直後だが
+                                 # 既存列の位置を動かさないため最右端へ回す（②以降のズレ＝VLOOKUP破綻を防ぐ）
 ]
 
 _RAW_SHEET_EXTRA_COLUMNS = [
@@ -723,9 +801,16 @@ def upsert_orders(user_id: int, rows: list) -> int:
             updated_at = EXCLUDED.updated_at
     """
 
+    imported_ids = []
     for row in rows:
         values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [now, now]
         cur.execute(sql, values)
+        oid = row.get("order_item_id")
+        if oid:
+            imported_ids.append(oid)
+
+    # (a) 取込時: JANが空の行に同ASINの過去注文の最新JANを補完する（jan_from_history=TRUEで印）。
+    _backfill_jan_from_history(user_id, cur, imported_ids)
 
     conn.commit()
     conn.close()
@@ -1678,8 +1763,15 @@ def update_manual_fields(user_id: int, order_item_id: str, fields: dict):
     cur = conn.cursor()
     now = datetime.utcnow().isoformat()
 
-    set_clause = ", ".join([f"{k} = %s" for k in allowed])
-    values = list(allowed.values()) + [now, user_id, order_item_id]
+    set_parts = [f"{k} = %s" for k in allowed]
+    values = list(allowed.values())
+
+    # JANを手入力・手修正したら「履歴由来」の印を外す（次回取込ではこの値が最新の履歴になる）。
+    if "jan_code" in allowed:
+        set_parts.append("jan_from_history = FALSE")
+
+    set_clause = ", ".join(set_parts)
+    values += [now, user_id, order_item_id]
 
     cur.execute(
         f"""

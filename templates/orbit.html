@@ -326,6 +326,14 @@
   border-color: #f3a9c0;
 }
 
+/* JANを取込時に同ASINの過去注文から自動補完した行＝淡い黄色（要確認の目安。
+   手入力・手修正すると jan_from_history が False になりこの色は外れる） */
+.orbit-page .orbit-acc-field.orbit-jan-from-history input.orbit-manual,
+.orbit-page table td.orbit-jan-from-history input.orbit-manual {
+  background: #fff6d9;
+  border-color: #e6c65c;
+}
+
 /* 発注数量チェック：数量が2以上の行だけ数字を赤太字で目立たせる（列は増やさず視覚化のみ） */
 .orbit-page table td.orbit-qty-warn {
   color: #c62828;
