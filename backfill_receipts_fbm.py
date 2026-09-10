@@ -194,6 +194,8 @@ def main():
     ap.add_argument("--commit", action="store_true", help="指定時のみ実際にコピー＆元ファイル削除。既定は dry-run。")
     ap.add_argument("--set-flags", action="store_true",
                     help="ファイル処理はせず、保管先の「N番_...」ファイルから orbit_orders の invoice_saved を立てるだけ")
+    ap.add_argument("--cleanup-inbox", action="store_true",
+                    help="コピーはせず、保管先に中身一致のコピーを確認できた受信フォルダの元PDFだけ削除（失敗29件は残す）")
     args = ap.parse_args()
 
     if not os.path.isdir(args.store):
@@ -206,6 +208,45 @@ def main():
 
     if not args.inbox or not os.path.isdir(args.inbox):
         sys.exit(f"受信フォルダが見つかりません: {args.inbox}")
+
+    if args.cleanup_inbox:
+        print("[MODE] CLEANUP-INBOX（保管先に中身一致のコピーを確認できた元PDFだけ削除。失敗分は残す）")
+        index, _cd, _st, _sm = load_match_index(args.user, args.sheet_url, args.tab)
+        _pdfs, plans, _failed = plan_files(args.inbox, index)
+        deleted = kept = errors = 0
+        for p in plans:
+            try:
+                src_hash = _sha256(p["src"])
+            except OSError:
+                kept += 1
+                continue
+            confirmed = False
+            for fname in p["targets"]:
+                stem, ext = os.path.splitext(fname)
+                for cand in [fname] + [f"{stem}_({i}){ext}" for i in range(1, 8)]:
+                    fp = os.path.join(args.store, cand)
+                    if os.path.exists(fp):
+                        try:
+                            if _sha256(fp) == src_hash:
+                                confirmed = True
+                                break
+                        except OSError:
+                            pass
+                if confirmed:
+                    break
+            if not confirmed:
+                kept += 1
+                print(f"   KEEP  {p['name']}（保管先に中身一致のコピーが見つからない）")
+                continue
+            try:
+                os.remove(p["src"])
+                deleted += 1
+                print(f"   DEL   {p['name']}")
+            except OSError as e:
+                errors += 1
+                print(f"   ERROR 削除できない: {p['name']} — {e}")
+        print(f"\n[CLEANUP] 削除 {deleted} / 保持 {kept} / 削除失敗 {errors}  （照合失敗の29件は対象外で残置）")
+        return
 
     print(f"[MODE] {'COMMIT（実行）' if args.commit else 'DRY-RUN（表示のみ・ファイルは動かしません）'}")
     print(f"[SHEET] {args.tab}  <- {args.sheet_url}")
@@ -251,8 +292,8 @@ def main():
         if wrote_any and args.commit:
             try:
                 os.remove(p["src"])
-            except OSError:
-                pass
+            except OSError as e:
+                print(f"   ※元ファイルを削除できず（保管先へのコピーは完了済み）: {p['name']} — {e}")
 
     if failed:
         print(f"\n[FAILED] 受信フォルダに残す（要対応） {len(failed)}件:")
