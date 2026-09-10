@@ -1243,6 +1243,11 @@ window.initOrbit = function () {
     let dispatchHideNotified = (() => {
         try { return localStorage.getItem("orbitDispatchHideNotified") === "1"; } catch { return false; }
     })();
+    // 発注管理アコーディオンの展開中 order_item_id 集合。renderDispatchTable()（＝loadOrders().then）が
+    // 参照するので、同じく早期returnより前に初期化しておく（後ろで宣言すると2回目以降のinitOrbitでTDZ）。
+    const dispatchExpanded = new Set(
+        (() => { try { return JSON.parse(localStorage.getItem("orbitDispatchExpanded") || "[]"); } catch { return []; } })()
+    );
 
     // N番(agent_serial_no)が重複している値の集合。ロードのたびに ordersRowsCache から計算し直す。
     // 空でない＝重複あり。重複中は赤字表示＋ほぼ全操作をブロックする（recomputeDuplicateSerials / markSerialDups /
@@ -1520,10 +1525,7 @@ window.initOrbit = function () {
     // 発注管理テーブル＝アコーディオン行（1注文＝主行＋±展開）。列見出しクリックで並び替え可（主行の列）。
     // ※ dispatchRowsCache / dispatchSortState の宣言は早期returnより前へ移動済み（上部参照）
 
-    // 展開中の注文（order_item_id）。localStorage に保存して再訪でも維持。
-    const dispatchExpanded = new Set(
-        (() => { try { return JSON.parse(localStorage.getItem("orbitDispatchExpanded") || "[]"); } catch { return []; } })()
-    );
+    // 展開中の注文（order_item_id）＝ dispatchExpanded。宣言は早期returnより前へ移動済み（上部参照）。
     function persistDispatchExpanded() {
         try { localStorage.setItem("orbitDispatchExpanded", JSON.stringify([...dispatchExpanded])); } catch { /* ignore */ }
     }

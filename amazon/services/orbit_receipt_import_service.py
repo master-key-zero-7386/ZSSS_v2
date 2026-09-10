@@ -140,18 +140,20 @@ def _load_order_index(user_id: int):
     """orbit_orders を注文番号→行リストの辞書に。
     supplier_order_number 優先、次点 order_id。"""
     conn = get_conn("a_orbit_orders.db")
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT order_item_id, order_id, supplier_order_number, agent_serial_no,
-               supplier, supplier_shop_name, procurement_date, purchase_date
-        FROM orbit_orders
-        WHERE user_id = %s
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT order_item_id, order_id, supplier_order_number, agent_serial_no,
+                   supplier, supplier_shop_name, procurement_date, purchase_date
+            FROM orbit_orders
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
 
     by_supplier_no = {}
     by_order_id = {}
@@ -168,19 +170,21 @@ def _set_invoice_saved(user_id: int, order_item_ids) -> int:
     if not ids:
         return 0
     conn = get_conn("a_orbit_orders.db")
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute(
-        """
-        UPDATE orbit_orders
-        SET invoice_saved = 1, updated_at = %s
-        WHERE user_id = %s AND order_item_id = ANY(%s)
-        """,
-        (now, user_id, ids),
-    )
-    n = cur.rowcount
-    conn.commit()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        cur.execute(
+            """
+            UPDATE orbit_orders
+            SET invoice_saved = 1, updated_at = %s
+            WHERE user_id = %s AND order_item_id = ANY(%s)
+            """,
+            (now, user_id, ids),
+        )
+        n = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
     return n
 
 
