@@ -2507,6 +2507,38 @@ window.initOrbit = function () {
         })
         .catch(err => console.error("receipt_settings load error:", err));
 
+    // 「参照」ボタン：アプリが動いているPC側でフォルダ選択ダイアログを出して欄に反映する。
+    document.querySelectorAll(".orbit-folder-pick-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const input = document.getElementById(btn.dataset.target);
+            if (!input) return;
+            const orig = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "選択中…";
+            fetch("/orbit/pick_folder", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ initial: input.value || "" }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success" && data.path) {
+                        input.value = data.path;
+                    } else if (data.status === "error") {
+                        window.showToast?.(data.message || "フォルダ選択を開けませんでした。パスを直接入力してください。", "error");
+                    }
+                })
+                .catch(err => {
+                    console.error("pick_folder error:", err);
+                    window.showToast?.("フォルダ選択を開けませんでした。パスを直接入力してください。", "error");
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = orig;
+                });
+        });
+    });
+
     receiptSettingsSaveBtn?.addEventListener("click", () => {
         fetch("/orbit/receipt_settings", {
             method: "POST",

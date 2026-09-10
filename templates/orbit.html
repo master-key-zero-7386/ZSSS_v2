@@ -795,10 +795,13 @@ input.orbit-serial-dup {
               <div class="orbit-sheet-group">
                   <div class="orbit-sheet-group-label">・領収書PDF取込（発注管理の領収書列「一括読込」）</div>
                   <div class="orbit-actions" style="flex-wrap:wrap;">
-                      <input type="text" id="orbit-receipt-inbox-dir" class="file-input-text" placeholder="受信フォルダ（手DLした領収書PDFをまとめて置く）" style="width:420px;">
-                      <input type="text" id="orbit-receipt-store-dir" class="file-input-text" placeholder="保管先フォルダ（照合・リネーム後の移動先）" style="width:420px;">
+                      <input type="text" id="orbit-receipt-inbox-dir" class="file-input-text" placeholder="受信フォルダ（手DLした領収書PDFをまとめて置く）" style="width:380px;">
+                      <button type="button" class="btn-blue orbit-folder-pick-btn" data-target="orbit-receipt-inbox-dir">参照</button>
+                      <input type="text" id="orbit-receipt-store-dir" class="file-input-text" placeholder="保管先フォルダ（照合・リネーム後の移動先）" style="width:380px;">
+                      <button type="button" class="btn-blue orbit-folder-pick-btn" data-target="orbit-receipt-store-dir">参照</button>
                       <button id="orbit-receipt-settings-save-btn" class="btn-blue">設定を保存</button>
                   </div>
+                  <div style="font-size:12px; color:#888; margin:2px 0 0;">「参照」はアプリが動いているPCの画面にフォルダ選択ダイアログを出します（別端末から開いている場合はパスを直接貼り付け）。</div>
                   <div style="font-size:12px; color:#888; margin:2px 0 0;">
                       受信フォルダに置いたPDFを、ファイル名（無ければ本文）の注文番号でZSSSに照合し、<code>N番_日付_注文番号_仕入先.pdf</code> にリネームして保管先へ移します。照合できた注文は「領収書」を保存済にします。<strong>照合できなかったPDFは受信フォルダに残る</strong>ので、それが要対応の一覧になります。
                   </div>
