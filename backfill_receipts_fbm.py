@@ -210,42 +210,58 @@ def main():
         sys.exit(f"受信フォルダが見つかりません: {args.inbox}")
 
     if args.cleanup_inbox:
-        print("[MODE] CLEANUP-INBOX（保管先に中身一致のコピーを確認できた元PDFだけ削除。失敗分は残す）")
-        index, _cd, _st, _sm = load_match_index(args.user, args.sheet_url, args.tab)
-        _pdfs, plans, _failed = plan_files(args.inbox, index)
+        # Google連携もFBMシートも使わない。保管先の既存ファイル名（N番_日付_注文番号_...）から
+        # 注文番号を拾い、受信フォルダの元PDFと SHA256 で突き合わせて、中身一致が確認できた元だけ削除する。
+        print("[MODE] CLEANUP-INBOX（保管先の N番_注文番号 ファイルを基準に、中身一致の元PDFだけ削除）")
+        store_by_order = {}
+        for f in os.listdir(args.store):
+            if not f.lower().endswith(".pdf") or not os.path.isfile(os.path.join(args.store, f)):
+                continue
+            for on in extract_order_numbers(f):
+                store_by_order.setdefault(on, []).append(os.path.join(args.store, f))
+        print(f"[STORE] 保管先PDF由来のユニーク注文番号 = {len(store_by_order)}")
+
+        src_pdfs = sorted(
+            x for x in os.listdir(args.inbox)
+            if x.lower().endswith(".pdf") and os.path.isfile(os.path.join(args.inbox, x))
+        )
         deleted = kept = errors = 0
-        for p in plans:
-            try:
-                src_hash = _sha256(p["src"])
-            except OSError:
+        for name in src_pdfs:
+            src = os.path.join(args.inbox, name)
+            ons = extract_order_numbers(name) or extract_order_numbers(_extract_pdf_text(src))
+            cand_paths = []
+            for on in ons:
+                cand_paths += store_by_order.get(on, [])
+            if not cand_paths:
                 kept += 1
-                continue
-            confirmed = False
-            for fname in p["targets"]:
-                stem, ext = os.path.splitext(fname)
-                for cand in [fname] + [f"{stem}_({i}){ext}" for i in range(1, 8)]:
-                    fp = os.path.join(args.store, cand)
-                    if os.path.exists(fp):
-                        try:
-                            if _sha256(fp) == src_hash:
-                                confirmed = True
-                                break
-                        except OSError:
-                            pass
-                if confirmed:
-                    break
-            if not confirmed:
-                kept += 1
-                print(f"   KEEP  {p['name']}（保管先に中身一致のコピーが見つからない）")
+                print(f"   KEEP  {name}（保管先に対応ファイルなし＝未処理/失敗分）")
                 continue
             try:
-                os.remove(p["src"])
+                src_hash = _sha256(src)
+            except OSError as e:
+                kept += 1
+                print(f"   KEEP  {name}（読み取り不可: {e}）")
+                continue
+            match = False
+            for fp in cand_paths:
+                try:
+                    if _sha256(fp) == src_hash:
+                        match = True
+                        break
+                except OSError:
+                    pass
+            if not match:
+                kept += 1
+                print(f"   KEEP  {name}（保管先に中身一致のコピーが無い）")
+                continue
+            try:
+                os.remove(src)
                 deleted += 1
-                print(f"   DEL   {p['name']}")
+                print(f"   DEL   {name}")
             except OSError as e:
                 errors += 1
-                print(f"   ERROR 削除できない: {p['name']} — {e}")
-        print(f"\n[CLEANUP] 削除 {deleted} / 保持 {kept} / 削除失敗 {errors}  （照合失敗の29件は対象外で残置）")
+                print(f"   ERROR 削除できない: {name} — {e}")
+        print(f"\n[CLEANUP] 削除 {deleted} / 保持 {kept} / 削除失敗 {errors}")
         return
 
     print(f"[MODE] {'COMMIT（実行）' if args.commit else 'DRY-RUN（表示のみ・ファイルは動かしません）'}")
