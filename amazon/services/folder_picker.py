@@ -14,6 +14,11 @@
 import os
 import subprocess
 import sys
+import threading
+
+# ダイアログは一度に1つだけ。2個目以降は待たせず即エラーにして、
+# Flask のワーカースレッドが「開きっぱなしのダイアログ待ち」で溜まらないようにする。
+_DIALOG_LOCK = threading.Lock()
 
 _DIALOG_SCRIPT = r"""
 import sys
@@ -36,11 +41,17 @@ except Exception as e:
 """
 
 
-def pick_folder_dialog(initial: str = "", timeout: int = 180) -> str:
+def pick_folder_dialog(initial: str = "", timeout: int = 60) -> str:
     """フォルダ選択ダイアログを出して、選ばれた絶対パスを返す。キャンセル時は ""。
-    ダイアログを出せない環境なら RuntimeError。"""
+    ダイアログを出せない環境・既に別のダイアログが開いている・時間切れなら RuntimeError。
+
+    ダイアログはアプリが動いているPCの画面に出る。別端末から開いている場合は出ないので、
+    timeout 内に誰も操作しなければ RuntimeError（パスは手入力してもらう）。"""
     if getattr(sys, "frozen", False):
         raise RuntimeError("この実行形態ではフォルダ選択ダイアログを開けません。パスを直接入力してください。")
+
+    if not _DIALOG_LOCK.acquire(blocking=False):
+        raise RuntimeError("フォルダ選択ダイアログが既に開いています。運用PCの画面で操作するか閉じてください。")
 
     try:
         proc = subprocess.run(
@@ -49,9 +60,14 @@ def pick_folder_dialog(initial: str = "", timeout: int = 180) -> str:
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        raise RuntimeError("フォルダ選択がタイムアウトしました。")
+        raise RuntimeError(
+            "フォルダ選択がタイムアウトしました"
+            "（ダイアログは運用PCの画面に出ます。別端末から開いている場合はパスを直接入力してください）。"
+        )
     except OSError as e:
         raise RuntimeError(f"フォルダ選択ダイアログを起動できませんでした: {e}")
+    finally:
+        _DIALOG_LOCK.release()
 
     if proc.returncode != 0:
         detail = (proc.stderr or b"").decode("utf-8", "replace").strip()
