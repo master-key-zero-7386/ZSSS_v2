@@ -401,6 +401,7 @@ def _apply_dispatch_checks(row, remote_area_ranges=None):
     # ハイライトは「まだ条件を満たしていないか」で判定する。修正（自動 or 手動）が済んで
     # 条件を満たせば、次の表示更新時に自動でハイライトが消える。
     row["flag_phone_country_code"] = bool(PHONE_COUNTRY_CODE_PATTERN.match(phone_effective))
+    row["flag_phone_number_missing"] = not phone_effective.strip()
     row["flag_product_name"] = bool(product_name) and (len(product_name) > 70 or "|" in product_name)
     row["flag_recipient_name"] = bool(recipient_name) and (" " not in recipient_name and "　" not in recipient_name)
     row["flag_address1_length"] = len(address_1) > 40
@@ -650,6 +651,7 @@ _RAW_SHEET_HEADER_LABELS = {
     "tax_registration_note": "税番号(自動導出)",
     "remarks_3_effective": "備考3(表示用)",
     "flag_phone_country_code": "警告:電話に国番号",
+    "flag_phone_number_missing": "警告:電話番号なし",
     "flag_product_name": "警告:商品名(70字/｜)",
     "flag_recipient_name": "警告:宛名フルネーム",
     "flag_address1_length": "警告:住所1が40字超",

@@ -102,6 +102,7 @@ const ORBIT_COLUMNS = [
 // 修正（自動 or 手動）が完了すると次の表示更新でハイライトが消える。
 const DISPATCH_ISSUE_FLAGS = [
     { key: "flag_phone_country_code", label: "電話番号(国番号が残っています)" },
+    { key: "flag_phone_number_missing", label: "電話番号(未入力)" },
     { key: "flag_product_name", label: "商品名(70字超 or ｜禁止)" },
     { key: "flag_recipient_name", label: "宛名(フルネーム要確認)" },
     { key: "flag_address1_length", label: "住所1(40字超)" },
@@ -153,7 +154,7 @@ const DISPATCH_COLUMNS = [
 
     // 展開部
     { key: "recipient_name_effective", label: "宛名", checkFlagKey: "flag_recipient_name", editable: "text", saveField: "recipient_name_override" },
-    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: "flag_phone_country_code", editable: "text", saveField: "buyer_phone_number_override" },
+    { key: "buyer_phone_number_effective", label: "電話番号", checkFlagKey: ["flag_phone_country_code", "flag_phone_number_missing"], editable: "text", saveField: "buyer_phone_number_override" },
     { key: "buyer_phone_extension_effective", label: "内線", editable: "text", saveField: "buyer_phone_extension_override" },
     { key: "ship_address_1_effective", label: "住所1", checkFlagKey: "flag_address1_length", editable: "text", saveField: "ship_address_1_override", mid: true },
     { key: "ship_address_2_effective", label: "住所2", checkFlagKey: "flag_address2_length", editable: "text", saveField: "ship_address_2_override", mid: true },
@@ -598,7 +599,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
         tr.innerHTML = columns.map(col => {
             let cellClass = col.deadline ? `orbit-deadline-col ${getDeadlineColorClass(r[col.key])}`.trim() : "";
             if (col.group && !col.groupHead) cellClass = `${cellClass} orbit-group-${col.group}`.trim();
-            if (col.checkFlagKey && r[col.checkFlagKey]) cellClass = `${cellClass} orbit-issue-flag`.trim();
+            if (col.checkFlagKey && [].concat(col.checkFlagKey).some(k => r[k])) cellClass = `${cellClass} orbit-issue-flag`.trim();
             if (col.highlight) cellClass = `${cellClass} orbit-check-highlight`.trim();
             if (col.profitHighlight) cellClass = `${cellClass} orbit-profit-highlight`.trim();
             if (col.redUntilShipped && r[col.key] && !r.shipped_completed) cellClass = `${cellClass} orbit-text-red`.trim();
@@ -743,7 +744,7 @@ function remoteAreaCellClass(r) {
 
 function dispCellClass(col, r) {
     let c = col.deadline ? `orbit-deadline-col ${getDeadlineColorClass(r[col.key])}`.trim() : "";
-    if (col.checkFlagKey && r[col.checkFlagKey]) c += " orbit-issue-flag";
+    if (col.checkFlagKey && [].concat(col.checkFlagKey).some(k => r[k])) c += " orbit-issue-flag";
     if (col.remoteAreaCell) c += remoteAreaCellClass(r);
     if (col.highlight) c += " orbit-check-highlight";
     if (col.profitHighlight) c += " orbit-profit-highlight";
