@@ -33,6 +33,7 @@ psycopg2-binary==2.9.12
 pycparser==3.0
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6
+pypdf==5.1.0
 PySocks==1.7.1
 python-amazon-sp-api==2.1.8
 python-dateutil==2.9.0.post0

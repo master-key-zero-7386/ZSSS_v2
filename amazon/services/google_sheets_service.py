@@ -145,6 +145,44 @@ def save_raw_sheet_settings(user_id: int, spreadsheet_url: str, sheet_name: str,
     conn.close()
 
 
+# --- ▼ SECTION 00-3: 領収書PDF取込のフォルダ設定（依頼書シート設定と同じ1行に相乗り） ▼ ---
+# 発注管理・領収書列の「一括読込」で使う受信/保管先フォルダのパス。既定値は持たず、
+# 未設定なら空文字を返す（取込実行時に「フォルダ未設定」エラーになる）。
+def get_receipt_settings(user_id: int) -> dict:
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT receipt_inbox_dir, receipt_store_dir FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    return {
+        "inbox_dir": (row["receipt_inbox_dir"] if row and row.get("receipt_inbox_dir") else ""),
+        "store_dir": (row["receipt_store_dir"] if row and row.get("receipt_store_dir") else ""),
+    }
+
+
+def save_receipt_settings(user_id: int, inbox_dir: str, store_dir: str):
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+
+    cur.execute("""
+        INSERT INTO orbit_dispatch_sheet_settings
+            (user_id, receipt_inbox_dir, receipt_store_dir, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (user_id) DO UPDATE SET
+            receipt_inbox_dir = EXCLUDED.receipt_inbox_dir,
+            receipt_store_dir = EXCLUDED.receipt_store_dir,
+            updated_at = EXCLUDED.updated_at
+    """, (user_id, inbox_dir, store_dir, now, now))
+
+    conn.commit()
+    conn.close()
+
+
 # --- ▼ SECTION 01: 認可URL生成 ▼ ---
 def build_authorization_url(redirect_uri: str = None) -> str:
     params = {

@@ -59,8 +59,11 @@ from amazon.services.google_sheets_service import (
     save_dispatch_sheet_settings,
     get_raw_sheet_settings,
     save_raw_sheet_settings,
+    get_receipt_settings,
+    save_receipt_settings,
     fetch_deposit_balance,
 )
+from amazon.services.orbit_receipt_import_service import run_receipt_import
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -750,6 +753,45 @@ def deposit_balance():
 
     try:
         result = fetch_deposit_balance(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 13: 領収書PDF取込（発注管理・領収書列「一括読込」） ▼ ---
+@orbit_bp.route("/receipt_settings", methods=["GET"])
+def get_receipt_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    return jsonify({"status": "success", **get_receipt_settings(user_id)})
+
+
+@orbit_bp.route("/receipt_settings", methods=["POST"])
+def save_receipt_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    inbox_dir = (data.get("inbox_dir") or "").strip()
+    store_dir = (data.get("store_dir") or "").strip()
+
+    save_receipt_settings(user_id, inbox_dir, store_dir)
+    return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/receipt_import", methods=["POST"])
+@block_if_serial_dup
+def receipt_import_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = run_receipt_import(user_id)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

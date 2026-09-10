@@ -144,7 +144,7 @@ const DISPATCH_COLUMNS = [
     { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
     { key: "shipped_completed", label: "出荷通知", shippedToggle: true, shippedFilterButton: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）。列見出し＝通知済の表示/非表示トグル
     { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
-    { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
+    { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存", receiptImportButton: true },  // 列見出し＝受信フォルダのPDF一括読込ボタン
     { key: "remarks", label: "備考1", editable: "text", mid: true },
     { key: "remarks_2", label: "備考2", editable: "text", mid: true },
     // 備考3：手入力が無ければ (発送先×販売マーケット) から自動導出したマーケットプレイス税番号を
@@ -530,6 +530,11 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
         // ボタン文言と色は描画後に updateDispatchHideNotifiedLabel() が現在の状態に合わせて上書きする。
         if (col.shippedFilterButton) {
             return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-dispatch-hide-notified-btn btn-blue" style="margin-top:2px;" title="出荷通知済みの注文を一覧から隠す/表示する">通知済を隠す</button></th>`;
+        }
+
+        // 領収書列のヘッダーには、受信フォルダのPDFを注文番号で照合してリネーム保管する一括ボタンを出す。
+        if (col.receiptImportButton) {
+            return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-receipt-import-btn btn-blue" style="margin-top:2px;" title="受信フォルダの領収書PDFを注文番号でZSSSに照合し、リネームして保管先へ移動します">一括読込</button></th>`;
         }
 
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
@@ -2138,6 +2143,66 @@ window.initOrbit = function () {
         try { localStorage.setItem("orbitDispatchHideNotified", dispatchHideNotified ? "1" : "0"); } catch { /* ignore */ }
         renderDispatchTable();
     });
+
+    // --- ▼ 領収書PDF「一括読込」（領収書列ヘッダーのボタン） ▼ ---
+    function renderReceiptResult(data) {
+        const box = document.getElementById("orbit-receipt-result");
+        if (!box) return;
+        box.hidden = false;
+        if (data && data.status === "running") {
+            box.className = "orbit-receipt-result is-running";
+            box.textContent = "領収書PDFを処理中…";
+            return;
+        }
+        if (!data || data.status !== "success") {
+            box.className = "orbit-receipt-result is-error";
+            box.textContent = (data && data.message) || "処理に失敗しました";
+            return;
+        }
+        const failed = data.failed || [];
+        box.className = "orbit-receipt-result " + (failed.length ? "is-warn" : "is-ok");
+        let html = `<div class="orbit-receipt-result-head">`
+            + `対象 ${data.processed}件 ／ 保存 ${data.ok}件 ／ スキップ ${data.skipped}件 ／ 失敗 ${failed.length}件`
+            + `（領収書フラグ ${data.flagged_rows}行を保存済に）</div>`;
+        if (failed.length) {
+            html += `<div class="orbit-receipt-result-fail-label">受信フォルダに残ったPDF（要対応）:</div>`
+                + `<ul class="orbit-receipt-result-fail">`
+                + failed.map(f => `<li>${orbitEscapeHtml(f.file)} — ${orbitEscapeHtml(f.reason)}</li>`).join("")
+                + `</ul>`;
+        }
+        box.innerHTML = html;
+    }
+
+    function runReceiptImport() {
+        const btn = document.querySelector(".orbit-receipt-import-btn");
+        if (btn && btn.disabled) return;
+        if (!confirm("受信フォルダの領収書PDFを、注文番号でZSSSに照合してリネーム・保管します。よろしいですか？")) return;
+        if (btn) btn.disabled = true;
+        renderReceiptResult({ status: "running" });
+        fetch("/orbit/receipt_import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+        })
+            .then(res => res.json())
+            .then(data => {
+                renderReceiptResult(data);
+                if (data && data.status === "success") loadOrders();
+            })
+            .catch(err => {
+                console.error("receipt_import error:", err);
+                renderReceiptResult({ status: "error", message: "通信エラーで処理できませんでした" });
+            })
+            .finally(() => {
+                const b = document.querySelector(".orbit-receipt-import-btn");
+                if (b) b.disabled = false;
+            });
+    }
+
+    dispatchThead?.addEventListener("click", (e) => {
+        if (!e.target.closest(".orbit-receipt-import-btn")) return;
+        runReceiptImport();
+    });
     document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
         if (isAllDispatchExpanded()) {
             dispatchExpanded.clear();
@@ -2424,6 +2489,42 @@ window.initOrbit = function () {
             })
             .catch(err => {
                 console.error("dispatch_sheet_settings save error:", err);
+                window.showToast?.("保存に失敗しました", "error");
+            });
+    });
+
+    // --- ▼ SECTION 04-1b: 領収書PDF取込のフォルダ設定（受信フォルダ／保管先フォルダ） ▼ ---
+    const receiptInboxInput = document.getElementById("orbit-receipt-inbox-dir");
+    const receiptStoreInput = document.getElementById("orbit-receipt-store-dir");
+    const receiptSettingsSaveBtn = document.getElementById("orbit-receipt-settings-save-btn");
+
+    fetch("/orbit/receipt_settings")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (receiptInboxInput) receiptInboxInput.value = data.inbox_dir || "";
+            if (receiptStoreInput) receiptStoreInput.value = data.store_dir || "";
+        })
+        .catch(err => console.error("receipt_settings load error:", err));
+
+    receiptSettingsSaveBtn?.addEventListener("click", () => {
+        fetch("/orbit/receipt_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                inbox_dir: receiptInboxInput?.value || "",
+                store_dir: receiptStoreInput?.value || "",
+            }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                window.showToast?.(
+                    data.status === "success" ? "設定を保存しました" : (data.message || "保存に失敗しました"),
+                    data.status === "success" ? "success" : "error",
+                );
+            })
+            .catch(err => {
+                console.error("receipt_settings save error:", err);
                 window.showToast?.("保存に失敗しました", "error");
             });
     });

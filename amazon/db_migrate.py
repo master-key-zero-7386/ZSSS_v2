@@ -813,6 +813,9 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     # IMPORTRANGE（頻繁に「内部エラー」になる）を廃止して置き換えるための設定。空なら書き込まない。
     "raw_mirror_spreadsheet_url": "TEXT",  # ミラー先スプレッドシートのURL（代行会社ファイル）
     "raw_mirror_sheet_name": "TEXT",       # そのタブ名（例: ujihara2）。毎回まるごと上書き
+    # 領収書PDF取込（発注管理・領収書列の「一括読込」）で使うフォルダパス。相乗りで保存。
+    "receipt_inbox_dir": "TEXT",   # 受信フォルダ（手DLした仕入れ領収書PDFをまとめて置く場所）
+    "receipt_store_dir": "TEXT",   # 保管先フォルダ（注文番号照合→リネーム後の移動先。フラット）
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }

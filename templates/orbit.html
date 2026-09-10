@@ -447,6 +447,28 @@
   background-color: #f0f0f0;
   color: #666;
 }
+/* 領収書「未保存」は赤字で目立たせる（データ保管漏れの目視チェック用） */
+.orbit-flag-toggle-btn.is-off[data-field="invoice_saved"] {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+/* 領収書PDF「一括読込」の結果パネル（発注管理テーブル上にインライン表示） */
+.orbit-receipt-result {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #f8f9fa;
+  font-size: 13px;
+}
+.orbit-receipt-result.is-ok { border-color: #2e7d32; background: #edf7ed; }
+.orbit-receipt-result.is-warn { border-color: #e69500; background: #fff6e5; }
+.orbit-receipt-result.is-error { border-color: #d00; background: #fdecec; color: #b00; }
+.orbit-receipt-result.is-running { color: #555; }
+.orbit-receipt-result-head { font-weight: bold; }
+.orbit-receipt-result-fail-label { margin-top: 6px; }
+.orbit-receipt-result-fail { margin: 2px 0 0; padding-left: 20px; }
 
 /* 出荷完了：行全体をグレーアウトして視覚的に完了済みとわかるようにする */
 .orbit-page table tbody tr.orbit-row-shipped td {
@@ -770,12 +792,27 @@ input.orbit-serial-dup {
                   </div>
               </div>
 
+              <div class="orbit-sheet-group">
+                  <div class="orbit-sheet-group-label">・領収書PDF取込（発注管理の領収書列「一括読込」）</div>
+                  <div class="orbit-actions" style="flex-wrap:wrap;">
+                      <input type="text" id="orbit-receipt-inbox-dir" class="file-input-text" placeholder="受信フォルダ（手DLした領収書PDFをまとめて置く）" style="width:420px;">
+                      <input type="text" id="orbit-receipt-store-dir" class="file-input-text" placeholder="保管先フォルダ（照合・リネーム後の移動先）" style="width:420px;">
+                      <button id="orbit-receipt-settings-save-btn" class="btn-blue">設定を保存</button>
+                  </div>
+                  <div style="font-size:12px; color:#888; margin:2px 0 0;">
+                      受信フォルダに置いたPDFを、ファイル名（無ければ本文）の注文番号でZSSSに照合し、<code>N番_日付_注文番号_仕入先.pdf</code> にリネームして保管先へ移します。照合できた注文は「領収書」を保存済にします。<strong>照合できなかったPDFは受信フォルダに残る</strong>ので、それが要対応の一覧になります。
+                  </div>
+              </div>
+
               <div style="font-size:12px; color:#888; margin:2px 0 0;">
                   注文データを書き出すGoogleスプレッドシートと、その中のタブ名を指定します。URLはブラウザのアドレスバーのリンクをそのまま貼り付けてOK（開いているタブは無視され、タブ名で指定した先に書き込みます）。指定したタブは<strong>事前に作成</strong>してください。書き出しでは<strong>N番で行を突き合わせて更新</strong>し、無い行は末尾に追加します（タブ全体の消去はしません）。見出し行も毎回貼り直します。<strong>出荷通知を出した注文は書き出し対象外</strong>になり、その行はそのまま残ります（通知を解除すればまた更新対象に戻ります）。列は A〜BE が代行会社向けの確定項目、BF 以降は未確定項目を確認用に全部出しています。<br>
                   <strong>ミラー先（任意）</strong>：設定すると、書き出しのたびに ZSSS_RAW の <strong>A〜BE（57列）</strong>を、指定した代行会社シートのタブへ<strong>まるごと上書きコピー</strong>します（そのタブは事前に作成し、数式は入れない）。これで代行会社側の <code>IMPORTRANGE</code>（頻繁に「内部エラー」になる）を廃止できます。不要なら両方空のままにしてください。
               </div>
           </div>
       </details>
+
+      <!-- 領収書PDF「一括読込」の結果（インライン。処理後だけ表示） -->
+      <div id="orbit-receipt-result" class="orbit-receipt-result" hidden></div>
 
       <!-- 発送種別の入力候補（過去に入力した値。JSで都度更新。新しい値も自由に入力可） -->
       <datalist id="orbit-dl-shipping-type"></datalist>
