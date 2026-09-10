@@ -151,20 +151,61 @@ def plan_files(inbox, index):
     return pdfs, plans, failed
 
 
+def set_flags_from_store(user_id, store):
+    """保管先フォルダの「N{数字}_...」ファイル名からN番を集め、orbit_orders に存在する行の
+    invoice_saved を立てる（DB更新のみ・ファイルは触らない）。
+    バックフィルで N5130 以降の領収書もファイル化されるが invoice_saved は立たないため、その穴埋め。"""
+    import re as _re
+    from datetime import datetime as _dt
+    from amazon.db import get_conn
+
+    nbans = set()
+    for f in os.listdir(store):
+        m = _re.match(r"^N(\d+)_", f)
+        if m:
+            nbans.add(int(m.group(1)))
+    if not nbans:
+        print("[FLAGS] 保管先に「N番_...」形式のファイルがありません")
+        return
+
+    conn = get_conn("a_orbit_orders.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE orbit_orders SET invoice_saved = 1, updated_at = %s "
+            "WHERE user_id = %s AND agent_serial_no = ANY(%s) "
+            "AND (invoice_saved IS NULL OR invoice_saved = 0)",
+            (_dt.utcnow().isoformat(), user_id, sorted(nbans)),
+        )
+        n = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"[FLAGS] 保管先のN番 {len(nbans)}種  →  invoice_saved を立てた行: {n}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="FBMシート照合で N4837〜5129 の領収書PDFをリネーム保管（一回限り）")
     ap.add_argument("--user", type=int, required=True, help="Google連携済みの user_id（通常 1）")
-    ap.add_argument("--inbox", required=True, help="受信フォルダ（手DLした領収書PDF）")
+    ap.add_argument("--inbox", help="受信フォルダ（手DLした領収書PDF）")
     ap.add_argument("--store", required=True, help="保管先フォルダ（リネーム後の移動先）")
     ap.add_argument("--sheet-url", default=DEFAULT_SHEET_URL)
     ap.add_argument("--tab", default=DEFAULT_TAB)
     ap.add_argument("--commit", action="store_true", help="指定時のみ実際にコピー＆元ファイル削除。既定は dry-run。")
+    ap.add_argument("--set-flags", action="store_true",
+                    help="ファイル処理はせず、保管先の「N番_...」ファイルから orbit_orders の invoice_saved を立てるだけ")
     args = ap.parse_args()
 
-    if not os.path.isdir(args.inbox):
-        sys.exit(f"受信フォルダが見つかりません: {args.inbox}")
     if not os.path.isdir(args.store):
         sys.exit(f"保管先フォルダが見つかりません: {args.store}")
+
+    if args.set_flags:
+        print("[MODE] SET-FLAGS（DB更新のみ・ファイルは動かしません）")
+        set_flags_from_store(args.user, args.store)
+        return
+
+    if not args.inbox or not os.path.isdir(args.inbox):
+        sys.exit(f"受信フォルダが見つかりません: {args.inbox}")
 
     print(f"[MODE] {'COMMIT（実行）' if args.commit else 'DRY-RUN（表示のみ・ファイルは動かしません）'}")
     print(f"[SHEET] {args.tab}  <- {args.sheet_url}")
