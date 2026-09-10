@@ -26,6 +26,27 @@ document.addEventListener("click", function (e) {
     }
 });
 
+// --- ▼ SECTION 00-0b: リンクのコピー（data-url をクリップボードへ。領収書サブタブのリンク列など） ▼ ---
+document.addEventListener("click", function (e) {
+    const el = e.target.closest(".orbit-link-copy");
+    if (!el) return;
+    const url = el.dataset.url;
+    if (!url) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url)
+            .then(() => window.showCopyNotification?.("リンクをコピーしました", el))
+            .catch(err => console.error("コピー失敗:", err));
+    } else {
+        const tmp = document.createElement("textarea");
+        tmp.value = url;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        document.body.removeChild(tmp);
+        window.showCopyNotification?.("リンクをコピーしました", el);
+    }
+});
+
 // --- ▼ SECTION 00: 表示列定義 ▼ ---
 // 受注一覧＝Amazonデータの取込・管理専用（市場別）。
 // 依頼日・JAN・発送種別・トラッキング・仕入価格・備考など「依頼書シート」形式の列は
@@ -145,7 +166,7 @@ const DISPATCH_COLUMNS = [
     { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
     { key: "shipped_completed", label: "出荷通知", shippedToggle: true, shippedFilterButton: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）。列見出し＝通知済の表示/非表示トグル
     { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
-    { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存", receiptImportButton: true },  // 列見出し＝受信フォルダのPDF一括読込ボタン
+    // ※「領収書(invoice_saved)」は専用サブタブ「領収書」に移設（発注管理からは撤去）
     { key: "remarks", label: "備考1", editable: "text", mid: true },
     { key: "remarks_2", label: "備考2", editable: "text", mid: true },
     // 備考3：手入力が無ければ (発送先×販売マーケット) から自動導出したマーケットプレイス税番号を
@@ -219,7 +240,7 @@ const DISPATCH_PRIMARY_KEYS = [
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
-    "shipped_completed", "purchased", "invoice_saved",
+    "shipped_completed", "purchased",
     "fetch_fee_estimate",  // 主行に配置。列見出し＝「一括取得」ボタン、セル＝行ごとの「手数料取得/再取得」
     "remarks", "remarks_2", "remarks_3",
 ];
@@ -306,6 +327,22 @@ const PROCUREMENT_COLUMNS = [
     { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
+];
+
+// --- ▼ SECTION 00-2b: 領収書タブ 列定義 ▼ ---
+// 仕入れ領収書の保管チェック専用一覧。照合作業で使う項目だけを N番昇順で並べる。
+// データは発注管理と同じ dispatchRowsCache（/orbit/orders）を流用。
+const RECEIPT_COLUMNS = [
+    { key: "agent_serial_no", label: "N番", highlight: true },
+    { key: "procurement_date", label: "仕入日" },
+    { key: "asin", label: "ASIN", copyClass: "asin-cell" },
+    { key: "jan_code", label: "JAN", copyClass: "orbit-orderid-cell" },
+    { key: "supplier_order_number", label: "仕入注文番号", copyClass: "orbit-orderid-cell" },
+    { key: "supplier_shop_name", label: "ショップ名", copyClass: "orbit-orderid-cell" },
+    { key: "procurement_credit_card", label: "利用クレカ" },
+    { key: "purchase_price", label: "仕入金額(円)" },
+    { key: "supplier_link", label: "リンク", linkCopy: true },
+    { key: "invoice_saved", label: "領収書", flagToggle: true, flagOnLabel: "保存済", flagOffLabel: "未保存" },
 ];
 
 // --- ▼ SECTION 00-3: 買い手履歴タブ 列定義 ▼ ---
@@ -534,11 +571,6 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
             return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-dispatch-hide-notified-btn btn-blue" style="margin-top:2px;" title="出荷通知済みの注文を一覧から隠す/表示する">通知済を隠す</button></th>`;
         }
 
-        // 領収書列のヘッダーには、受信フォルダのPDFを注文番号で照合してリネーム保管する一括ボタンを出す。
-        if (col.receiptImportButton) {
-            return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-receipt-import-btn btn-blue" style="margin-top:2px;" title="受信フォルダの領収書PDFを注文番号でZSSSに照合し、リネームして保管先へ移動します">一括読込</button></th>`;
-        }
-
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
             return `<th class="${groupClass.trim()}">${toggleBtn}${col.label}</th>`;
         }
@@ -621,7 +653,11 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
 
             if (col.key === "supplier_link") {
                 const link = buildSupplierLink(r.supplier, r.supplier_order_number);
-                return link ? `<td><a href="${link}" target="_blank" rel="noopener">開く</a></td>` : "<td></td>";
+                if (!link) return "<td></td>";
+                if (col.linkCopy) {
+                    return `<td style="white-space:nowrap;"><a href="${link}" target="_blank" rel="noopener">開く</a> <span class="orbit-link-copy" data-url="${orbitEscapeHtml(link)}" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="リンクをコピー">コピー</span></td>`;
+                }
+                return `<td><a href="${link}" target="_blank" rel="noopener">開く</a></td>`;
             }
 
             if (col.deleteButton) {
@@ -1138,6 +1174,23 @@ window.initOrbit = function () {
     const dispatchThead = dispatchTable?.querySelector("thead tr");
     const dispatchTbody = dispatchTable?.querySelector("tbody");
 
+    // 領収書タブ（発注管理と同じ dispatchRowsCache を N番昇順で表示。早期returnより前に取得）
+    const receiptTable = document.getElementById("orbit-receipt-table");
+    const receiptThead = receiptTable?.querySelector("thead tr");
+    const receiptTbody = receiptTable?.querySelector("tbody");
+    let receiptShowUnsavedOnly = (() => {
+        try { return localStorage.getItem("orbitReceiptUnsavedOnly") !== "0"; } catch { return true; }
+    })();
+    function renderReceiptTable() {
+        if (!receiptTbody) return;
+        let rows = sortRowsByKey(dispatchRowsCache, "agent_serial_no", "asc");
+        if (receiptShowUnsavedOnly) rows = rows.filter(r => !r.invoice_saved);
+        renderTableRows(receiptTbody, RECEIPT_COLUMNS, rows, {});
+        markSerialDups(receiptTbody);
+        const fb = document.getElementById("orbit-receipt-filter-btn");
+        if (fb) fb.textContent = receiptShowUnsavedOnly ? "未保存のみ表示中 → 全部表示" : "全部表示中 → 未保存のみ";
+    }
+
     // 買い手履歴タブ（買い手購入履歴一覧・返品セキュリティメモ一覧。早期returnより前に取得しておく）
     const buyerHistoryTable = document.getElementById("orbit-buyer-history-table");
     const buyerHistoryThead = buyerHistoryTable?.querySelector("thead tr");
@@ -1651,6 +1704,7 @@ window.initOrbit = function () {
                 markSerialDups(procTbody);
                 dispatchRowsCache = serialOrderedRows;
                 renderDispatchTable();
+                renderReceiptTable();
                 syncOrdersTopScrollWidth();
                 syncDispatchTopScrollWidth();
                 syncProcurementTopScrollWidth();
@@ -1670,6 +1724,11 @@ window.initOrbit = function () {
     renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
     if (dispatchThead) renderTableHeader(dispatchThead, dispatchHeaderCols, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
+    if (receiptThead) renderTableHeader(receiptThead, RECEIPT_COLUMNS);
+    {
+        const _rfb = document.getElementById("orbit-receipt-filter-btn");
+        if (_rfb) _rfb.textContent = receiptShowUnsavedOnly ? "未保存のみ表示中 → 全部表示" : "全部表示中 → 未保存のみ";
+    }
     if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS, { sortable: true, onSort: onBuyerHistorySort, sortState: buyerHistorySortState });
     if (securityNotesThead) renderTableHeader(securityNotesThead, SECURITY_NOTES_COLUMNS);
 
@@ -2099,6 +2158,7 @@ window.initOrbit = function () {
     };
     procTbody?.addEventListener("click", flagToggleHandler);
     dispatchTbody?.addEventListener("click", flagToggleHandler);
+    receiptTbody?.addEventListener("click", flagToggleHandler);
 
     // --- ▼ SECTION 01-2f: 発注管理アコーディオン行の ± 展開/縮小 ▼ ---
     dispatchTbody?.addEventListener("click", (e) => {
@@ -2182,7 +2242,7 @@ window.initOrbit = function () {
     }
 
     function runReceiptImport() {
-        const btn = document.querySelector(".orbit-receipt-import-btn");
+        const btn = document.getElementById("orbit-receipt-import-btn");
         if (btn && btn.disabled) return;
         if (!confirm("受信フォルダの領収書PDFを、注文番号でZSSSに照合してリネーム・保管します。よろしいですか？")) return;
         if (btn) btn.disabled = true;
@@ -2202,14 +2262,15 @@ window.initOrbit = function () {
                 renderReceiptResult({ status: "error", message: "通信エラーで処理できませんでした" });
             })
             .finally(() => {
-                const b = document.querySelector(".orbit-receipt-import-btn");
-                if (b) b.disabled = false;
+                if (btn) btn.disabled = false;
             });
     }
 
-    dispatchThead?.addEventListener("click", (e) => {
-        if (!e.target.closest(".orbit-receipt-import-btn")) return;
-        runReceiptImport();
+    document.getElementById("orbit-receipt-import-btn")?.addEventListener("click", runReceiptImport);
+    document.getElementById("orbit-receipt-filter-btn")?.addEventListener("click", () => {
+        receiptShowUnsavedOnly = !receiptShowUnsavedOnly;
+        try { localStorage.setItem("orbitReceiptUnsavedOnly", receiptShowUnsavedOnly ? "1" : "0"); } catch { /* ignore */ }
+        renderReceiptTable();
     });
     document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
         if (isAllDispatchExpanded()) {
