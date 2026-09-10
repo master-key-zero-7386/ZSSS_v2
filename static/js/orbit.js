@@ -204,6 +204,7 @@ const DISPATCH_COLUMNS = [
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 
     { key: "order_item_id", label: "order-item-id", copyClass: "orbit-orderid-cell" },
+    { key: "sku", label: "SKU", copyClass: "orbit-orderid-cell" },
     { key: "purchase_date", label: "注文日", dateOnly: true },
     { key: "sellercentral_link", label: "セラセン", computed: true },  // 該当注文ページ（バイヤー連絡もここから）
 ];
@@ -252,7 +253,7 @@ const DISPATCH_DETAIL_SECTIONS = [
         "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
         "shipping_cost_used", "profit_jpy", "profit_rate_pct",
     ] },
-    { key: "ref", label: "参照", keys: ["order_item_id", "purchase_date"] },
+    { key: "ref", label: "参照", keys: ["order_item_id", "sku", "purchase_date"] },
 ];
 
 // --- ▼ SECTION 00-2: 仕入れ管理 列定義 ▼ ---
