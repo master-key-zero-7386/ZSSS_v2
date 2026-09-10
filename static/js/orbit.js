@@ -2156,23 +2156,27 @@ window.initOrbit = function () {
             box.textContent = "領収書PDFを処理中…";
             return;
         }
+        const closeBtn = `<button type="button" class="orbit-receipt-result-close" title="閉じる">✕</button>`;
         if (!data || data.status !== "success") {
             box.className = "orbit-receipt-result is-error";
-            box.textContent = (data && data.message) || "処理に失敗しました";
-            return;
+            box.innerHTML = closeBtn + orbitEscapeHtml((data && data.message) || "処理に失敗しました");
+        } else {
+            const failed = data.failed || [];
+            const okFiles = Math.max(0, (data.processed || 0) - failed.length);
+            box.className = "orbit-receipt-result " + (failed.length ? "is-warn" : "is-ok");
+            let html = closeBtn
+                + `<div class="orbit-receipt-result-head">`
+                + `対象ファイル ${data.processed}件 ／ 成功 ${okFiles}件（コピー ${data.ok}本・スキップ ${data.skipped}本）／ 失敗 ${failed.length}件`
+                + `　領収書フラグ ${data.flagged_rows}行を保存済に</div>`;
+            if (failed.length) {
+                html += `<div class="orbit-receipt-result-fail-label">受信フォルダに残ったPDF（要対応）:</div>`
+                    + `<ul class="orbit-receipt-result-fail">`
+                    + failed.map(f => `<li>${orbitEscapeHtml(f.file)} — ${orbitEscapeHtml(f.reason)}</li>`).join("")
+                    + `</ul>`;
+            }
+            box.innerHTML = html;
         }
-        const failed = data.failed || [];
-        box.className = "orbit-receipt-result " + (failed.length ? "is-warn" : "is-ok");
-        let html = `<div class="orbit-receipt-result-head">`
-            + `対象 ${data.processed}件 ／ 保存 ${data.ok}件 ／ スキップ ${data.skipped}件 ／ 失敗 ${failed.length}件`
-            + `（領収書フラグ ${data.flagged_rows}行を保存済に）</div>`;
-        if (failed.length) {
-            html += `<div class="orbit-receipt-result-fail-label">受信フォルダに残ったPDF（要対応）:</div>`
-                + `<ul class="orbit-receipt-result-fail">`
-                + failed.map(f => `<li>${orbitEscapeHtml(f.file)} — ${orbitEscapeHtml(f.reason)}</li>`).join("")
-                + `</ul>`;
-        }
-        box.innerHTML = html;
+        box.querySelector(".orbit-receipt-result-close")?.addEventListener("click", () => { box.hidden = true; });
     }
 
     function runReceiptImport() {

@@ -453,14 +453,18 @@
   font-weight: bold;
 }
 
-/* 領収書PDF「一括読込」の結果パネル（発注管理テーブル上にインライン表示） */
+/* 領収書PDF「一括読込」の結果パネル（発注管理テーブル上にインライン表示）。
+   失敗が多くても注文一覧を潰さないよう、パネル全体の高さを抑えて中でスクロールさせる。 */
 .orbit-receipt-result {
+  position: relative;
   margin: 8px 0;
-  padding: 8px 12px;
+  padding: 8px 32px 8px 12px;   /* 右は閉じるボタンぶん空ける */
   border: 1px solid #bbb;
   border-radius: 4px;
   background: #f8f9fa;
   font-size: 13px;
+  max-height: 180px;
+  overflow-y: auto;
 }
 .orbit-receipt-result.is-ok { border-color: #2e7d32; background: #edf7ed; }
 .orbit-receipt-result.is-warn { border-color: #e69500; background: #fff6e5; }
@@ -469,6 +473,18 @@
 .orbit-receipt-result-head { font-weight: bold; }
 .orbit-receipt-result-fail-label { margin-top: 6px; }
 .orbit-receipt-result-fail { margin: 2px 0 0; padding-left: 20px; }
+.orbit-receipt-result-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+}
+.orbit-receipt-result-close:hover { color: #000; }
 
 /* 出荷完了：行全体をグレーアウトして視覚的に完了済みとわかるようにする */
 .orbit-page table tbody tr.orbit-row-shipped td {
