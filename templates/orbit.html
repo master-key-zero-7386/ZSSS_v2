@@ -486,6 +486,21 @@
 }
 .orbit-receipt-result-close:hover { color: #000; }
 
+/* フォルダ選択モーダル（ブラウザ内・どの端末からでも） */
+.orbit-folder-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.orbit-folder-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.35); }
+.orbit-folder-modal-box { position: relative; background: #fff; border-radius: 6px; width: 560px; max-width: 92vw; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 8px 30px rgba(0,0,0,.3); }
+.orbit-folder-modal-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #ddd; }
+.orbit-folder-modal-close { border: none; background: transparent; font-size: 16px; cursor: pointer; color: #666; }
+.orbit-folder-modal-path { padding: 8px 14px; font-family: monospace; font-size: 12px; color: #333; background: #f6f6f6; word-break: break-all; }
+.orbit-folder-modal-actions { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
+.orbit-folder-list { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1; }
+.orbit-folder-list li { padding: 6px 16px; cursor: pointer; font-size: 13px; }
+.orbit-folder-list li:hover { background: #eef4ff; }
+.orbit-folder-list li::before { content: "📁 "; }
+.orbit-folder-list li.is-empty { color: #999; cursor: default; }
+.orbit-folder-list li.is-empty::before { content: ""; }
+
 /* 出荷完了：行全体をグレーアウトして視覚的に完了済みとわかるようにする */
 .orbit-page table tbody tr.orbit-row-shipped td {
   background-color: #e0e0e0 !important;
@@ -1086,6 +1101,23 @@ input.orbit-serial-dup {
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <div id="orbit-folder-modal" class="orbit-folder-modal" hidden>
+    <div class="orbit-folder-modal-backdrop"></div>
+    <div class="orbit-folder-modal-box">
+      <div class="orbit-folder-modal-head">
+        <strong>フォルダを選択（アプリが動いているPC内）</strong>
+        <button type="button" class="orbit-folder-modal-close" title="閉じる">✕</button>
+      </div>
+      <div class="orbit-folder-modal-path" id="orbit-folder-modal-path">—</div>
+      <div class="orbit-folder-modal-actions">
+        <button type="button" class="btn-blue" id="orbit-folder-up">↑ 上へ</button>
+        <button type="button" class="btn-blue" id="orbit-folder-mkdir">＋ 新規フォルダ</button>
+        <button type="button" class="btn-red" id="orbit-folder-select">このフォルダに決定</button>
+      </div>
+      <ul class="orbit-folder-list" id="orbit-folder-list"></ul>
     </div>
   </div>
 </div>

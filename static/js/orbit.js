@@ -337,6 +337,7 @@ const RECEIPT_COLUMNS = [
     { key: "procurement_date", label: "仕入日" },
     { key: "asin", label: "ASIN", copyClass: "asin-cell" },
     { key: "jan_code", label: "JAN", copyClass: "orbit-orderid-cell" },
+    { key: "supplier", label: "仕入先" },
     { key: "supplier_order_number", label: "仕入注文番号", copyClass: "orbit-orderid-cell" },
     { key: "supplier_shop_name", label: "ショップ名", copyClass: "orbit-orderid-cell" },
     { key: "procurement_credit_card", label: "利用クレカ" },
@@ -1178,17 +1179,25 @@ window.initOrbit = function () {
     const receiptTable = document.getElementById("orbit-receipt-table");
     const receiptThead = receiptTable?.querySelector("thead tr");
     const receiptTbody = receiptTable?.querySelector("tbody");
-    let receiptShowUnsavedOnly = (() => {
-        try { return localStorage.getItem("orbitReceiptUnsavedOnly") !== "0"; } catch { return true; }
+    // 既定は全部表示。トグルで「取得済み（保存済）」を隠す。
+    let receiptHideSaved = (() => {
+        try { return localStorage.getItem("orbitReceiptHideSaved") === "1"; } catch { return false; }
     })();
+    function receiptFilterLabel() {
+        return receiptHideSaved ? "取得済みを隠しています（クリックで表示）" : "取得済みも表示中（クリックで隠す）";
+    }
     function renderReceiptTable() {
         if (!receiptTbody) return;
         let rows = sortRowsByKey(dispatchRowsCache, "agent_serial_no", "asc");
-        if (receiptShowUnsavedOnly) rows = rows.filter(r => !r.invoice_saved);
+        if (receiptHideSaved) rows = rows.filter(r => !r.invoice_saved);
         renderTableRows(receiptTbody, RECEIPT_COLUMNS, rows, {});
         markSerialDups(receiptTbody);
         const fb = document.getElementById("orbit-receipt-filter-btn");
-        if (fb) fb.textContent = receiptShowUnsavedOnly ? "未保存のみ表示中 → 全部表示" : "全部表示中 → 未保存のみ";
+        if (fb) {
+            fb.textContent = receiptFilterLabel();
+            fb.classList.toggle("btn-red", receiptHideSaved);
+            fb.classList.toggle("btn-blue", !receiptHideSaved);
+        }
     }
 
     // 買い手履歴タブ（買い手購入履歴一覧・返品セキュリティメモ一覧。早期returnより前に取得しておく）
@@ -1727,7 +1736,7 @@ window.initOrbit = function () {
     if (receiptThead) renderTableHeader(receiptThead, RECEIPT_COLUMNS);
     {
         const _rfb = document.getElementById("orbit-receipt-filter-btn");
-        if (_rfb) _rfb.textContent = receiptShowUnsavedOnly ? "未保存のみ表示中 → 全部表示" : "全部表示中 → 未保存のみ";
+        if (_rfb) _rfb.textContent = receiptFilterLabel();
     }
     if (buyerHistoryThead) renderTableHeader(buyerHistoryThead, BUYER_HISTORY_COLUMNS, { sortable: true, onSort: onBuyerHistorySort, sortState: buyerHistorySortState });
     if (securityNotesThead) renderTableHeader(securityNotesThead, SECURITY_NOTES_COLUMNS);
@@ -2268,8 +2277,8 @@ window.initOrbit = function () {
 
     document.getElementById("orbit-receipt-import-btn")?.addEventListener("click", runReceiptImport);
     document.getElementById("orbit-receipt-filter-btn")?.addEventListener("click", () => {
-        receiptShowUnsavedOnly = !receiptShowUnsavedOnly;
-        try { localStorage.setItem("orbitReceiptUnsavedOnly", receiptShowUnsavedOnly ? "1" : "0"); } catch { /* ignore */ }
+        receiptHideSaved = !receiptHideSaved;
+        try { localStorage.setItem("orbitReceiptHideSaved", receiptHideSaved ? "1" : "0"); } catch { /* ignore */ }
         renderReceiptTable();
     });
     document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
@@ -2576,35 +2585,95 @@ window.initOrbit = function () {
         })
         .catch(err => console.error("receipt_settings load error:", err));
 
-    // 「参照」ボタン：アプリが動いているPC側でフォルダ選択ダイアログを出して欄に反映する。
+    // --- 「参照」＝ブラウザ内フォルダブラウザ（どの端末からでも。アプリPCのフォルダ階層を辿る） ---
+    const fModal = document.getElementById("orbit-folder-modal");
+    let fModalTargetInput = null;
+    let fModalCurPath = "";
+
+    function fmSetEl(id) { return document.getElementById(id); }
+
+    function loadFolderDirs(path) {
+        fetch("/orbit/list_dirs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: path || "" }),
+        })
+            .then(res => res.json())
+            .then(d => {
+                if (d.status !== "success") {
+                    if (path) { loadFolderDirs(""); return; }  // 存在しないパスはドライブ一覧へ
+                    window.showToast?.(d.message || "フォルダを開けません", "error");
+                    return;
+                }
+                fModalCurPath = d.path || "";
+                fmSetEl("orbit-folder-modal-path").textContent = d.is_drives ? "（ドライブを選択）" : (fModalCurPath || "");
+                const upBtn = fmSetEl("orbit-folder-up");
+                const selBtn = fmSetEl("orbit-folder-select");
+                const mkBtn = fmSetEl("orbit-folder-mkdir");
+                upBtn.disabled = !!d.is_drives;
+                selBtn.disabled = !!d.is_drives;
+                mkBtn.disabled = !!d.is_drives;
+                upBtn.dataset.parent = d.parent == null ? "" : d.parent;
+                const ul = fmSetEl("orbit-folder-list");
+                if (!d.dirs || !d.dirs.length) {
+                    ul.innerHTML = `<li class="is-empty">（サブフォルダなし）</li>`;
+                } else {
+                    ul.innerHTML = d.dirs.map(name => {
+                        const full = d.is_drives ? name : (fModalCurPath.replace(/[\\/]+$/, "") + "\\" + name);
+                        return `<li data-path="${orbitEscapeHtml(full)}">${orbitEscapeHtml(name)}</li>`;
+                    }).join("");
+                }
+            })
+            .catch(err => {
+                console.error("list_dirs error:", err);
+                window.showToast?.("フォルダを開けません", "error");
+            });
+    }
+
+    function openFolderModal(inputEl) {
+        if (!fModal) return;
+        fModalTargetInput = inputEl;
+        fModal.hidden = false;
+        loadFolderDirs((inputEl.value || "").trim());
+    }
+    function closeFolderModal() {
+        if (fModal) fModal.hidden = true;
+        fModalTargetInput = null;
+    }
+
+    fModal?.querySelector(".orbit-folder-modal-close")?.addEventListener("click", closeFolderModal);
+    fModal?.querySelector(".orbit-folder-modal-backdrop")?.addEventListener("click", closeFolderModal);
+    fmSetEl("orbit-folder-list")?.addEventListener("click", (e) => {
+        const li = e.target.closest("li[data-path]");
+        if (li) loadFolderDirs(li.dataset.path);
+    });
+    fmSetEl("orbit-folder-up")?.addEventListener("click", (e) => {
+        loadFolderDirs(e.currentTarget.dataset.parent || "");
+    });
+    fmSetEl("orbit-folder-select")?.addEventListener("click", () => {
+        if (fModalTargetInput && fModalCurPath) fModalTargetInput.value = fModalCurPath;
+        closeFolderModal();
+    });
+    fmSetEl("orbit-folder-mkdir")?.addEventListener("click", () => {
+        const name = (prompt("新規フォルダ名") || "").trim();
+        if (!name) return;
+        fetch("/orbit/mkdir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ parent: fModalCurPath, name }),
+        })
+            .then(res => res.json())
+            .then(d => {
+                if (d.status === "success") loadFolderDirs(fModalCurPath);
+                else window.showToast?.(d.message || "作成に失敗しました", "error");
+            })
+            .catch(() => window.showToast?.("作成に失敗しました", "error"));
+    });
+
     document.querySelectorAll(".orbit-folder-pick-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const input = document.getElementById(btn.dataset.target);
-            if (!input) return;
-            const orig = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = "選択中…";
-            fetch("/orbit/pick_folder", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ initial: input.value || "" }),
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === "success" && data.path) {
-                        input.value = data.path;
-                    } else if (data.status === "error") {
-                        window.showToast?.(data.message || "フォルダ選択を開けませんでした。パスを直接入力してください。", "error");
-                    }
-                })
-                .catch(err => {
-                    console.error("pick_folder error:", err);
-                    window.showToast?.("フォルダ選択を開けませんでした。パスを直接入力してください。", "error");
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = orig;
-                });
+            if (input) openFolderModal(input);
         });
     });
 
