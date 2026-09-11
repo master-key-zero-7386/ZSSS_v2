@@ -64,7 +64,6 @@ from amazon.services.google_sheets_service import (
     fetch_deposit_balance,
 )
 from amazon.services.orbit_receipt_import_service import run_receipt_import
-from amazon.services.folder_picker import pick_folder_dialog, list_subdirs, make_dir
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -782,54 +781,6 @@ def save_receipt_settings_route():
 
     save_receipt_settings(user_id, inbox_dir, store_dir)
     return jsonify({"status": "success"})
-
-
-@orbit_bp.route("/pick_folder", methods=["POST"])
-def pick_folder_route():
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"status": "error"}), 401
-
-    data = request.get_json(silent=True) or {}
-    try:
-        path = pick_folder_dialog(data.get("initial") or "")
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-    if not path:
-        return jsonify({"status": "cancelled"})
-    return jsonify({"status": "success", "path": path})
-
-
-# ブラウザ内フォルダブラウザ（どの端末からでも使える。アプリPC側のフォルダ階層を返す）
-@orbit_bp.route("/list_dirs", methods=["POST"])
-def list_dirs_route():
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"status": "error"}), 401
-
-    data = request.get_json(silent=True) or {}
-    try:
-        result = list_subdirs(data.get("path") or "")
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
-    return jsonify({"status": "success", **result})
-
-
-@orbit_bp.route("/mkdir", methods=["POST"])
-def mkdir_route():
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify({"status": "error"}), 401
-
-    data = request.get_json(silent=True) or {}
-    try:
-        path = make_dir(data.get("parent") or "", data.get("name") or "")
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
-    return jsonify({"status": "success", "path": path})
 
 
 @orbit_bp.route("/receipt_import", methods=["POST"])
