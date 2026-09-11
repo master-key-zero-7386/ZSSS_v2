@@ -61,23 +61,44 @@ def extract_order_numbers(text: str) -> list:
 # 例: "注文番号hcvalor2-10108649の領収書.pdf" → "hcvalor2-10108649"
 YAHOO_RECEIPT_FILENAME_RE = re.compile(r"^注文番号(.+?)の領収書\.pdf$", re.IGNORECASE)
 
+# 楽天の領収書ファイル名：「order_invoice_{ショップID}-{注文日YYYYMMDD}-{注文番号}.pdf」
+# 例: "order_invoice_239356-20260714-0254340294.pdf"
+RAKUTEN_RECEIPT_FILENAME_RE = re.compile(
+    r"^order_invoice_([^-]+)-(\d{8})-([^-.]+)\.pdf$", re.IGNORECASE
+)
+
+
+def _add_candidate(candidates: list, value: str):
+    value = (value or "").strip()
+    if value and value not in candidates:
+        candidates.append(value)
+
 
 def extract_order_numbers_from_filename(name: str) -> list:
     """ファイル名専用の抽出。Amazon形式（extract_order_numbers）に加え、
-    Yahoo!ショッピングの「注文番号{ID}の領収書.pdf」形式も候補に含める。
-    ZSSSの仕入注文番号欄が「ショップID-番号」そのままか、番号だけかが分からないため、
-    両方を候補として返す（_load_order_index 側は生値もそのまま索引するのでどちらでも拾える）。"""
+    Yahoo!ショッピング「注文番号{ID}の領収書.pdf」・楽天「order_invoice_{ショップID}-{日付}-{番号}.pdf」
+    形式も候補に含める。ZSSSの仕入注文番号欄がどの形（ショップID込み/番号のみ/連結）で
+    入っているか分からないため、考えられる形を複数候補として返す（_load_order_index 側は
+    生値もそのまま索引するので、どれか1つ一致すれば拾える）。"""
     candidates = extract_order_numbers(name)
-    m = YAHOO_RECEIPT_FILENAME_RE.match((name or "").strip())
+    stripped = (name or "").strip()
+
+    m = YAHOO_RECEIPT_FILENAME_RE.match(stripped)
     if m:
         full = m.group(1).strip()
-        if full and full not in candidates:
-            candidates.append(full)
+        _add_candidate(candidates, full)
         num_suffix = re.search(r"(\d+)$", full)
         if num_suffix:
-            num = num_suffix.group(1)
-            if num not in candidates:
-                candidates.append(num)
+            _add_candidate(candidates, num_suffix.group(1))
+
+    m = RAKUTEN_RECEIPT_FILENAME_RE.match(stripped)
+    if m:
+        shop_id, _date, order_num = m.group(1), m.group(2), m.group(3)
+        _add_candidate(candidates, f"{shop_id}-{_date}-{order_num}")  # フルそのまま
+        _add_candidate(candidates, f"{shop_id}-{order_num}")          # 日付抜き
+        _add_candidate(candidates, f"{shop_id}{order_num}")           # ハイフン無し連結
+        _add_candidate(candidates, order_num)                          # 番号だけ
+
     return candidates
 
 
@@ -100,14 +121,21 @@ def _extract_pdf_text(path: str) -> str:
         return ""
 
 
+_DATE_MID_RE = re.compile(r"-(20\d{2})(\d{2})(\d{2})-")  # 例: order_invoice_239356-20260714-...
+
+
 def _yymmdd_from_filename(name: str):
-    m = _DATE_PREFIX_RE.match(name or "")
-    if not m:
-        return None
-    yy, mm, dd = m.group(1)[-2:], m.group(2), m.group(3)
-    if not ("01" <= mm <= "12" and "01" <= dd <= "31"):
-        return None
-    return f"{yy}{mm}{dd}"
+    name = name or ""
+    # 先頭プレフィックス形式（Amazon等）→ 途中埋め込み形式（楽天等）の順に試す。
+    # 先頭マッチが取れても月日として無効（例: "239356-..." を 23/93/56 と誤認）な場合は
+    # 有効な日付とはみなさず、次の形式にフォールバックする。
+    for m in (_DATE_PREFIX_RE.match(name), _DATE_MID_RE.search(name)):
+        if not m:
+            continue
+        yy, mm, dd = m.group(1)[-2:], m.group(2), m.group(3)
+        if "01" <= mm <= "12" and "01" <= dd <= "31":
+            return f"{yy}{mm}{dd}"
+    return None
 
 
 def _normalize_yymmdd(raw):
