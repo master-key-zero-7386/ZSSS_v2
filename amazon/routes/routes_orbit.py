@@ -63,7 +63,7 @@ from amazon.services.google_sheets_service import (
     save_receipt_settings,
     fetch_deposit_balance,
 )
-from amazon.services.orbit_receipt_import_service import run_receipt_import
+from amazon.services.orbit_receipt_import_service import run_receipt_import, inbox_status
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -781,6 +781,20 @@ def save_receipt_settings_route():
 
     save_receipt_settings(user_id, inbox_dir, store_dir)
     return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/receipt_inbox_status", methods=["GET"])
+def receipt_inbox_status_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = inbox_status(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
 
 
 @orbit_bp.route("/receipt_import", methods=["POST"])

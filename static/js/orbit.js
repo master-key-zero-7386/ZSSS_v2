@@ -2239,6 +2239,9 @@ window.initOrbit = function () {
                 + `<div class="orbit-receipt-result-head">`
                 + `対象ファイル ${data.processed}件 ／ 成功 ${okFiles}件（コピー ${data.ok}本・スキップ ${data.skipped}本）／ 失敗 ${failed.length}件`
                 + `　領収書フラグ ${data.flagged_rows}行を保存済に</div>`;
+            if (data.online_only) {
+                html += `<div class="orbit-receipt-result-warn">⚠ ${data.online_only}件がオンラインのみ（実体がPCにありません）。受信フォルダを右クリック →「オフラインで使用可能にする」→ 実体が落ちてから再実行してください。</div>`;
+            }
             if (failed.length) {
                 html += `<div class="orbit-receipt-result-fail-label">受信フォルダに残ったPDF（要対応）:</div>`
                     + `<ul class="orbit-receipt-result-fail">`
@@ -2265,6 +2268,7 @@ window.initOrbit = function () {
             .then(data => {
                 renderReceiptResult(data);
                 if (data && data.status === "success") loadOrders();
+                if (typeof checkReceiptInbox === "function") checkReceiptInbox();
             })
             .catch(err => {
                 console.error("receipt_import error:", err);
@@ -2576,6 +2580,27 @@ window.initOrbit = function () {
     const receiptStoreInput = document.getElementById("orbit-receipt-store-dir");
     const receiptSettingsSaveBtn = document.getElementById("orbit-receipt-settings-save-btn");
 
+    // 受信フォルダの状態（オフライン未設定＝オンラインのみファイルあり／フォルダ不在）を上部バナーで知らせる
+    function checkReceiptInbox() {
+        const warn = document.getElementById("orbit-receipt-inbox-warn");
+        if (!warn) return;
+        fetch("/orbit/receipt_inbox_status")
+            .then(res => res.json())
+            .then(d => {
+                if (d.status !== "success" || !d.configured) { warn.hidden = true; return; }
+                if (!d.exists) {
+                    warn.hidden = false;
+                    warn.textContent = `⚠ 受信フォルダが見つかりません（${d.inbox}）。パスを確認してください。`;
+                } else if (d.online_only > 0) {
+                    warn.hidden = false;
+                    warn.textContent = `⚠ 受信フォルダの ${d.online_only}/${d.total} 件が「オンラインのみ」（実体がPCにありません）。フォルダを右クリック →「オフラインで使用可能にする」にして、実体が落ちてから一括読込してください。`;
+                } else {
+                    warn.hidden = true;
+                }
+            })
+            .catch(() => { warn.hidden = true; });
+    }
+
     fetch("/orbit/receipt_settings")
         .then(res => res.json())
         .then(data => {
@@ -2583,7 +2608,8 @@ window.initOrbit = function () {
             if (receiptInboxInput) receiptInboxInput.value = data.inbox_dir || "";
             if (receiptStoreInput) receiptStoreInput.value = data.store_dir || "";
         })
-        .catch(err => console.error("receipt_settings load error:", err));
+        .catch(err => console.error("receipt_settings load error:", err))
+        .finally(checkReceiptInbox);
 
     receiptSettingsSaveBtn?.addEventListener("click", () => {
         fetch("/orbit/receipt_settings", {
@@ -2600,6 +2626,7 @@ window.initOrbit = function () {
                     data.status === "success" ? "設定を保存しました" : (data.message || "保存に失敗しました"),
                     data.status === "success" ? "success" : "error",
                 );
+                if (data.status === "success") checkReceiptInbox();
             })
             .catch(err => {
                 console.error("receipt_settings save error:", err);

@@ -117,6 +117,44 @@ def _sha256(path: str) -> str:
     return h.hexdigest()
 
 
+# クラウド同期（Googleドライブ・OneDrive・Dropbox）の「オンラインのみ」＝実体がPCに無いファイルの
+# Windows 属性。これが付いていると open/コピーで失敗する（or 重い hydration が走る）。
+_FILE_ATTRIBUTE_OFFLINE = 0x00001000
+_FILE_ATTRIBUTE_RECALL_ON_OPEN = 0x00040000
+_FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
+_ONLINE_ONLY_MASK = (
+    _FILE_ATTRIBUTE_OFFLINE | _FILE_ATTRIBUTE_RECALL_ON_OPEN | _FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+)
+
+
+def _is_online_only(path: str) -> bool:
+    """『オンラインのみ』（実体がPCに無い）ファイルか。Windows以外／属性取得不可なら False。"""
+    try:
+        attrs = os.stat(path).st_file_attributes
+    except (OSError, AttributeError):
+        return False
+    return bool(attrs & _ONLINE_ONLY_MASK)
+
+
+def inbox_status(user_id: int) -> dict:
+    """領収書タブのバナー用。受信フォルダの状態（未設定/不在/PDF数/オンラインのみ数）を返す。"""
+    settings = get_receipt_settings(user_id)
+    inbox = (settings.get("inbox_dir") or "").strip()
+    if not inbox:
+        return {"configured": False, "exists": False, "total": 0, "online_only": 0, "inbox": ""}
+    if not os.path.isdir(inbox):
+        return {"configured": True, "exists": False, "total": 0, "online_only": 0, "inbox": inbox}
+    total = online = 0
+    for f in os.listdir(inbox):
+        full = os.path.join(inbox, f)
+        if not (f.lower().endswith(".pdf") and os.path.isfile(full)):
+            continue
+        total += 1
+        if _is_online_only(full):
+            online += 1
+    return {"configured": True, "exists": True, "total": total, "online_only": online, "inbox": inbox}
+
+
 def _resolve_target(store_dir: str, filename: str, src_hash: str):
     """(target_path, action) を返す。action は "write"（新規書き込み）/ "skip"（同一物が既存）。
     同名で内容違いなら "_(1)", "_(2)" ... を試す。"""
@@ -212,12 +250,22 @@ def run_receipt_import(user_id: int) -> dict:
 
     ok = 0
     skipped = 0
+    online_only = 0
     failed = []
     created = []
     matched_items = set()
 
     for name in pdfs:
         src = os.path.join(inbox, name)
+
+        # オンラインのみ（実体がPCに無い）ファイルは open もコピーもできない → 触らず要対応へ
+        if _is_online_only(src):
+            online_only += 1
+            failed.append({
+                "file": name,
+                "reason": "オンラインのみ（実体がPCにありません）。受信フォルダを『オフラインで使用可能』にして再実行",
+            })
+            continue
 
         # ① ファイル名から注文番号 → ② 取れなければPDF本文から
         candidates = extract_order_numbers(name)
@@ -296,6 +344,7 @@ def run_receipt_import(user_id: int) -> dict:
         "processed": len(pdfs),
         "ok": ok,
         "skipped": skipped,
+        "online_only": online_only,
         "failed": failed,
         "flagged_rows": flagged,
         "created": created,
