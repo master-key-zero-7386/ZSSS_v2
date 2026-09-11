@@ -17,6 +17,7 @@
 
 import argparse
 import os
+import re
 import shutil
 import sys
 
@@ -30,6 +31,7 @@ from amazon.services.google_sheets_service import (
 )
 from amazon.services.orbit_receipt_import_service import (
     extract_order_numbers,
+    extract_order_numbers_from_filename,
     _yymmdd_from_filename,
     _normalize_yymmdd,
     _sanitize_supplier,
@@ -98,6 +100,9 @@ def load_match_index(user_id, sheet_url, tab):
             stats["no_nban"] += 1
             continue
         order_nos = extract_order_numbers(order_raw)
+        # Amazon形式に当てはまらない注文番号（Yahoo等）も生値のまま候補に加える
+        if order_raw and order_raw not in order_nos:
+            order_nos.append(order_raw)
         if not order_nos:
             stats["no_order"] += 1
             continue
@@ -121,7 +126,7 @@ def plan_files(inbox, index):
     failed = []  # {"file","reason"}
     for name in pdfs:
         src = os.path.join(inbox, name)
-        candidates = extract_order_numbers(name)
+        candidates = extract_order_numbers_from_filename(name)
         if not candidates:
             candidates = extract_order_numbers(_extract_pdf_text(src))
 
@@ -213,10 +218,16 @@ def main():
         # Google連携もFBMシートも使わない。保管先の既存ファイル名（N番_日付_注文番号_...）から
         # 注文番号を拾い、受信フォルダの元PDFと SHA256 で突き合わせて、中身一致が確認できた元だけ削除する。
         print("[MODE] CLEANUP-INBOX（保管先の N番_注文番号 ファイルを基準に、中身一致の元PDFだけ削除）")
+        # 保管先のファイル名は「N番_YYMMDD_注文番号_仕入先.pdf」固定形式。注文番号部分に
+        # Amazon形式でないもの（Yahoo等）も入るので、位置で直接切り出す（Amazon抽出はフォールバック）。
+        gen_name_re = re.compile(r"^N\d+_\d{6}_([^_]+)_")
         store_by_order = {}
         for f in os.listdir(args.store):
             if not f.lower().endswith(".pdf") or not os.path.isfile(os.path.join(args.store, f)):
                 continue
+            m = gen_name_re.match(f)
+            if m:
+                store_by_order.setdefault(m.group(1), []).append(os.path.join(args.store, f))
             for on in extract_order_numbers(f):
                 store_by_order.setdefault(on, []).append(os.path.join(args.store, f))
         print(f"[STORE] 保管先PDF由来のユニーク注文番号 = {len(store_by_order)}")
@@ -228,7 +239,7 @@ def main():
         deleted = kept = errors = 0
         for name in src_pdfs:
             src = os.path.join(args.inbox, name)
-            ons = extract_order_numbers(name) or extract_order_numbers(_extract_pdf_text(src))
+            ons = extract_order_numbers_from_filename(name) or extract_order_numbers(_extract_pdf_text(src))
             cand_paths = []
             for on in ons:
                 cand_paths += store_by_order.get(on, [])

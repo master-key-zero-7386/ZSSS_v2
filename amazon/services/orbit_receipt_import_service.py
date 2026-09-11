@@ -57,6 +57,30 @@ def extract_order_numbers(text: str) -> list:
     return seen
 
 
+# Yahoo!ショッピングの領収書ファイル名：「注文番号{ショップID}-{番号}の領収書.pdf」
+# 例: "注文番号hcvalor2-10108649の領収書.pdf" → "hcvalor2-10108649"
+YAHOO_RECEIPT_FILENAME_RE = re.compile(r"^注文番号(.+?)の領収書\.pdf$", re.IGNORECASE)
+
+
+def extract_order_numbers_from_filename(name: str) -> list:
+    """ファイル名専用の抽出。Amazon形式（extract_order_numbers）に加え、
+    Yahoo!ショッピングの「注文番号{ID}の領収書.pdf」形式も候補に含める。
+    ZSSSの仕入注文番号欄が「ショップID-番号」そのままか、番号だけかが分からないため、
+    両方を候補として返す（_load_order_index 側は生値もそのまま索引するのでどちらでも拾える）。"""
+    candidates = extract_order_numbers(name)
+    m = YAHOO_RECEIPT_FILENAME_RE.match((name or "").strip())
+    if m:
+        full = m.group(1).strip()
+        if full and full not in candidates:
+            candidates.append(full)
+        num_suffix = re.search(r"(\d+)$", full)
+        if num_suffix:
+            num = num_suffix.group(1)
+            if num not in candidates:
+                candidates.append(num)
+    return candidates
+
+
 def _extract_pdf_text(path: str) -> str:
     """pypdf でPDF本文テキストを抽出。未導入・画像PDF・失敗時は "" を返す。"""
     try:
@@ -196,10 +220,18 @@ def _load_order_index(user_id: int):
     by_supplier_no = {}
     by_order_id = {}
     for r in rows:
-        for key in extract_order_numbers(r.get("supplier_order_number") or ""):
-            by_supplier_no.setdefault(key, []).append(r)
-        for key in extract_order_numbers(r.get("order_id") or ""):
-            by_order_id.setdefault(key, []).append(r)
+        raw_sup = (r.get("supplier_order_number") or "").strip()
+        if raw_sup:
+            for key in extract_order_numbers(raw_sup):
+                by_supplier_no.setdefault(key, []).append(r)
+            # Amazon形式に当てはまらない注文番号（Yahoo等）も、欄の生値そのままで索引する。
+            # PDF側（extract_order_numbers_from_filename）もショップID込み/番号のみ両方を
+            # 候補に出すので、ZSSS側の入力形式（どちらか）に関わらず突き合わせられる。
+            by_supplier_no.setdefault(raw_sup, []).append(r)
+        raw_oid = (r.get("order_id") or "").strip()
+        if raw_oid:
+            for key in extract_order_numbers(raw_oid):
+                by_order_id.setdefault(key, []).append(r)
     return by_supplier_no, by_order_id
 
 
@@ -267,8 +299,9 @@ def run_receipt_import(user_id: int) -> dict:
             })
             continue
 
-        # ① ファイル名から注文番号 → ② 取れなければPDF本文から
-        candidates = extract_order_numbers(name)
+        # ① ファイル名から注文番号（Amazon形式／Yahoo「注文番号...の領収書.pdf」形式）
+        #    → ② 取れなければPDF本文から
+        candidates = extract_order_numbers_from_filename(name)
         if not candidates:
             candidates = extract_order_numbers(_extract_pdf_text(src))
 
