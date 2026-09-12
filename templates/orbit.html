@@ -746,7 +746,7 @@ input.orbit-serial-dup {
 
       <div class="orbit-actions">
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="text" id="orbitFileName" class="file-input-text" placeholder="セラーセントラルでダウンロードしたCSVを選択してください" readonly style="width:540px;" />
+              <input type="text" id="orbitFileName" class="file-input-text" placeholder="未出荷 Orderレポート選択" readonly style="width:540px;" />
               <button type="button" id="orbitUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
           <button id="orbit-autonumber-btn" class="btn-blue" title="N番が空の行を、取込順で既存の最大N番の続きから採番します（採番済みの行は変更しません）">未採番を採番</button>
@@ -785,12 +785,12 @@ input.orbit-serial-dup {
           <a id="orbit-fee-export-link" href="/orbit/fee_data/export" class="btn-blue" style="text-decoration:none;">手数料データをエクスポート</a>
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
               <input type="file" id="orbitFeeDataFileInput" accept=".csv" style="display:none;" />
-              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択してください" readonly style="width:300px;" />
+              <input type="text" id="orbitFeeDataFileName" class="file-input-text" placeholder="手数料データCSVを選択" readonly style="width:300px;" />
               <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
               <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
-              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="取引明細CSV（トランザクション）を選択してください" readonly style="width:300px;" title="取引明細CSVを取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「ファイナンス」→「支払い管理」を開き、「トランザクション」タブに切り替えて日付範囲を指定し、CSVでダウンロードしてください（「ファイナンスレポート」のSettlement Reportフラットファイルは形式が異なり取り込めません）。取り込むたびに表示言語（日付書式）は揃えてください。" />
+              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="トランザクションCSVデータ選択" readonly style="width:300px;" title="取引明細CSVを取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「ファイナンス」→「支払い管理」を開き、「トランザクション」タブに切り替えて日付範囲を指定し、CSVでダウンロードしてください（「ファイナンスレポート」のSettlement Reportフラットファイルは形式が異なり取り込めません）。取り込むたびに表示言語（日付書式）は揃えてください。" />
               <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
       </div>
