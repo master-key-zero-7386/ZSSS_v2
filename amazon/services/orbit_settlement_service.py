@@ -65,6 +65,11 @@ def parse_settlement_report(text: str) -> list:
     except csv.Error:
         dialect = csv.excel
 
+    # Sniffer()はdoublequote（""によるクォート内"のエスケープ）の判定を誤ることがある
+    # （商品名に3/8""のようなインチ記号があるとクォート終了と誤認識→以降の列がズレる）。
+    # Amazonの決済レポートは常にRFC4180準拠でエスケープしてくるため固定で上書きする。
+    dialect.doublequote = True
+
     reader = csv.DictReader(io.StringIO(text), dialect=dialect)
     fieldnames = reader.fieldnames or []
 
