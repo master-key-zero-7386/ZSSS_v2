@@ -21,6 +21,7 @@ from amazon.services.orbit_order_service import list_orders_with_calc
 ALLOWED_DAYS = (7, 30, 90, 180, 365)
 DEFAULT_DAYS = 30
 UNKNOWN_MARKET = "不明"
+CANCELLED_SHIPPING_TYPE = "キャンセル"  # static/js/orbit.js の ORBIT_CANCEL と同じ判定基準
 
 
 def _load_currency_by_country() -> dict:
@@ -83,6 +84,10 @@ def get_sales_trend(user_id: int, days: int) -> dict:
         return acc[market]
 
     for row in orders:
+        # ORBIT集計パネル（月次売上・未出荷サマリ）と同じく、発送種別=キャンセルの注文は除外する
+        if (row.get("shipping_type") or "").strip() == CANCELLED_SHIPPING_TYPE:
+            continue
+
         dkey = _purchase_date_key(row.get("purchase_date"))
         if dkey is None:
             continue
