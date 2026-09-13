@@ -1036,12 +1036,18 @@ function recomputeDispatchRowChecks(r) {
 }
 
 // 全体リロード不要（サーバ派生値に影響しない）＝その行だけ再描画で済む手入力欄。
+// 電話番号・州は国番号判定/正式表記チェックをクライアントで再現できない（recomputeDispatchRowChecks
+// 対象外）ため、フラグ表示は次の全体リロードまで編集前の値のまま＝安全側（過剰警告はあっても見落としはない）。
+// shipping_type はキャンセル判定・出荷種別集計など他行/サマリ表示にも波及するためここに入れない。
 const DISPATCH_INPLACE_FIELDS = new Set([
     "product_name_override",
     "recipient_name_override",
+    "buyer_phone_number_override", "buyer_phone_extension_override",
     "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",
-    "remarks_3",
+    "ship_state_override",
+    "remarks", "remarks_2", "remarks_3",
     "jan_code",
+    "supplier_order_number", "supplier_shop_name",
 ]);
 
 function saveManualField(orderItemId, field, value, onDone) {
@@ -2495,7 +2501,7 @@ window.initOrbit = function () {
                 if (field === "jan_code") r.jan_from_history = false;
             }
 
-            // 商品名・宛名・住所・備考3・JAN は「表示値＋警告フラグ」しか変わらず、依頼日や
+            // DISPATCH_INPLACE_FIELDS の項目は「表示値＋警告フラグ」しか変わらず、依頼日や
             // 利益などサーバ派生値には影響しない。全体リロードすると入力欄ごとDOMが差し替わって
             // 「1・2文字消すたびにリロードされて直せない」状態になるため、その行だけ再描画する。
             if (r && DISPATCH_INPLACE_FIELDS.has(field)) {
