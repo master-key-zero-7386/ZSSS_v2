@@ -1451,16 +1451,24 @@ window.initOrbit = function () {
             return ym && ym.y === selY && ym.m === selM;
         });
 
-        const mMap = new Map(); // マーケット -> { count, byCcy:{CCY:amount} }
+        const mMap = new Map(); // マーケット -> { count, byCcy:{CCY:amount}, profitJpy, saleJpy, profitCnt }
         for (const r of monthRows) {
             const c = (r.marketplace_country || "").trim() || "不明";
-            if (!mMap.has(c)) mMap.set(c, { count: 0, byCcy: {} });
+            if (!mMap.has(c)) mMap.set(c, { count: 0, byCcy: {}, profitJpy: 0, saleJpy: 0, profitCnt: 0 });
             const e = mMap.get(c);
             e.count += 1;
             const amt = r.item_price;
             if (typeof amt === "number" && !isNaN(amt)) {
                 const ccy = (r.order_currency || "").trim() || "?";
                 e.byCcy[ccy] = (e.byCcy[ccy] || 0) + amt;
+            }
+            // 概算利益率の分子・分母（仕入価格＋送料＋入金額が揃った注文だけ算出可＝カバー率は低いことが多い）
+            const profitJpy = r.profit_jpy;
+            const saleJpy = r.sale_price_used_jpy;
+            if (typeof profitJpy === "number" && !isNaN(profitJpy) && typeof saleJpy === "number" && saleJpy) {
+                e.profitJpy += profitJpy;
+                e.saleJpy += saleJpy;
+                e.profitCnt += 1;
             }
         }
 
@@ -1470,6 +1478,11 @@ window.initOrbit = function () {
             const usedCcys = [];
             let jpyTotal = 0;
             let jpyTotalHasGap = false;
+            let grandProfitJpy = 0;
+            let grandSaleJpy = 0;
+            let grandProfitCnt = 0;
+            const profitRateText = (profitJpy, saleJpy, profitCnt, lineCnt) =>
+                saleJpy ? `${(profitJpy / saleJpy * 100).toFixed(1)}%（${profitCnt}/${lineCnt}件）` : "―";
             const bodyHtml = [...mMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
                 const ccyEntries = Object.entries(e.byCcy).sort();
                 const sales = ccyEntries
@@ -1484,17 +1497,22 @@ window.initOrbit = function () {
                     return `${Math.round(jpy).toLocaleString()}円`;
                 });
                 const jpy = jpyLines.join("<br>") || "―";
-                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td><td class="num">${jpy}</td></tr>`;
+                grandProfitJpy += e.profitJpy;
+                grandSaleJpy += e.saleJpy;
+                grandProfitCnt += e.profitCnt;
+                const profitRate = profitRateText(e.profitJpy, e.saleJpy, e.profitCnt, e.count);
+                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td><td class="num">${jpy}</td><td class="num">${profitRate}</td></tr>`;
             }).join("");
             ensureOrbitFxRates(usedCcys);
             const jpyTotalText = usedCcys.length
                 ? `${jpyTotalHasGap ? "≧" : ""}${Math.round(jpyTotal).toLocaleString()}円`
                 : "";
+            const grandProfitRateText = profitRateText(grandProfitJpy, grandSaleJpy, grandProfitCnt, monthRows.length);
             monthlyEl.innerHTML =
                 `<table class="orbit-summary-table">` +
-                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th><th class="num">円換算(概算)</th></tr></thead>` +
+                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th><th class="num">円換算(概算)</th><th class="num">概算利益率</th></tr></thead>` +
                 `<tbody>${bodyHtml}</tbody>` +
-                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td><td class="num">${jpyTotalText}</td></tr></tfoot></table>`;
+                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td><td class="num">${jpyTotalText}</td><td class="num">${grandProfitRateText}</td></tr></tfoot></table>`;
         }
 
         // ===== 未出荷サマリ（出荷通知前・キャンセル除外・日付は無関係） =====
