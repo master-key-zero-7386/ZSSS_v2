@@ -1387,6 +1387,31 @@ window.initOrbit = function () {
     //   loadOrders() で取得済みの ordersRowsCache をその場で集計するだけ（API追加なし）。
     //   ※ 2回目以降の initOrbit() は上の早期returnで抜けるため、ここの登録は初回のみ。
     //     renderOrbitSummary 自体は関数宣言の巻き上げにより早期return経路の loadOrders().then からも呼べる。
+
+    // 月次売上の円換算列用。{ "AUD": 97.3, ... }＝JPY建て・通貨1単位あたりの円（/orbit/fx_rates でその場取得）。
+    const orbitFxRateCache = {};
+    let orbitFxRateFetching = new Set();
+
+    function ensureOrbitFxRates(currencies) {
+        const missing = [...new Set(currencies)].filter(
+            c => c && c !== "?" && c !== "JPY" && !(c in orbitFxRateCache) && !orbitFxRateFetching.has(c)
+        );
+        if (!missing.length) return;
+        missing.forEach(c => orbitFxRateFetching.add(c));
+        fetch("/orbit/fx_rates?currencies=" + encodeURIComponent(missing.join(",")))
+            .then(r => r.json())
+            .then(json => {
+                if (json && json.status === "success" && json.rates) {
+                    Object.assign(orbitFxRateCache, json.rates);
+                }
+            })
+            .catch(() => { /* 取得失敗時は円換算列を "―" のまま表示 */ })
+            .finally(() => {
+                missing.forEach(c => orbitFxRateFetching.delete(c));
+                renderOrbitSummary(); // 取得できた分を円換算列に反映して再描画
+            });
+    }
+
     function renderOrbitSummary() {
         const yearSel = document.getElementById("orbit-summary-year");
         const monthSel = document.getElementById("orbit-summary-month");
@@ -1442,17 +1467,34 @@ window.initOrbit = function () {
         if (!mMap.size) {
             monthlyEl.innerHTML = `<div class="orbit-summary-note">${selY}年${parseInt(selM, 10)}月の注文はありません</div>`;
         } else {
+            const usedCcys = [];
+            let jpyTotal = 0;
+            let jpyTotalHasGap = false;
             const bodyHtml = [...mMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
-                const sales = Object.entries(e.byCcy).sort()
+                const ccyEntries = Object.entries(e.byCcy).sort();
+                const sales = ccyEntries
                     .map(([ccy, v]) => `${Math.round(v).toLocaleString()} ${orbitEscapeHtml(ccy)}`)
                     .join("<br>") || "―";
-                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td></tr>`;
+                const jpyLines = ccyEntries.map(([ccy, v]) => {
+                    usedCcys.push(ccy);
+                    const rate = ccy === "JPY" ? 1 : orbitFxRateCache[ccy];
+                    if (typeof rate !== "number") { jpyTotalHasGap = true; return "―"; }
+                    const jpy = v * rate;
+                    jpyTotal += jpy;
+                    return `${Math.round(jpy).toLocaleString()}円`;
+                });
+                const jpy = jpyLines.join("<br>") || "―";
+                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td><td class="num">${jpy}</td></tr>`;
             }).join("");
+            ensureOrbitFxRates(usedCcys);
+            const jpyTotalText = usedCcys.length
+                ? `${jpyTotalHasGap ? "≧" : ""}${Math.round(jpyTotal).toLocaleString()}円`
+                : "";
             monthlyEl.innerHTML =
                 `<table class="orbit-summary-table">` +
-                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th></tr></thead>` +
+                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th><th class="num">円換算(概算)</th></tr></thead>` +
                 `<tbody>${bodyHtml}</tbody>` +
-                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td></tr></tfoot></table>`;
+                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td><td class="num">${jpyTotalText}</td></tr></tfoot></table>`;
         }
 
         // ===== 未出荷サマリ（出荷通知前・キャンセル除外・日付は無関係） =====

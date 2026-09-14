@@ -50,6 +50,7 @@ from amazon.services.orbit_settlement_service import (
     import_settlement_lines,
 )
 from amazon.adapters.orbit_sales_trend import get_sales_trend
+from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import (
     build_authorization_url,
     exchange_code_for_tokens,
@@ -757,6 +758,25 @@ def deposit_balance():
         return jsonify({"status": "error", "message": str(e)}), 500
 
     return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 12-2: 為替レート（集計パネルの円換算表示用。JPY建て1単位あたりの円） ▼ ---
+@orbit_bp.route("/fx_rates", methods=["GET"])
+def fx_rates():
+    if not session.get("user_id"):
+        return jsonify({"status": "error"}), 401
+
+    currencies = [c.strip().upper() for c in (request.args.get("currencies") or "").split(",") if c.strip()]
+    rates = {}
+    for ccy in currencies:
+        if ccy == "JPY":
+            rates[ccy] = 1.0
+            continue
+        rate = get_exchange_rate("JPY", ccy)
+        if rate is not None:
+            rates[ccy] = rate
+
+    return jsonify({"status": "success", "rates": rates})
 
 
 # --- ▼ SECTION 13: 領収書PDF取込（発注管理・領収書列「一括読込」） ▼ ---
