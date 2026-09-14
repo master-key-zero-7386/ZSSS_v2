@@ -53,7 +53,7 @@
 
   function buildDatasets(data) {
     const thinPoints = data.dates.length > 120;
-    return data.series.map(function (s, i) {
+    const lineDatasets = data.series.map(function (s, i) {
       const color = colorForMarket(s.market, i);
       return {
         label: s.market,
@@ -64,6 +64,7 @@
         borderWidth: 2,
         pointRadius: thinPoints ? 0 : 2,
         pointHoverRadius: 4,
+        order: 1,
         // ツールチップ用の追加データ（Chart.js は未知プロパティを無視するのでそのまま持たせる）
         _amounts: s.amounts,
         _currency: s.currency,
@@ -73,11 +74,33 @@
         _lineCnt: s.line_cnt,
       };
     });
+
+    // 全マーケット合計（日別）を棒グラフで折れ線の背面に重ねる
+    const totals = data.dates.map(function (_, i) {
+      return data.series.reduce(function (sum, s) { return sum + (s.counts[i] || 0); }, 0);
+    });
+    const totalDataset = {
+      type: "bar",
+      label: "合計",
+      data: totals,
+      backgroundColor: "rgba(140,140,140,0.16)",
+      borderColor: "rgba(110,110,110,0.35)",
+      borderWidth: 1,
+      barPercentage: 0.5,
+      categoryPercentage: 0.6,
+      order: 2,
+    };
+
+    return lineDatasets.concat([totalDataset]);
   }
 
   function tooltipLabel(ctx) {
     const ds = ctx.dataset;
     const i = ctx.dataIndex;
+    if (!ds._amounts) {
+      // 合計（棒グラフ）は内訳を持たないため個数のみ表示
+      return ds.label + ": " + ctx.parsed.y + "個";
+    }
     const parts = [ds.label + ": " + ctx.parsed.y + "個"];
 
     const amount = ds._amounts ? ds._amounts[i] : null;
@@ -117,18 +140,19 @@
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
+        font: { size: 14 },
         plugins: {
-          legend: { position: "bottom" },
-          tooltip: { callbacks: { label: tooltipLabel } },
+          legend: { position: "bottom", labels: { font: { size: 14 } } },
+          tooltip: { titleFont: { size: 14 }, bodyFont: { size: 14 }, callbacks: { label: tooltipLabel } },
         },
         scales: {
           y: {
             beginAtZero: true,
-            title: { display: true, text: "販売個数" },
-            ticks: { precision: 0 },
+            title: { display: true, text: "販売個数", font: { size: 14 } },
+            ticks: { precision: 0, font: { size: 14 } },
           },
           x: {
-            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+            ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, font: { size: 14 } },
           },
         },
       },
