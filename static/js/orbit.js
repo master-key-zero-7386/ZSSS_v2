@@ -1483,6 +1483,8 @@ window.initOrbit = function () {
             let grandProfitCnt = 0;
             const profitRateText = (profitJpy, saleJpy, profitCnt, lineCnt) =>
                 saleJpy ? `${(profitJpy / saleJpy * 100).toFixed(1)}%（${profitCnt}/${lineCnt}件）` : "―";
+            const profitAmountText = (profitJpy, saleJpy) =>
+                saleJpy ? `${Math.round(profitJpy).toLocaleString()}円` : "―";
             const bodyHtml = [...mMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
                 const ccyEntries = Object.entries(e.byCcy).sort();
                 const sales = ccyEntries
@@ -1501,18 +1503,20 @@ window.initOrbit = function () {
                 grandSaleJpy += e.saleJpy;
                 grandProfitCnt += e.profitCnt;
                 const profitRate = profitRateText(e.profitJpy, e.saleJpy, e.profitCnt, e.count);
-                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td><td class="num">${jpy}</td><td class="num">${profitRate}</td></tr>`;
+                const profitAmount = profitAmountText(e.profitJpy, e.saleJpy);
+                return `<tr><td>${orbitEscapeHtml(c)}</td><td class="num">${e.count}</td><td class="num">${sales}</td><td class="num">${jpy}</td><td class="num">${profitRate}</td><td class="num">${profitAmount}</td></tr>`;
             }).join("");
             ensureOrbitFxRates(usedCcys);
             const jpyTotalText = usedCcys.length
                 ? `${jpyTotalHasGap ? "≧" : ""}${Math.round(jpyTotal).toLocaleString()}円`
                 : "";
             const grandProfitRateText = profitRateText(grandProfitJpy, grandSaleJpy, grandProfitCnt, monthRows.length);
+            const grandProfitAmountText = profitAmountText(grandProfitJpy, grandSaleJpy);
             monthlyEl.innerHTML =
                 `<table class="orbit-summary-table">` +
-                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th><th class="num">円換算(概算)</th><th class="num">概算利益率</th></tr></thead>` +
+                `<thead><tr><th>マーケット</th><th class="num">件数</th><th class="num">販売金額合計(現地通貨)</th><th class="num">円換算(概算)</th><th class="num">概算利益率</th><th class="num">概算利益額(円)</th></tr></thead>` +
                 `<tbody>${bodyHtml}</tbody>` +
-                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td><td class="num">${jpyTotalText}</td><td class="num">${grandProfitRateText}</td></tr></tfoot></table>`;
+                `<tfoot><tr><td>合計</td><td class="num">${monthRows.length}</td><td></td><td class="num">${jpyTotalText}</td><td class="num">${grandProfitRateText}</td><td class="num">${grandProfitAmountText}</td></tr></tfoot></table>`;
         }
 
         // ===== 未出荷サマリ（出荷通知前・キャンセル除外・日付は無関係） =====
