@@ -6,8 +6,58 @@
 # 目的:#   background（FIRST / TTL）region判定処理用ファイル
 # ==========================================================
 
+import threading
 import time
+from contextlib import contextmanager
+
 from amazon.db import get_conn
+
+
+# --- ▼ SECTION 00: バックグラウンド巡回（TTL等）の一時停止 ▼ ---
+# ORBITの「管理シートへ書出」等、手動操作でGoogle等の外部APIに新規接続する瞬間、TTLループが
+# Amazon SP-APIへ数秒おきに通信し続けていると、自宅回線の帯域を取り合って新規接続側が
+# read timeoutするケースがあった（TTLは既存の持続接続、手動操作は新規ハンドシェイクのため
+# 割を食いやすい）。手動操作の間だけTTL側に「次の1件を叩く前に少し待って」と伝える仕組み。
+# refcountにしているのは、ネストして呼ばれても（同時に複数箇所が一時停止を要求しても）
+# 最後の1つが解除されるまでは止め続けるため。
+# Event.wait()は「set()されるまでブロックし、set済みなら即return」という向きなので、
+# 「進行してよい（＝一時停止していない）」を意味させる。初期状態はset＝進行可。
+_background_proceed_event = threading.Event()
+_background_proceed_event.set()
+_background_pause_lock = threading.Lock()
+_background_pause_refcount = 0
+
+
+def request_background_pause():
+    global _background_pause_refcount
+    with _background_pause_lock:
+        _background_pause_refcount += 1
+        _background_proceed_event.clear()
+
+
+def release_background_pause():
+    global _background_pause_refcount
+    with _background_pause_lock:
+        _background_pause_refcount = max(0, _background_pause_refcount - 1)
+        if _background_pause_refcount == 0:
+            _background_proceed_event.set()
+
+
+# バックグラウンドループ側が次のAPI呼び出し前に呼ぶ。一時停止要求が無ければ即return。
+# max_wait_sec は呼び出し元が解除し忘れた場合でもTTLが永久に止まらないための保険。
+def wait_if_background_paused(max_wait_sec: float = 60):
+    _background_proceed_event.wait(timeout=max_wait_sec)
+
+
+@contextmanager
+def background_pause():
+    """with background_pause(): の間、TTL等のバックグラウンドAPI呼び出しを一時停止させる。
+    例外時も必ず解除されるようfinallyで release する。"""
+    request_background_pause()
+    try:
+        yield
+    finally:
+        release_background_pause()
 
 
 # --- ▼ SECTION 01: APIノック ASIN間 間隔制御（TTL / FIRST 共通） ▼ ---

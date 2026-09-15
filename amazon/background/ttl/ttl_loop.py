@@ -14,7 +14,9 @@ from datetime import timezone, timedelta
 from amazon.background.ttl.ttl_days import get_account_ttl_days
 from amazon.routes.routes_catalog_v2 import (update_home_catalog, update_region_catalog,)
 from amazon.routes.routes_pricing_v2 import (update_home_pricing, update_region_pricing,)
-from amazon.background.common.background_common import api_request_sleep, get_ttl_cycle_sleep_sec
+from amazon.background.common.background_common import (
+    api_request_sleep, get_ttl_cycle_sleep_sec, wait_if_background_paused,
+)
 from amazon.routes.routes_pricing_v2 import update_listing_price
 from amazon.db import get_conn
 from amazon.guard.guard_429 import is_blocked
@@ -634,6 +636,10 @@ def load_pricing_ttl_targets(db_dir: str):
 
 # --- ▼ SECTION 05: TTL実行受け口 ▼ ---
 def dispatch_ttl_execution(targets, record, country_code):
+    # ORBIT側の手動操作（管理シートへ書出 等）が外部APIへ新規接続する間、ここで一呼吸置く。
+    # 1件（1 ASIN）ごとに呼ばれるので、要求が出てから数秒以内には止まる。
+    wait_if_background_paused()
+
     had_error = False  # ★追加: 稼働記録（ttl_cycle_log）用に成否を返す
     for scope, ttl_type in targets:
         # ----API を叩いたのはなにか確認するためのPrint

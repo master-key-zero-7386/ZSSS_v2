@@ -27,6 +27,7 @@ from amazon.services.google_sheets_service import (
     batch_update_sheet_values,
     _extract_spreadsheet_id,
 )
+from amazon.background.common.background_common import background_pause
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 from utils.remote_area_parser import normalize_postal
@@ -2457,6 +2458,14 @@ def _a1_col(n: int) -> str:
 
 
 def push_orders_to_raw_sheet(user_id: int) -> dict:
+    # TTLループがバックグラウンドでAmazon SP-APIに通信し続けていると、自宅回線の帯域を
+    # 取り合ってこの関数のGoogle APIへの新規接続がread timeoutすることがあったため、
+    # 実行中はTTL側に一時停止を要求する（background_common.wait_if_background_paused）。
+    with background_pause():
+        return _push_orders_to_raw_sheet(user_id)
+
+
+def _push_orders_to_raw_sheet(user_id: int) -> dict:
     _t0 = time.perf_counter()
     settings = get_raw_sheet_settings(user_id)
     if not settings["spreadsheet_url"]:
