@@ -2725,6 +2725,35 @@ window.initOrbit = function () {
             });
     });
 
+    // --- ▼ SECTION 04-1c: 依頼フォームURL（トランザクション欄横の「依頼フォーム」ボタン） ▼ ---
+    const requestFormUrlInput = document.getElementById("orbit-request-form-url");
+    const requestFormJumpBtn = document.getElementById("orbit-request-form-jump-btn");
+
+    fetch("/orbit/request_form_url")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (requestFormUrlInput) requestFormUrlInput.value = data.request_form_url || "";
+        })
+        .catch(err => console.error("request_form_url load error:", err));
+
+    requestFormUrlInput?.addEventListener("change", () => {
+        fetch("/orbit/request_form_url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ request_form_url: requestFormUrlInput.value || "" }),
+        }).catch(err => console.error("request_form_url save error:", err));
+    });
+
+    requestFormJumpBtn?.addEventListener("click", () => {
+        const url = (requestFormUrlInput?.value || "").trim();
+        if (!url) {
+            window.showToast?.("依頼フォームのURLを入力してください", "error");
+            return;
+        }
+        window.open(url, "_blank", "noopener");
+    });
+
     // --- ▼ SECTION 04-2: 管理シート（書き出し先スプレッドシートURL・タブ名は設定必須）への書き出し（手動コピペの置き換え） ▼ ---
     const rawSheetUrlInput = document.getElementById("orbit-raw-sheet-url");
     const rawSheetNameInput = document.getElementById("orbit-raw-sheet-name");

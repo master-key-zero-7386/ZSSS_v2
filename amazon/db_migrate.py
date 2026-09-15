@@ -819,6 +819,8 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     # 領収書PDF取込（発注管理・領収書列の「一括読込」）で使うフォルダパス。相乗りで保存。
     "receipt_inbox_dir": "TEXT",   # 受信フォルダ（手DLした仕入れ領収書PDFをまとめて置く場所）
     "receipt_store_dir": "TEXT",   # 保管先フォルダ（注文番号照合→リネーム後の移動先。フラット）
+    # 発注管理・トランザクション欄横の「依頼フォーム」ボタンで開くURL（代行会社への別途依頼内容を入力するフォーム）
+    "request_form_url": "TEXT",
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }

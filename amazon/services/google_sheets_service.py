@@ -281,6 +281,39 @@ def save_receipt_settings(user_id: int, inbox_dir: str, store_dir: str):
         conn.close()
 
 
+# --- ▼ SECTION 00-4: 依頼フォームURL（発注管理・トランザクション欄横の「依頼フォーム」ボタン） ▼ ---
+# 代行会社への別途依頼内容を入力するフォームのURL。既定値は持たず、未設定なら空文字を返す。
+def get_request_form_url(user_id: int) -> str:
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT request_form_url FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        return row["request_form_url"] if row and row.get("request_form_url") else ""
+    finally:
+        conn.close()
+
+
+def save_request_form_url(user_id: int, request_form_url: str):
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    try:
+        cur = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        cur.execute("""
+            INSERT INTO orbit_dispatch_sheet_settings (user_id, request_form_url, created_at, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                request_form_url = EXCLUDED.request_form_url,
+                updated_at = EXCLUDED.updated_at
+        """, (user_id, request_form_url, now, now))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 # --- ▼ SECTION 01: 認可URL生成 ▼ ---
 def build_authorization_url(redirect_uri: str = None) -> str:
     params = {

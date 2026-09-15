@@ -810,6 +810,10 @@ input.orbit-serial-dup {
               <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="トランザクションCSVデータを選択" readonly style="width:300px;" title="取引明細CSVを取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「ファイナンス」→「支払い管理」を開き、「トランザクション」タブに切り替えて日付範囲を指定し、CSVでダウンロードしてください（「ファイナンスレポート」のSettlement Reportフラットファイルは形式が異なり取り込めません）。取り込むたびに表示言語（日付書式）は揃えてください。" />
               <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbit-request-form-url" class="file-input-text" placeholder="代行会社への依頼フォームのURL" style="width:300px;" title="代行会社への別途依頼内容を入力するフォームのURL。入力すると自動保存され、「依頼フォーム」ボタンで新しいタブに開きます。" />
+              <button type="button" id="orbit-request-form-jump-btn" class="btn-blue" style="height:36px;">依頼フォーム</button>
+          </div>
       </div>
 
       <details class="orbit-sheet-settings">
