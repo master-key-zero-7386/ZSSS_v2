@@ -551,9 +551,18 @@
   font-size: 1.35em;
   font-weight: bold;
 }
-/* セラーメモのON/OFF目印がONの間、N番を赤字にする（手動でOFFにするまで消えない） */
+/* セラーメモのON/OFF目印がONの間、N番を背景色で目立たせる（手動でOFFにするまで消えない）。
+   文字色だけだと見落とすとの指摘のため背景色に変更。出荷完了（グレーアウト）・キャンセル（緑塗り）
+   は !important で td を上書きするルールなので、消し忘れ防止のためこちらも !important かつ
+   より詳細なセレクタで上書きし、それらの状態でも表示され続けるようにする。 */
 .orbit-page table td.orbit-serial-cell.orbit-serial-memo-flag {
-  color: #c0392b;
+  background-color: #ff9800 !important;
+  color: #fff;
+}
+.orbit-page table tbody tr.orbit-row-shipped td.orbit-serial-cell.orbit-serial-memo-flag,
+.orbit-page table tbody tr.orbit-row-cancel td.orbit-serial-cell.orbit-serial-memo-flag {
+  background-color: #ff9800 !important;
+  color: #fff !important;
 }
 .orbit-page table td.orbit-serial-cell input {
   font-size: inherit;
