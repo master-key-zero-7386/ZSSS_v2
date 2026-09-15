@@ -6,6 +6,7 @@
 
 import os
 import re
+import socket
 import time
 from datetime import datetime, timedelta
 
@@ -15,6 +16,22 @@ try:
     from urllib3.util.retry import Retry
 except Exception:  # 念のため（古い requests 同梱 urllib3 経路）
     from requests.packages.urllib3.util.retry import Retry  # type: ignore
+try:
+    import urllib3.util.connection as _urllib3_connection
+except Exception:  # 念のため（内部モジュールなので万一構成が変わっても起動を止めない）
+    _urllib3_connection = None
+
+# --- IPv4優先化 ---
+# 自宅回線などIPv6(IPoE+MAP-E等)経路でPMTU black hole（TCP接続自体は通るが、応答本体のような
+# 大きめのパケットだけ経路上でサイレントに破棄される）が起きると、ブラウザ（Happy Eyeballsで
+# 複数経路を同時に試し詰まった方を自動で見限る）では気付かないのに、urllib3（詰まった経路を
+# 見限らずそのまま使い続ける）経由の通信だけ「接続はできるが応答が返らない」タイムアウトに
+# なる。sheets.googleapis.com への読み取りだけが毎回re-timeoutする症状と一致したため、
+# このプロセスの外部HTTPS通信（urllib3経由すべて）をIPv4優先にする。
+# ※ urllib3.util.connection は共有モジュールなのでこの変更はプロセス全体に効く
+#   （SP-API等、他の外部HTTPS通信にも同じIPv4優先が適用される。IPv6必須の接続先は無い前提）。
+if _urllib3_connection is not None:
+    _urllib3_connection.allowed_gai_family = lambda: socket.AF_INET
 
 from amazon.db import get_conn
 
