@@ -85,6 +85,24 @@ def _google_session() -> requests.Session:
     _google_api_session_last_used = now
     return _GOOGLE_API_SESSION
 
+
+# --- 実測用の簡易タイミングログ ---
+# 「管理シートへ書出」が何度直しても数十秒〜2分かかる件、推測ベースの対策を重ねても改善が
+# 安定しないため、実際にどのHTTPコールが何秒かかっているかをコンソールに出して特定する。
+# 恒久的な機能ではなく調査用（原因が分かったら外してよい）。
+def _timed_request(method: str, url: str, **kwargs):
+    session = _google_session()
+    t0 = time.perf_counter()
+    try:
+        resp = session.request(method, url, **kwargs)
+        elapsed = time.perf_counter() - t0
+        print(f"[sheets_api] {method} {url} -> {resp.status_code} ({elapsed:.2f}s)")
+        return resp
+    except Exception as e:
+        elapsed = time.perf_counter() - t0
+        print(f"[sheets_api] {method} {url} -> ERROR {type(e).__name__} ({elapsed:.2f}s)")
+        raise
+
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
 
@@ -360,7 +378,7 @@ def get_valid_access_token(user_id: int):
         return row["access_token"]
 
     # --- 期限切れ：refresh_tokenで再取得 ---
-    resp = _google_session().post(GOOGLE_TOKEN_ENDPOINT, data={
+    resp = _timed_request("POST", GOOGLE_TOKEN_ENDPOINT, data={
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
         "refresh_token": row["refresh_token"],
@@ -422,8 +440,8 @@ def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str,
     # 全部文字列化される）。ZSSS_RAW→代行会社シートのミラーで型を保つのに使う。
     if value_render_option:
         url += f"?valueRenderOption={value_render_option}"
-    resp = _google_session().get(
-        url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
+    resp = _timed_request(
+        "GET", url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json().get("values", [])
@@ -444,8 +462,8 @@ def append_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
         f"{requests.utils.quote(sheet_range)}:append"
         f"?valueInputOption=RAW&insertDataOption={insert_data_option}"
     )
-    resp = _google_session().post(
-        url,
+    resp = _timed_request(
+        "POST", url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"values": values},
         timeout=_GOOGLE_API_TIMEOUT,
@@ -495,8 +513,8 @@ def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
         f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
         f"{requests.utils.quote(sheet_range)}?valueInputOption=RAW"
     )
-    resp = _google_session().put(
-        url,
+    resp = _timed_request(
+        "PUT", url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"values": values},
         timeout=_GOOGLE_API_TIMEOUT,
@@ -517,8 +535,8 @@ def batch_update_sheet_values(user_id: int, spreadsheet_id: str, data: list) -> 
         raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values:batchUpdate"
-    resp = _google_session().post(
-        url,
+    resp = _timed_request(
+        "POST", url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"valueInputOption": "RAW", "data": data},
         timeout=_GOOGLE_API_TIMEOUT,
@@ -536,8 +554,8 @@ def clear_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str) -> d
         f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
         f"{requests.utils.quote(sheet_range)}:clear"
     )
-    resp = _google_session().post(
-        url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
+    resp = _timed_request(
+        "POST", url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
     )
     _raise_for_sheets_write_error(resp)
     return resp.json()

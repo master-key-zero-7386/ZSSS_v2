@@ -2457,6 +2457,7 @@ def _a1_col(n: int) -> str:
 
 
 def push_orders_to_raw_sheet(user_id: int) -> dict:
+    _t0 = time.perf_counter()
     settings = get_raw_sheet_settings(user_id)
     if not settings["spreadsheet_url"]:
         raise RuntimeError("書き出し先スプレッドシートのURLが未設定です（発注管理タブの設定欄で保存してください）")
@@ -2471,6 +2472,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
     quoted = "'" + sheet_name.replace("'", "''") + "'"
 
     orders = list_orders_with_calc(user_id)
+    print(f"[raw_sheet_push] list_orders_with_calc: {time.perf_counter() - _t0:.2f}s")
     columns = _raw_sheet_columns_for(orders)
     last_col = _a1_col(len(columns))
 
@@ -2609,6 +2611,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         except Exception as e:
             result["mirror_error"] = str(e)
 
+    print(f"[raw_sheet_push] total: {time.perf_counter() - _t0:.2f}s")
     return result
 
 
