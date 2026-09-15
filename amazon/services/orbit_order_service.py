@@ -8,6 +8,7 @@ import io
 import json
 import math
 import re
+import time
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
@@ -28,7 +29,7 @@ from amazon.services.google_sheets_service import (
 )
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
-from utils.remote_area_parser import is_in_range
+from utils.remote_area_parser import normalize_postal
 
 # SKUに埋め込まれたASIN（10桁英数字）を抽出する。過去に複数の他社ツールを使ってきた経緯で
 # SKUの命名規則がツールごとに違うため、既知の接頭辞パターンを順に照合し、外れた場合のみ
@@ -310,9 +311,23 @@ OVERRIDE_FIELD_MAP = {
 # 行数分クエリを投げないよう、list_orders_with_calc の頭で国別レンジを1回だけ読む。
 _REMOTE_AREA_CARRIERS = ("DHL", "FEDEX")
 
+# carrier_remote_area_codes は US/FedExだけで39,000件超・全体で7万件近くあり、DB取得＋正規化に
+# それだけで1秒前後かかる。一方このマスタは「遠隔地郵便番号管理」タブでの手動取込でしか変わらず、
+# list_orders_with_calc（注文一覧・書き出しのたびに毎回呼ばれる）から見れば実質固定データなので、
+# プロセス内に短時間キャッシュする（更新直後でも最大 _REMOTE_AREA_CACHE_TTL 秒待てば反映される）。
+_REMOTE_AREA_CACHE_TTL = 300  # 秒
+_remote_area_cache = {"data": None, "loaded_at": 0.0}
+
 
 def _load_remote_area_ranges() -> dict:
-    """{(carrier, country_code): [(postal_from, postal_to), ...]} を丸ごと1クエリで組み立てる。"""
+    """{(carrier, country_code): [(postal_from, postal_to), ...]} を丸ごと1クエリで組み立てる。
+    postal_from/postal_to はここで一度だけ正規化しておく（例: US/FedExだけで39,000件超あり、
+    行ごとに正規化し直すと normalize_postal の正規表現コストが 注文数×レンジ数 で効いてきて、
+    注文一覧の表示だけで数秒かかる原因になっていた）。"""
+    now = time.monotonic()
+    if _remote_area_cache["data"] is not None and now - _remote_area_cache["loaded_at"] < _REMOTE_AREA_CACHE_TTL:
+        return _remote_area_cache["data"]
+
     conn = get_conn("a_carrier_remote_area.db")
     cur = conn.cursor()
     cur.execute(
@@ -324,7 +339,10 @@ def _load_remote_area_ranges() -> dict:
     ranges: dict = {}
     for r in rows:
         key = ((r["carrier"] or "").strip().upper(), (r["country_code"] or "").strip().upper())
-        ranges.setdefault(key, []).append((r["postal_from"], r["postal_to"]))
+        ranges.setdefault(key, []).append((normalize_postal(r["postal_from"]), normalize_postal(r["postal_to"])))
+
+    _remote_area_cache["data"] = ranges
+    _remote_area_cache["loaded_at"] = now
     return ranges
 
 
@@ -335,6 +353,17 @@ def _postal_for_remote_check(postal_code, country: str) -> str:
     if country == "US" and "-" in code:
         code = code.split("-", 1)[0].strip()
     return code
+
+
+# is_in_range と同じ判定ロジックだが、code/a/bが正規化済み前提でnormalize_postalを呼ばない版。
+# _load_remote_area_ranges 側で from/to を正規化済みにしたので、行ごとのレンジ走査
+# （US/FedExだけで39,000件超）で毎回 normalize_postal（正規表現）を re-run しないようにする。
+def _in_prenormalized_range(code: str, a: str, b: str) -> bool:
+    if len(a) != len(b) or len(code) != len(a):
+        return code == a or code == b
+    if a > b:
+        a, b = b, a
+    return a <= code <= b
 
 
 def _apply_remote_area_check(row, remote_area_ranges: dict):
@@ -353,11 +382,15 @@ def _apply_remote_area_check(row, remote_area_ranges: dict):
         row["remote_area_note"] = f"遠隔地マスタ未登録（{country}）"
         return
 
+    # レンジ側は _load_remote_area_ranges で正規化済みなので、注文側の郵便番号もここで1回だけ
+    # 正規化しておく（行×レンジ数ぶん呼ばれるとUS/FedExの39,000件超で顕著に遅くなるため）。
+    normalized_postal = normalize_postal(postal)
+
     notes = []
     for carrier in _REMOTE_AREA_CARRIERS:
         matched = None
         for postal_from, postal_to in remote_area_ranges.get((carrier, country), []):
-            if is_in_range(postal, postal_from, postal_to):
+            if _in_prenormalized_range(normalized_postal, postal_from, postal_to):
                 matched = (postal_from, postal_to)
                 break
         label = "DHL" if carrier == "DHL" else "FedEx"
