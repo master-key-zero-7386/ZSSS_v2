@@ -350,6 +350,20 @@
   background-color: #fffde7;
 }
 
+/* 管理品：未確認の行（＝代行会社シートへの新規追加分の目安）を薄赤で目立たせる */
+.orbit-page table tbody tr.orbit-row-kanrihin-unconfirmed td {
+  background-color: #ffebee;
+}
+
+/* 管理品タブに未確認行があるあいだ、サブタブボタン自体を赤く点滅させる */
+@keyframes orbit-kanrihin-blink {
+  0%, 100% { background-color: #fff; color: inherit; }
+  50% { background-color: #e53935; color: #fff; }
+}
+.orbit-page > .st-subtabs .st-subtab-btn.orbit-kanrihin-alert {
+  animation: orbit-kanrihin-blink 1.2s ease-in-out infinite;
+}
+
 /* 発注管理：「未仕入」トグルボタンの文字だけ赤字（行の色分けは従来どおり：出荷完了グレー／キャンセル緑） */
 .orbit-flag-toggle-btn[data-field="purchased"].is-off {
   color: #c62828;
@@ -723,6 +737,7 @@ input.orbit-serial-dup {
       <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-kanrihin" id="orbit-kanrihin-subtab-btn">管理品</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-receipt">領収書</button>
@@ -885,6 +900,41 @@ input.orbit-serial-dup {
 
       <div class="table-wrapper" id="orbit-procurement-table-wrapper">
         <table id="orbit-procurement-table" class="orbit-collapsed-procShrink">
+          <thead>
+            <tr>
+              <!-- JSで描画 -->
+            </tr>
+          </thead>
+          <tbody>
+            <!-- JSで描画 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="orbit-pane-kanrihin" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          代行会社シート「管理品」タブ（到着したが何らかの理由で発送できない商品）を読み取り専用で表示します。
+          注文管理タブを開くたびに再取得し、未確認の新規行があれば上の「管理品」サブタブが赤く点滅します。
+          行ごとの「確認」ボタン、またはヘッダーの「一括確認」ボタンで点滅を解除できます。
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbit-kanrihin-sheet-name" class="file-input-text" placeholder="管理品タブ名（例: 管理品）" style="width:220px;" title="発送代行シートから読込と同じスプレッドシート内の、管理品タブの名前を指定します。" />
+              <button type="button" id="orbit-kanrihin-settings-save-btn" class="btn-blue" style="height:36px;">設定を保存</button>
+          </div>
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="text" id="orbit-kanrihin-request-form-url" class="file-input-text" placeholder="代行会社への依頼フォームのURL" style="width:300px;" title="代行会社への別途依頼内容を入力するフォームのURL。入力すると自動保存され、「依頼フォーム」ボタンで新しいタブに開きます。" />
+              <button type="button" id="orbit-kanrihin-request-form-jump-btn" class="btn-blue" style="height:36px;">依頼フォーム</button>
+          </div>
+      </div>
+
+      <div class="table-wrapper" id="orbit-kanrihin-table-wrapper">
+        <table id="orbit-kanrihin-table">
           <thead>
             <tr>
               <!-- JSで描画 -->

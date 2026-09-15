@@ -1392,6 +1392,7 @@ window.initOrbit = function () {
         loadBuyerHistory();
         loadSecurityNotes();
         loadOrbitDeposit();
+        loadKanrihinData();
         return;
     }
     tbody.dataset.orbitInitialized = "true";
@@ -2725,34 +2726,183 @@ window.initOrbit = function () {
             });
     });
 
-    // --- ▼ SECTION 04-1c: 依頼フォームURL（トランザクション欄横の「依頼フォーム」ボタン） ▼ ---
-    const requestFormUrlInput = document.getElementById("orbit-request-form-url");
-    const requestFormJumpBtn = document.getElementById("orbit-request-form-jump-btn");
+    // --- ▼ SECTION 04-1c: 依頼フォームURL（発注管理・管理品タブ共通の「依頼フォーム」ボタン。設定は1つを共有） ▼ ---
+    const requestFormUrlInputs = [
+        document.getElementById("orbit-request-form-url"),
+        document.getElementById("orbit-kanrihin-request-form-url"),
+    ].filter(Boolean);
+    const requestFormJumpBtns = [
+        document.getElementById("orbit-request-form-jump-btn"),
+        document.getElementById("orbit-kanrihin-request-form-jump-btn"),
+    ].filter(Boolean);
 
     fetch("/orbit/request_form_url")
         .then(res => res.json())
         .then(data => {
             if (data.status !== "success") return;
-            if (requestFormUrlInput) requestFormUrlInput.value = data.request_form_url || "";
+            requestFormUrlInputs.forEach(el => { el.value = data.request_form_url || ""; });
         })
         .catch(err => console.error("request_form_url load error:", err));
 
-    requestFormUrlInput?.addEventListener("change", () => {
-        fetch("/orbit/request_form_url", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ request_form_url: requestFormUrlInput.value || "" }),
-        }).catch(err => console.error("request_form_url save error:", err));
+    requestFormUrlInputs.forEach(input => {
+        input.addEventListener("change", () => {
+            const url = input.value || "";
+            requestFormUrlInputs.forEach(el => { if (el !== input) el.value = url; });
+            fetch("/orbit/request_form_url", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ request_form_url: url }),
+            }).catch(err => console.error("request_form_url save error:", err));
+        });
     });
 
-    requestFormJumpBtn?.addEventListener("click", () => {
-        const url = (requestFormUrlInput?.value || "").trim();
-        if (!url) {
-            window.showToast?.("依頼フォームのURLを入力してください", "error");
+    requestFormJumpBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const ownInput = btn.closest(".file-input-row")?.querySelector("input[id$='request-form-url']");
+            const url = (ownInput?.value || requestFormUrlInputs[0]?.value || "").trim();
+            if (!url) {
+                window.showToast?.("依頼フォームのURLを入力してください", "error");
+                return;
+            }
+            window.open(url, "_blank", "noopener");
+        });
+    });
+
+    // --- ▼ SECTION 04-1d: 管理品タブ（代行会社シート「管理品」タブの読み戻し＋確認状態）▼ ---
+    //   注文管理タブを開くたび（=initOrbit再実行のたび）に再取得する。関数宣言の巻き上げにより、
+    //   早期return経路（1391行目付近の再訪）からも呼べる。
+    const kanrihinSubtabBtn = document.getElementById("orbit-kanrihin-subtab-btn");
+    const kanrihinTable = document.getElementById("orbit-kanrihin-table");
+    const kanrihinSheetNameInput = document.getElementById("orbit-kanrihin-sheet-name");
+    const kanrihinSettingsSaveBtn = document.getElementById("orbit-kanrihin-settings-save-btn");
+    let kanrihinUnconfirmedNos = [];
+
+    function escapeKanrihinCell(v) {
+        return String(v ?? "").replace(/[&<>"']/g, (c) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        }[c]));
+    }
+
+    function renderKanrihinTable(header, items) {
+        const thead = kanrihinTable?.querySelector("thead tr");
+        const tbody = kanrihinTable?.querySelector("tbody");
+        if (!thead || !tbody) return;
+
+        thead.innerHTML = header.map(h => `<th>${escapeKanrihinCell(h)}</th>`).join("")
+            + `<th><button type="button" id="orbit-kanrihin-confirm-all-btn" class="btn-blue">一括確認</button></th>`;
+
+        if (!items.length) {
+            tbody.innerHTML = `<tr><td colspan="${header.length + 1}" style="text-align:center; color:#888;">管理品はありません</td></tr>`;
             return;
         }
-        window.open(url, "_blank", "noopener");
+
+        tbody.innerHTML = items.map(item => {
+            const cells = header.map((_, i) => `<td>${escapeKanrihinCell(item.cells[i])}</td>`).join("");
+            const actionCell = item.confirmed
+                ? `<td><button type="button" class="orbit-kanrihin-confirm-btn" data-management-no="${escapeKanrihinCell(item.management_no)}" disabled>確認済み</button></td>`
+                : `<td><button type="button" class="orbit-kanrihin-confirm-btn btn-blue" data-management-no="${escapeKanrihinCell(item.management_no)}">確認</button></td>`;
+            const rowClass = item.confirmed ? "" : ' class="orbit-row-kanrihin-unconfirmed"';
+            return `<tr${rowClass}>${cells}${actionCell}</tr>`;
+        }).join("");
+    }
+
+    function loadKanrihinData() {
+        fetch("/orbit/kanrihin_items")
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    kanrihinSubtabBtn?.classList.remove("orbit-kanrihin-alert");
+                    const thead = kanrihinTable?.querySelector("thead tr");
+                    const tbody = kanrihinTable?.querySelector("tbody");
+                    if (thead) thead.innerHTML = "";
+                    if (tbody) tbody.innerHTML = `<tr><td style="color:#c62828;">${escapeKanrihinCell(data.message || "取得に失敗しました")}</td></tr>`;
+                    return;
+                }
+                renderKanrihinTable(data.header || [], data.items || []);
+                kanrihinUnconfirmedNos = (data.items || []).filter(i => !i.confirmed).map(i => i.management_no);
+                kanrihinSubtabBtn?.classList.toggle("orbit-kanrihin-alert", kanrihinUnconfirmedNos.length > 0);
+            })
+            .catch(err => console.error("kanrihin_items load error:", err));
+    }
+
+    kanrihinTable?.addEventListener("click", (e) => {
+        const bulkBtn = e.target.closest("#orbit-kanrihin-confirm-all-btn");
+        if (bulkBtn) {
+            if (!kanrihinUnconfirmedNos.length) {
+                window.showToast?.("未確認の行がありません", "error");
+                return;
+            }
+            bulkBtn.disabled = true;
+            fetch("/orbit/kanrihin_confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ management_nos: kanrihinUnconfirmedNos }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") loadKanrihinData();
+                    else window.showToast?.(data.message || "確認に失敗しました", "error");
+                })
+                .catch(err => {
+                    console.error("kanrihin_confirm (bulk) error:", err);
+                    window.showToast?.("確認に失敗しました", "error");
+                })
+                .finally(() => { bulkBtn.disabled = false; });
+            return;
+        }
+
+        const btn = e.target.closest(".orbit-kanrihin-confirm-btn");
+        if (btn) {
+            const managementNo = btn.dataset.managementNo;
+            if (!managementNo) return;
+            btn.disabled = true;
+            fetch("/orbit/kanrihin_confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ management_nos: [managementNo] }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") loadKanrihinData();
+                    else { window.showToast?.(data.message || "確認に失敗しました", "error"); btn.disabled = false; }
+                })
+                .catch(err => {
+                    console.error("kanrihin_confirm error:", err);
+                    window.showToast?.("確認に失敗しました", "error");
+                    btn.disabled = false;
+                });
+        }
     });
+
+    fetch("/orbit/kanrihin_settings")
+        .then(res => res.json())
+        .then(data => {
+            if (data.status !== "success") return;
+            if (kanrihinSheetNameInput) kanrihinSheetNameInput.value = data.sheet_name || "";
+        })
+        .catch(err => console.error("kanrihin_settings load error:", err));
+
+    kanrihinSettingsSaveBtn?.addEventListener("click", () => {
+        fetch("/orbit/kanrihin_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sheet_name: kanrihinSheetNameInput?.value || "" }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                window.showToast?.(
+                    data.status === "success" ? "設定を保存しました" : (data.message || "保存に失敗しました"),
+                    data.status === "success" ? "success" : "error",
+                );
+                if (data.status === "success") loadKanrihinData();
+            })
+            .catch(err => {
+                console.error("kanrihin_settings save error:", err);
+                window.showToast?.("保存に失敗しました", "error");
+            });
+    });
+
+    loadKanrihinData();
 
     // --- ▼ SECTION 04-2: 管理シート（書き出し先スプレッドシートURL・タブ名は設定必須）への書き出し（手動コピペの置き換え） ▼ ---
     const rawSheetUrlInput = document.getElementById("orbit-raw-sheet-url");

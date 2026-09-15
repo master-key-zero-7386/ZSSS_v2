@@ -821,8 +821,18 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     "receipt_store_dir": "TEXT",   # 保管先フォルダ（注文番号照合→リネーム後の移動先。フラット）
     # 発注管理・トランザクション欄横の「依頼フォーム」ボタンで開くURL（代行会社への別途依頼内容を入力するフォーム）
     "request_form_url": "TEXT",
+    # 管理品タブ名（発送不可品の一覧。spreadsheet_urlと同じ代行会社スプレッドシート内の別タブ）
+    "kanrihin_sheet_name": "TEXT",
     "created_at": "TEXT",
     "updated_at": "TEXT",
+}
+
+# --- ▼ SECTION : 管理品タブの行ごとの確認状態（ORBIT: 代行会社シート「管理品」タブへの新規追加検知） ---
+# 確認済みかどうかは担当者個人の設定ではなくチーム共有の状態のため user_id は持たない。
+ORBIT_KANRIHIN_CONFIRMED_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "management_no": "TEXT NOT NULL",  # 管理品シートの管理No.列（例: A257）
+    "confirmed_at": "TEXT",
 }
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
@@ -960,6 +970,8 @@ def migrate_db(db_name):
         migrate_table(conn, "google_oauth_tokens", GOOGLE_OAUTH_TOKENS_COLUMNS)
     elif base.endswith("_orbit_dispatch_sheet_settings.db"):
         migrate_table(conn, "orbit_dispatch_sheet_settings", ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS)
+    elif base.endswith("_orbit_kanrihin_confirmed.db"):
+        migrate_table(conn, "orbit_kanrihin_confirmed", ORBIT_KANRIHIN_CONFIRMED_COLUMNS)
     elif base.endswith("_jp_holidays.db"):
         migrate_table(conn, "jp_holidays", JP_HOLIDAYS_COLUMNS)
     elif base.endswith("_orbit_agent_closures.db"):
@@ -1178,6 +1190,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_dispatch_sheet_settings_unique "
         "ON orbit_dispatch_sheet_settings(user_id)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_kanrihin_confirmed.db ---
+    conn = get_conn("a_orbit_kanrihin_confirmed.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_kanrihin_confirmed_unique "
+        "ON orbit_kanrihin_confirmed(management_no)"
     )
     conn.commit()
     conn.close()
@@ -1453,6 +1475,7 @@ def main():
         "a_orbit_buyer_security_notes.db",
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
+        "a_orbit_kanrihin_confirmed.db",
         "a_orbit_credit_cards.db",
         "a_jp_holidays.db",
         "a_orbit_agent_closures.db",

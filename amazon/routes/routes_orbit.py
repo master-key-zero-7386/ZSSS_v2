@@ -65,8 +65,11 @@ from amazon.services.google_sheets_service import (
     get_request_form_url,
     save_request_form_url,
     fetch_deposit_balance,
+    get_kanrihin_sheet_name,
+    save_kanrihin_sheet_name,
 )
 from amazon.services.orbit_receipt_import_service import run_receipt_import, inbox_status
+from amazon.services.orbit_kanrihin_service import list_kanrihin_items, confirm_kanrihin_items
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -855,3 +858,52 @@ def receipt_import_route():
         return jsonify({"status": "error", "message": str(e)}), 500
 
     return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 14: 管理品タブ設定（タブ名。URLは依頼書シート設定を使い回す） ▼ ---
+@orbit_bp.route("/kanrihin_settings", methods=["GET"])
+def get_kanrihin_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    return jsonify({"status": "success", "sheet_name": get_kanrihin_sheet_name(user_id)})
+
+
+@orbit_bp.route("/kanrihin_settings", methods=["POST"])
+def save_kanrihin_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    sheet_name = (data.get("sheet_name") or "").strip()
+    save_kanrihin_sheet_name(user_id, sheet_name)
+    return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 15: 管理品一覧（代行会社シート「管理品」タブの読み戻し＋確認状態） ▼ ---
+@orbit_bp.route("/kanrihin_items", methods=["GET"])
+def kanrihin_items_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = list_kanrihin_items(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+@orbit_bp.route("/kanrihin_confirm", methods=["POST"])
+def kanrihin_confirm_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    management_nos = data.get("management_nos") or []
+    confirm_kanrihin_items(management_nos)
+    return jsonify({"status": "success"})
