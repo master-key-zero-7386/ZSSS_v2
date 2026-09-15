@@ -1037,6 +1037,14 @@ function recomputeDispatchRowChecks(r) {
     r.ship_address_2_effective = orbitEffectiveVal(r.ship_address_2, r.ship_address_2_override);
     r.ship_address_3_effective = orbitEffectiveVal(r.ship_address_3, r.ship_address_3_override);
     r.remarks_3_effective      = orbitEffectiveVal(r.tax_registration_note, r.remarks_3);
+    // 電話番号・内線・州：自動判定(国番号除去/正式表記化)まではクライアントで再現しないが、
+    // overrideを入力した場合はそちらが必ず優先表示されるべきなので、値自体は反映する。
+    // これを怠ると入力欄が保存前の値のまま再描画され、「何度入力しても消える」ように見える。
+    // ベースはDB生値（buyer_phone_number等）を使う。前回計算済みの*_effectiveを使うと、override
+    // を後から空に戻した際に一つ前のoverride値が自己参照で残り続けてしまうため。
+    r.buyer_phone_number_effective    = orbitEffectiveVal(r.buyer_phone_number, r.buyer_phone_number_override);
+    r.buyer_phone_extension_effective = orbitEffectiveVal(r.buyer_phone_extension_effective, r.buyer_phone_extension_override);
+    r.ship_state_effective            = orbitEffectiveVal(r.ship_state, r.ship_state_override);
 
     const pn = r.product_name_effective || "";
     const rn = (r.recipient_name_effective || "").trim();
