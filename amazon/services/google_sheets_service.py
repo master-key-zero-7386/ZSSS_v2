@@ -699,7 +699,9 @@ def save_kanrihin_sheet_name(user_id: int, sheet_name: str):
 
 
 def fetch_kanrihin_sheet_rows(user_id: int) -> dict:
-    """管理品タブの見出し行＋データ行を取得する。末尾の自動採番済みだが未入力の空行
+    """管理品タブの見出し行＋データ行を取得する。見出し行より上に代行会社からの注意書き
+    （結合セル＝1列分の値しか返らない行）が複数行入っているため、最初に複数列にまたがる行
+    （＝結合されていない実際の見出し行）を見出しとみなす。末尾の自動採番済みだが未入力の空行
     （管理No.だけ入って日付が未入力）は依頼書シートの空行除外と同じ考え方で弾く。"""
     sheet_name = get_kanrihin_sheet_name(user_id)
     if not sheet_name:
@@ -712,6 +714,10 @@ def fetch_kanrihin_sheet_rows(user_id: int) -> dict:
     if not all_rows:
         return {"header": [], "rows": []}
 
-    header = all_rows[0]
-    data_rows = [row for row in all_rows[1:] if len(row) > 1 and row[1]]
+    header_index = next((i for i, row in enumerate(all_rows) if len(row) > 1), None)
+    if header_index is None:
+        return {"header": all_rows[0], "rows": []}
+
+    header = all_rows[header_index]
+    data_rows = [row for row in all_rows[header_index + 1:] if len(row) > 1 and row[1]]
     return {"header": header, "rows": data_rows}
