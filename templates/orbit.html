@@ -354,6 +354,12 @@
 .orbit-page table tbody tr.orbit-row-kanrihin-unconfirmed td {
   background-color: #ffebee;
 }
+/* 管理品：確認済みボタンはグレーで目立たなくする（再押しで解除できるため無効化はしない） */
+.orbit-kanrihin-confirm-btn[data-confirmed="1"] {
+  background: #e0e0e0;
+  color: #555;
+  border: 1px solid #bbb;
+}
 
 /* 管理品タブに未確認行があるあいだ、サブタブボタン自体を赤く点滅させる */
 @keyframes orbit-kanrihin-blink {

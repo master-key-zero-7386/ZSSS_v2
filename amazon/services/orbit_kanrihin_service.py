@@ -61,3 +61,15 @@ def confirm_kanrihin_items(management_nos: list):
         """, (management_no, now))
     conn.commit()
     conn.close()
+
+
+def release_kanrihin_item(management_no: str):
+    """確認済みボタンの再押しで解除（未確認に戻す）。"""
+    if not management_no:
+        return
+
+    conn = get_conn("a_orbit_kanrihin_confirmed.db")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM orbit_kanrihin_confirmed WHERE management_no = %s", (management_no,))
+    conn.commit()
+    conn.close()

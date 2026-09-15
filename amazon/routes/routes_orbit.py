@@ -69,7 +69,7 @@ from amazon.services.google_sheets_service import (
     save_kanrihin_sheet_name,
 )
 from amazon.services.orbit_receipt_import_service import run_receipt_import, inbox_status
-from amazon.services.orbit_kanrihin_service import list_kanrihin_items, confirm_kanrihin_items
+from amazon.services.orbit_kanrihin_service import list_kanrihin_items, confirm_kanrihin_items, release_kanrihin_item
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -904,6 +904,13 @@ def kanrihin_confirm_route():
         return jsonify({"status": "error"}), 401
 
     data = request.get_json(silent=True) or {}
+
+    # 確認済みボタンの再押しで解除（未確認に戻す）。単発の管理No.のみ対応。
+    if data.get("confirmed") is False:
+        management_no = (data.get("management_no") or "").strip()
+        release_kanrihin_item(management_no)
+        return jsonify({"status": "success"})
+
     management_nos = data.get("management_nos") or []
     confirm_kanrihin_items(management_nos)
     return jsonify({"status": "success"})

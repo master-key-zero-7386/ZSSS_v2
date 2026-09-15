@@ -2798,9 +2798,8 @@ window.initOrbit = function () {
 
         tbody.innerHTML = items.map(item => {
             const cells = header.map((_, i) => `<td>${escapeKanrihinCell(item.cells[i])}</td>`).join("");
-            const actionCell = item.confirmed
-                ? `<td><button type="button" class="orbit-kanrihin-confirm-btn" data-management-no="${escapeKanrihinCell(item.management_no)}" disabled>確認済み</button></td>`
-                : `<td><button type="button" class="orbit-kanrihin-confirm-btn btn-blue" data-management-no="${escapeKanrihinCell(item.management_no)}">確認</button></td>`;
+            const btnClass = `orbit-kanrihin-confirm-btn${item.confirmed ? "" : " btn-blue"}`;
+            const actionCell = `<td><button type="button" class="${btnClass}" data-management-no="${escapeKanrihinCell(item.management_no)}" data-confirmed="${item.confirmed ? "1" : "0"}">${item.confirmed ? "確認済み" : "確認"}</button></td>`;
             const rowClass = item.confirmed ? "" : ' class="orbit-row-kanrihin-unconfirmed"';
             return `<tr${rowClass}>${cells}${actionCell}</tr>`;
         }).join("");
@@ -2855,20 +2854,25 @@ window.initOrbit = function () {
         if (btn) {
             const managementNo = btn.dataset.managementNo;
             if (!managementNo) return;
+            const isConfirmed = btn.dataset.confirmed === "1";
             btn.disabled = true;
             fetch("/orbit/kanrihin_confirm", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ management_nos: [managementNo] }),
+                body: JSON.stringify(
+                    isConfirmed
+                        ? { management_no: managementNo, confirmed: false }
+                        : { management_nos: [managementNo] }
+                ),
             })
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === "success") loadKanrihinData();
-                    else { window.showToast?.(data.message || "確認に失敗しました", "error"); btn.disabled = false; }
+                    else { window.showToast?.(data.message || "更新に失敗しました", "error"); btn.disabled = false; }
                 })
                 .catch(err => {
                     console.error("kanrihin_confirm error:", err);
-                    window.showToast?.("確認に失敗しました", "error");
+                    window.showToast?.("更新に失敗しました", "error");
                     btn.disabled = false;
                 });
         }
