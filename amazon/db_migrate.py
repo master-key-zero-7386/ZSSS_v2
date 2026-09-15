@@ -651,6 +651,9 @@ ORBIT_ORDERS_COLUMNS = {
     "purchased": "INTEGER",                # 仕入確認フラグ。トグル式（日付非連動、キャンセル時に解除可能）。未仕入れ行の視認用
     # ※「出荷通知したか」は shipped_completed（既存）で兼ねる（発注管理タブでは「出荷通知」ラベルで表示）
 
+    "seller_memo": "TEXT",                 # セラー自身用の私的メモ（バイヤーメモの隣に表示。手入力・連携なし）
+    "seller_memo_flag": "INTEGER",         # 上記メモの手動ON/OFF目印。ONの間は主行のN番を赤字表示（消し忘れ防止）
+
     # --- 発送代行への通知状況 ---
     "notified_at": "TEXT",
 

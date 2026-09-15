@@ -1724,6 +1724,7 @@ MANUAL_FIELDS = [
     "procurement_credit_card",
     "shipped_completed",
     "invoice_saved", "points", "purchased",
+    "seller_memo", "seller_memo_flag",
     "manual_length_cm", "manual_width_cm", "manual_height_cm", "manual_weight_kg",
     "product_name_override", "recipient_name_override",
     "ship_address_1_override", "ship_address_2_override", "ship_address_3_override",

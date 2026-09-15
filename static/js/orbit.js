@@ -789,6 +789,7 @@ function dispCellClass(col, r) {
     // JANを取込時に同ASINの過去注文から自動補完した行 → 淡色マーク（手修正すると外れる）
     if (col.key === "jan_code" && r.jan_from_history) c += " orbit-jan-from-history";
     if (col.key === "agent_serial_no") c += " orbit-serial-cell";
+    if (col.key === "agent_serial_no" && r.seller_memo_flag) c += " orbit-serial-memo-flag";
     if (col.marketColor) c += " " + getOrderMarketColorClass(r[col.key]);
     if (col.qtyWarn && Number(r[col.key]) >= 2) c += " orbit-qty-warn";
     return c.trim();
@@ -931,6 +932,17 @@ function renderBuyerMemoBlock(r) {
         `<button type="button" class="orbit-security-note-btn orbit-memo-add-btn" data-order-item-id="${r.order_item_id}">📝メモ追加</button>`;
 }
 
+// 展開部「バイヤーメモ」の横：セラー自身用の私的メモ＋手動ON/OFF目印。
+// ONの間は主行のN番を赤字表示（消し忘れ防止のためのリマインダーで、自動では消えない）。
+function renderSellerMemoBlock(r) {
+    const on = !!r.seller_memo_flag;
+    const memo = r.seller_memo || "";
+    return `<span class="orbit-seller-memo-sep">｜</span>` +
+        `<span class="orbit-acc-field-label">セラーメモ</span>` +
+        `<input type="text" class="orbit-manual orbit-manual-mid" data-field="seller_memo" value="${orbitEscapeHtml(memo)}" placeholder="自分用メモ" title="${orbitEscapeHtml(memo)}">` +
+        `<button type="button" class="orbit-flag-toggle-btn orbit-seller-memo-flag-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="seller_memo_flag" data-value="${on ? 1 : 0}" title="ONの間はN番を赤字表示します（手動でOFFにするまで消えません）">${on ? "ON" : "OFF"}</button>`;
+}
+
 // 1注文ぶんの「主行＋詳細行」HTML。renderDispatchAccordion（全体描画）と
 // rerenderDispatchRowInPlace（1行だけ差し替え）で共用する。
 function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
@@ -954,7 +966,7 @@ function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
 
         const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => {
             const body = sec.custom === "buyerMemo"
-                ? renderBuyerMemoBlock(r)
+                ? renderBuyerMemoBlock(r) + renderSellerMemoBlock(r)
                 : (sec.keys || []).map(dispatchCol).map(col => {
                     // 仕入れ情報の手入力欄が未入力なら淡いピンク（入力忘れ防止・見た目のみ）。
                     // リンク・依頼日・インボイス価格は editable が無いので自動的に対象外。
@@ -1048,6 +1060,7 @@ const DISPATCH_INPLACE_FIELDS = new Set([
     "remarks", "remarks_2", "remarks_3",
     "jan_code",
     "supplier_order_number", "supplier_shop_name",
+    "seller_memo",
 ]);
 
 function saveManualField(orderItemId, field, value, onDone) {

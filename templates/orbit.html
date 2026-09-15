@@ -296,6 +296,10 @@
 .orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; }
 .orbit-memo-list li { padding: 1px 0; }
 .orbit-memo-date { color: #4a525a; margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+/* セラーメモ（バイヤーメモの横）：手動ON/OFF目印つきの私的メモ */
+.orbit-seller-memo-sep { color: #c0c4c9; }
+.orbit-seller-memo-flag-btn.is-on { background-color: #c0392b; border-color: #c0392b; }
 .orbit-memo-add-btn { padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
 .orbit-acc-field.orbit-issue-flag {
@@ -546,6 +550,10 @@
 .orbit-page table td.orbit-serial-cell {
   font-size: 1.35em;
   font-weight: bold;
+}
+/* セラーメモのON/OFF目印がONの間、N番を赤字にする（手動でOFFにするまで消えない） */
+.orbit-page table td.orbit-serial-cell.orbit-serial-memo-flag {
+  color: #c0392b;
 }
 .orbit-page table td.orbit-serial-cell input {
   font-size: inherit;
