@@ -10,8 +10,30 @@ import time
 from datetime import datetime, timedelta
 
 import requests
+from requests.adapters import HTTPAdapter
+try:
+    from urllib3.util.retry import Retry
+except Exception:  # 念のため（古い requests 同梱 urllib3 経路）
+    from requests.packages.urllib3.util.retry import Retry  # type: ignore
 
 from amazon.db import get_conn
+
+# --- Google API 用 HTTP セッション（コネクション使い回し） ---
+# 従来は毎コール requests.get/post/put(...) を接続使い捨てで呼んでいたため、「管理シートへ書出」
+# 1回（A列読取→書込→追記で最低2〜3コール）ごとに accounts.google.com / sheets.googleapis.com への
+# TCP接続+TLSハンドシェイクをフルでやり直していた（spapi_client.py で同じ問題を修正済み・
+# ATLAS(AU)ではこれだけで約7倍遅かった）。Session + keep-alive で2回目以降のハンドシェイクを省く
+# （read/status リトライはしない＝PUT/POST の二重送信を避ける。エラー種別ごとの案内は
+# _raise_for_sheets_write_error 側で行う）。timeoutも明示し、詰まったまま延々待たないようにする。
+_GOOGLE_API_RETRY = Retry(
+    total=2, connect=2, read=0, status=0, redirect=0,
+    backoff_factor=0.5, status_forcelist=[], raise_on_status=False,
+)
+_GOOGLE_API_SESSION = requests.Session()
+_GOOGLE_API_ADAPTER = HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=_GOOGLE_API_RETRY)
+_GOOGLE_API_SESSION.mount("https://", _GOOGLE_API_ADAPTER)
+_GOOGLE_API_SESSION.mount("http://", _GOOGLE_API_ADAPTER)
+_GOOGLE_API_TIMEOUT = 30  # 秒
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
@@ -210,13 +232,13 @@ def build_authorization_url(redirect_uri: str = None) -> str:
 # Tailscale等で複数端末からアクセスする運用があるため、呼び出し元(ルート)でアクセス元ホストから
 # 動的に組み立てたものを渡す（未指定時のみ従来のlocalhost固定にフォールバック）。
 def exchange_code_for_tokens(code: str, redirect_uri: str = None) -> dict:
-    resp = requests.post(GOOGLE_TOKEN_ENDPOINT, data={
+    resp = _GOOGLE_API_SESSION.post(GOOGLE_TOKEN_ENDPOINT, data={
         "code": code,
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
         "redirect_uri": redirect_uri or GOOGLE_REDIRECT_URI,
         "grant_type": "authorization_code",
-    })
+    }, timeout=_GOOGLE_API_TIMEOUT)
     resp.raise_for_status()
     return resp.json()
 
@@ -288,12 +310,12 @@ def get_valid_access_token(user_id: int):
         return row["access_token"]
 
     # --- 期限切れ：refresh_tokenで再取得 ---
-    resp = requests.post(GOOGLE_TOKEN_ENDPOINT, data={
+    resp = _GOOGLE_API_SESSION.post(GOOGLE_TOKEN_ENDPOINT, data={
         "client_id": GOOGLE_CLIENT_ID,
         "client_secret": GOOGLE_CLIENT_SECRET,
         "refresh_token": row["refresh_token"],
         "grant_type": "refresh_token",
-    })
+    }, timeout=_GOOGLE_API_TIMEOUT)
 
     if resp.status_code >= 400:
         # 4xx（invalid_grant等）は保存済みrefresh_tokenの失効。スコープ変更・同意画面のテスト期限切れ・
@@ -350,7 +372,9 @@ def fetch_sheet_range(user_id: int, spreadsheet_id: str, sheet_range: str,
     # 全部文字列化される）。ZSSS_RAW→代行会社シートのミラーで型を保つのに使う。
     if value_render_option:
         url += f"?valueRenderOption={value_render_option}"
-    resp = requests.get(url, headers={"Authorization": f"Bearer {access_token}"})
+    resp = _GOOGLE_API_SESSION.get(
+        url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
+    )
     resp.raise_for_status()
     return resp.json().get("values", [])
 
@@ -370,10 +394,11 @@ def append_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
         f"{requests.utils.quote(sheet_range)}:append"
         f"?valueInputOption=RAW&insertDataOption={insert_data_option}"
     )
-    resp = requests.post(
+    resp = _GOOGLE_API_SESSION.post(
         url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"values": values},
+        timeout=_GOOGLE_API_TIMEOUT,
     )
     _raise_for_sheets_write_error(resp)
     return resp.json()
@@ -420,10 +445,11 @@ def update_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str, val
         f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
         f"{requests.utils.quote(sheet_range)}?valueInputOption=RAW"
     )
-    resp = requests.put(
+    resp = _GOOGLE_API_SESSION.put(
         url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"values": values},
+        timeout=_GOOGLE_API_TIMEOUT,
     )
     _raise_for_sheets_write_error(resp)
     return resp.json()
@@ -441,10 +467,11 @@ def batch_update_sheet_values(user_id: int, spreadsheet_id: str, data: list) -> 
         raise RuntimeError("Googleアカウントが未接続です（要OAuth連携）")
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values:batchUpdate"
-    resp = requests.post(
+    resp = _GOOGLE_API_SESSION.post(
         url,
         headers={"Authorization": f"Bearer {access_token}"},
         json={"valueInputOption": "RAW", "data": data},
+        timeout=_GOOGLE_API_TIMEOUT,
     )
     _raise_for_sheets_write_error(resp)
     return resp.json()
@@ -459,7 +486,9 @@ def clear_sheet_values(user_id: int, spreadsheet_id: str, sheet_range: str) -> d
         f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
         f"{requests.utils.quote(sheet_range)}:clear"
     )
-    resp = requests.post(url, headers={"Authorization": f"Bearer {access_token}"})
+    resp = _GOOGLE_API_SESSION.post(
+        url, headers={"Authorization": f"Bearer {access_token}"}, timeout=_GOOGLE_API_TIMEOUT,
+    )
     _raise_for_sheets_write_error(resp)
     return resp.json()
 
