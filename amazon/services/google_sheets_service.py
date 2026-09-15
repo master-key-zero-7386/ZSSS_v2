@@ -22,12 +22,16 @@ from amazon.db import get_conn
 # 従来は毎コール requests.get/post/put(...) を接続使い捨てで呼んでいたため、「管理シートへ書出」
 # 1回（A列読取→書込→追記で最低2〜3コール）ごとに accounts.google.com / sheets.googleapis.com への
 # TCP接続+TLSハンドシェイクをフルでやり直していた（spapi_client.py で同じ問題を修正済み・
-# ATLAS(AU)ではこれだけで約7倍遅かった）。Session + keep-alive で2回目以降のハンドシェイクを省く
-# （read/status リトライはしない＝PUT/POST の二重送信を避ける。エラー種別ごとの案内は
-# _raise_for_sheets_write_error 側で行う）。timeoutも明示し、詰まったまま延々待たないようにする。
+# ATLAS(AU)ではこれだけで約7倍遅かった）。Session + keep-alive で2回目以降のハンドシェイクを省く。
+# timeoutも明示し、詰まったまま延々待たないようにする。
+# read（レスポンス受信中）のタイムアウトはGETのみリトライ対象にする。GETは読み取り専用で
+# 何度リトライしても副作用が無いが、POST/PUT（書込・追記）はリトライすると「サーバー側では
+# 処理済みだが応答が遅れているだけ」のケースで二重送信になり得るため対象から外す
+# （connectタイムアウト＝まだ何も送っていない段階の失敗は、副作用が無いのでメソッド問わず許可）。
 _GOOGLE_API_RETRY = Retry(
-    total=2, connect=2, read=0, status=0, redirect=0,
+    total=3, connect=2, read=2, status=0, redirect=0,
     backoff_factor=0.5, status_forcelist=[], raise_on_status=False,
+    allowed_methods=frozenset(["GET"]),
 )
 _GOOGLE_API_SESSION = requests.Session()
 _GOOGLE_API_ADAPTER = HTTPAdapter(pool_connections=10, pool_maxsize=20, max_retries=_GOOGLE_API_RETRY)
