@@ -24,8 +24,6 @@ from amazon.services.google_sheets_service import (
     get_raw_sheet_settings,
     update_sheet_values,
     batch_update_sheet_values,
-    append_sheet_values,
-    clear_sheet_values,
     _extract_spreadsheet_id,
 )
 from amazon.services.orbit_settlement_service import get_order_settlement_summary
@@ -2482,6 +2480,9 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
         # 毎回 columns で見出しを貼り直す（列を増やしたぶんヘッダーも合わせる）。
         updates.append({"range": f"{quoted}!A{header_row}:{last_col}{header_row}", "values": [header]})
 
+    agency_col_count = len(EXPORT_COLUMNS)
+    mirror_lines_by_serial = {}   # ミラー用（先頭57列=EXPORT_COLUMNSぶんだけ切り出し）。行位置はミラー側で別途特定する
+
     n_update = n_append = skip_notified = skip_no_serial = 0
     for r in orders:
         if int(r.get("shipped_completed") or 0) == 1:
@@ -2492,6 +2493,7 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
             skip_no_serial += 1
             continue
         line = _raw_sheet_row(r, columns)
+        mirror_lines_by_serial[serial] = line[:agency_col_count]
         rownum = row_by_serial.get(serial)
         if rownum:
             updates.append({"range": f"{quoted}!A{rownum}:{last_col}{rownum}", "values": [line]})
@@ -2516,25 +2518,60 @@ def push_orders_to_raw_sheet(user_id: int) -> dict:
     }
 
     # --- 代行会社シートへの直接ミラー（IMPORTRANGE置き換え） ---
-    # ZSSS_RAWタブの A〜BE(=EXPORT_COLUMNSの57列) を読み返し、代行会社ファイルの指定タブへ
-    # まるごと上書きコピーする。凍結済み(通知済み)行や過去行も含めて ZSSS_RAW の内容そのまま。
-    # 失敗しても ZSSS_RAW 書き込み自体は成功済みなので、例外にせず result にエラーを載せる。
+    # 以前は毎回 ZSSS_RAW の A〜BE(=EXPORT_COLUMNSの57列)を全行（凍結済み・過去分含め）読み直し、
+    # ミラー先を全クリア→まるごと書き戻していた。N番が増えるほど読み書きするデータ量が際限なく
+    # 増え続ける設計で、蓄積が進んだ結果 Sheets API の読み取りだけで詰まりタイムアウトするように
+    # なった（HTTPSConnectionPool ... Read timed out）。
+    # → ZSSS_RAW本体と同じ「N番でupsert、凍結行(通知済み)は触らない」方式に変更。今回実際に
+    # pushした行（上のループで集めた mirror_lines_by_serial）だけをミラー側でも更新・追加する。
+    # 凍結済み・過去の行は前回までのpushで既にミラーへ反映済みのはずなのでそのまま放置してよい。
     mirror_url = (settings.get("mirror_spreadsheet_url") or "").strip()
     mirror_name = (settings.get("mirror_sheet_name") or "").strip()
     if mirror_url and mirror_name:
-        agency_last_col = _a1_col(len(EXPORT_COLUMNS))  # 57 → "BE"
         mquoted = "'" + mirror_name.replace("'", "''") + "'"
+        agency_last_col = _a1_col(agency_col_count)  # 57 → "BE"
         try:
             mirror_id = _extract_spreadsheet_id(mirror_url)
-            # 型を保つため UNFORMATTED_VALUE（数値・boolはそのまま返る）
-            rows = fetch_sheet_range(
-                user_id, spreadsheet_id, f"{quoted}!A:{agency_last_col}",
-                value_render_option="UNFORMATTED_VALUE",
-            )
-            clear_sheet_values(user_id, mirror_id, f"{mquoted}!A:{agency_last_col}")
-            if rows:
-                append_sheet_values(user_id, mirror_id, f"{mquoted}!A1", rows)
-            result["mirrored_rows"] = len(rows)
+
+            # ミラー側も自分のA列(N番)だけ軽量取得して行位置を特定する（ZSSS_RAW側と同じロジック。
+            # ZSSS_RAWの行番号とはズレていてもよい＝ミラー自身のA列を正として独立に対応表を作る）。
+            m_existing = fetch_sheet_range(user_id, mirror_id, f"{mquoted}!A:A")
+            m_row_by_serial = {}
+            for i, cells in enumerate(m_existing):
+                raw = str((cells[0] if cells else "") or "").strip()
+                if not re.fullmatch(r"[Nn]?\s*\d{3,}", raw):
+                    continue
+                m_serial = _parse_agent_serial_no(raw)
+                if m_serial is not None and m_serial not in m_row_by_serial:
+                    m_row_by_serial[m_serial] = i + 1
+
+            if not m_existing:
+                m_header_row, m_next_row = 1, 2
+            else:
+                m_next_row = len(m_existing) + 1
+                m_header_row = (min(m_row_by_serial.values()) - 1) if m_row_by_serial else len(m_existing)
+
+            m_updates = []
+            m_appends = []
+            if m_header_row >= 1:
+                m_updates.append({
+                    "range": f"{mquoted}!A{m_header_row}:{agency_last_col}{m_header_row}",
+                    "values": [header[:agency_col_count]],
+                })
+            for serial, agency_line in mirror_lines_by_serial.items():
+                m_rownum = m_row_by_serial.get(serial)
+                if m_rownum:
+                    m_updates.append({"range": f"{mquoted}!A{m_rownum}:{agency_last_col}{m_rownum}", "values": [agency_line]})
+                else:
+                    m_appends.append(agency_line)
+
+            if m_updates:
+                batch_update_sheet_values(user_id, mirror_id, m_updates)
+            if m_appends:
+                m_end_row = m_next_row + len(m_appends) - 1
+                update_sheet_values(user_id, mirror_id, f"{mquoted}!A{m_next_row}:{agency_last_col}{m_end_row}", m_appends)
+
+            result["mirrored_rows"] = len(mirror_lines_by_serial)
             result["mirror_sheet_name"] = mirror_name
         except Exception as e:
             result["mirror_error"] = str(e)
