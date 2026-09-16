@@ -908,9 +908,9 @@ def kanrihin_confirm_route():
     # 確認済みボタンの再押しで解除（未確認に戻す）。単発の管理No.のみ対応。
     if data.get("confirmed") is False:
         management_no = (data.get("management_no") or "").strip()
-        release_kanrihin_item(management_no)
+        release_kanrihin_item(user_id, management_no)
         return jsonify({"status": "success"})
 
     management_nos = data.get("management_nos") or []
-    confirm_kanrihin_items(management_nos)
+    confirm_kanrihin_items(user_id, management_nos)
     return jsonify({"status": "success"})

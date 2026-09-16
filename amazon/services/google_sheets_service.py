@@ -673,42 +673,58 @@ KANRIHIN_COLUMN_RANGE = "A1:Z"  # 列数が少ないタブなので見出し行�
 
 def get_kanrihin_sheet_name(user_id: int) -> str:
     conn = get_conn("a_orbit_dispatch_sheet_settings.db")
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT kanrihin_sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
-        (user_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
-    return row["kanrihin_sheet_name"] if row and row.get("kanrihin_sheet_name") else ""
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT kanrihin_sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        return row["kanrihin_sheet_name"] if row and row.get("kanrihin_sheet_name") else ""
+    finally:
+        conn.close()
 
 
 def save_kanrihin_sheet_name(user_id: int, sheet_name: str):
     conn = get_conn("a_orbit_dispatch_sheet_settings.db")
-    cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
-    cur.execute("""
-        INSERT INTO orbit_dispatch_sheet_settings (user_id, kanrihin_sheet_name, created_at, updated_at)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (user_id) DO UPDATE SET
-            kanrihin_sheet_name = EXCLUDED.kanrihin_sheet_name,
-            updated_at = EXCLUDED.updated_at
-    """, (user_id, sheet_name, now, now))
-    conn.commit()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        now = datetime.utcnow().isoformat()
+        cur.execute("""
+            INSERT INTO orbit_dispatch_sheet_settings (user_id, kanrihin_sheet_name, created_at, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                kanrihin_sheet_name = EXCLUDED.kanrihin_sheet_name,
+                updated_at = EXCLUDED.updated_at
+        """, (user_id, sheet_name, now, now))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def fetch_kanrihin_sheet_rows(user_id: int) -> dict:
     """管理品タブの見出し行＋データ行を取得する。見出し行より上に代行会社からの注意書き
     （結合セル＝1列分の値しか返らない行）が複数行入っているため、最初に複数列にまたがる行
     （＝結合されていない実際の見出し行）を見出しとみなす。末尾の自動採番済みだが未入力の空行
-    （管理No.だけ入って日付が未入力）は依頼書シートの空行除外と同じ考え方で弾く。"""
-    sheet_name = get_kanrihin_sheet_name(user_id)
+    （管理No.だけ入って日付が未入力）は依頼書シートの空行除外と同じ考え方で弾く。
+    タブ名・スプレッドシートURLは同じ設定行の別列なので1クエリでまとめて取得する。"""
+    conn = get_conn("a_orbit_dispatch_sheet_settings.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT spreadsheet_url, kanrihin_sheet_name FROM orbit_dispatch_sheet_settings WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    sheet_name = row["kanrihin_sheet_name"] if row and row.get("kanrihin_sheet_name") else ""
     if not sheet_name:
         raise RuntimeError("管理品タブ名が未設定です（管理品タブの設定欄で指定してください）")
 
-    dispatch_settings = get_dispatch_sheet_settings(user_id)
-    spreadsheet_id = _extract_spreadsheet_id(dispatch_settings["spreadsheet_url"])
+    spreadsheet_url = row["spreadsheet_url"] if row and row.get("spreadsheet_url") else ""
+    spreadsheet_id = _extract_spreadsheet_id(spreadsheet_url)
 
     all_rows = fetch_sheet_range(user_id, spreadsheet_id, f"{sheet_name}!{KANRIHIN_COLUMN_RANGE}")
     if not all_rows:

@@ -828,9 +828,12 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
 }
 
 # --- ▼ SECTION : 管理品タブの行ごとの確認状態（ORBIT: 代行会社シート「管理品」タブへの新規追加検知） ---
-# 確認済みかどうかは担当者個人の設定ではなくチーム共有の状態のため user_id は持たない。
+# ZSSS(user_id=1)とATLAS(user_id=2)は同じDBに同居しており、それぞれ別の代行会社シートを
+# 管理品タブに設定し得るため、management_no単独ではユーザーをまたいで衝突し得る。user_id込みで
+# 一意にする（DEFAULT 1は導入前からの既存データをZSSS側の確認扱いのまま引き継ぐための後方互換）。
 ORBIT_KANRIHIN_CONFIRMED_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL DEFAULT 1",
     "management_no": "TEXT NOT NULL",  # 管理品シートの管理No.列（例: A257）
     "confirmed_at": "TEXT",
 }
@@ -1197,9 +1200,11 @@ def add_unique_indexes():  # UNIQUE制約
     # --- a_orbit_kanrihin_confirmed.db ---
     conn = get_conn("a_orbit_kanrihin_confirmed.db")
     cur = conn.cursor()
+    # 旧: management_noのみで一意（ユーザーをまたいで衝突し得たため廃止）。
+    cur.execute("DROP INDEX IF EXISTS idx_orbit_kanrihin_confirmed_unique")
     cur.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_kanrihin_confirmed_unique "
-        "ON orbit_kanrihin_confirmed(management_no)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_kanrihin_confirmed_user_mgmt_unique "
+        "ON orbit_kanrihin_confirmed(user_id, management_no)"
     )
     conn.commit()
     conn.close()

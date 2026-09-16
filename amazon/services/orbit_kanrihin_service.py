@@ -10,10 +10,10 @@ from amazon.db import get_conn
 from amazon.services.google_sheets_service import fetch_kanrihin_sheet_rows
 
 
-def _get_confirmed_set() -> set:
+def _get_confirmed_set(user_id: int) -> set:
     conn = get_conn("a_orbit_kanrihin_confirmed.db")
     cur = conn.cursor()
-    cur.execute("SELECT management_no FROM orbit_kanrihin_confirmed")
+    cur.execute("SELECT management_no FROM orbit_kanrihin_confirmed WHERE user_id = %s", (user_id,))
     rows = cur.fetchall()
     conn.close()
     return {r["management_no"] for r in rows}
@@ -21,7 +21,7 @@ def _get_confirmed_set() -> set:
 
 def list_kanrihin_items(user_id: int) -> dict:
     sheet_data = fetch_kanrihin_sheet_rows(user_id)
-    confirmed = _get_confirmed_set()
+    confirmed = _get_confirmed_set(user_id)
 
     items = []
     unconfirmed_count = 0
@@ -45,7 +45,7 @@ def list_kanrihin_items(user_id: int) -> dict:
     }
 
 
-def confirm_kanrihin_items(management_nos: list):
+def confirm_kanrihin_items(user_id: int, management_nos: list):
     management_nos = [m for m in (management_nos or []) if m]
     if not management_nos:
         return
@@ -55,21 +55,24 @@ def confirm_kanrihin_items(management_nos: list):
     now = datetime.utcnow().isoformat()
     for management_no in management_nos:
         cur.execute("""
-            INSERT INTO orbit_kanrihin_confirmed (management_no, confirmed_at)
-            VALUES (%s, %s)
-            ON CONFLICT (management_no) DO UPDATE SET confirmed_at = EXCLUDED.confirmed_at
-        """, (management_no, now))
+            INSERT INTO orbit_kanrihin_confirmed (user_id, management_no, confirmed_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, management_no) DO UPDATE SET confirmed_at = EXCLUDED.confirmed_at
+        """, (user_id, management_no, now))
     conn.commit()
     conn.close()
 
 
-def release_kanrihin_item(management_no: str):
+def release_kanrihin_item(user_id: int, management_no: str):
     """確認済みボタンの再押しで解除（未確認に戻す）。"""
     if not management_no:
         return
 
     conn = get_conn("a_orbit_kanrihin_confirmed.db")
     cur = conn.cursor()
-    cur.execute("DELETE FROM orbit_kanrihin_confirmed WHERE management_no = %s", (management_no,))
+    cur.execute(
+        "DELETE FROM orbit_kanrihin_confirmed WHERE user_id = %s AND management_no = %s",
+        (user_id, management_no),
+    )
     conn.commit()
     conn.close()

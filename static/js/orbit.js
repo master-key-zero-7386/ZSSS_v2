@@ -2777,18 +2777,12 @@ window.initOrbit = function () {
     const kanrihinSettingsSaveBtn = document.getElementById("orbit-kanrihin-settings-save-btn");
     let kanrihinUnconfirmedNos = [];
 
-    function escapeKanrihinCell(v) {
-        return String(v ?? "").replace(/[&<>"']/g, (c) => ({
-            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-        }[c]));
-    }
-
     function renderKanrihinTable(header, items) {
         const thead = kanrihinTable?.querySelector("thead tr");
         const tbody = kanrihinTable?.querySelector("tbody");
         if (!thead || !tbody) return;
 
-        thead.innerHTML = header.map(h => `<th>${escapeKanrihinCell(h)}</th>`).join("")
+        thead.innerHTML = header.map(h => `<th>${orbitEscapeHtml(h)}</th>`).join("")
             + `<th><button type="button" id="orbit-kanrihin-confirm-all-btn" class="btn-blue">一括確認</button></th>`;
 
         if (!items.length) {
@@ -2797,9 +2791,9 @@ window.initOrbit = function () {
         }
 
         tbody.innerHTML = items.map(item => {
-            const cells = header.map((_, i) => `<td>${escapeKanrihinCell(item.cells[i])}</td>`).join("");
+            const cells = header.map((_, i) => `<td>${orbitEscapeHtml(item.cells[i])}</td>`).join("");
             const btnClass = `orbit-kanrihin-confirm-btn${item.confirmed ? "" : " btn-blue"}`;
-            const actionCell = `<td><button type="button" class="${btnClass}" data-management-no="${escapeKanrihinCell(item.management_no)}" data-confirmed="${item.confirmed ? "1" : "0"}">${item.confirmed ? "確認済み" : "確認"}</button></td>`;
+            const actionCell = `<td><button type="button" class="${btnClass}" data-management-no="${orbitEscapeHtml(item.management_no)}" data-confirmed="${item.confirmed ? "1" : "0"}">${item.confirmed ? "確認済み" : "確認"}</button></td>`;
             const rowClass = item.confirmed ? "" : ' class="orbit-row-kanrihin-unconfirmed"';
             return `<tr${rowClass}>${cells}${actionCell}</tr>`;
         }).join("");
@@ -2814,7 +2808,7 @@ window.initOrbit = function () {
                     const thead = kanrihinTable?.querySelector("thead tr");
                     const tbody = kanrihinTable?.querySelector("tbody");
                     if (thead) thead.innerHTML = "";
-                    if (tbody) tbody.innerHTML = `<tr><td style="color:#c62828;">${escapeKanrihinCell(data.message || "取得に失敗しました")}</td></tr>`;
+                    if (tbody) tbody.innerHTML = `<tr><td style="color:#c62828;">${orbitEscapeHtml(data.message || "取得に失敗しました")}</td></tr>`;
                     return;
                 }
                 renderKanrihinTable(data.header || [], data.items || []);

@@ -3,6 +3,7 @@
 # 目的: ORBIT（注文管理）注文明細のCSV取込・一覧算定・出力
 # ==========================================
 
+import bisect
 import csv
 import io
 import json
@@ -14,6 +15,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import requests
+from psycopg2.extras import execute_values
 
 from amazon.db import get_conn
 from amazon.db_migrate import ORBIT_ORDERS_COLUMNS
@@ -321,10 +323,18 @@ _remote_area_cache = {"data": None, "loaded_at": 0.0}
 
 
 def _load_remote_area_ranges() -> dict:
-    """{(carrier, country_code): [(postal_from, postal_to), ...]} を丸ごと1クエリで組み立てる。
-    postal_from/postal_to はここで一度だけ正規化しておく（例: US/FedExだけで39,000件超あり、
-    行ごとに正規化し直すと normalize_postal の正規表現コストが 注文数×レンジ数 で効いてきて、
-    注文一覧の表示だけで数秒かかる原因になっていた）。"""
+    """{(carrier, country_code): {"by_length": {桁数: (los, his, running_max_hi)}, "irregular": [(a,b),...]}}
+    を丸ごと1クエリで組み立てる。postal_from/postal_to はここで一度だけ正規化しておく（例:
+    US/FedExだけで39,000件超あり、行ごとに正規化し直すと normalize_postal の正規表現コストが
+    注文数×レンジ数で効いてきて、注文一覧の表示だけで数秒かかる原因になっていた）。
+
+    さらに、同じ桁数のペアは postal_from 昇順でソートし、bisect + 累積max(postal_to)で
+    「codeを含むレンジがあるか」をほぼO(log n)で判定できるようにする（US/FedExの3.9万件超を
+    毎行ぶん線形走査すると注文数×レンジ数で顕著に遅かったため）。実データには完全重複行が
+    過半数含まれる（setで除去）ほか、一部レンジが入れ子・隣接して重なっている行もあるため、
+    「候補1件だけを見る」単純な二分探索ではなく、累積最大値で安全に絞り込んだ上で該当レンジ
+    そのものが必要な時だけ後方へ数件確認する（is_in_rangeと同じ判定結果を保ったまま高速化する
+    ためで、判定結果自体は変えない）。"""
     now = time.monotonic()
     if _remote_area_cache["data"] is not None and now - _remote_area_cache["loaded_at"] < _REMOTE_AREA_CACHE_TTL:
         return _remote_area_cache["data"]
@@ -337,10 +347,36 @@ def _load_remote_area_ranges() -> dict:
     rows = cur.fetchall()
     conn.close()
 
-    ranges: dict = {}
+    raw_pairs: dict = {}
     for r in rows:
         key = ((r["carrier"] or "").strip().upper(), (r["country_code"] or "").strip().upper())
-        ranges.setdefault(key, []).append((normalize_postal(r["postal_from"]), normalize_postal(r["postal_to"])))
+        pair = (normalize_postal(r["postal_from"]), normalize_postal(r["postal_to"]))
+        raw_pairs.setdefault(key, set()).add(pair)  # setで完全重複行を除去（実データの過半数を占める）
+
+    ranges: dict = {}
+    for key, pairs in raw_pairs.items():
+        by_length: dict = {}
+        irregular = []
+        for a, b in pairs:
+            if len(a) != len(b):
+                irregular.append((a, b))
+                continue
+            lo, hi = (a, b) if a <= b else (b, a)
+            by_length.setdefault(len(lo), []).append((lo, hi))
+
+        indexed_by_length = {}
+        for length, lst in by_length.items():
+            lst.sort()
+            los = [p[0] for p in lst]
+            his = [p[1] for p in lst]
+            running_max_hi = []
+            m = None
+            for h in his:
+                m = h if m is None or h > m else m
+                running_max_hi.append(m)
+            indexed_by_length[length] = (los, his, running_max_hi)
+
+        ranges[key] = {"by_length": indexed_by_length, "irregular": irregular}
 
     _remote_area_cache["data"] = ranges
     _remote_area_cache["loaded_at"] = now
@@ -356,15 +392,28 @@ def _postal_for_remote_check(postal_code, country: str) -> str:
     return code
 
 
-# is_in_range と同じ判定ロジックだが、code/a/bが正規化済み前提でnormalize_postalを呼ばない版。
-# _load_remote_area_ranges 側で from/to を正規化済みにしたので、行ごとのレンジ走査
-# （US/FedExだけで39,000件超）で毎回 normalize_postal（正規表現）を re-run しないようにする。
-def _in_prenormalized_range(code: str, a: str, b: str) -> bool:
-    if len(a) != len(b) or len(code) != len(a):
-        return code == a or code == b
-    if a > b:
-        a, b = b, a
-    return a <= code <= b
+# _load_remote_area_ranges が作った索引を使い、codeを含むレンジを1件返す（無ければNone）。
+# 桁数が揃うペアはbisectで絞り込み、揃わないペア（is_in_rangeの完全一致フォールバック対象）は
+# 少数想定でそのまま線形走査する。
+def _find_remote_range_match(code: str, indexed: dict):
+    length_data = (indexed.get("by_length") or {}).get(len(code))
+    if length_data:
+        los, his, running_max_hi = length_data
+        idx = bisect.bisect_right(los, code) - 1
+        if idx >= 0 and running_max_hi[idx] >= code:
+            i = idx
+            while i >= 0:
+                if his[i] >= code:
+                    return (los[i], his[i])
+                if i == 0 or running_max_hi[i - 1] < code:
+                    break
+                i -= 1
+
+    for a, b in indexed.get("irregular") or []:
+        if code == a or code == b:
+            return (a, b)
+
+    return None
 
 
 def _apply_remote_area_check(row, remote_area_ranges: dict):
@@ -389,11 +438,8 @@ def _apply_remote_area_check(row, remote_area_ranges: dict):
 
     notes = []
     for carrier in _REMOTE_AREA_CARRIERS:
-        matched = None
-        for postal_from, postal_to in remote_area_ranges.get((carrier, country), []):
-            if _in_prenormalized_range(normalized_postal, postal_from, postal_to):
-                matched = (postal_from, postal_to)
-                break
+        indexed = remote_area_ranges.get((carrier, country))
+        matched = _find_remote_range_match(normalized_postal, indexed) if indexed else None
         label = "DHL" if carrier == "DHL" else "FedEx"
         row["flag_remote_area_dhl" if carrier == "DHL" else "flag_remote_area_fedex"] = matched is not None
         if matched:
@@ -824,24 +870,25 @@ def upsert_orders(user_id: int, rows: list) -> int:
     update_cols = [c for c in IMPORT_COLUMNS if c != "order_item_id"]
 
     col_list = ", ".join(insert_cols)
-    placeholders = ", ".join(["%s"] * len(insert_cols))
     update_clause = ", ".join([f"{c}=COALESCE(EXCLUDED.{c}, orbit_orders.{c})" for c in update_cols])
 
     sql = f"""
         INSERT INTO orbit_orders ({col_list})
-        VALUES ({placeholders})
+        VALUES %s
         ON CONFLICT (user_id, order_item_id) DO UPDATE SET
             {update_clause},
             updated_at = EXCLUDED.updated_at
     """
 
     imported_ids = []
+    values_list = []
     for row in rows:
-        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [now, now]
-        cur.execute(sql, values)
+        values_list.append(tuple([user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [now, now]))
         oid = row.get("order_item_id")
         if oid:
             imported_ids.append(oid)
+
+    execute_values(cur, sql, values_list)
 
     # (a) 取込時: JANが空の行に同ASINの過去注文の最新JANを補完する（jan_from_history=TRUEで印）。
     _backfill_jan_from_history(user_id, cur, imported_ids)
@@ -868,21 +915,24 @@ def import_buyer_history_csv(user_id: int, rows: list) -> int:
 
     insert_cols = ["user_id"] + IMPORT_COLUMNS + ["agent_serial_no", "asin", "buyer_key", "source", "created_at"]
     col_list = ", ".join(insert_cols)
-    placeholders = ", ".join(["%s"] * len(insert_cols))
 
     sql = f"""
         INSERT INTO orbit_buyer_history ({col_list})
-        VALUES ({placeholders})
+        VALUES %s
         ON CONFLICT (user_id, order_item_id) DO NOTHING
+        RETURNING order_item_id
     """
 
-    imported = 0
+    values_list = []
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
         asin = _resolve_asin(row.get("sku"), listed_items_map)
-        values = [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [row.get("agent_serial_no"), asin, buyer_key, "sheet_import", now]
-        cur.execute(sql, values)
-        imported += cur.rowcount
+        values_list.append(tuple(
+            [user_id] + [row.get(c) for c in IMPORT_COLUMNS] + [row.get("agent_serial_no"), asin, buyer_key, "sheet_import", now]
+        ))
+
+    inserted_rows = execute_values(cur, sql, values_list, fetch=True)
+    imported = len(inserted_rows)
 
     conn.commit()
     conn.close()
@@ -1271,7 +1321,7 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
     shipping_price = order_row.get("shipping_price")
     currency = order_row.get("order_currency")
 
-    if not item_price:
+    if item_price is None:
         order_items_raw = base.real_signed_request(
             method="GET",
             endpoint=f"/orders/v0/orders/{order_row['order_id']}/orderItems",
@@ -2120,10 +2170,19 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
     cur = conn.cursor()
     cols_sql = ", ".join(["order_item_id"] + [c for c in _PROCUREMENT_HISTORY_COLUMNS if c != "order_item_id"])
     cur.execute(
-        f"SELECT {cols_sql} FROM orbit_orders WHERE user_id = %s AND order_item_id = ANY(%s)",
+        f"SELECT {cols_sql} FROM orbit_orders "
+        "WHERE user_id = %s AND order_item_id = ANY(%s) AND shipped_completed = 1",
         (user_id, order_item_ids),
     )
     rows = [dict(r) for r in cur.fetchall()]
+    if not rows:
+        conn.close()
+        return 0
+
+    # list_archive_candidates と同じ「決済確定」条件を実行時にも再チェックする。候補確認〜実行の
+    # 間に状態が変わった行（出荷完了を取り消した等）を、確認時点の古いリストのまま流し込まないため。
+    settlement_summary = get_order_settlement_summary(user_id)
+    rows = [r for r in rows if r.get("order_id") in settlement_summary]
     if not rows:
         conn.close()
         return 0

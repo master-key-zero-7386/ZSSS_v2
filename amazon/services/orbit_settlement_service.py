@@ -8,6 +8,8 @@ import io
 import re
 from datetime import datetime
 
+from psycopg2.extras import execute_values
+
 from amazon.db import get_conn
 
 # --- ▼ SECTION 01: セラーセントラル「支払い」→「トランザクション」CSVの列名 ▼ ---
@@ -117,20 +119,24 @@ def import_settlement_lines(user_id: int, rows: list) -> int:
             (user_id, order_id, transaction_date, transaction_status, transaction_type,
              product_price, promotion_discount, amazon_fee, other_amount, total_amount,
              currency, imported_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES %s
         ON CONFLICT (user_id, order_id, transaction_date, total_amount)
         DO NOTHING
+        RETURNING id
     """
 
-    inserted = 0
-    for row in rows:
-        cur.execute(sql, (
+    values_list = [
+        (
             user_id, row.get("order_id"), row.get("transaction_date"), row.get("transaction_status"),
             row.get("transaction_type"), row.get("product_price"), row.get("promotion_discount"),
             row.get("amazon_fee"), row.get("other_amount"), row.get("total_amount"),
             row.get("currency"), now,
-        ))
-        inserted += cur.rowcount
+        )
+        for row in rows
+    ]
+
+    inserted_rows = execute_values(cur, sql, values_list, fetch=True)
+    inserted = len(inserted_rows)
 
     conn.commit()
     conn.close()
@@ -155,7 +161,23 @@ def get_order_settlement_summary(user_id: int) -> dict:
         WHERE user_id = %s
         GROUP BY order_id, currency
     """, (user_id,))
-    rows = cur.fetchall()
+    rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
-    return {r["order_id"]: dict(r) for r in rows}
+    # 同じorder_idで通貨違いの行が複数来るケース（本来は起きない想定だが、取込CSVの表記ゆれ等で
+    # 発生し得る）でも、後勝ちで片方を握りつぶさず全通貨分の金額を合算する。currencyは最初に
+    # 見つかったものを代表値として残す。
+    summary = {}
+    for row in rows:
+        order_id = row["order_id"]
+        existing = summary.get(order_id)
+        if existing is None:
+            summary[order_id] = row
+            continue
+        for key in ("net_proceeds", "sale_price", "fees_total"):
+            if row.get(key) is not None:
+                existing[key] = (existing.get(key) or 0) + row[key]
+        if row.get("deposit_date") and (not existing.get("deposit_date") or row["deposit_date"] > existing["deposit_date"]):
+            existing["deposit_date"] = row["deposit_date"]
+
+    return summary
