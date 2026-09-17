@@ -70,7 +70,12 @@ from amazon.services.google_sheets_service import (
     save_kanrihin_sheet_name,
 )
 from amazon.services.orbit_receipt_import_service import run_receipt_import, inbox_status
-from amazon.services.orbit_kanrihin_service import list_kanrihin_items, confirm_kanrihin_items, release_kanrihin_item
+from amazon.services.orbit_kanrihin_service import (
+    list_kanrihin_items,
+    confirm_kanrihin_items,
+    release_kanrihin_item,
+    save_kanrihin_link,
+)
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -939,3 +944,24 @@ def kanrihin_confirm_route():
     management_nos = data.get("management_nos") or []
     confirm_kanrihin_items(user_id, management_nos)
     return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 16: 管理品の行にN番を手動リンク（JAN不明品を後から突き止めた注文と紐付け） ▼ ---
+@orbit_bp.route("/kanrihin_link", methods=["POST"])
+def kanrihin_link_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    management_no = (data.get("management_no") or "").strip()
+    agent_serial_no = data.get("agent_serial_no")
+
+    try:
+        order_info = save_kanrihin_link(user_id, management_no, agent_serial_no)
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", "order_info": order_info})

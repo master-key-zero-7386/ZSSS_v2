@@ -836,6 +836,9 @@ ORBIT_KANRIHIN_CONFIRMED_COLUMNS = {
     "user_id": "INTEGER NOT NULL DEFAULT 1",
     "management_no": "TEXT NOT NULL",  # 管理品シートの管理No.列（例: A257）
     "confirmed_at": "TEXT",
+    # JAN不明等で管理品に計上された商品を、後から突き止めたN番（agent_serial_no）に手動で
+    # リンクしておく欄。確認状態とは独立（未確認のままリンクだけ先に入れることもできる）。
+    "linked_agent_serial_no": "INTEGER",
 }
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
