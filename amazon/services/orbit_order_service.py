@@ -1409,11 +1409,13 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
 
 
 # --- ▼ SECTION 05: 注文一覧取得（ASIN・サイズ・重量・予測送料つき） ▼ ---
-def list_orders_with_calc(user_id: int) -> list:
+def _fetch_raw_order_rows(user_id: int, order_id: str = None) -> list:
+    """orbit_orders + listed_itemsの生行を取得する。order_id指定時はその注文（複数商品なら
+    複数行）だけに絞る（recompute_order_group用。決済按分は同一order_id内の商品価格比で
+    計算するため、1商品だけでなく同じ注文の全行を渡す必要がある）。"""
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
-    cur.execute(
-        """
+    base_sql = """
         SELECT o.*,
                l.asin, l.length_cm, l.width_cm, l.height_cm,
                l.actual_weight_kg, l.override_weight_class
@@ -1421,13 +1423,24 @@ def list_orders_with_calc(user_id: int) -> list:
         LEFT JOIN listed_items l
           ON l.user_id = o.user_id AND l.sku = o.sku
         WHERE o.user_id = %s
-        ORDER BY o.purchase_date ASC NULLS LAST, o.id ASC
-        """,
-        (user_id,),
-    )
+    """
+    params = [user_id]
+    if order_id:
+        base_sql += " AND o.order_id = %s"
+        params.append(order_id)
+    base_sql += " ORDER BY o.purchase_date ASC NULLS LAST, o.id ASC"
+
+    cur.execute(base_sql, params)
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
+    return rows
 
+
+# rows全体（list_orders_with_calcの全件、またはrecompute_order_groupの1注文分）に対して、
+# 寸法フォールバック・送料計算・決済実利益・リピーター判定などの派生値をその場で埋め込む。
+# 決済按分（同一order_id内の商品価格比）は渡されたrows内で完結するグループ計算のため、
+# rowsが「1注文の全行」を含んでさえいれば、全件計算・1注文だけの計算のどちらでも同じ結果になる。
+def _apply_calc_to_rows(user_id: int, rows: list) -> list:
     shipping_config = _get_shipping_config(user_id)
     prefix_map = _load_order_id_prefix_map()
     rate_cache = {}
@@ -1583,6 +1596,21 @@ def list_orders_with_calc(user_id: int) -> list:
         row["asin_sold_count"] = asin_sold_counts.get(row.get("asin"), 0) if row.get("asin") else 0
 
     return rows
+
+
+def list_orders_with_calc(user_id: int) -> list:
+    return _apply_calc_to_rows(user_id, _fetch_raw_order_rows(user_id))
+
+
+# --- ▼ SECTION 05-2: 1注文だけの再計算（寸法取得・手数料取得・領収書取込・セキュリティメモ追加後、
+#     画面側が全件リロードせずその行だけ更新するためのエンドポイント用） ▼ ---
+def recompute_order_group(user_id: int, order_id: str) -> list:
+    if not order_id:
+        return []
+    rows = _fetch_raw_order_rows(user_id, order_id=order_id)
+    if not rows:
+        return []
+    return _apply_calc_to_rows(user_id, rows)
 
 
 # --- ▼ SECTION 05-3: リピーター件数・返品セキュリティメモの一括取得（買い手キー単位） ▼ ---

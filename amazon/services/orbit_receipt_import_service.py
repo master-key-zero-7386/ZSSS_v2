@@ -408,5 +408,6 @@ def run_receipt_import(user_id: int) -> dict:
         "online_only": online_only,
         "failed": failed,
         "flagged_rows": flagged,
+        "flagged_order_item_ids": sorted(matched_items),
         "created": created,
     }

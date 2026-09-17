@@ -1822,6 +1822,117 @@ window.initOrbit = function () {
             });
     }
 
+    // loadOrders()の.thenと同じ再描画シーケンスを、サーバー再取得なし・既にメモリにある
+    // ordersRowsCacheのままで行う。出荷完了/仕入確認等、他行の計算結果に影響しないフラグの
+    // 更新用（該当行をここを呼ぶ前に自分でordersRowsCache上で書き換えておくこと）。
+    function refreshOrdersLocally() {
+        recomputeDuplicateSerials();
+        renderOrbitSummary();
+        renderOrdersTable();
+        const serialOrderedRows = sortRowsByKey(ordersRowsCache, "agent_serial_no", "asc");
+        renderPreservingScroll(procTbody, PROCUREMENT_COLUMNS, serialOrderedRows, { grayShipped: true });
+        markSerialDups(procTbody);
+        dispatchRowsCache = serialOrderedRows;
+        renderDispatchTable();
+        renderReceiptTable();
+        syncOrdersTopScrollWidth();
+        syncDispatchTopScrollWidth();
+        syncProcurementTopScrollWidth();
+    }
+
+    // 寸法取得・手数料取得・領収書取込・返品メモ追加など、1商品の更新後に使う。同一order_id内の
+    // 他商品も一緒に返ってくる（決済按分の計算に他商品の価格が要るため）ので、対象のorder_idに
+    // 属する行だけをキャッシュ内で丸ごと入れ替え、全件リロードなしでその行の計算結果を反映する。
+    // ※ ASIN単位の寸法キャッシュ更新など、他のorder_idの行にも本来波及し得る変更は、この方式では
+    //   即時反映されない（次回の全件リロードまで旧表示のまま＝古いが誤った値ではない）。
+    function fetchOrderGroupRows(orderId) {
+        return fetch(`/orbit/orders/recompute_group?order_id=${encodeURIComponent(orderId)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    throw new Error(data.message || "再計算に失敗しました");
+                }
+                return data.rows;
+            });
+    }
+
+    function patchOrderGroup(orderId) {
+        return fetchOrderGroupRows(orderId).then(rows => {
+            const byId = new Map(rows.map(r => [r.order_item_id, r]));
+            ordersRowsCache = ordersRowsCache.map(r => byId.get(r.order_item_id) || r);
+            refreshOrdersLocally();
+        });
+    }
+
+    // 一括取得系（表示中の複数件を順番に叩いた後）用。対象になったorder_idの重複を除いてから
+    // まとめて取り直し、キャッシュ反映・再描画は最後に1回だけ行う。
+    function patchOrderGroups(orderIds) {
+        const uniqueIds = [...new Set(orderIds)];
+        if (!uniqueIds.length) return Promise.resolve();
+        return Promise.all(uniqueIds.map(fetchOrderGroupRows)).then(groups => {
+            const byId = new Map();
+            groups.forEach(rows => rows.forEach(r => byId.set(r.order_item_id, r)));
+            ordersRowsCache = ordersRowsCache.map(r => byId.get(r.order_item_id) || r);
+            refreshOrdersLocally();
+        });
+    }
+
+    // 受注一覧・仕入管理の手入力欄保存用ハンドラを作る。発注管理の入力中断（DOM総入れ替えで
+    // 入力欄からフォーカスが飛ぶ）と同じ問題を避けるため、フォーカスが完全にそのテーブルから
+    // 抜けるまで再描画・再計算を待つ（scopeTbody内で編集中は先送りする）。
+    // DISPATCH_INPLACE_FIELDS対象の項目はサーバー再計算不要（ローカル再描画のみ）、それ以外は
+    // 保存対象のorder_idをためておき、確定したタイミングでまとめて1行だけ計算し直す。
+    function makeFieldSavedHandler(scopeTbody) {
+        let pendingRecomputeOrderIds = new Set();
+        let pendingLocalOnly = false;
+        let flushTimer = null;
+
+        const flush = () => {
+            clearTimeout(flushTimer);
+            flushTimer = setTimeout(() => {
+                const ae = document.activeElement;
+                if (ae && scopeTbody.contains(ae) && ae.classList?.contains("orbit-manual")) {
+                    flush();
+                    return;
+                }
+                if (!pendingRecomputeOrderIds.size) {
+                    if (pendingLocalOnly) {
+                        pendingLocalOnly = false;
+                        refreshOrdersLocally();
+                    }
+                    return;
+                }
+                const orderIds = [...pendingRecomputeOrderIds];
+                pendingRecomputeOrderIds = new Set();
+                pendingLocalOnly = false;
+                patchOrderGroups(orderIds).catch(err => {
+                    console.error("recompute_group error:", err);
+                    loadOrders();  // 念のためのフォールバック（通常到達しない）
+                });
+            }, 400);
+        };
+
+        return (orderItemId, field, value) => {
+            // N番編集（set_serial成功時）はorderItemId無しで呼ばれる。重複判定・既定ソートが
+            // 全行にまたがるため、この場合だけは素直に全件リロードする（従来どおり）。
+            if (!orderItemId) { loadOrders(); return; }
+
+            const r = ordersRowsCache.find(x => String(x.order_item_id) === String(orderItemId));
+            if (r) {
+                r[field] = (field === "purchase_price" || field === "points")
+                    ? (value === "" || value == null ? null : parseFloat(value))
+                    : (value || null);
+                if (field === "jan_code") r.jan_from_history = false;
+            }
+            if (r && DISPATCH_INPLACE_FIELDS.has(field)) {
+                pendingLocalOnly = true;
+            } else if (r?.order_id) {
+                pendingRecomputeOrderIds.add(r.order_id);
+            }
+            flush();
+        };
+    }
+
     renderTableHeader(thead, ORBIT_COLUMNS, { sortable: true, onSort: onOrdersSort, sortState: ordersSortState });
     if (procThead) renderTableHeader(procThead, PROCUREMENT_COLUMNS);
     if (dispatchThead) renderTableHeader(dispatchThead, dispatchHeaderCols, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
@@ -2043,7 +2154,10 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    loadOrders();
+                    // 1件削除は他行の計算結果に影響しないため、サーバー再取得なしでキャッシュから
+                    // 該当行を除いてローカル再描画するだけで済む。
+                    ordersRowsCache = ordersRowsCache.filter(r => r.order_item_id !== orderItemId);
+                    refreshOrdersLocally();
                 } else {
                     window.showToast?.(data.message || "削除に失敗しました", "error");
                 }
@@ -2074,7 +2188,16 @@ window.initOrbit = function () {
             .then(data => {
                 if (data.status === "success") {
                     window.showToast?.("寸法を取得しました", "success");
-                    loadOrders();
+                    const orderItemId = btn.dataset.orderItemId;
+                    const row = orderItemId && ordersRowsCache.find(r => r.order_item_id === orderItemId);
+                    if (row?.order_id) {
+                        patchOrderGroup(row.order_id).catch(err => {
+                            console.error("recompute_group error:", err);
+                            loadOrders();  // 念のためのフォールバック（通常到達しない）
+                        });
+                    } else {
+                        loadOrders();
+                    }
                 } else {
                     window.showToast?.(data.message || "取得に失敗しました", "error");
                     btn.disabled = false;
@@ -2110,7 +2233,15 @@ window.initOrbit = function () {
             .then(data => {
                 if (data.status === "success") {
                     window.showToast?.("手数料見積りを取得しました", "success");
-                    loadOrders();
+                    const row = ordersRowsCache.find(r => r.order_item_id === orderItemId);
+                    if (row?.order_id) {
+                        patchOrderGroup(row.order_id).catch(err => {
+                            console.error("recompute_group error:", err);
+                            loadOrders();  // 念のためのフォールバック（通常到達しない）
+                        });
+                    } else {
+                        loadOrders();
+                    }
                 } else {
                     window.showToast?.(data.message || "取得に失敗しました", "error");
                     btn.disabled = false;
@@ -2155,10 +2286,19 @@ window.initOrbit = function () {
 
         const runNext = (i) => {
             if (i >= ids.length) {
-                btn.disabled = false;
-                btn.textContent = originalLabel;
-                window.showToast?.(`手数料一括取得：成功${ok}件 / 失敗${ng}件`, ng ? "error" : "success");
-                loadOrders();
+                const orderIds = ids
+                    .map(id => ordersRowsCache.find(r => r.order_item_id === id)?.order_id)
+                    .filter(Boolean);
+                patchOrderGroups(orderIds)
+                    .catch(err => {
+                        console.error("recompute_group (bulk) error:", err);
+                        loadOrders();  // 念のためのフォールバック（通常到達しない）
+                    })
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.textContent = originalLabel;
+                        window.showToast?.(`手数料一括取得：成功${ok}件 / 失敗${ng}件`, ng ? "error" : "success");
+                    });
                 return;
             }
             btn.textContent = `取得中... ${i + 1}/${ids.length}`;
@@ -2200,7 +2340,11 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
-                    loadOrders();
+                    // shipped_completedは他行・利益計算に波及しないため、サーバー再取得なしで
+                    // キャッシュを書き換えてローカル再描画するだけで済む。
+                    const row = ordersRowsCache.find(r => r.order_item_id === orderItemId);
+                    if (row) row.shipped_completed = next;
+                    refreshOrdersLocally();
                 } else {
                     window.showToast?.(data.message || "更新に失敗しました", "error");
                     btn.disabled = false;
@@ -2245,7 +2389,11 @@ window.initOrbit = function () {
                     } else if (r && r.status === "skip") {
                         window.showToast?.("再出品対象の出品が見つかりませんでした", "info");
                     }
-                    loadOrders();
+                    // purchased/invoice_saved も他行・利益計算に波及しないため、shipped_completed
+                    // トグルと同じくローカル再描画で済ませる。
+                    const row = ordersRowsCache.find(r2 => r2.order_item_id === orderItemId);
+                    if (row) row[field] = next;
+                    refreshOrdersLocally();
                 } else {
                     window.showToast?.(data.message || "更新に失敗しました", "error");
                     btn.disabled = false;
@@ -2359,7 +2507,17 @@ window.initOrbit = function () {
             .then(res => res.json())
             .then(data => {
                 renderReceiptResult(data);
-                if (data && data.status === "success") loadOrders();
+                if (data && data.status === "success") {
+                    // invoice_savedは利益計算等に波及しない表示用フラグのため、対象行だけ
+                    // キャッシュを書き換えてローカル再描画すれば済む（サーバー再取得は不要）。
+                    const flaggedIds = new Set(data.flagged_order_item_ids || []);
+                    if (flaggedIds.size) {
+                        ordersRowsCache.forEach(r => {
+                            if (flaggedIds.has(r.order_item_id)) r.invoice_saved = 1;
+                        });
+                        refreshOrdersLocally();
+                    }
+                }
                 if (typeof checkReceiptInbox === "function") checkReceiptInbox();
             })
             .catch(err => {
@@ -2550,8 +2708,8 @@ window.initOrbit = function () {
     });
 
     // --- ▼ SECTION 03: 手入力項目の保存（全テーブル共通） ▼ ---
-    attachSaveHandlers(tbody, { onSaved: loadOrders });
-    if (procTbody) attachSaveHandlers(procTbody, { onSaved: loadOrders });
+    attachSaveHandlers(tbody, { onSaved: makeFieldSavedHandler(tbody) });
+    if (procTbody) attachSaveHandlers(procTbody, { onSaved: makeFieldSavedHandler(procTbody) });
 
     // 発注管理アコーディオンだけは、欄を保存するたびに全体を innerHTML で作り直すと入力中の
     // DOM ごと差し替わって「入れ終わる前にリロードされて入力できない」状態になる。
@@ -2559,25 +2717,36 @@ window.initOrbit = function () {
     // 落ち着いたタイミングで1回だけ全体を取り直す（仕入日→依頼日の自動反映・利益の再計算など
     // サーバ側の派生値をまとめて更新する）。
     if (dispatchTbody) {
-        let dispatchReloadPending = false;
+        let pendingReloadOrderIds = new Set();
         let dispatchReloadTimer = null;
 
         const scheduleDispatchReload = () => {
             clearTimeout(dispatchReloadTimer);
             dispatchReloadTimer = setTimeout(() => {
-                if (!dispatchReloadPending) return;
+                if (!pendingReloadOrderIds.size) return;
                 const ae = document.activeElement;
                 // まだ発注管理の入力欄を触っている間は再描画せず、さらに先送りする
                 if (ae && dispatchTbody.contains(ae) && ae.classList?.contains("orbit-manual")) {
                     scheduleDispatchReload();
                     return;
                 }
-                dispatchReloadPending = false;
-                loadOrders();
+                const orderIds = [...pendingReloadOrderIds];
+                pendingReloadOrderIds = new Set();
+                // 仕入価格・寸法・トラッキング等は利益/送料計算に波及するため、サーバー側で
+                // その注文（複数商品なら決済按分の関係で同じorder_idの全商品）だけ計算し直す。
+                // 全件リロードよりずっと軽い（他の注文の再計算・4テーブル丸ごと再取得を省ける）。
+                patchOrderGroups(orderIds).catch(err => {
+                    console.error("recompute_group error:", err);
+                    loadOrders();  // 念のためのフォールバック（通常到達しない）
+                });
             }, 400);
         };
 
         const onDispatchFieldSaved = (orderItemId, field, value) => {
+            // N番編集（set_serial成功時）はorderItemId無しで呼ばれる。重複判定・既定ソートが
+            // 全行にまたがるため、この場合だけは素直に全件リロードする（従来どおり）。
+            if (!orderItemId) { loadOrders(); return; }
+
             const r = dispatchRowsCache.find(x => String(x.order_item_id) === String(orderItemId));
             if (r) {
                 r[field] = (field === "purchase_price" || field === "points")
@@ -2596,7 +2765,7 @@ window.initOrbit = function () {
                 return;
             }
 
-            dispatchReloadPending = true;
+            if (r?.order_id) pendingReloadOrderIds.add(r.order_id);
             scheduleDispatchReload();
         };
 

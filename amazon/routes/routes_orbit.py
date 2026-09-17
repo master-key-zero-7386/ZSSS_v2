@@ -11,6 +11,7 @@ from amazon.services.orbit_order_service import (
     parse_order_report,
     upsert_orders,
     list_orders_with_calc,
+    recompute_order_group,
     update_manual_fields,
     delete_order,
     delete_all_orders,
@@ -159,6 +160,30 @@ def get_orders():
         print("[orbit/orders] list_orders_with_calc ERROR")
         traceback.print_exc()
         return jsonify({"status": "error", "message": "注文一覧の集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", "rows": rows})
+
+
+# --- ▼ SECTION 02-1b: 1注文だけの再計算（寸法/手数料取得・領収書取込・メモ追加後、画面側が
+#     全件リロードせずその行だけ更新するために使う。同一order_idの他商品も一緒に返す
+#     ＝決済按分の計算に必要なため） ▼ ---
+@orbit_bp.route("/orders/recompute_group", methods=["GET"])
+def recompute_order_group_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    order_id = (request.args.get("order_id") or "").strip()
+    if not order_id:
+        return jsonify({"status": "error", "message": "order_idが必要です"}), 400
+
+    try:
+        rows = recompute_order_group(user_id, order_id)
+    except Exception:
+        import traceback
+        print("[orbit/orders/recompute_group] ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "再計算でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "rows": rows})
 
