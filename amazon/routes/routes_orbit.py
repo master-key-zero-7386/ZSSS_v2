@@ -33,6 +33,7 @@ from amazon.services.orbit_order_service import (
     list_archive_candidates,
     archive_orders,
     add_security_note,
+    update_security_note,
     list_buyer_history,
     list_security_notes,
     list_credit_cards,
@@ -505,6 +506,26 @@ def add_security_note_route():
     added = add_security_note(user_id, order_item_id, note)
     if not added:
         return jsonify({"status": "error", "message": "対象の注文が見つかりませんでした"}), 404
+
+    return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/security_notes/update", methods=["POST"])
+@block_if_serial_dup
+def update_security_note_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    note_id = data.get("note_id")
+    note = data.get("note")
+    if not note_id or not note:
+        return jsonify({"status": "error", "message": "note_idとnoteが必要です"}), 400
+
+    updated = update_security_note(user_id, note_id, note)
+    if not updated:
+        return jsonify({"status": "error", "message": "対象のメモが見つかりませんでした"}), 404
 
     return jsonify({"status": "success"})
 

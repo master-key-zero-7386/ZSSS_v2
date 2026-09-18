@@ -924,7 +924,8 @@ function renderBuyerMemoBlock(r) {
     const notesHtml = notes.length
         ? `<ul class="orbit-memo-list">` + notes.map(n => {
             const d = (n.created_at || "").slice(0, 10);
-            return `<li><span class="orbit-memo-date">${orbitEscapeHtml(d)}</span> ${orbitEscapeHtml(n.note)}</li>`;
+            return `<li><span class="orbit-memo-date">${orbitEscapeHtml(d)}</span> ${orbitEscapeHtml(n.note)}` +
+                `<button type="button" class="orbit-security-note-edit-btn" data-note-id="${n.id}" data-note-text="${orbitEscapeHtml(n.note)}" title="このメモを編集">✏️</button></li>`;
         }).join("") + `</ul>`
         : `<span class="orbit-memo-none">メモなし</span>`;
 
@@ -2667,6 +2668,38 @@ window.initOrbit = function () {
             .catch(err => {
                 console.error("orbit/security_notes/add error:", err);
                 window.showToast?.("追加に失敗しました", "error");
+            });
+    });
+
+    // --- ▼ SECTION 01-3d: 返品・セキュリティメモの編集（誤字修正用） ▼ ---
+    dispatchTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-security-note-edit-btn");
+        if (!btn) return;
+
+        const noteId = btn.dataset.noteId;
+        if (!noteId) return;
+
+        const note = prompt("メモを編集してください", btn.dataset.noteText || "");
+        if (note === null || !note.trim()) return;
+
+        fetch("/orbit/security_notes/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note_id: noteId, note: note.trim() }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.("メモを更新しました", "success");
+                    loadOrders();
+                    loadSecurityNotes();
+                } else {
+                    window.showToast?.(data.message || "更新に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                console.error("orbit/security_notes/update error:", err);
+                window.showToast?.("更新に失敗しました", "error");
             });
     });
 

@@ -1655,7 +1655,7 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT buyer_key, note, created_at
+        SELECT id, buyer_key, note, created_at
         FROM orbit_buyer_security_notes
         WHERE user_id = %s
         ORDER BY created_at ASC
@@ -1670,7 +1670,7 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     notes_by_key = {}
     for r in rows:
         notes_by_key.setdefault(r["buyer_key"], []).append(
-            {"note": r["note"], "created_at": r["created_at"]}
+            {"id": r["id"], "note": r["note"], "created_at": r["created_at"]}
         )
     return notes_by_key
 
@@ -2313,6 +2313,24 @@ def add_security_note(user_id: int, order_item_id: str, note: str) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+# --- ▼ SECTION 06-1d: 返品・セキュリティメモの編集（誤字修正用。本文のみ書き換え） ▼ ---
+def update_security_note(user_id: int, note_id: int, note: str) -> bool:
+    note = (note or "").strip()
+    if not note_id or not note:
+        return False
+
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE orbit_buyer_security_notes SET note = %s WHERE id = %s AND user_id = %s",
+        (note, note_id, user_id),
+    )
+    updated = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
 
 
 # --- ▼ SECTION 06-2: 代行会社連番（Nから始まる連番）の設定 ▼ ---
