@@ -47,6 +47,56 @@ document.addEventListener("click", function (e) {
     }
 });
 
+// --- ▼ SECTION 00-0c: ASIN発送実績照会（ASIN横の販売回数バッジをクリックで開くモーダル） ▼ ---
+document.addEventListener("click", function (e) {
+    const badge = e.target.closest(".orbit-asin-count:not(.is-zero)");
+    if (!badge) return;
+    const asin = badge.dataset.asin;
+    if (asin) openAsinShippingHistoryModal(asin);
+});
+
+function openAsinShippingHistoryModal(asin) {
+    fetch(`/orbit/asin_shipping_history?asin=${encodeURIComponent(asin)}`)
+        .then(res => res.json())
+        .then(data => {
+            const rows = data.rows || [];
+            const rowsHtml = rows.length
+                ? rows.map(r => `<tr>
+                    <td style="padding:4px;">${orbitEscapeHtml(r.agent_serial_no ?? "")}</td>
+                    <td style="padding:4px;">${orbitEscapeHtml(r.carrier ?? "")}</td>
+                    <td style="padding:4px;">${orbitEscapeHtml((r.notified_at || "").slice(0, 10))}</td>
+                    <td style="padding:4px; text-align:right;">${r.agent_confirmed_weight ? orbitEscapeHtml(r.agent_confirmed_weight) : "未確定"}</td>
+                    <td style="padding:4px; text-align:right;">${r.agent_shipping_fee_total ? orbitEscapeHtml(r.agent_shipping_fee_total) : "未確定"}</td>
+                  </tr>`).join("")
+                : `<tr><td colspan="5" style="padding:12px; text-align:center; color:#888;">出荷通知済みの発送実績がありません</td></tr>`;
+
+            const html = `
+                <h3 style="margin:0 0 10px;">発送実績照会（ASIN: ${orbitEscapeHtml(asin)}）</h3>
+                <div style="max-height:400px; overflow-y:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+                    <thead>
+                        <tr style="border-bottom:1px solid #ccc;">
+                            <th style="text-align:left; padding:4px;">N番</th>
+                            <th style="text-align:left; padding:4px;">キャリア</th>
+                            <th style="text-align:left; padding:4px;">発送日</th>
+                            <th style="text-align:right; padding:4px;">確定重量</th>
+                            <th style="text-align:right; padding:4px;">確定送料</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                </div>
+                <div class="ui-confirm-actions">
+                    <button type="button" class="ui-confirm-btn ui-confirm-btn-cancel" data-confirm="close">閉じる</button>
+                </div>
+            `;
+            showConfirmModal({ contentHtml: html });
+            const modal = document.getElementById("uiConfirmModal");
+            if (modal) modal.style.width = "640px";
+        })
+        .catch(err => console.error("asin_shipping_history error:", err));
+}
+
 // --- ▼ SECTION 00: 表示列定義 ▼ ---
 // 受注一覧＝Amazonデータの取込・管理専用（市場別）。
 // 依頼日・JAN・発送種別・トラッキング・仕入価格・備考など「依頼書シート」形式の列は
@@ -858,7 +908,7 @@ function dispCellInner(col, r) {
         const n = r.asin_sold_count || 0;
         const badge = n === 0
             ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（バイヤー履歴に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
-            : `<span class="orbit-asin-count" title="バイヤー履歴内の同一ASINの販売回数">×${n}</span>`;
+            : `<span class="orbit-asin-count" data-asin="${orbitEscapeHtml(asin)}" title="クリックで発送実績（キャリア別 確定重量・送料）を照会">×${n}</span>`;
         return `${link} ${badge}`;
     }
     if (col.copyClass && !col.editable) {

@@ -1675,6 +1675,49 @@ def _load_buyer_security_notes(user_id: int) -> dict:
     return notes_by_key
 
 
+# --- ▼ SECTION 05-1a2: ASIN単位の発送実績照会（発注管理・ASIN横の販売回数バッジから開く） ▼ ---
+# 次回発送時のキャリア選択の参考にするための、同一ASINの過去実績一覧（キャリア別 確定重量・確定送料）。
+# 出荷通知前は代行会社シートに送料が入らないため、出荷通知済み（shipped_completed=1）の注文のみ対象。
+# DHL/FedexはDDP/DAPで shipping_type の値が分かれる（例: "DHL_DDP_関税発送人"）が、キャリア比較の
+# 目的では区別不要なので "_" 区切りの先頭語（DHL/FedEx/EMS）に丸める。
+def get_asin_shipping_history(user_id: int, asin: str) -> list:
+    if not asin:
+        return []
+
+    listed_items_map = _load_listed_items_asin_map(user_id)
+    rows = []
+    for table, db_name in (
+        ("orbit_orders", "a_orbit_orders.db"),
+        ("orbit_procurement_history", "a_orbit_procurement_history.db"),
+    ):
+        conn = get_conn(db_name)
+        cur = conn.cursor()
+        cur.execute(
+            f"""
+            SELECT sku, agent_serial_no, shipping_type, notified_at,
+                   agent_confirmed_weight, agent_shipping_fee_total
+            FROM {table}
+            WHERE user_id = %s AND shipped_completed = 1
+            """,
+            (user_id,),
+        )
+        for r in cur.fetchall():
+            if _resolve_asin(r["sku"], listed_items_map) != asin:
+                continue
+            carrier = (r["shipping_type"] or "").split("_")[0] or None
+            rows.append({
+                "agent_serial_no": r["agent_serial_no"],
+                "carrier": carrier,
+                "notified_at": r["notified_at"],
+                "agent_confirmed_weight": r["agent_confirmed_weight"],
+                "agent_shipping_fee_total": r["agent_shipping_fee_total"],
+            })
+        conn.close()
+
+    rows.sort(key=lambda r: r["notified_at"] or "", reverse=True)
+    return rows
+
+
 # --- ▼ SECTION 05-1b: 買い手履歴タブの一覧表示（過去に買ったことがあるかどうかのチェック専用） ▼ ---
 def list_buyer_history(user_id: int) -> list:
     conn = get_conn("a_orbit_buyer_history.db")
