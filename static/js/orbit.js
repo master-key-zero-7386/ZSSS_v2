@@ -1148,6 +1148,15 @@ function saveManualField(orderItemId, field, value, onDone) {
 }
 
 function attachSaveHandlers(tbody, { onSaved } = {}) {
+    // フォーカス開始時点の値を覚えておく（focusoutで「本当に変更されたか」を判定するため。
+    // クリックしただけで値を変えずにフォーカスが外れた場合の誤保存を防ぐ）。
+    tbody.addEventListener("focusin", (e) => {
+        const target = e.target;
+        if (target.classList?.contains("orbit-manual")) {
+            target.dataset.origValue = target.value;
+        }
+    });
+
     const handler = (e) => {
         const target = e.target;
         if (!target.classList?.contains("orbit-manual")) return;
@@ -1155,6 +1164,10 @@ function attachSaveHandlers(tbody, { onSaved } = {}) {
         const savesOnChange = target.tagName === "SELECT" || target.type === "date";
         if (savesOnChange && e.type !== "change") return;
         if (!savesOnChange && e.type !== "focusout") return;
+
+        // テキスト系（N番も含む）は値が変わっていなければ何もしない（クリックしただけでの誤保存防止）。
+        // select/dateはchangeイベント自体が実際に値が変わった時しか発火しないため対象外。
+        if (!savesOnChange && target.value === target.dataset.origValue) return;
 
         const tr = target.closest("tr");
         const orderItemId = tr?.dataset?.orderItemId;
