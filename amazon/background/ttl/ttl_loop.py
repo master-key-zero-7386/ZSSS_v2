@@ -444,6 +444,7 @@ def load_pricing_ttl_targets(db_dir: str):
                     AND (li.ttl_stop_status IS NULL OR li.ttl_stop_status = '0')
                     AND li.override_price IS NULL
                     AND li.override_stock_zero IS NULL
+                    AND NOT (li.status = 'pre' AND li.first_try_count > 0)
                     AND (
                         li.h_pricing_ttl_at IS NULL
                         OR CAST(li.h_pricing_ttl_at AS timestamp) <
