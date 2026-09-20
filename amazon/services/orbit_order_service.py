@@ -1680,6 +1680,10 @@ def _load_buyer_security_notes(user_id: int) -> dict:
 # 出荷通知前は代行会社シートに送料が入らないため、出荷通知済み（shipped_completed=1）の注文のみ対象。
 # DHL/FedexはDDP/DAPで shipping_type の値が分かれる（例: "DHL_DDP_関税発送人"）が、キャリア比較の
 # 目的では区別不要なので "_" 区切りの先頭語（DHL/FedEx/EMS）に丸める。
+# 料金改定が年に何度かあり古い実績は参考にならないため、新しい順に直近10件までに絞る。
+ASIN_SHIPPING_HISTORY_LIMIT = 10
+
+
 def get_asin_shipping_history(user_id: int, asin: str) -> list:
     if not asin:
         return []
@@ -1715,7 +1719,7 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
         conn.close()
 
     rows.sort(key=lambda r: r["notified_at"] or "", reverse=True)
-    return rows
+    return rows[:ASIN_SHIPPING_HISTORY_LIMIT]
 
 
 # --- ▼ SECTION 05-1b: 買い手履歴タブの一覧表示（過去に買ったことがあるかどうかのチェック専用） ▼ ---
