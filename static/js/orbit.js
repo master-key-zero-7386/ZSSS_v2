@@ -1391,6 +1391,10 @@ window.initOrbit = function () {
     // どちらも初期表示はN番号の昇順（全チェック・出荷チェックの基準がN番号のため）。列見出しクリック等で解除できる。
     let ordersRowsCache = [];
     let ordersSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    // ORBITタブ再訪のたびにinitOrbit()経由でloadOrders()が呼び直されるため、前回の読み込みが
+    // 終わる前に再訪すると複数のfetchが並走し得る。世代カウンタで「自分が最後に開始した
+    // 呼び出しか」を判定し、追い越された呼び出しの結果（成功・失敗とも）は画面に反映しない。
+    let ordersLoadToken = 0;
     let dispatchRowsCache = [];
     let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
     // 発注管理：出荷通知済み（shipped_completed）の行を一覧から隠すか。既定は全件表示。
@@ -1846,8 +1850,13 @@ window.initOrbit = function () {
         }
     }
 
-    function loadOrders(attempt) {
+    function loadOrders(attempt, token) {
         attempt = (typeof attempt === "number") ? attempt : 1;  // click ハンドラ等から event が渡るケースを吸収
+        // 新規呼び出し（リトライ以外）のたびに世代を進めて自分の世代として持つ。リトライ
+        // （setTimeoutからの再帰）は同じ世代を引き継ぎ、世代の異動＝「自分より新しいloadOrders()が
+        // 別に開始された」の判定に使う。
+        const myToken = (typeof token === "number") ? token : ++ordersLoadToken;
+
         // 「読み込み中…」でテーブルを空にするのは、まだ1件も表示していないとき（初回・全件削除後・
         // タブ再訪）だけ。発注管理での商品名編集など、既にデータが出ている状態からの再取得では
         // 画面を消さず静かに差し替える（旧挙動）。失敗時のエラー行＋再読み込みボタンは下の catch で常に出す。
@@ -1865,6 +1874,9 @@ window.initOrbit = function () {
             })
             .then(data => {
                 clearTimeout(timer);
+                // 自分より後にORBITタブ再訪等で新しいloadOrders()が始まっていたら、
+                // 遅れて届いたこの結果（成功でも）は画面に反映しない＝新しい方の結果を優先する。
+                if (myToken !== ordersLoadToken) return;
                 if (data.status !== "success") throw new Error(data.message || "status != success");
                 ordersRowsCache = data.rows;
                 recomputeDuplicateSerials();
@@ -1884,9 +1896,11 @@ window.initOrbit = function () {
             })
             .catch(err => {
                 clearTimeout(timer);
+                // 追い越され済みの呼び出しの失敗は、新しい呼び出しの表示を巻き戻さないよう無視する。
+                if (myToken !== ordersLoadToken) return;
                 console.error("orbit/orders error (attempt " + attempt + "):", err);
                 if (attempt < 2) {
-                    setTimeout(() => loadOrders(attempt + 1), 1200);  // 瞬断は自動で1回だけ再試行
+                    setTimeout(() => loadOrders(attempt + 1, myToken), 1200);  // 瞬断は自動で1回だけ再試行
                     return;
                 }
                 setOrdersLoadingState("注文一覧の取得に失敗しました。", { retry: true });
