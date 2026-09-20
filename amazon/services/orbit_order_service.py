@@ -181,10 +181,21 @@ def _backfill_jan_from_history(user_id: int, cur, order_item_ids: list) -> int:
 # それ以外（商品名・宛名・住所）は自動修正できないため、画面上でハイライトして人の目でのチェックを促す。
 PHONE_COUNTRY_CODE_PATTERN = re.compile(r"^\+\d{1,3}[\s-]*")
 
+# \d{1,3} はgreedyなので、区切り文字なしで数字が連続する北米形式（例: "+14376028165"）だと
+# 本来1桁の国番号("+1")のつもりが3桁("+143")食ってしまい、市外局番の頭まで消えてしまう。
+# 対象マーケット(JP/AU/US/SG/CA)分は国番号の桁数を明示して正しく除去する。
+COUNTRY_CALLING_CODES = {
+    "US": "1", "CA": "1", "AU": "61", "SG": "65", "JP": "81",
+}
 
-def _clean_phone_number(value):
+
+def _clean_phone_number(value, ship_country=None):
     if not value:
         return value
+    value = value.strip()
+    calling_code = COUNTRY_CALLING_CODES.get((ship_country or "").strip().upper())
+    if calling_code and value.startswith("+" + calling_code):
+        return value[len(calling_code) + 1:].lstrip(" -").strip()
     return PHONE_COUNTRY_CODE_PATTERN.sub("", value).strip()
 
 
@@ -455,7 +466,7 @@ def _apply_dispatch_checks(row, remote_area_ranges=None):
 
     # 電話番号・州：自動修正してよいのはこの2項目のみ。自動修正結果もoverrideがあればそちらを優先する
     # （自動判定で直し切れなかった場合や、誤りに手で気付いた場合に上書きできるように）。
-    phone_auto = _clean_phone_number(row.get("buyer_phone_number"))
+    phone_auto = _clean_phone_number(row.get("buyer_phone_number"), row.get("ship_country"))
     phone_auto, extension_auto = _split_phone_extension(phone_auto)
     row["buyer_phone_number_effective"] = _effective(phone_auto, row.get("buyer_phone_number_override"))
     row["buyer_phone_extension_effective"] = _effective(extension_auto, row.get("buyer_phone_extension_override"))
