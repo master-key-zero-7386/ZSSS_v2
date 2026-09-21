@@ -1429,7 +1429,7 @@ def _fetch_raw_order_rows(user_id: int, order_id: str = None) -> list:
     base_sql = """
         SELECT o.*,
                l.asin, l.length_cm, l.width_cm, l.height_cm,
-               l.actual_weight_kg, l.override_weight_class
+               l.actual_weight_kg, l.override_weight_class, l.override_price
         FROM orbit_orders o
         LEFT JOIN listed_items l
           ON l.user_id = o.user_id AND l.sku = o.sku

@@ -2455,13 +2455,57 @@ window.initOrbit = function () {
         if (!orderItemId || !field) return;
         const next = btn.dataset.value === "1" ? 0 : 1;
 
+        // 「仕入済」ON（0→1）時、その商品が出品価格を手入力固定(override_price)している場合は
+        // 確認する。複数在庫を抱えていて同じ価格でさばき切りたいケースがあるため、既定は
+        // 「そのまま手入力価格で出品」（何もしない＝下の通常フローで override_price が優先されて出品される）。
+        // 「いいえ」を選んだ場合だけ、手入力固定を解除してから仕入済を確定する
+        // （解除は/listing/update_price_override経由。TTL巡回を待たずその場でHOME/REGIONを
+        //   取り直して自動計算に戻す・INACTIVE化する、という既存の「OFF」処理をそのまま使う）。
+        const row = ordersRowsCache.find(r2 => r2.order_item_id === orderItemId);
+        let clearOverride = false;
+        if (field === "purchased" && next === 1 && row && row.override_price) {
+            const keepManualPrice = confirm(
+                "この商品は手入力価格が設定されています。このままの価格で出品しますか？"
+            );
+            if (!keepManualPrice) {
+                if (!row.asin || !row.marketplace_country) {
+                    window.showToast?.("ASIN/マーケットが特定できず手入力価格を解除できません", "error");
+                    return;
+                }
+                clearOverride = true;
+            }
+        }
+
         btn.disabled = true;
 
-        fetch("/orbit/orders/update", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ order_item_id: orderItemId, [field]: next }),
-        })
+        // clearOverride時は先に手入力固定を解除（＋自動再計算・再送信）してから、通常どおり
+        // 仕入済フラグを立てる（サーバー側で再度 relist_after_purchase が走るが、override_price は
+        // 既にNULLなので今度は通常計算の価格で出品/INACTIVEになる）。
+        const pre = clearOverride
+            ? fetch("/listing/update_price_override", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                      asin: row.asin,
+                      country_code: row.marketplace_country,
+                      override_price: null,
+                  }),
+              })
+                  .then(res => res.json())
+                  .then(clearData => {
+                      if (clearData.status !== "success") {
+                          throw new Error(clearData.message || "手入力価格の解除に失敗しました");
+                      }
+                      if (row) row.override_price = null;
+                  })
+            : Promise.resolve();
+
+        pre
+            .then(() => fetch("/orbit/orders/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_item_id: orderItemId, [field]: next }),
+            }))
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
@@ -2477,8 +2521,8 @@ window.initOrbit = function () {
                     }
                     // purchased/invoice_saved も他行・利益計算に波及しないため、shipped_completed
                     // トグルと同じくローカル再描画で済ませる。
-                    const row = ordersRowsCache.find(r2 => r2.order_item_id === orderItemId);
-                    if (row) row[field] = next;
+                    const row2 = ordersRowsCache.find(r2 => r2.order_item_id === orderItemId);
+                    if (row2) row2[field] = next;
                     refreshOrdersLocally();
                 } else {
                     window.showToast?.(data.message || "更新に失敗しました", "error");
@@ -2487,7 +2531,7 @@ window.initOrbit = function () {
             })
             .catch(err => {
                 console.error("orbit/orders/update (flag toggle) error:", err);
-                window.showToast?.("更新に失敗しました", "error");
+                window.showToast?.(err.message || "更新に失敗しました", "error");
                 btn.disabled = false;
             });
     };
