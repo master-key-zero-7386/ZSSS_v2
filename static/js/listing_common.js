@@ -1011,6 +1011,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const emsNgEl = document.getElementById("allEmsNgFilter");
             if (emsNgEl) emsNgEl.checked = false;
 
+            const lengthCmValueEl = document.getElementById("allLengthCmValue");
+            if (lengthCmValueEl) lengthCmValueEl.value = "";
+
+            const lengthCmOpEl = document.getElementById("allLengthCmOp");
+            if (lengthCmOpEl) lengthCmOpEl.value = "gte";
+
             const infoAll = document.querySelector('input[name="allInfoStatus"][value="all"]');
             if (infoAll) infoAll.checked = true;
 

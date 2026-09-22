@@ -46,7 +46,7 @@ from amazon.db import get_conn
 # 処理済みだが応答が遅れているだけ」のケースで二重送信になり得るため対象から外す
 # （connectタイムアウト＝まだ何も送っていない段階の失敗は、副作用が無いのでメソッド問わず許可）。
 _GOOGLE_API_RETRY = Retry(
-    total=3, connect=2, read=2, status=0, redirect=0,
+    total=3, connect=2, read=1, status=0, redirect=0,
     backoff_factor=0.5, status_forcelist=[], raise_on_status=False,
     allowed_methods=frozenset(["GET"]),
 )
@@ -64,7 +64,10 @@ def _build_google_api_session() -> requests.Session:
 
 
 _GOOGLE_API_SESSION = _build_google_api_session()
-_GOOGLE_API_TIMEOUT = 30  # 秒
+# (connect, read) 秒。connectは「そもそも繋がらない」を早めに諦めてよいが、readは接続後に
+# 応答本体が返ってくるまでの待ちなので、詰まったコネクションと単に遅いだけの応答を区別できず
+# 短くしすぎると正常な遅延まで殺してしまう。read timeoutが再発する実測に合わせて伸ばす。
+_GOOGLE_API_TIMEOUT = (10, 60)
 
 # 「管理シートへ書出」等は数分〜数時間おきの手動操作でしか呼ばれない。IPv4優先化・プロキシ無視
 # を入れた後も、間隔が空いた次回の書込でだけ read timeout が再発するケースがあった＝Keep-Alive
@@ -86,22 +89,49 @@ def _google_session() -> requests.Session:
     return _GOOGLE_API_SESSION
 
 
+def _force_rebuild_google_session():
+    """接続/読み取りタイムアウトでurllib3側のリトライを使い切った後に呼ぶ。プール中の接続が
+    （ルーターのNAT切れ等で）腐っている可能性があるため、使い回さず新規に張り直す。"""
+    global _GOOGLE_API_SESSION, _google_api_session_last_used
+    _GOOGLE_API_SESSION.close()
+    _GOOGLE_API_SESSION = _build_google_api_session()
+    _google_api_session_last_used = time.monotonic()
+    return _GOOGLE_API_SESSION
+
+
+# GETは読み取り専用で副作用が無いため、urllib3の自動リトライ（_GOOGLE_API_RETRY）を使い切って
+# なお失敗した場合も、アプリ側でさらにこの回数だけ「セッションを張り直して」再試行する。
+# POST/PUT（書込・追記）は対象外（既に応答が返る前にサーバー側で処理済みの可能性があり、
+# 再送すると二重書込になり得るため _GOOGLE_API_RETRY 同様にリトライしない）。
+_GOOGLE_API_GET_EXTRA_RETRIES = 2
+
+
 # --- 実測用の簡易タイミングログ ---
 # 「管理シートへ書出」が何度直しても数十秒〜2分かかる件、推測ベースの対策を重ねても改善が
 # 安定しないため、実際にどのHTTPコールが何秒かかっているかをコンソールに出して特定する。
 # 恒久的な機能ではなく調査用（原因が分かったら外してよい）。
 def _timed_request(method: str, url: str, **kwargs):
-    session = _google_session()
-    t0 = time.perf_counter()
-    try:
-        resp = session.request(method, url, **kwargs)
-        elapsed = time.perf_counter() - t0
-        print(f"[sheets_api] {method} {url} -> {resp.status_code} ({elapsed:.2f}s)")
-        return resp
-    except Exception as e:
-        elapsed = time.perf_counter() - t0
-        print(f"[sheets_api] {method} {url} -> ERROR {type(e).__name__} ({elapsed:.2f}s)")
-        raise
+    max_attempts = 1 + (_GOOGLE_API_GET_EXTRA_RETRIES if method == "GET" else 0)
+    for attempt in range(1, max_attempts + 1):
+        session = _google_session()
+        t0 = time.perf_counter()
+        try:
+            resp = session.request(method, url, **kwargs)
+            elapsed = time.perf_counter() - t0
+            print(f"[sheets_api] {method} {url} -> {resp.status_code} ({elapsed:.2f}s, attempt {attempt}/{max_attempts})")
+            return resp
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            elapsed = time.perf_counter() - t0
+            print(f"[sheets_api] {method} {url} -> ERROR {type(e).__name__} ({elapsed:.2f}s, attempt {attempt}/{max_attempts})")
+            if attempt < max_attempts:
+                _force_rebuild_google_session()
+                time.sleep(1.0)
+                continue
+            raise
+        except Exception as e:
+            elapsed = time.perf_counter() - t0
+            print(f"[sheets_api] {method} {url} -> ERROR {type(e).__name__} ({elapsed:.2f}s)")
+            raise
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")

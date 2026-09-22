@@ -525,6 +525,15 @@
             <input type="checkbox" id="allEmsNgFilter"> EMS不可のみ
         </label>
 
+        <label style="display:inline-flex; align-items:center; gap:4px;">
+            長尺
+            <input type="number" id="allLengthCmValue" class="zsss-control" style="width:80px;" min="0" step="1" placeholder="cm">
+            <select id="allLengthCmOp" class="zsss-control">
+                <option value="gte">以上</option>
+                <option value="lte">以下</option>
+            </select>
+        </label>
+
         <button id="allListingSearchBtn" class="zsss-control">検　索</button>
         <button id="allFilterResetBtn" class="zsss-control" type="button">絞込リセット</button>
     </div>

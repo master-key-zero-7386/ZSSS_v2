@@ -588,7 +588,7 @@ def _build_listing_row_with_shipping(
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
 # Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
 # （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
-def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None):
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None, length_cm_value=None, length_cm_op="gte"):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -798,6 +798,12 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
             AND ({' OR '.join(ng_conditions)})
         """
 
+    # --- 長尺絞り込み（最長辺 length_cm が指定値以上/以下） ---
+    if length_cm_value is not None:
+        op_sql = "<=" if length_cm_op == "lte" else ">="
+        query_filter += f" AND length_cm IS NOT NULL AND length_cm {op_sql} %s"
+        params_base.append(float(length_cm_value))
+
     # --- 手動固定の絞り込み（送料区分／出品価格）：両方チェックならどちらかに該当すればOK ---
     if weight_override_only and price_override_only:
         query_filter += " AND (override_weight_class IS NOT NULL OR override_price IS NOT NULL)"
@@ -840,7 +846,7 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     return query_filter, params_base
 
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False):
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, length_cm_value=None, length_cm_op="gte"):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -944,7 +950,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
         exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only,
         ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
-        ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm
+        ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm,
+        length_cm_value=length_cm_value, length_cm_op=length_cm_op
     )
 
     # --- データ取得 ---
@@ -1369,12 +1376,16 @@ def get_alllisting():
         price_override_only = (request.args.get("price_override_only") or "0") == "1"
         ems_ng_only = (request.args.get("ems_ng_only") or "0") == "1"
 
+        length_cm_value_raw = request.args.get("length_cm_value") or ""
+        length_cm_value = float(length_cm_value_raw) if length_cm_value_raw.strip() != "" else None
+        length_cm_op = request.args.get("length_cm_op") or "gte"
+
         info_status = request.args.get("info_status") or "all"
         reason = request.args.get("reason") or "all"
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only, ems_ng_only=ems_ng_only)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only, ems_ng_only=ems_ng_only, length_cm_value=length_cm_value, length_cm_op=length_cm_op)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
