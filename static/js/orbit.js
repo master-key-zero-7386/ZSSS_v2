@@ -1420,6 +1420,12 @@ window.initOrbit = function () {
     // 空でない＝重複あり。重複中は赤字表示＋ほぼ全操作をブロックする（recomputeDuplicateSerials / markSerialDups /
     // orbitBlockedByDup を参照）。renderDispatchTable() など早期return経路からも参照されるためここで宣言。
     let duplicateSerials = new Set();
+    // 月次売上の円換算列用。{ "AUD": 97.3, ... }＝JPY建て・通貨1単位あたりの円（/orbit/fx_rates でその場取得）。
+    // renderOrbitSummary()（早期return経路の loadOrders().then からも呼ばれる）が参照するため、
+    // 他の状態変数と同じ理由で早期returnより前で宣言する（後ろで宣言するとタブ再訪のたびにTDZの
+    // ReferenceErrorとなり、"注文一覧の取得に失敗しました" 表示になっていた）。
+    const orbitFxRateCache = {};
+    let orbitFxRateFetching = new Set();
     function recomputeDuplicateSerials() {
         const seen = new Map();
         for (const r of ordersRowsCache) {
@@ -1485,10 +1491,7 @@ window.initOrbit = function () {
     //   loadOrders() で取得済みの ordersRowsCache をその場で集計するだけ（API追加なし）。
     //   ※ 2回目以降の initOrbit() は上の早期returnで抜けるため、ここの登録は初回のみ。
     //     renderOrbitSummary 自体は関数宣言の巻き上げにより早期return経路の loadOrders().then からも呼べる。
-
-    // 月次売上の円換算列用。{ "AUD": 97.3, ... }＝JPY建て・通貨1単位あたりの円（/orbit/fx_rates でその場取得）。
-    const orbitFxRateCache = {};
-    let orbitFxRateFetching = new Set();
+    //     orbitFxRateCache/orbitFxRateFetching は早期returnより前（duplicateSerials の隣）で宣言済み。
 
     function ensureOrbitFxRates(currencies) {
         const missing = [...new Set(currencies)].filter(
