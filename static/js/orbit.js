@@ -1674,18 +1674,26 @@ window.initOrbit = function () {
         for (const r of unshippedRows) typeSet.add(shipTypeBucket(r.shipping_type));
         const types = [...typeSet].sort();
 
-        const uMap = new Map(); // マーケット -> { byType:{type:count}, total, fee }
+        // 合計列は「行数（注文数）」併記：同一order-idは同梱発送され、セラセンの未出荷件数は注文単位のため。
+        //   order-id が空の行は1行=1注文として数える。
+        const orderKey = (r, i) => (r.order_id || "").trim() || `__noid_${i}`;
+        const fmtTotal = (rowsN, ordersN) => rowsN === ordersN ? `${rowsN}` : `${rowsN}（${ordersN}注文）`;
+
+        const uMap = new Map(); // マーケット -> { byType:{type:count}, total, orders:Set, fee }
+        const grandOrders = new Set();
         let grandFee = 0;
-        for (const r of unshippedRows) {
+        unshippedRows.forEach((r, i) => {
             const c = (r.marketplace_country || "").trim() || "不明";
             const t = shipTypeBucket(r.shipping_type);
-            if (!uMap.has(c)) uMap.set(c, { byType: {}, total: 0, fee: 0 });
+            if (!uMap.has(c)) uMap.set(c, { byType: {}, total: 0, orders: new Set(), fee: 0 });
             const e = uMap.get(c);
             e.byType[t] = (e.byType[t] || 0) + 1;
             e.total += 1;
+            e.orders.add(orderKey(r, i));
+            grandOrders.add(orderKey(r, i));
             const f = r.predicted_shipping_fee;
             if (typeof f === "number" && !isNaN(f)) { e.fee += f; grandFee += f; }
-        }
+        });
 
         if (!uMap.size) {
             unshippedEl.innerHTML = `<div class="orbit-summary-note">未出荷の注文はありません</div>`;
@@ -1695,7 +1703,7 @@ window.initOrbit = function () {
             const bodyHtml = [...uMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([c, e]) => {
                 const tds = types.map(t => `<td class="num">${e.byType[t] || 0}</td>`).join("");
                 return `<tr><td>${orbitEscapeHtml(c)}</td>${tds}` +
-                    `<td class="num">${e.total}</td><td class="num">${Math.round(e.fee).toLocaleString()}</td></tr>`;
+                    `<td class="num">${fmtTotal(e.total, e.orders.size)}</td><td class="num">${Math.round(e.fee).toLocaleString()}</td></tr>`;
             }).join("");
             const totTds = types.map(t => {
                 const s = [...uMap.values()].reduce((acc, e) => acc + (e.byType[t] || 0), 0);
@@ -1704,7 +1712,7 @@ window.initOrbit = function () {
             unshippedEl.innerHTML =
                 `<table class="orbit-summary-table"><thead>${headHtml}</thead><tbody>${bodyHtml}</tbody>` +
                 `<tfoot><tr><td>合計</td>${totTds}` +
-                `<td class="num">${unshippedRows.length}</td><td class="num">${Math.round(grandFee).toLocaleString()}</td></tr>` +
+                `<td class="num">${fmtTotal(unshippedRows.length, grandOrders.size)}</td><td class="num">${Math.round(grandFee).toLocaleString()}</td></tr>` +
                 `</table>`;
         }
     }
