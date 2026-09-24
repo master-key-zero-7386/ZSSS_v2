@@ -1609,14 +1609,15 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
         row["asin_sold_count"] = asin_sold_counts.get(row.get("asin"), 0) if row.get("asin") else 0
 
     # --- 管理品（キャンセル・返送で保管中の在庫）：同ASINの未処理在庫数と、この注文が
-    #     「管理品から出荷」で使った管理No.（発注管理の仕入れ情報のボタン表示用） ---
+    #     「管理品から出荷」で使った管理No.（発注管理の「管」列・仕入れ情報のボタン表示用） ---
     # 循環importを避けるため関数内import（orbit_kanrihin_service はこのモジュールをimportしている）
     from amazon.services.orbit_kanrihin_service import load_kanrihin_stock
     kanrihin = load_kanrihin_stock(user_id)
     for row in rows:
         asin = row.get("asin") or _extract_asin_from_sku(row.get("sku"))
         is_source = row.get("agent_serial_no") in kanrihin["source_serials"]  # 管理品になった元の注文自身
-        row["kanrihin_available_count"] = kanrihin["available"].get(asin, 0) if asin and not is_source else 0
+        row["kanrihin_available_nos"] = kanrihin["available"].get(asin, []) if asin and not is_source else []
+        row["kanrihin_available_count"] = len(row["kanrihin_available_nos"])
         row["kanrihin_used_management_no"] = kanrihin["used"].get(row.get("order_item_id"))
 
     return rows

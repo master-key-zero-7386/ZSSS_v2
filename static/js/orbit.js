@@ -203,6 +203,8 @@ const CREDIT_CARD_OPTIONS = ["-"];
 const DISPATCH_COLUMNS = [
     { key: "agent_serial_no", label: "N番", highlight: true },  // 受注一覧タブで採番
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell", marketColor: true },  // クリックでコピー＋マーケット色
+    // ASINの右：同ASINの管理品（保管在庫）が残っていれば紫の「管」、この注文で管理品から出荷済ならグレーの「管」
+    { key: "kanrihin_mark", label: "管", kanrihinMark: true },
     { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true, holidayMark: true },
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "security_badge", label: "要注意", securityBadge: true },
@@ -288,7 +290,7 @@ const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 
 // 主行に出す列（左から順）。「これ主行に上げて」「順番入れ替え」はこの配列を編集するだけ。
 const DISPATCH_PRIMARY_KEYS = [
-    "agent_serial_no", "asin", "order_id", "promise_date", "profit_rate_pct",
+    "agent_serial_no", "asin", "kanrihin_mark", "order_id", "promise_date", "profit_rate_pct",
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
@@ -876,9 +878,17 @@ function dispCellInner(col, r) {
         const on = !!r[col.key];
         return `<button type="button" class="orbit-flag-toggle-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="${col.key}" data-value="${on ? 1 : 0}">${on ? (col.flagOnLabel || "ON") : (col.flagOffLabel || "OFF")}</button>`;
     }
+    if (col.kanrihinMark) {
+        if (r.kanrihin_used_management_no) {
+            return `<span class="orbit-kanrihin-mark is-used" title="管理品 ${orbitEscapeHtml(r.kanrihin_used_management_no)} から出荷済">管</span>`;
+        }
+        const nos = r.kanrihin_available_nos || [];
+        if (!nos.length) return "";
+        return `<span class="orbit-kanrihin-mark" title="管理品あり（在庫${nos.length}）${orbitEscapeHtml(nos.join(" / "))}">管</span>`;
+    }
     if (col.kanrihinShip) {
         if (r.kanrihin_used_management_no) {
-            return `<span class="orbit-kanrihin-used">管理品 ${orbitEscapeHtml(r.kanrihin_used_management_no)} から出荷済</span>`;
+            return `<span class="orbit-kanrihin-used">${orbitEscapeHtml(r.kanrihin_used_management_no)} から出荷済</span>`;
         }
         if (!r.kanrihin_available_count) return "";
         return `<button type="button" class="orbit-kanrihin-ship-btn btn-blue" data-order-item-id="${r.order_item_id}" title="保管中の管理品（N番の古い順）から出荷し、元N番の仕入情報を移植して仕入済にします">管理品から出荷（在庫${r.kanrihin_available_count}）</button>`;

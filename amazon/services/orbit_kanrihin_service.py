@@ -284,12 +284,12 @@ def _load_unprocessed_with_asin(user_id: int) -> list:
 
 def load_kanrihin_stock(user_id: int) -> dict:
     """発注管理の一覧表示用。
-    {"available": {asin: 未処理の管理品数}, "used": {order_item_id: management_no},
+    {"available": {asin: [未処理の管理No.（N番の古い順＝出荷で使われる順）]}, "used": {order_item_id: management_no},
      "source_serials": {管理品になった元のN番}}（元の注文自身には出荷ボタンを出さないため）"""
     available = {}
     source_serials = set()
     for r in _load_unprocessed_with_asin(user_id):
-        available[r["asin"]] = available.get(r["asin"], 0) + 1
+        available.setdefault(r["asin"], []).append(r["management_no"])
         source_serials.add(r["linked_agent_serial_no"])
 
     conn = get_conn("a_orbit_kanrihin_confirmed.db")
