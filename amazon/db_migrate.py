@@ -839,6 +839,11 @@ ORBIT_KANRIHIN_CONFIRMED_COLUMNS = {
     # JAN不明等で管理品に計上された商品を、後から突き止めたN番（agent_serial_no）に手動で
     # リンクしておく欄。確認状態とは独立（未確認のままリンクだけ先に入れることもできる）。
     "linked_agent_serial_no": "INTEGER",
+    # 保管在庫が無くなった印（処理済）。発注管理の「管理品から出荷」で自動的に立つほか、
+    # 管理品タブの「処理済」ボタンで手動ON/OFFもできる。NULLの間＝保管在庫が残っている。
+    "processed_at": "TEXT",
+    # 「管理品から出荷」で使われた出荷先注文（orbit_orders.order_item_id）。手動で処理済にした場合はNULL。
+    "used_order_item_id": "TEXT",
 }
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---

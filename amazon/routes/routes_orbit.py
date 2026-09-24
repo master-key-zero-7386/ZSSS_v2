@@ -77,6 +77,8 @@ from amazon.services.orbit_kanrihin_service import (
     confirm_kanrihin_items,
     release_kanrihin_item,
     save_kanrihin_link,
+    set_kanrihin_processed,
+    ship_from_kanrihin,
 )
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
@@ -1001,3 +1003,48 @@ def kanrihin_link_route():
         return jsonify({"status": "error", "message": str(e)}), 500
 
     return jsonify({"status": "success", "order_info": order_info})
+
+
+# --- ▼ SECTION 17: 管理品の「処理済」（保管在庫が無くなった印）手動ON/OFF ▼ ---
+@orbit_bp.route("/kanrihin_processed", methods=["POST"])
+def kanrihin_processed_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    management_no = (data.get("management_no") or "").strip()
+
+    try:
+        set_kanrihin_processed(user_id, management_no, bool(data.get("processed")))
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+    return jsonify({"status": "success"})
+
+
+# --- ▼ SECTION 18: 発注管理「管理品から出荷」（元N番の仕入情報を移植→処理済→在庫ゼロなら
+#     全マーケットの手入力価格OFF→仕入済ON） ▼ ---
+@orbit_bp.route("/orders/ship_from_kanrihin", methods=["POST"])
+@block_if_serial_dup
+def ship_from_kanrihin_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_id = data.get("order_item_id")
+    if not order_item_id:
+        return jsonify({"status": "error", "message": "order_item_idが必要です"}), 400
+
+    try:
+        result = ship_from_kanrihin(user_id, order_item_id)
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception:
+        import traceback
+        print("[orbit/orders/ship_from_kanrihin] ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "管理品から出荷の処理でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", **result})

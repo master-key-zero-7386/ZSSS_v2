@@ -233,6 +233,8 @@ const DISPATCH_COLUMNS = [
     { key: "ship_state_effective", label: "州", checkFlagKey: "flag_state_expanded", editable: "text", saveField: "ship_state_override" },
     { key: "ship_postal_code", label: "郵便番号", checkFlagKey: "flag_postal_code_missing", remoteAreaCell: true },
 
+    // 管理品（キャンセル・返送で保管中の在庫）から出荷：同ASINの未処理管理品がある注文だけボタンを出す
+    { key: "kanrihin_ship", label: "管理品", kanrihinShip: true },
     { key: "supplier", label: "仕入先", editable: "select", options: SUPPLIER_OPTIONS },
     { key: "procurement_credit_card", label: "利用クレカ", editable: "select", options: CREDIT_CARD_OPTIONS },
     { key: "supplier_order_number", label: "仕入注文番号", editable: "text" },
@@ -307,6 +309,7 @@ const DISPATCH_DETAIL_SECTIONS = [
         "ship_state_effective",
     ] },
     { key: "proc", label: "仕入れ情報", keys: [
+        "kanrihin_ship",  // 先頭。対象の管理品が無い注文では項目ごと出さない
         "jan_code",  // asin は主行(DISPATCH_PRIMARY_KEYS)の order_id 左へ移動
         "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
         "procurement_credit_card",  // リンクと仕入日の間（利用クレカ選択）
@@ -873,6 +876,13 @@ function dispCellInner(col, r) {
         const on = !!r[col.key];
         return `<button type="button" class="orbit-flag-toggle-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="${col.key}" data-value="${on ? 1 : 0}">${on ? (col.flagOnLabel || "ON") : (col.flagOffLabel || "OFF")}</button>`;
     }
+    if (col.kanrihinShip) {
+        if (r.kanrihin_used_management_no) {
+            return `<span class="orbit-kanrihin-used">管理品 ${orbitEscapeHtml(r.kanrihin_used_management_no)} から出荷済</span>`;
+        }
+        if (!r.kanrihin_available_count) return "";
+        return `<button type="button" class="orbit-kanrihin-ship-btn btn-blue" data-order-item-id="${r.order_item_id}" title="保管中の管理品（N番の古い順）から出荷し、元N番の仕入情報を移植して仕入済にします">管理品から出荷（在庫${r.kanrihin_available_count}）</button>`;
+    }
     if (col.key === "supplier_link") {
         const link = buildSupplierLink(r.supplier, r.supplier_order_number);
         return link ? `<a href="${link}" target="_blank" rel="noopener">開く</a>` : "";
@@ -1018,7 +1028,9 @@ function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
         const detailBody = DISPATCH_DETAIL_SECTIONS.map(sec => {
             const body = sec.custom === "buyerMemo"
                 ? renderBuyerMemoBlock(r) + renderSellerMemoBlock(r)
-                : (sec.keys || []).map(dispatchCol).map(col => {
+                : (sec.keys || []).map(dispatchCol)
+                    .filter(col => !col.kanrihinShip || r.kanrihin_available_count || r.kanrihin_used_management_no)
+                    .map(col => {
                     // 仕入れ情報の手入力欄が未入力なら淡いピンク（入力忘れ防止・見た目のみ）。
                     // リンク・依頼日・インボイス価格は editable が無いので自動的に対象外。
                     const v = r[col.key];
@@ -1215,6 +1227,16 @@ function attachSaveHandlers(tbody, { onSaved } = {}) {
     tbody.addEventListener("focusout", handler);
     tbody.addEventListener("change", handler);
 }
+
+// 管理品タブの状態（initOrbit 再実行をまたいで共有。上記 initOrbit 内のコメント参照）
+const kanrihinState = {
+    unconfirmedNos: [],
+    lastData: { header: [], items: [] },
+    // 処理済の行を隠す（出荷通知済を隠す と同じくヘッダーのボタンで切替・ブラウザに記憶）
+    hideProcessed: (() => {
+        try { return localStorage.getItem("orbitKanrihinHideProcessed") === "1"; } catch { return false; }
+    })(),
+};
 
 window.initOrbit = function () {
     const table = document.getElementById("orbit-orders-table");
@@ -1414,7 +1436,9 @@ window.initOrbit = function () {
     const kanrihinTable = document.getElementById("orbit-kanrihin-table");
     const kanrihinSheetNameInput = document.getElementById("orbit-kanrihin-sheet-name");
     const kanrihinSettingsSaveBtn = document.getElementById("orbit-kanrihin-settings-save-btn");
-    let kanrihinUnconfirmedNos = [];
+    // ※ 管理品の表示データ・未確認リスト・処理済を隠す状態は initOrbit の外（kanrihinState）に置く。
+    //   タブ再訪時の initOrbit() は早期returnで loadKanrihinData() だけ呼び直すが、クリック等の
+    //   ハンドラは初回の initOrbit() のものが残るため、状態を関数内に持つと両者で食い違う。
 
     // N番(agent_serial_no)が重複している値の集合。ロードのたびに ordersRowsCache から計算し直す。
     // 空でない＝重複あり。重複中は赤字表示＋ほぼ全操作をブロックする（recomputeDuplicateSerials / markSerialDups /
@@ -2542,6 +2566,52 @@ window.initOrbit = function () {
     dispatchTbody?.addEventListener("click", flagToggleHandler);
     receiptTbody?.addEventListener("click", flagToggleHandler);
 
+    // --- ▼ SECTION 01-2e2: 発注管理「管理品から出荷」（仕入れ情報の先頭ボタン） ▼ ---
+    //   サーバ側で ①同ASINの未処理管理品のうちN番最古を選ぶ ②元N番の仕入情報を移植 ③処理済
+    //   ④在庫ゼロなら全マーケットの手入力価格OFF（TTL復帰）⑤仕入済ON（確認ダイアログ無し）まで行う。
+    //   同ASINの他の注文の在庫表示も変わるため、完了後は全件リロードする。
+    dispatchTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-kanrihin-ship-btn");
+        if (!btn) return;
+        const orderItemId = btn.dataset.orderItemId;
+        if (!orderItemId) return;
+        if (!confirm("管理品から出荷します。元N番の仕入情報でこの注文の仕入情報を上書きし、仕入済にします。よろしいですか？")) return;
+
+        btn.disabled = true;
+        fetch("/orbit/orders/ship_from_kanrihin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_item_id: orderItemId }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    window.showToast?.(data.message || "管理品から出荷に失敗しました", "error");
+                    btn.disabled = false;
+                    return;
+                }
+                window.showToast?.(
+                    `管理品 ${data.management_no}（元N${data.source_serial_no}）から出荷しました。残り${data.remaining}個`,
+                    "success"
+                );
+                if ((data.cleared_countries || []).length) {
+                    window.showToast?.(
+                        `在庫がなくなったため手入力価格をOFFにしました（${data.cleared_countries.join(" / ")}）`,
+                        "info"
+                    );
+                }
+                if ((data.other_override_countries || []).length) {
+                    alert(`注意：他のマーケットでも手入力価格で出品中です（${data.other_override_countries.join(" / ")}）。\n残りの管理品は${data.remaining}個です。`);
+                }
+                loadOrders();
+            })
+            .catch(err => {
+                console.error("orbit/orders/ship_from_kanrihin error:", err);
+                window.showToast?.("管理品から出荷に失敗しました", "error");
+                btn.disabled = false;
+            });
+    });
+
     // --- ▼ SECTION 01-2f: 発注管理アコーディオン行の ± 展開/縮小 ▼ ---
     dispatchTbody?.addEventListener("click", (e) => {
         const btn = e.target.closest(".orbit-acc-toggle");
@@ -3127,16 +3197,20 @@ window.initOrbit = function () {
         const tbody = kanrihinTable?.querySelector("tbody");
         if (!thead || !tbody) return;
 
+        const hideBtn = `<button type="button" id="orbit-kanrihin-hide-processed-btn" class="${kanrihinState.hideProcessed ? "btn-red" : "btn-blue"}" `
+            + `style="margin-top:2px;" title="処理済（保管在庫なし）の行を一覧から隠す/表示する">${kanrihinState.hideProcessed ? "処理済を表示" : "処理済を隠す"}</button>`;
         thead.innerHTML = header.map(h => `<th>${orbitEscapeHtml(h)}</th>`).join("")
             + `<th>N番</th><th>仕入情報</th>`
-            + `<th><button type="button" id="orbit-kanrihin-confirm-all-btn" class="btn-blue">一括確認</button></th>`;
+            + `<th><button type="button" id="orbit-kanrihin-confirm-all-btn" class="btn-blue">一括確認</button></th>`
+            + `<th>処理済<br>${hideBtn}</th>`;
 
-        if (!items.length) {
-            tbody.innerHTML = `<tr><td colspan="${header.length + 3}" style="text-align:center; color:#888;">管理品はありません</td></tr>`;
+        const visibleItems = kanrihinState.hideProcessed ? items.filter(i => !i.processed) : items;
+        if (!visibleItems.length) {
+            tbody.innerHTML = `<tr><td colspan="${header.length + 4}" style="text-align:center; color:#888;">管理品はありません</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = items.map(item => {
+        tbody.innerHTML = visibleItems.map(item => {
             const cells = header.map((_, i) => `<td>${orbitEscapeHtml(item.cells[i])}</td>`).join("");
             const serialCell = `<td><input type="text" class="orbit-kanrihin-serial-input" inputmode="numeric" `
                 + `data-management-no="${orbitEscapeHtml(item.management_no)}" `
@@ -3144,8 +3218,17 @@ window.initOrbit = function () {
             const infoCell = `<td>${kanrihinOrderInfoHtml(item)}</td>`;
             const btnClass = `orbit-kanrihin-confirm-btn${item.confirmed ? "" : " btn-blue"}`;
             const actionCell = `<td><button type="button" class="${btnClass}" data-management-no="${orbitEscapeHtml(item.management_no)}" data-confirmed="${item.confirmed ? "1" : "0"}">${item.confirmed ? "確認済み" : "確認"}</button></td>`;
+            // 処理済：「管理品から出荷」で使われた行は出荷先のN番、手動で処理済にした行は「手動」を添える
+            const usedText = item.processed
+                ? (item.used_order_item_id ? `→ N${item.used_agent_serial_no ?? "?"}` : "手動")
+                : "";
+            const processedCell = `<td><button type="button" class="orbit-kanrihin-processed-btn${item.processed ? "" : " btn-blue"}" `
+                + `data-management-no="${orbitEscapeHtml(item.management_no)}" data-processed="${item.processed ? "1" : "0"}">`
+                + `${item.processed ? "処理済" : "未処理"}</button>`
+                + (usedText ? `<br><span style="font-size:12px; color:#666;">${orbitEscapeHtml(usedText)}</span>` : "")
+                + `</td>`;
             const rowClass = item.confirmed ? "" : ' class="orbit-row-kanrihin-unconfirmed"';
-            return `<tr${rowClass}>${cells}${serialCell}${infoCell}${actionCell}</tr>`;
+            return `<tr${rowClass}>${cells}${serialCell}${infoCell}${actionCell}${processedCell}</tr>`;
         }).join("");
     }
 
@@ -3161,17 +3244,50 @@ window.initOrbit = function () {
                     if (tbody) tbody.innerHTML = `<tr><td style="color:#c62828;">${orbitEscapeHtml(data.message || "取得に失敗しました")}</td></tr>`;
                     return;
                 }
-                renderKanrihinTable(data.header || [], data.items || []);
-                kanrihinUnconfirmedNos = (data.items || []).filter(i => !i.confirmed).map(i => i.management_no);
-                kanrihinSubtabBtn?.classList.toggle("orbit-kanrihin-alert", kanrihinUnconfirmedNos.length > 0);
+                kanrihinState.lastData = { header: data.header || [], items: data.items || [] };
+                renderKanrihinTable(kanrihinState.lastData.header, kanrihinState.lastData.items);
+                kanrihinState.unconfirmedNos = (data.items || []).filter(i => !i.confirmed).map(i => i.management_no);
+                kanrihinSubtabBtn?.classList.toggle("orbit-kanrihin-alert", kanrihinState.unconfirmedNos.length > 0);
             })
             .catch(err => console.error("kanrihin_items load error:", err));
     }
 
     kanrihinTable?.addEventListener("click", (e) => {
+        if (e.target.closest("#orbit-kanrihin-hide-processed-btn")) {
+            kanrihinState.hideProcessed = !kanrihinState.hideProcessed;
+            try { localStorage.setItem("orbitKanrihinHideProcessed", kanrihinState.hideProcessed ? "1" : "0"); } catch { /* ignore */ }
+            renderKanrihinTable(kanrihinState.lastData.header, kanrihinState.lastData.items);
+            return;
+        }
+
+        const processedBtn = e.target.closest(".orbit-kanrihin-processed-btn");
+        if (processedBtn) {
+            const managementNo = processedBtn.dataset.managementNo;
+            if (!managementNo) return;
+            const next = processedBtn.dataset.processed !== "1";
+            if (!next && !confirm("未処理に戻すと、保管在庫が残っている扱いになり「管理品から出荷」の候補に戻ります。よろしいですか？")) return;
+            processedBtn.disabled = true;
+            fetch("/orbit/kanrihin_processed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ management_no: managementNo, processed: next }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") loadKanrihinData();
+                    else { window.showToast?.(data.message || "更新に失敗しました", "error"); processedBtn.disabled = false; }
+                })
+                .catch(err => {
+                    console.error("kanrihin_processed error:", err);
+                    window.showToast?.("更新に失敗しました", "error");
+                    processedBtn.disabled = false;
+                });
+            return;
+        }
+
         const bulkBtn = e.target.closest("#orbit-kanrihin-confirm-all-btn");
         if (bulkBtn) {
-            if (!kanrihinUnconfirmedNos.length) {
+            if (!kanrihinState.unconfirmedNos.length) {
                 window.showToast?.("未確認の行がありません", "error");
                 return;
             }
@@ -3179,7 +3295,7 @@ window.initOrbit = function () {
             fetch("/orbit/kanrihin_confirm", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ management_nos: kanrihinUnconfirmedNos }),
+                body: JSON.stringify({ management_nos: kanrihinState.unconfirmedNos }),
             })
                 .then(res => res.json())
                 .then(data => {
@@ -3250,6 +3366,26 @@ window.initOrbit = function () {
                         linked_agent_serial_no: raw ? Number(raw) : null,
                         linked_order_info: data.order_info,
                     });
+                }
+                const cached = kanrihinState.lastData.items.find(i => i.management_no === managementNo);
+                if (cached) {
+                    cached.linked_agent_serial_no = raw ? Number(raw) : null;
+                    cached.linked_order_info = data.order_info;
+                }
+                // N番を入れたらサーバ側で自動的に確認済になる → 画面の確認ボタン・未確認警告も合わせる
+                // （N番を消しても確認済は戻さない）
+                if (raw) {
+                    if (cached) cached.confirmed = true;
+                    const tr = input.closest("tr");
+                    tr?.classList.remove("orbit-row-kanrihin-unconfirmed");
+                    const confirmBtn = tr?.querySelector(".orbit-kanrihin-confirm-btn");
+                    if (confirmBtn) {
+                        confirmBtn.dataset.confirmed = "1";
+                        confirmBtn.classList.remove("btn-blue");
+                        confirmBtn.textContent = "確認済み";
+                    }
+                    kanrihinState.unconfirmedNos = kanrihinState.unconfirmedNos.filter(n => n !== managementNo);
+                    kanrihinSubtabBtn?.classList.toggle("orbit-kanrihin-alert", kanrihinState.unconfirmedNos.length > 0);
                 }
             })
             .catch(err => {
