@@ -14,6 +14,7 @@ import unicodedata
 from datetime import datetime
 from decimal import Decimal
 
+import phonenumbers
 import requests
 from psycopg2.extras import execute_values
 
@@ -181,22 +182,23 @@ def _backfill_jan_from_history(user_id: int, cur, order_item_ids: list) -> int:
 # それ以外（商品名・宛名・住所）は自動修正できないため、画面上でハイライトして人の目でのチェックを促す。
 PHONE_COUNTRY_CODE_PATTERN = re.compile(r"^\+\d{1,3}[\s-]*")
 
-# \d{1,3} はgreedyなので、区切り文字なしで数字が連続する北米形式（例: "+14376028165"）だと
-# 本来1桁の国番号("+1")のつもりが3桁("+143")食ってしまい、市外局番の頭まで消えてしまう。
-# 対象マーケット(JP/AU/US/SG/CA)分は国番号の桁数を明示して正しく除去する。
-COUNTRY_CALLING_CODES = {
-    "US": "1", "CA": "1", "AU": "61", "SG": "65", "JP": "81",
-}
-
-
+# 国番号は1〜3桁で、区切り文字なしで数字が連続すると（例: "+13064909989", "+64224795120"）
+# 正規表現だけでは桁数を判定できず、市外局番の頭まで消してしまう（CA/NZで実際に発生）。
+# 国番号は「どれかが別の頭と重ならない」よう割り当てられているため、phonenumbers(libphonenumber)
+# の全世界国番号表で先頭1〜3桁を照合すれば配送国に頼らず一意に切り分けられる。
+# 表に無い番号は推測で削らず元のまま返す → flag_phone_country_code で目視チェックに回る。
 def _clean_phone_number(value, ship_country=None):
     if not value:
         return value
     value = value.strip()
-    calling_code = COUNTRY_CALLING_CODES.get((ship_country or "").strip().upper())
-    if calling_code and value.startswith("+" + calling_code):
-        return value[len(calling_code) + 1:].lstrip(" -").strip()
-    return PHONE_COUNTRY_CODE_PATTERN.sub("", value).strip()
+    if not value.startswith("+"):
+        return value
+    digits = value[1:]
+    for n in (1, 2, 3):
+        head = digits[:n]
+        if head.isdigit() and int(head) in phonenumbers.COUNTRY_CODE_TO_REGION_CODE:
+            return digits[n:].lstrip(" -").strip()
+    return value
 
 
 # US注文で稀に "602-671-6610 ext. 52861" のように内線番号が付いてくるため、
