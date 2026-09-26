@@ -217,6 +217,8 @@ const DISPATCH_COLUMNS = [
     { key: "agent_tracking_number", label: "トラッキング", copyClass: "orbit-orderid-cell" },  // 通知すべき番号（代行会社読み戻し）
     { key: "agent_weight_recorded_date", label: "代行出荷日", redUntilShipped: true },  // 代行会社がいつ出荷したか
     { key: "shipped_completed", label: "出荷通知", shippedToggle: true, shippedFilterButton: true },  // 自分がAmazon側へ出荷通知＝完了（グレーアウト）。列見出し＝通知済の表示/非表示トグル
+    // 商品未着などのトラブル対応中フラグ。ONの間は「通知済を隠す」でも一覧に残し、行を赤系にする。概要は展開部先頭のメモ欄へ
+    { key: "trouble_flag", label: "トラブル", flagToggle: true, flagOnLabel: "対応中", flagOffLabel: "-" },
     { key: "purchased", label: "仕入確認", flagToggle: true, flagOnLabel: "仕入済", flagOffLabel: "未仕入" },
     // ※「領収書(invoice_saved)」は専用サブタブ「領収書」に移設（発注管理からは撤去）
     { key: "remarks", label: "備考1", editable: "text", mid: true },
@@ -294,8 +296,8 @@ const DISPATCH_PRIMARY_KEYS = [
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
-    "shipped_completed", "purchased",
-    "fetch_fee_estimate",  // 主行に配置。列見出し＝「一括取得」ボタン、セル＝行ごとの「手数料取得/再取得」
+    "shipped_completed", "trouble_flag", "purchased",
+    "fetch_fee_estimate",  // 主行に配置。列見出し＝「一括取得」ボタン、見出しに「手数料」、セル＝行ごとの「取得/取得済」（取得済も押せば再取得）
     "remarks", "remarks_2", "remarks_3",
 ];
 
@@ -618,13 +620,13 @@ function renderTableHeader(thead, columns, { sortable, onSort, sortState } = {})
 
         // 手数料見積り列のヘッダーには、表示中の未取得行だけをまとめて取得する一括ボタンを出す
         if (col.fetchFeeEstimateButton) {
-            return `<th class="${groupClass.trim()}"><button type="button" class="orbit-fetch-fee-all-btn btn-blue" title="表示中の未取得（「手数料取得」）行だけをまとめて取得します">一括取得</button></th>`;
+            return `<th class="${groupClass.trim()}">手数料<br><button type="button" class="orbit-fetch-fee-all-btn btn-blue" style="margin-top:2px;" title="表示中の未取得（「取得」）行だけをまとめて取得します">一括取得</button></th>`;
         }
 
         // 出荷通知列のヘッダーには、出荷通知済み（shipped_completed）の行を一覧から隠す/戻すトグルを出す。
         // ボタン文言と色は描画後に updateDispatchHideNotifiedLabel() が現在の状態に合わせて上書きする。
         if (col.shippedFilterButton) {
-            return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-dispatch-hide-notified-btn btn-blue" style="margin-top:2px;" title="出荷通知済みの注文を一覧から隠す/表示する">通知済を隠す</button></th>`;
+            return `<th class="${groupClass.trim()}">${col.label}<br><button type="button" class="orbit-dispatch-hide-notified-btn btn-blue" style="margin-top:2px;" title="出荷通知済みの注文を一覧から隠す/表示する">済を隠す</button></th>`;
         }
 
         if (!sortable || col.blank || col.deleteButton || col.key === "supplier_link") {
@@ -737,7 +739,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 // item_priceが無くても、ボタン側でAmazon注文詳細(Orders API)から自動取得する。
                 if (r.net_proceeds != null || !r.asin) return "<td></td>";
                 const fetched = r.fee_estimate_amount != null;
-                const label = fetched ? "手数料再取得" : "手数料取得";
+                const label = fetched ? "取得済" : "取得";
                 return `<td><button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}"${fetched ? ' data-fee-fetched="1"' : ''}>${label}</button></td>`;
             }
 
@@ -904,7 +906,7 @@ function dispCellInner(col, r) {
     if (col.fetchFeeEstimateButton) {
         if (r.net_proceeds != null || !r.asin) return "";
         const fetched = r.fee_estimate_amount != null;
-        return `<button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}"${fetched ? ' data-fee-fetched="1"' : ""}>${fetched ? "手数料再取得" : "手数料取得"}</button>`;
+        return `<button type="button" class="orbit-fetch-fee-btn btn-blue" data-order-item-id="${r.order_item_id}"${fetched ? ' data-fee-fetched="1"' : ""}>${fetched ? "取得済" : "取得"}</button>`;
     }
     if (col.percentCell) {
         if (r[col.key] == null) return "";
@@ -1028,6 +1030,8 @@ function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
         // 貼り付け前チェックで不備がある未完了行 → 主行を赤背景（閉じていても気づけるように）
         const issueFlags = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
         if (!r.shipped_completed && !isCancel && issueFlags.length) rowCls += " orbit-row-issue";
+        // トラブル対応中 → 出荷通知済（グレー）・キャンセル（緑）より優先して赤系に（CSSで後勝ち）
+        if (r.trouble_flag) rowCls += " orbit-row-trouble";
 
         const open = expandedSet.has(oid);
 
@@ -1079,13 +1083,21 @@ function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
                </div>`
             : "";
 
+        // トラブルON（またはOFFでもメモが残っている）行は展開部の先頭にトラブル概要の入力欄を全幅で出す。
+        const troubleBlock = (r.trouble_flag || (r.trouble_memo || "").trim())
+            ? `<div class="orbit-acc-trouble${r.trouble_flag ? "" : " is-done"}">
+                   <span class="orbit-acc-trouble-label">🚨 トラブル${r.trouble_flag ? "対応中" : "（解決済）"}</span>
+                   <input type="text" class="orbit-manual orbit-trouble-memo-input" data-field="trouble_memo" list="orbit-dl-trouble-memo" value="${orbitEscapeHtml(r.trouble_memo || "")}" placeholder="概要（例：商品未着）" title="${orbitEscapeHtml(r.trouble_memo || "")}">
+               </div>`
+            : "";
+
         return `
             <tr class="${rowCls}" data-order-item-id="${oid}">
                 <td class="orbit-acc-toggle-cell"><button type="button" class="orbit-acc-toggle" data-order-item-id="${oid}" title="展開/縮小">${open ? "−" : "＋"}</button></td>
                 ${mainCells}
             </tr>
             <tr class="orbit-acc-detail" data-order-item-id="${oid}"${open ? "" : " hidden"}>
-                <td class="orbit-acc-detail-cell" colspan="${colspan}">${issueBlock}${noticeBlock}${detailBody}</td>
+                <td class="orbit-acc-detail-cell" colspan="${colspan}">${troubleBlock}${issueBlock}${noticeBlock}${detailBody}</td>
             </tr>`;
 }
 
@@ -1142,6 +1154,7 @@ const DISPATCH_INPLACE_FIELDS = new Set([
     "jan_code",
     "supplier_order_number", "supplier_shop_name",
     "seller_memo",
+    "trouble_memo",
 ]);
 
 function saveManualField(orderItemId, field, value, onDone) {
@@ -1816,6 +1829,13 @@ window.initOrbit = function () {
         if (!dl) return;
         const vals = [...new Set(dispatchRowsCache.map(r => (r.shipping_type || "").trim()).filter(Boolean))].sort();
         dl.innerHTML = vals.map(v => `<option value="${orbitEscapeHtml(v)}"></option>`).join("");
+
+        // トラブル概要の入力候補：定番の「商品未着」＋これまでに入力された値
+        const tdl = document.getElementById("orbit-dl-trouble-memo");
+        if (tdl) {
+            const tvals = [...new Set(["商品未着", ...dispatchRowsCache.map(r => (r.trouble_memo || "").trim()).filter(Boolean)])];
+            tdl.innerHTML = tvals.map(v => `<option value="${orbitEscapeHtml(v)}"></option>`).join("");
+        }
     }
 
     function renderDispatchTable() {
@@ -1824,7 +1844,8 @@ window.initOrbit = function () {
             : dispatchRowsCache;
         // 「通知済を隠す」がONのときだけ出荷通知済み（shipped_completed）を一覧から除外する。
         // dispatchRowsCache 自体は絞り込まない（集計パネル・他タブ・全部展開の対象は従来どおり全件）。
-        const rows = dispatchHideNotified ? sorted.filter(r => !r.shipped_completed) : sorted;
+        // ただしトラブル対応中（trouble_flag）の行は通知済でも隠さない。
+        const rows = dispatchHideNotified ? sorted.filter(r => !r.shipped_completed || r.trouble_flag) : sorted;
         const wrapper = dispatchTbody?.closest(".table-wrapper");
         const scrollLeft = wrapper ? wrapper.scrollLeft : 0;
         refreshShippingTypeDatalist();
@@ -2398,7 +2419,7 @@ window.initOrbit = function () {
         // クリックされたヘッダーと同じテーブルの tbody を対象にする（仕入れ管理・発注管理の両対応）。
         const ownTbody = btn.closest("table")?.querySelector("tbody");
 
-        // 未取得分（「手数料取得」）のみ対象。既に取得済み（「手数料再取得」）の行はスキップする。
+        // 未取得分（「取得」）のみ対象。既に取得済み（「取得済」）の行はスキップする。
         const rowBtns = Array.from(ownTbody?.querySelectorAll(".orbit-fetch-fee-btn") || [])
             .filter(b => !b.dataset.feeFetched);
         const ids = rowBtns.map(b => b.dataset.orderItemId).filter(Boolean);
@@ -2568,6 +2589,11 @@ window.initOrbit = function () {
                     // トグルと同じくローカル再描画で済ませる。
                     const row2 = ordersRowsCache.find(r2 => r2.order_item_id === orderItemId);
                     if (row2) row2[field] = next;
+                    // トラブルON時はその行を展開して、先頭の概要メモ欄をすぐ入力できるようにする
+                    if (field === "trouble_flag" && next === 1) {
+                        dispatchExpanded.add(orderItemId);
+                        persistDispatchExpanded();
+                    }
                     refreshOrdersLocally();
                 } else {
                     window.showToast?.(data.message || "更新に失敗しました", "error");
@@ -2666,7 +2692,7 @@ window.initOrbit = function () {
     function updateDispatchHideNotifiedLabel() {
         const btn = document.querySelector(".orbit-dispatch-hide-notified-btn");
         if (!btn) return;
-        btn.textContent = dispatchHideNotified ? "通知済を表示" : "通知済を隠す";
+        btn.textContent = dispatchHideNotified ? "済を表示" : "済を隠す";
         btn.classList.toggle("btn-red", dispatchHideNotified);
         btn.classList.toggle("btn-blue", !dispatchHideNotified);
     }

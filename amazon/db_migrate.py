@@ -654,6 +654,9 @@ ORBIT_ORDERS_COLUMNS = {
     "seller_memo": "TEXT",                 # セラー自身用の私的メモ（バイヤーメモの隣に表示。手入力・連携なし）
     "seller_memo_flag": "INTEGER",         # 上記メモの手動ON/OFF目印。ONの間は主行のN番を赤字表示（消し忘れ防止）
 
+    "trouble_flag": "INTEGER",             # トラブル（商品未着など）対応中フラグ。ONの間は「通知済を隠す」でも一覧に残す
+    "trouble_memo": "TEXT",                # トラブル概要メモ（手入力・連携なし）
+
     # --- 発送代行への通知状況 ---
     "notified_at": "TEXT",
 

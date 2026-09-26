@@ -391,6 +391,29 @@
   background-color: #fdd8d5;
 }
 
+/* トラブル対応中（商品未着など）：出荷通知済のグレー・キャンセルの緑・不備の赤より優先して濃い赤系に */
+.orbit-page .orbit-acc-table tbody tr.orbit-row-trouble.orbit-acc-main > td {
+  background-color: #f5b7b1 !important;
+  color: inherit;
+}
+.orbit-flag-toggle-btn.is-on[data-field="trouble_flag"] { background-color: #c0392b; border-color: #c0392b; }
+
+/* 展開部先頭の「トラブル概要」全幅入力欄 */
+.orbit-acc-trouble {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdecea;
+  border-left: 4px solid #c0392b;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+}
+.orbit-acc-trouble.is-done { background: #eef0f2; border-left-color: #adb5bd; }
+.orbit-acc-trouble-label { font-weight: bold; color: #c0392b; white-space: nowrap; }
+.orbit-acc-trouble.is-done .orbit-acc-trouble-label { color: #6c757d; }
+.orbit-acc-trouble .orbit-trouble-memo-input { flex: 1; min-width: 0; }
+
 /* 主行の「⚠ 不備」バッジ（記号だけだと見落とすので赤地・白抜き・文字付き） */
 .orbit-issue-badge {
   background-color: #d32f2f;
@@ -899,6 +922,7 @@ input.orbit-serial-dup {
 
       <!-- 発送種別の入力候補（過去に入力した値。JSで都度更新。新しい値も自由に入力可） -->
       <datalist id="orbit-dl-shipping-type"></datalist>
+      <datalist id="orbit-dl-trouble-memo"></datalist>
 
       <div class="orbit-top-scroll" id="orbit-dispatch-top-scroll"><div></div></div>
 
