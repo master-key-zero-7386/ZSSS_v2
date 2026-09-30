@@ -1138,11 +1138,18 @@ function recomputeDispatchRowChecks(r) {
     r.flag_address1_length = (r.ship_address_1_effective || "").length > 40;
     r.flag_address2_length = (r.ship_address_2_effective || "").length > 40;
     r.flag_address3_length = (r.ship_address_3_effective || "").length > 40;
+
+    // 電話番号：未入力判定は値の有無だけなのでクライアントでそのまま再現できる。
+    // 国番号判定(サーバ PHONE_COUNTRY_CODE_PATTERN と同じ)は、override入力時のみ再計算する
+    // （override空＝自動値の場合、クライアントのeffectiveは国番号除去前の生値なので誤判定になる）。
+    const phone = r.buyer_phone_number_effective || "";
+    r.flag_phone_number_missing = !phone.trim();
+    if (r.buyer_phone_number_override) r.flag_phone_country_code = /^\+\d{1,3}[\s-]*/.test(phone);
 }
 
 // 全体リロード不要（サーバ派生値に影響しない）＝その行だけ再描画で済む手入力欄。
-// 電話番号・州は国番号判定/正式表記チェックをクライアントで再現できない（recomputeDispatchRowChecks
-// 対象外）ため、フラグ表示は次の全体リロードまで編集前の値のまま＝安全側（過剰警告はあっても見落としはない）。
+// 州は正式表記チェックをクライアントで再現しない（recomputeDispatchRowChecks対象外）ため、
+// フラグ表示は次の全体リロードまで編集前の値のまま＝安全側（過剰警告はあっても見落としはない）。
 // shipping_type はキャンセル判定・出荷種別集計など他行/サマリ表示にも波及するためここに入れない。
 const DISPATCH_INPLACE_FIELDS = new Set([
     "product_name_override",
