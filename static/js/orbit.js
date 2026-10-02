@@ -1506,13 +1506,13 @@ window.initOrbit = function () {
         if (el) el.hidden = duplicateSerials.size === 0;
     }
     // 重複中は操作系（ボタン／編集セル保存）をブロック。
-    // 常に許可: 未採番採番・全件削除・N番セル編集・タブ切替・集計パネル閲覧・並び替え・アコーディオン開閉。
+    // 常に許可: 未採番採番・全件削除・N番セル編集・タブ切替・集計パネル閲覧・検索・並び替え・アコーディオン開閉。
     function orbitDupGuard(e) {
         if (duplicateSerials.size === 0) return;
         const t = e.target;
         if (!t || !t.closest) return;
         if (t.closest("#orbit-autonumber-btn, #orbit-delete-all-btn, .st-subtab-btn, #orbit-summary, "
-                      + "#orbit-dup-warning, .orbit-sortable-th, .orbit-group-toggle-btn, "
+                      + "#orbit-dup-warning, .orbit-search-bar, .orbit-sortable-th, .orbit-group-toggle-btn, "
                       + ".orbit-acc-toggle, .orbit-reload-btn")) return;
         if (t.matches && t.matches('input[data-field="agent_serial_no"]')) return;
         const actionable = (t.closest && t.closest("button, a.btn-blue, a.btn-red"))
@@ -3793,3 +3793,127 @@ window.initOrbit = function () {
     loadSecurityNotes();
     loadCreditCards();
 };
+
+// =====================================================================
+// 共通の検索・絞り込み（サブタブ共通）
+// ---------------------------------------------------------------------
+// 各テーブルの描画処理には手を入れず、描画済みの行（DOM）に対して表示/非表示を切り替える。
+// tbody の差し替え（再読込・並び替え・1行更新）は MutationObserver で拾って掛け直すので、
+// どのサブタブ・どの描画経路でも同じ条件が効き続ける。
+//   - 検索語: 行の表示テキスト＋入力欄の値に部分一致（全角半角・大小文字は区別しない）。スペース区切りはAND。
+//   - マーケット: 行内の order-id の先頭桁で判定（getOrderMarketColorClass と同じ基準）。
+//     order-id を1件も含まないテーブル（クレカ・休日など）にはマーケット条件を掛けない。
+//   - 発注管理のアコーディオンは 主行＋展開行 をひとまとまりとして判定する。
+// =====================================================================
+(function setupOrbitSearch() {
+    const input = document.getElementById("orbit-search-input");
+    const marketSel = document.getElementById("orbit-search-market");
+    const clearBtn = document.getElementById("orbit-search-clear-btn");
+    const countEl = document.getElementById("orbit-search-count");
+    const page = document.querySelector(".orbit-page");
+    if (!input || !marketSel || !page) return;
+
+    const ORDER_ID_RE = /\b(\d)\d{2}-\d{7}-\d{7}\b/;
+
+    function norm(s) {
+        return String(s || "").normalize("NFKC").toLowerCase();
+    }
+
+    function marketOfDigit(d) {
+        if (d === "1") return "US";
+        if (d === "7") return "CA";
+        if (d === "2" || d === "5") return "AU";
+        return "OTHER";
+    }
+
+    // 1テーブル分の行を「判定単位」にまとめる（展開行は直前の主行にぶら下げる）。
+    // 読み込み中・空表示などの状態行は対象外（常に表示）。
+    function groupRows(tbody) {
+        const groups = [];
+        for (const tr of tbody.rows) {
+            if (tr.classList.contains("orbit-state-row")) continue;
+            if (tr.classList.contains("orbit-acc-detail") && groups.length) {
+                groups[groups.length - 1].push(tr);
+            } else {
+                groups.push([tr]);
+            }
+        }
+        return groups;
+    }
+
+    function groupText(group) {
+        let text = "";
+        for (const tr of group) {
+            // セル同士がくっついて別の値に見えないよう、セル単位で区切って連結する
+            for (const td of tr.cells) text += " " + td.textContent;
+            tr.querySelectorAll("input, select, textarea").forEach(el => {
+                if (el.type === "checkbox" || el.type === "button") return;
+                text += " " + el.value;
+            });
+        }
+        return text;
+    }
+
+    let scheduled = false;
+    function apply() {
+        scheduled = false;
+        const terms = norm(input.value).split(/\s+/).filter(Boolean);
+        const market = marketSel.value;
+        const active = terms.length > 0 || market !== "";
+        const activePane = page.querySelector(".st-subtab-pane.active");
+        let shown = 0, total = 0;
+
+        page.querySelectorAll(".st-subtab-pane table > tbody").forEach(tbody => {
+            const groups = groupRows(tbody).map(g => {
+                const raw = groupText(g);
+                const m = raw.match(ORDER_ID_RE);
+                return { rows: g, text: norm(raw), market: m ? marketOfDigit(m[1]) : null };
+            });
+            const hasOrderIds = groups.some(g => g.market);
+            const inActivePane = activePane && activePane.contains(tbody);
+            for (const g of groups) {
+                let ok = true;
+                if (active) {
+                    ok = terms.every(t => g.text.includes(t));
+                    if (ok && market && hasOrderIds) ok = g.market === market;
+                }
+                g.rows.forEach(tr => tr.classList.toggle("orbit-search-hidden", !ok));
+                if (inActivePane) {
+                    total++;
+                    if (ok) shown++;
+                }
+            }
+        });
+
+        if (countEl) countEl.textContent = active ? `${shown} / ${total} 件` : "";
+    }
+
+    function schedule() {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(apply);
+    }
+
+    input.addEventListener("input", schedule);
+    marketSel.addEventListener("change", schedule);
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { input.value = ""; schedule(); }
+    });
+    clearBtn?.addEventListener("click", () => {
+        input.value = "";
+        marketSel.value = "";
+        schedule();
+        input.focus();
+    });
+    // サブタブ切替で件数表示を切り替える（main.js 側の active 付け替えの後に数える）
+    page.querySelectorAll(".st-subtab-btn").forEach(btn => btn.addEventListener("click", schedule));
+
+    // 行の差し替え（再読込・並び替え・1行更新）に追従する。自分が付けるのは class だけなので
+    // childList 監視ならループしない。
+    const observer = new MutationObserver(() => {
+        if (input.value.trim() || marketSel.value) schedule();
+    });
+    page.querySelectorAll(".st-subtab-pane table > tbody").forEach(tbody => {
+        observer.observe(tbody, { childList: true });
+    });
+})();

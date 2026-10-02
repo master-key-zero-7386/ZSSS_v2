@@ -779,6 +779,28 @@ input.orbit-serial-dup {
   font-weight: bold;
   border-radius: 4px;
 }
+/* 共通の検索・絞り込みバー（サブタブ共通。表示中のどのテーブルにも効く） */
+.orbit-page > .orbit-search-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+.orbit-search-bar input[type="search"] {
+  width: 360px;
+  height: 32px;
+  padding: 0 8px;
+}
+.orbit-search-bar select {
+  height: 32px;
+}
+.orbit-search-count {
+  color: #666;
+}
+.orbit-search-hidden {
+  display: none !important;
+}
 </style>
 
 <div class="main-container orbit-page">
@@ -793,6 +815,19 @@ input.orbit-serial-dup {
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-receipt">領収書</button>
       <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
+  </div>
+
+  <div class="orbit-search-bar">
+      <input type="search" id="orbit-search-input" placeholder="検索（N番・order-id・ASIN・商品名・宛名など。スペース区切りでAND）" autocomplete="off">
+      <select id="orbit-search-market" title="order-id の先頭桁で判定">
+          <option value="">全マーケット</option>
+          <option value="US">US</option>
+          <option value="CA">CA</option>
+          <option value="AU">AU</option>
+          <option value="OTHER">その他</option>
+      </select>
+      <button type="button" id="orbit-search-clear-btn" class="btn-blue">クリア</button>
+      <span id="orbit-search-count" class="orbit-search-count"></span>
   </div>
 
   <div id="orbit-dup-warning" hidden>
