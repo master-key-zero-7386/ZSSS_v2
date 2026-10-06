@@ -240,6 +240,15 @@
 
     <script>
         window.ZSSS_IS_ADMIN = "{{ 'true' if session.get('is_admin') else 'false' }}";
+
+        // 全画面共通：入力欄へのドラッグ＆ドロップを受け付けない。選択した文字をマウスで
+        // つまんで入力欄に落とすと（ブラウザ標準の動き）、気づかないうちにその文字が入って
+        // 保存される事故があった（発注管理の内線欄に「バイヤーメモ…」の表示文字が入り、
+        // 代行会社シートにまで流れた）。手入力・Ctrl+V の貼り付けは従来どおり使える。
+        // ファイル取込は全てボタン→ファイル選択なので影響なし。
+        document.addEventListener("drop", (e) => {
+            if (e.target.closest?.("input, textarea, [contenteditable]")) e.preventDefault();
+        }, true);
     </script>
 
     <div id="loadingOverlay" style="display:none;">

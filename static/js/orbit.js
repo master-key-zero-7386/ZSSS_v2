@@ -3027,13 +3027,7 @@ window.initOrbit = function () {
     // 落ち着いたタイミングで1回だけ全体を取り直す（仕入日→依頼日の自動反映・利益の再計算など
     // サーバ側の派生値をまとめて更新する）。
     if (dispatchTbody) {
-        // 選択した文字をマウスでつまんで入力欄に落とす（ブラウザ標準のドラッグ＆ドロップ）と、
-        // そのまま保存されて代行会社シートにまで流れる事故があった（内線欄に「バイヤーメモ…」の
-        // 表示文字が入った）。発注管理の入力欄へのドロップは受け付けない。手入力・Ctrl+V は従来どおり。
-        dispatchTbody.addEventListener("drop", (e) => {
-            if (e.target.closest?.("input, textarea")) e.preventDefault();
-        });
-
+        // ※入力欄へのドラッグ＆ドロップ禁止は全画面共通で layout.html に置いている
         let pendingReloadOrderIds = new Set();
         let dispatchReloadTimer = null;
 
