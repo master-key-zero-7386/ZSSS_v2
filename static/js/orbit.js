@@ -810,7 +810,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 const hol = col.holidayInput ? orbitHolidayInfo(value) : null;
                 if (hol && hol.nonWorking) inputClass += " orbit-date-holiday";
                 const titleTxt = (hol && hol.nonWorking) ? hol.reason : (value || phVal);
-                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}"${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${orbitEscapeHtml(titleTxt)}"></td>`;
+                return `<td class="${cellClass}"><input type="${col.editable}" class="${inputClass}"${phAttr} data-field="${col.saveField || col.key}" value="${orbitEscapeHtml(value)}" title="${orbitEscapeHtml(titleTxt)}"></td>`;
             }
 
             const holMark = col.holidayMark ? orbitHolidayMark(r[col.key]) : "";
@@ -952,7 +952,7 @@ function dispCellInner(col, r) {
         const hol = col.holidayInput ? orbitHolidayInfo(value) : null;
         if (hol && hol.nonWorking) cls += " orbit-date-holiday";
         const titleTxt = (hol && hol.nonWorking) ? hol.reason : (value || phVal);
-        return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${value}" title="${orbitEscapeHtml(titleTxt)}">`;
+        return `<input type="${col.editable}" class="${cls}"${listAttr}${phAttr} data-field="${col.saveField || col.key}" value="${orbitEscapeHtml(value)}" title="${orbitEscapeHtml(titleTxt)}">`;
     }
     if (col.remoteAreaCell) {
         const val = fmtValue(col, r[col.key]);
