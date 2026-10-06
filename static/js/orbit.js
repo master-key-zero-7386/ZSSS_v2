@@ -1447,7 +1447,10 @@ window.initOrbit = function () {
     const dispatchTopScrollInner = dispatchTopScroll?.firstElementChild;
 
     function syncDispatchTopScrollWidth() {
-        if (dispatchTopScrollInner && dispatchTable) dispatchTopScrollInner.style.width = `${dispatchTable.scrollWidth}px`;
+        if (!dispatchTopScrollInner || !dispatchTable) return;
+        // 「合わせる」で表を縮めている間は、表自身の幅ではなく枠側の実際のスクロール幅に合わせる
+        const width = dispatchTableWrapper ? dispatchTableWrapper.scrollWidth : dispatchTable.scrollWidth;
+        dispatchTopScrollInner.style.width = `${width}px`;
     }
 
     if (dispatchTopScroll && dispatchTableWrapper) {
@@ -1486,6 +1489,11 @@ window.initOrbit = function () {
     // renderDispatchTable() から参照されるため（loadOrders().then 経由で早期return時も呼ばれる）ここで宣言する。
     let dispatchHideNotified = (() => {
         try { return localStorage.getItem("orbitDispatchHideNotified") === "1"; } catch { return false; }
+    })();
+    // 発注管理「合わせる」：表を横スクロールなしで全列が収まる倍率に縮めるか（PCごとに記憶）。
+    // renderDispatchTable() → fitDispatchTable() から参照されるため、同じ理由でここで宣言する。
+    let dispatchFitWidth = (() => {
+        try { return localStorage.getItem("orbitDispatchFitWidth") === "1"; } catch { return false; }
     })();
     // 発注管理アコーディオンの展開中 order_item_id 集合。renderDispatchTable()（＝loadOrders().then）が
     // 参照するので、同じく早期returnより前に初期化しておく（後ろで宣言すると2回目以降のinitOrbitでTDZ）。
@@ -1894,6 +1902,25 @@ window.initOrbit = function () {
         updateDispatchToggleAllLabel();
         updateDispatchHideNotifiedLabel();
         markSerialDups(dispatchTbody);
+        fitDispatchTable();
+    }
+
+    // 「合わせる」ON の間は、今の表示幅（＝ブラウザの拡大率・画面の広さ込み）に全列が収まる倍率で
+    // 表だけを縮める（Googleスライドの「合わせる」と同じ考え方）。表の中身や画面幅が変わるたびに計り直す。
+    function fitDispatchTable() {
+        if (!dispatchTable || !dispatchTableWrapper) return;
+        dispatchTable.style.zoom = "";
+        let ratio = 1;
+        if (dispatchFitWidth) {
+            const avail = dispatchTableWrapper.clientWidth;
+            const natural = dispatchTable.scrollWidth;
+            // タブ非表示中は幅0になるので縮めない（表示された時点で ResizeObserver から計り直す）
+            if (avail > 0 && natural > avail) ratio = Math.floor((avail / natural) * 1000) / 1000;
+        }
+        if (ratio < 1) dispatchTable.style.zoom = String(ratio);
+        const btn = document.getElementById("orbit-dispatch-fit-btn");
+        if (btn) btn.textContent = dispatchFitWidth ? `元に戻す（${Math.round(ratio * 100)}%）` : "合わせる";
+        syncDispatchTopScrollWidth();
     }
 
     // 1注文ぶんの主行＋詳細行だけを差し替える。商品名など「入力しながら何文字か削る」
@@ -2846,6 +2873,19 @@ window.initOrbit = function () {
         try { localStorage.setItem("orbitReceiptHideSaved", receiptHideSaved ? "1" : "0"); } catch { /* ignore */ }
         renderReceiptTable();
     });
+    document.getElementById("orbit-dispatch-fit-btn")?.addEventListener("click", () => {
+        dispatchFitWidth = !dispatchFitWidth;
+        try { localStorage.setItem("orbitDispatchFitWidth", dispatchFitWidth ? "1" : "0"); } catch { /* ignore */ }
+        fitDispatchTable();
+    });
+    // ウィンドウ幅の変更・ブラウザの拡大率変更・タブ表示（幅0→実幅）のたびに計り直す
+    if (dispatchTableWrapper && window.ResizeObserver) {
+        let fitRaf = 0;
+        new ResizeObserver(() => {
+            cancelAnimationFrame(fitRaf);
+            fitRaf = requestAnimationFrame(fitDispatchTable);
+        }).observe(dispatchTableWrapper);
+    }
     document.getElementById("orbit-dispatch-toggle-all-btn")?.addEventListener("click", () => {
         if (isAllDispatchExpanded()) {
             dispatchExpanded.clear();
