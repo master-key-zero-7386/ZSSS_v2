@@ -929,7 +929,7 @@ function dispCellInner(col, r) {
         const link = `<span class="asin-cell" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${orbitEscapeHtml(asin)}</span>`;
         const n = r.asin_sold_count || 0;
         const badge = n === 0
-            ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（バイヤー履歴に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
+            ? `<span class="orbit-asin-count is-zero" title="この商品は初売れ（この注文以外に販売実績なし）。キャンセル時は返品対応でAmazon仕入れが基本">初売れ</span>`
             : `<span class="orbit-asin-count" data-asin="${orbitEscapeHtml(asin)}" title="クリックで発送実績（キャリア別 確定重量・送料）を照会">×${n}</span>`;
         return `${link} ${badge}`;
     }

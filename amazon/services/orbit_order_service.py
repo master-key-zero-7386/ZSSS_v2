@@ -1601,14 +1601,17 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
     # --- リピーター判定・返品セキュリティメモの反映（買い手＝住所キーで突き合わせ） ---
     buyer_history_counts = _load_buyer_history_counts(user_id)
     buyer_security_notes = _load_buyer_security_notes(user_id)
-    # ASINカウント：その商品が過去に何回売れたか（買い手履歴内の同一ASINの明細数）。
+    # ASINカウント：その商品が「この注文以外で」何回売れたか（同一ASINの明細数）。
+    # 買い手履歴（アーカイブ済み）だけでなく、発注管理に残っている他の注文も数える
+    # （アーカイブ前の注文を数えず、2回目の注文に「初売れ」が出ていたため）。
     # 初売れ（0回）はキャンセル時に返品対応でAmazon仕入れが基本になるため、仕入先選定の目安にする。
-    asin_sold_counts = _load_asin_sold_counts(user_id)
+    asin_sales = _load_asin_sales(user_id)
     for row in rows:
         buyer_key = _normalize_buyer_key(row.get("ship_postal_code"), row.get("ship_address_1"))
         row["repeat_buyer_count"] = buyer_history_counts.get(buyer_key, 0) if buyer_key else 0
         row["security_notes"] = buyer_security_notes.get(buyer_key, []) if buyer_key else []
-        row["asin_sold_count"] = asin_sold_counts.get(row.get("asin"), 0) if row.get("asin") else 0
+        sales = asin_sales.get(row.get("asin"), {}) if row.get("asin") else {}
+        row["asin_sold_count"] = sum(1 for oid in sales.values() if oid != row.get("order_id"))
 
     # --- 管理品（キャンセル・返送で保管中の在庫）：同ASINの未処理在庫数と、この注文が
     #     「管理品から出荷」で使った管理No.（発注管理の「管」列・仕入れ情報のボタン表示用） ---
@@ -1660,21 +1663,40 @@ def _load_buyer_history_counts(user_id: int) -> dict:
     return {r["buyer_key"]: r["cnt"] for r in rows}
 
 
-def _load_asin_sold_counts(user_id: int) -> dict:
+def _load_asin_sales(user_id: int) -> dict:
+    """ASINごとの販売明細 {asin: {order_item_id: order_id}} を返す。買い手履歴と発注管理（orbit_orders）を
+    order_item_id で重複排除して合算する（買い手履歴UPLOADで、まだ発注管理にある注文が両方に入ることがあるため）。
+    orbit_orders は ASIN 列を持たないので、発送実績照会と同じく SKU→ASIN を解決して突き合わせる。"""
+    sales = {}
+
     conn = get_conn("a_orbit_buyer_history.db")
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT asin, COUNT(*) AS cnt
+        SELECT asin, order_item_id, order_id
         FROM orbit_buyer_history
         WHERE user_id = %s AND asin IS NOT NULL
-        GROUP BY asin
         """,
         (user_id,),
     )
-    rows = cur.fetchall()
+    for r in cur.fetchall():
+        sales.setdefault(r["asin"], {})[r["order_item_id"]] = r["order_id"]
     conn.close()
-    return {r["asin"]: r["cnt"] for r in rows}
+
+    listed_items_map = _load_listed_items_asin_map(user_id)
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT sku, order_item_id, order_id FROM orbit_orders WHERE user_id = %s",
+        (user_id,),
+    )
+    for r in cur.fetchall():
+        asin = _resolve_asin(r["sku"], listed_items_map)
+        if asin:
+            sales.setdefault(asin, {})[r["order_item_id"]] = r["order_id"]
+    conn.close()
+
+    return sales
 
 
 def _load_buyer_security_notes(user_id: int) -> dict:
