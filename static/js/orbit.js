@@ -81,7 +81,7 @@ function openAsinShippingHistoryModal(asin) {
             const html = `
                 <h3 style="margin:0 0 10px;">発送・仕入実績照会（ASIN: ${orbitEscapeHtml(asin)}）</h3>
                 <div style="max-height:400px; overflow-y:auto;">
-                <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
+                <table style="width:100%; border-collapse:collapse; font-size:1.15em;">
                     <thead>
                         <tr style="border-bottom:1px solid #ccc;">
                             <th style="text-align:left; padding:4px;">N番</th>
