@@ -1484,7 +1484,14 @@ window.initOrbit = function () {
     // 呼び出しか」を判定し、追い越された呼び出しの結果（成功・失敗とも）は画面に反映しない。
     let ordersLoadToken = 0;
     let dispatchRowsCache = [];
-    let dispatchSortState = { key: "agent_serial_no", dir: "asc" }; // { key, dir }
+    // 列見出しクリックで変えた並び順はPCごとに記憶し、次に開いたときもその順で表示する
+    let dispatchSortState = (() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem("orbitDispatchSortState") || "null");
+            if (saved && saved.key && (saved.dir === "asc" || saved.dir === "desc")) return { key: saved.key, dir: saved.dir };
+        } catch { /* ignore */ }
+        return { key: "agent_serial_no", dir: "asc" };
+    })(); // { key, dir }
     // 発注管理：出荷通知済み（shipped_completed）の行を一覧から隠すか。既定は全件表示。
     // renderDispatchTable() から参照されるため（loadOrders().then 経由で早期return時も呼ばれる）ここで宣言する。
     let dispatchHideNotified = (() => {
@@ -1960,6 +1967,7 @@ window.initOrbit = function () {
         } else {
             dispatchSortState = { key, dir: "asc" };
         }
+        try { localStorage.setItem("orbitDispatchSortState", JSON.stringify(dispatchSortState)); } catch { /* ignore */ }
         if (dispatchThead) renderTableHeader(dispatchThead, dispatchHeaderCols, { sortable: true, onSort: onDispatchSort, sortState: dispatchSortState });
         renderDispatchTable();
     }
