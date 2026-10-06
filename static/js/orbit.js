@@ -61,17 +61,25 @@ function openAsinShippingHistoryModal(asin) {
         .then(data => {
             const rows = data.rows || [];
             const rowsHtml = rows.length
-                ? rows.map(r => `<tr>
+                ? rows.map(r => {
+                    // 出荷前（仕入済のみ）の行は送料・重量がまだ無いので空欄
+                    const unconfirmed = r.shipped ? "未確定" : "";
+                    const shop = r.supplier_shop_name ? `（${orbitEscapeHtml(r.supplier_shop_name)}）` : "";
+                    const price = r.purchase_price != null ? `¥${Math.round(r.purchase_price).toLocaleString()}` : "";
+                    return `<tr>
                     <td style="padding:4px;">${orbitEscapeHtml(r.agent_serial_no ?? "")}</td>
                     <td style="padding:4px;">${orbitEscapeHtml(r.carrier ?? "")}</td>
-                    <td style="padding:4px;">${orbitEscapeHtml((r.notified_at || "").slice(0, 10))}</td>
-                    <td style="padding:4px; text-align:right;">${r.agent_confirmed_weight ? orbitEscapeHtml(r.agent_confirmed_weight) : "未確定"}</td>
-                    <td style="padding:4px; text-align:right;">${r.agent_shipping_fee_total ? orbitEscapeHtml(r.agent_shipping_fee_total) : "未確定"}</td>
-                  </tr>`).join("")
-                : `<tr><td colspan="5" style="padding:12px; text-align:center; color:#888;">出荷通知済みの発送実績がありません</td></tr>`;
+                    <td style="padding:4px;">${r.shipped ? orbitEscapeHtml((r.notified_at || "").slice(0, 10)) : "出荷前"}</td>
+                    <td style="padding:4px; text-align:right;">${r.agent_confirmed_weight ? orbitEscapeHtml(r.agent_confirmed_weight) : unconfirmed}</td>
+                    <td style="padding:4px; text-align:right;">${r.agent_shipping_fee_total ? orbitEscapeHtml(r.agent_shipping_fee_total) : unconfirmed}</td>
+                    <td style="padding:4px;">${orbitEscapeHtml(r.supplier ?? "")}${shop}</td>
+                    <td style="padding:4px; text-align:right;">${price}</td>
+                  </tr>`;
+                }).join("")
+                : `<tr><td colspan="7" style="padding:12px; text-align:center; color:#888;">出荷済み・仕入済みの実績がありません</td></tr>`;
 
             const html = `
-                <h3 style="margin:0 0 10px;">発送実績照会（ASIN: ${orbitEscapeHtml(asin)}）</h3>
+                <h3 style="margin:0 0 10px;">発送・仕入実績照会（ASIN: ${orbitEscapeHtml(asin)}）</h3>
                 <div style="max-height:400px; overflow-y:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
                     <thead>
@@ -81,6 +89,8 @@ function openAsinShippingHistoryModal(asin) {
                             <th style="text-align:left; padding:4px;">発送日</th>
                             <th style="text-align:right; padding:4px;">確定重量</th>
                             <th style="text-align:right; padding:4px;">確定送料</th>
+                            <th style="text-align:left; padding:4px;">仕入先</th>
+                            <th style="text-align:right; padding:4px;">仕入価格</th>
                         </tr>
                     </thead>
                     <tbody>${rowsHtml}</tbody>
@@ -92,7 +102,7 @@ function openAsinShippingHistoryModal(asin) {
             `;
             showConfirmModal({ contentHtml: html });
             const modal = document.getElementById("uiConfirmModal");
-            if (modal) modal.style.width = "640px";
+            if (modal) { modal.style.width = "860px"; modal.style.maxWidth = "95vw"; }
         })
         .catch(err => console.error("asin_shipping_history error:", err));
 }

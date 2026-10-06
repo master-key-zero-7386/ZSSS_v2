@@ -1730,6 +1730,8 @@ def _load_buyer_security_notes(user_id: int) -> dict:
 # DHL/FedexはDDP/DAPで shipping_type の値が分かれる（例: "DHL_DDP_関税発送人"）が、キャリア比較の
 # 目的では区別不要なので "_" 区切りの先頭語（DHL/FedEx/EMS）に丸める。
 # 料金改定が年に何度かあり古い実績は参考にならないため、新しい順に直近10件までに絞る。
+# 次回仕入の参考に仕入先・仕入価格も出す。仕入は出荷より先に決まるので、仕入済(purchased=1)なら
+# 出荷前の注文も含める（送料・重量は空欄）。出荷前の行は最新なので先頭に並べる。
 ASIN_SHIPPING_HISTORY_LIMIT = 10
 
 
@@ -1747,10 +1749,11 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
         cur = conn.cursor()
         cur.execute(
             f"""
-            SELECT sku, agent_serial_no, shipping_type, notified_at,
-                   agent_confirmed_weight, agent_shipping_fee_total
+            SELECT sku, agent_serial_no, shipping_type, notified_at, shipped_completed,
+                   agent_confirmed_weight, agent_shipping_fee_total,
+                   supplier, supplier_shop_name, purchase_price
             FROM {table}
-            WHERE user_id = %s AND shipped_completed = 1
+            WHERE user_id = %s AND (shipped_completed = 1 OR purchased = 1)
             """,
             (user_id,),
         )
@@ -1764,10 +1767,15 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
                 "notified_at": r["notified_at"],
                 "agent_confirmed_weight": r["agent_confirmed_weight"],
                 "agent_shipping_fee_total": r["agent_shipping_fee_total"],
+                "shipped": r["shipped_completed"] == 1,
+                "supplier": r["supplier"],
+                "supplier_shop_name": r["supplier_shop_name"],
+                "purchase_price": r["purchase_price"],
             })
         conn.close()
 
-    rows.sort(key=lambda r: r["notified_at"] or "", reverse=True)
+    # 出荷前を先頭に、その中と出荷済みはそれぞれ新しい順（出荷前はN番の大きい順）
+    rows.sort(key=lambda r: (not r["shipped"], r["notified_at"] or "", r["agent_serial_no"] or 0), reverse=True)
     return rows[:ASIN_SHIPPING_HISTORY_LIMIT]
 
 
