@@ -677,9 +677,9 @@ def import_fee_data_route():
     except Exception as e:
         return jsonify({"status": "error", "message": f"CSV解析に失敗しました: {e}"}), 400
 
-    count = import_fee_data(user_id, rows)
+    result = import_fee_data(user_id, rows)
 
-    return jsonify({"status": "success", "imported": count})
+    return jsonify({"status": "success", **result})
 
 
 # --- ▼ SECTION 05: Google OAuth連携（依頼書シート読み戻し用） ▼ ---

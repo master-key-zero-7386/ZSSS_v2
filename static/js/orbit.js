@@ -2239,6 +2239,7 @@ window.initOrbit = function () {
             .then(data => {
                 if (data.status === "success") {
                     window.showToast?.(`${data.imported}件反映しました`, "success");
+                    showFeeDataImportResult(data);
                     orbitFeeDataFileInput.value = "";
                     if (orbitFeeDataFileName) orbitFeeDataFileName.value = "";
                     loadOrders();
@@ -2251,6 +2252,28 @@ window.initOrbit = function () {
                 window.showToast?.("取り込みに失敗しました", "error");
             });
     });
+
+    // 「入れたのに反映されない」時に原因を追えるよう、件数の内訳と手数料が空のまま残った注文を出す。
+    // CSVにあってこちらに無いIDは、こちらでアーカイブ済みの古い注文のことが多い（異常とは限らない）。
+    function showFeeDataImportResult(data) {
+        const LIST_LIMIT = 20;
+        const lines = [
+            "【手数料データ取り込み結果】",
+            `CSVの件数：${data.csv_count ?? "-"}件`,
+            `一致して反映：${data.imported ?? 0}件`,
+            `こちらに無かった：${(data.unmatched_ids || []).length}件（アーカイブ済みの古い注文なら問題なし）`,
+        ];
+
+        const missing = data.still_missing || [];
+        lines.push("", `手数料が空のまま残っている注文：${missing.length}件`);
+        missing.slice(0, LIST_LIMIT).forEach(m => {
+            const serial = m.agent_serial_no != null ? `N${m.agent_serial_no}` : "N番なし";
+            lines.push(`  ${serial}  ${m.country || "?"}  ${m.order_id || ""}  (明細ID ${m.order_item_id})`);
+        });
+        if (missing.length > LIST_LIMIT) lines.push(`  …ほか${missing.length - LIST_LIMIT}件`);
+
+        alert(lines.join("\n"));
+    }
 
     // --- ▼ SECTION 01-1d: 買い手購入履歴アーカイブへの一括インポート（過去分の一度きりの取込） ▼ ---
     const orbitBuyerHistoryFileInput = document.getElementById("orbitBuyerHistoryFileInput");

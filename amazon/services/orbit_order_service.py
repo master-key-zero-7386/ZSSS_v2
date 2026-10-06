@@ -1892,9 +1892,10 @@ def parse_fee_data_csv(text: str) -> list:
     return rows
 
 
-def import_fee_data(user_id: int, rows: list) -> int:
-    if not rows:
-        return 0
+# 反映件数だけだと「入れたのに反映されない」時に原因が追えないため、
+# CSV件数・一致件数・一致しなかったID・取込後も手数料が空のまま残っている注文を返す。
+def import_fee_data(user_id: int, rows: list) -> dict:
+    result = {"csv_count": len(rows), "imported": 0, "unmatched_ids": [], "still_missing": []}
 
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
@@ -1915,11 +1916,38 @@ def import_fee_data(user_id: int, rows: list) -> int:
                 now, user_id, row["order_item_id"],
             ),
         )
-        updated += cur.rowcount
+        if cur.rowcount:
+            updated += cur.rowcount
+        else:
+            result["unmatched_ids"].append(row["order_item_id"])
 
     conn.commit()
+
+    cur.execute(
+        """
+        SELECT order_id, order_item_id, agent_serial_no
+        FROM orbit_orders
+        WHERE user_id = %s AND fee_estimate_amount IS NULL
+        ORDER BY agent_serial_no NULLS LAST, id
+        """,
+        (user_id,),
+    )
+    missing_rows = cur.fetchall()
     conn.close()
-    return updated
+
+    prefix_map = _load_order_id_prefix_map()
+    country_map = _load_marketplace_country_map()
+    for r in missing_rows:
+        marketplace_id = _resolve_row_marketplace_id(r.get("order_id"), prefix_map)
+        result["still_missing"].append({
+            "order_id": r.get("order_id"),
+            "order_item_id": r.get("order_item_id"),
+            "agent_serial_no": r.get("agent_serial_no"),
+            "country": country_map.get(marketplace_id) if marketplace_id else None,
+        })
+
+    result["imported"] = updated
+    return result
 
 
 # --- ▼ SECTION 06: JAN・仕入価格の手入力更新 ▼ ---
