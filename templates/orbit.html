@@ -787,13 +787,17 @@ input.orbit-serial-dup {
   gap: 8px;
   margin: 6px 0 2px;
 }
+/* 「未出荷 Orderレポート選択」の枠（.file-input-text, width:540px）と同じ大きさに揃える */
 .orbit-search-bar input[type="search"] {
-  width: 360px;
-  height: 32px;
-  padding: 0 8px;
+  width: 540px;
+  height: 45px;
+  padding: 0 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
 }
 .orbit-search-bar select {
-  height: 32px;
+  height: 45px;
 }
 .orbit-search-count {
   color: #666;
