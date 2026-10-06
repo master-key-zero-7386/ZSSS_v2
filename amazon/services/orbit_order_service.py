@@ -1735,6 +1735,14 @@ def _load_buyer_security_notes(user_id: int) -> dict:
 ASIN_SHIPPING_HISTORY_LIMIT = 10
 
 
+def _normalize_slash_date(value):
+    """代行会社シートの日付（"2026/8/20" / "2026/08/21" 混在）を並べ替え・表示用に YYYY-MM-DD へそろえる。"""
+    m = re.match(r"^\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})", value or "")
+    if not m:
+        return (value or "").strip() or None
+    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+
 def get_asin_shipping_history(user_id: int, asin: str) -> list:
     if not asin:
         return []
@@ -1749,7 +1757,7 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
         cur = conn.cursor()
         cur.execute(
             f"""
-            SELECT sku, agent_serial_no, shipping_type, notified_at, shipped_completed,
+            SELECT sku, agent_serial_no, shipping_type, agent_weight_recorded_date, shipped_completed,
                    agent_confirmed_weight, agent_shipping_fee_total,
                    supplier, supplier_shop_name, purchase_price
             FROM {table}
@@ -1764,7 +1772,8 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
             rows.append({
                 "agent_serial_no": r["agent_serial_no"],
                 "carrier": carrier,
-                "notified_at": r["notified_at"],
+                # 発送日＝代行会社が実際に出荷した日（一覧の「代行出荷日」）。notified_atは代行への通知CSV出力日時で別物
+                "shipped_date": _normalize_slash_date(r["agent_weight_recorded_date"]),
                 "agent_confirmed_weight": r["agent_confirmed_weight"],
                 "agent_shipping_fee_total": r["agent_shipping_fee_total"],
                 "shipped": r["shipped_completed"] == 1,
@@ -1775,7 +1784,7 @@ def get_asin_shipping_history(user_id: int, asin: str) -> list:
         conn.close()
 
     # 出荷前を先頭に、その中と出荷済みはそれぞれ新しい順（出荷前はN番の大きい順）
-    rows.sort(key=lambda r: (not r["shipped"], r["notified_at"] or "", r["agent_serial_no"] or 0), reverse=True)
+    rows.sort(key=lambda r: (not r["shipped"], r["shipped_date"] or "", r["agent_serial_no"] or 0), reverse=True)
     return rows[:ASIN_SHIPPING_HISTORY_LIMIT]
 
 

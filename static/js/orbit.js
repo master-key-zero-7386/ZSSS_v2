@@ -69,7 +69,7 @@ function openAsinShippingHistoryModal(asin) {
                     return `<tr>
                     <td style="padding:4px;">${orbitEscapeHtml(r.agent_serial_no ?? "")}</td>
                     <td style="padding:4px;">${orbitEscapeHtml(r.carrier ?? "")}</td>
-                    <td style="padding:4px;">${r.shipped ? orbitEscapeHtml((r.notified_at || "").slice(0, 10)) : "出荷前"}</td>
+                    <td style="padding:4px;">${r.shipped ? orbitEscapeHtml(r.shipped_date || "") : "出荷前"}</td>
                     <td style="padding:4px; text-align:right;">${r.agent_confirmed_weight ? orbitEscapeHtml(r.agent_confirmed_weight) : unconfirmed}</td>
                     <td style="padding:4px; text-align:right;">${r.agent_shipping_fee_total ? orbitEscapeHtml(r.agent_shipping_fee_total) : unconfirmed}</td>
                     <td style="padding:4px;">${orbitEscapeHtml(r.supplier ?? "")}${shop}</td>
