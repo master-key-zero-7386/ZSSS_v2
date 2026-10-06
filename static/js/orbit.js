@@ -1115,6 +1115,29 @@ function orbitEffectiveVal(value, override) {
     return (override !== null && override !== undefined && override !== "") ? override : value;
 }
 
+// 電話番号・内線・州の「自動補正後の値」（国番号除去・正式表記化）はサーバでしか作れない。
+// overrideが空のうちはサーバの *_effective がそのまま自動補正後の値なので、手入力で書き換える
+// 直前に控えておき、recomputeDispatchRowChecks のフォールバック先に使う（DB生値に戻すと国番号が
+// 復活して見えるため）。ロード時点で既にoverrideがあった行は自動値が分からないので生値に落ちる。
+const DISPATCH_AUTO_FIELDS = [
+    ["buyer_phone_number_effective", "buyer_phone_number_override", "buyer_phone_number"],
+    ["buyer_phone_extension_effective", "buyer_phone_extension_override", "buyer_phone_extension"],
+    ["ship_state_effective", "ship_state_override", "ship_state"],
+];
+
+function rememberDispatchAutoValues(r) {
+    for (const [eff, ovr] of DISPATCH_AUTO_FIELDS) {
+        const key = "_auto_" + eff;
+        if (key in r) continue;
+        r[key] = (r[ovr] === null || r[ovr] === undefined || r[ovr] === "") ? r[eff] : undefined;
+    }
+}
+
+function dispatchAutoVal(r, eff, raw) {
+    const auto = r["_auto_" + eff];
+    return auto !== undefined ? auto : r[raw];
+}
+
 function recomputeDispatchRowChecks(r) {
     r.product_name_effective   = orbitEffectiveVal(r.product_name, r.product_name_override);
     r.recipient_name_effective = orbitEffectiveVal(r.recipient_name, r.recipient_name_override);
@@ -1125,11 +1148,11 @@ function recomputeDispatchRowChecks(r) {
     // 電話番号・内線・州：自動判定(国番号除去/正式表記化)まではクライアントで再現しないが、
     // overrideを入力した場合はそちらが必ず優先表示されるべきなので、値自体は反映する。
     // これを怠ると入力欄が保存前の値のまま再描画され、「何度入力しても消える」ように見える。
-    // ベースはDB生値（buyer_phone_number等）を使う。前回計算済みの*_effectiveを使うと、override
-    // を後から空に戻した際に一つ前のoverride値が自己参照で残り続けてしまうため。
-    r.buyer_phone_number_effective    = orbitEffectiveVal(r.buyer_phone_number, r.buyer_phone_number_override);
-    r.buyer_phone_extension_effective = orbitEffectiveVal(r.buyer_phone_extension_effective, r.buyer_phone_extension_override);
-    r.ship_state_effective            = orbitEffectiveVal(r.ship_state, r.ship_state_override);
+    // ベースは控えておいた自動補正後の値（rememberDispatchAutoValues）、無ければDB生値。前回計算済みの
+    // *_effectiveを使うと、overrideを後から空に戻した際に一つ前のoverride値が自己参照で残り続けてしまうため。
+    r.buyer_phone_number_effective    = orbitEffectiveVal(dispatchAutoVal(r, "buyer_phone_number_effective", "buyer_phone_number"), r.buyer_phone_number_override);
+    r.buyer_phone_extension_effective = orbitEffectiveVal(dispatchAutoVal(r, "buyer_phone_extension_effective", "buyer_phone_extension"), r.buyer_phone_extension_override);
+    r.ship_state_effective            = orbitEffectiveVal(dispatchAutoVal(r, "ship_state_effective", "ship_state"), r.ship_state_override);
 
     const pn = r.product_name_effective || "";
     const rn = (r.recipient_name_effective || "").trim();
@@ -1140,11 +1163,11 @@ function recomputeDispatchRowChecks(r) {
     r.flag_address3_length = (r.ship_address_3_effective || "").length > 40;
 
     // 電話番号：未入力判定は値の有無だけなのでクライアントでそのまま再現できる。
-    // 国番号判定(サーバ PHONE_COUNTRY_CODE_PATTERN と同じ)は、override入力時のみ再計算する
-    // （override空＝自動値の場合、クライアントのeffectiveは国番号除去前の生値なので誤判定になる）。
+    // 国番号判定もサーバ PHONE_COUNTRY_CODE_PATTERN と同じ。自動値が控えられていればサーバと一致し、
+    // 控えが無く生値に落ちた場合は国番号付きで警告側に倒れる（見落としはない）。
     const phone = r.buyer_phone_number_effective || "";
     r.flag_phone_number_missing = !phone.trim();
-    if (r.buyer_phone_number_override) r.flag_phone_country_code = /^\+\d{1,3}[\s-]*/.test(phone);
+    r.flag_phone_country_code = /^\+\d{1,3}[\s-]*/.test(phone);
 }
 
 // 全体リロード不要（サーバ派生値に影響しない）＝その行だけ再描画で済む手入力欄。
@@ -2078,6 +2101,7 @@ window.initOrbit = function () {
 
             const r = ordersRowsCache.find(x => String(x.order_item_id) === String(orderItemId));
             if (r) {
+                rememberDispatchAutoValues(r);  // overrideを書き換える前に自動補正後の値を控える
                 r[field] = (field === "purchase_price" || field === "points")
                     ? (value === "" || value == null ? null : parseFloat(value))
                     : (value || null);
@@ -3035,6 +3059,7 @@ window.initOrbit = function () {
 
             const r = dispatchRowsCache.find(x => String(x.order_item_id) === String(orderItemId));
             if (r) {
+                rememberDispatchAutoValues(r);  // overrideを書き換える前に自動補正後の値を控える
                 r[field] = (field === "purchase_price" || field === "points")
                     ? (value === "" || value == null ? null : parseFloat(value))
                     : (value || null);
