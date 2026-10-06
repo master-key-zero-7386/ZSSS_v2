@@ -1736,11 +1736,11 @@ ASIN_SHIPPING_HISTORY_LIMIT = 10
 
 
 def _normalize_slash_date(value):
-    """代行会社シートの日付（"2026/8/20" / "2026/08/21" 混在）を並べ替え・表示用に YYYY-MM-DD へそろえる。"""
+    """代行会社シートの日付（"2026/8/20" / "2026/08/21" 混在）を並べ替え・表示用に YYYY/MM/DD（0埋め）へそろえる。"""
     m = re.match(r"^\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})", value or "")
     if not m:
         return (value or "").strip() or None
-    return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    return f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}"
 
 
 def get_asin_shipping_history(user_id: int, asin: str) -> list:
