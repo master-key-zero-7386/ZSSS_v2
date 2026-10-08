@@ -173,9 +173,8 @@
     width: 260px;
 }
 
-/* 本除外・重量固定・価格固定・EMS不可チェックボックス（.search-bar input の幅500px指定を打ち消す） */
+/* 本除外・EMS不可チェックボックス（.search-bar input の幅500px指定を打ち消す） */
 #preExcludeBooksFilter, #allExcludeBooksFilter,
-#allWeightOverrideFilter, #allPriceOverrideFilter,
 #preEmsNgFilter, #allEmsNgFilter {
     width: auto;
     padding: 0;
@@ -513,13 +512,13 @@
             <input type="checkbox" id="allExcludeBooksFilter"> 本除外
         </label>
 
-        <label style="display:inline-flex; align-items:center; gap:4px;">
-            <input type="checkbox" id="allWeightOverrideFilter"> 重量固定のみ
-        </label>
-
-        <label style="display:inline-flex; align-items:center; gap:4px;">
-            <input type="checkbox" id="allPriceOverrideFilter"> 価格固定のみ
-        </label>
+        <select id="allOverrideFilter" class="zsss-control">
+            <option value="all">独自設定：絞込 なし</option>
+            <option value="weight">重量固定</option>
+            <option value="price">価格固定</option>
+            <option value="quantity">出品数設定</option>
+            <option value="stock_zero">在庫0</option>
+        </select>
 
         <label style="display:inline-flex; align-items:center; gap:4px;">
             <input type="checkbox" id="allEmsNgFilter"> EMS不可のみ

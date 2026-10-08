@@ -79,8 +79,7 @@ window.loadalllisting = async function(country_code) {
                     const brandgate = document.getElementById("allBrandGateFilter")?.value || 'all';
                     const regionSeller = document.getElementById("allRegionSellerFilter")?.value || 'all';
                     const excludeBooks = document.getElementById("allExcludeBooksFilter")?.checked ? '1' : '0';
-                    const weightOverrideOnly = document.getElementById("allWeightOverrideFilter")?.checked ? '1' : '0';
-                    const priceOverrideOnly = document.getElementById("allPriceOverrideFilter")?.checked ? '1' : '0';
+                    const overrideFilter = document.getElementById("allOverrideFilter")?.value || 'all';
                     const emsNgOnly = document.getElementById("allEmsNgFilter")?.checked ? '1' : '0';
                     const lengthCmValue = document.getElementById("allLengthCmValue")?.value || '';
                     const lengthCmOp = document.getElementById("allLengthCmOp")?.value || 'gte';
@@ -95,7 +94,7 @@ window.loadalllisting = async function(country_code) {
                     //     window.alllistingLoadingをtrueに保つ（重複リクエスト防止）
                     window.alllistingLoading = true;
 
-                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&region_seller=${regionSeller}&exclude_books=${excludeBooks}&weight_override_only=${weightOverrideOnly}&price_override_only=${priceOverrideOnly}&ems_ng_only=${emsNgOnly}&length_cm_value=${encodeURIComponent(lengthCmValue)}&length_cm_op=${lengthCmOp}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
+                    fetch(`/listing/get_alllisting?user_id=${ZSSS_USER_ID}&country_code=${country_code}&sort=${sort}&brandgate=${brandgate}&region_seller=${regionSeller}&exclude_books=${excludeBooks}&override_filter=${overrideFilter}&ems_ng_only=${emsNgOnly}&length_cm_value=${encodeURIComponent(lengthCmValue)}&length_cm_op=${lengthCmOp}&info_status=${infoStatus}&reason=${reason}&page=${page}&keyword=${encodeURIComponent(keyword)}`)
                         .then(res => {
 
                             return res.json();
@@ -462,6 +461,7 @@ window.loadalllisting = async function(country_code) {
                                 const hasWeightOverride = row.override_weight_class != null && row.override_weight_class !== "";
                                 const hasPriceOverride = row.override_price != null && row.override_price !== "";
                                 const hasStockZero = row.override_stock_zero != null && Number(row.override_stock_zero) === 1;
+                                const hasQtyOverride = row.override_quantity != null && row.override_quantity !== "";
 
                                 const weightOptions = shippingRateRowsForOverride.map(r => {
                                     const g = r.weight_to_g;
@@ -524,6 +524,18 @@ window.loadalllisting = async function(country_code) {
                                             <input type="checkbox" class="stock-zero-toggle" ${hasStockZero ? "checked" : ""}>
                                             <span class="slider"></span>
                                         </label>
+                                    </div>
+                                    <div class="qty-override-row" data-asin="${row.asin}" style="margin-top:4px; display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                                        <span style="font-size:13px; color:${hasQtyOverride ? '#1c0cfa' : '#666'}; white-space:nowrap;" title="出品数：ONの間は入れた数で出品し、売れた分はAmazon側で減ります（自動で数を戻したり再出品したりしません）">出品数</span>
+                                        <label class="switch switch-sm" title="出品数 手動設定">
+                                            <input type="checkbox" class="qty-override-toggle" ${hasQtyOverride ? "checked" : ""}>
+                                            <span class="slider"></span>
+                                        </label>
+                                        <input type="number" class="qty-override-input" min="1" step="1"
+                                            value="${hasQtyOverride ? row.override_quantity : ""}" placeholder="1"
+                                            ${hasQtyOverride ? "" : "disabled"}
+                                            style="font-size:12px; width:52px; padding:2px 4px; opacity:${hasQtyOverride ? "1" : "0.4"};">
+                                        <button type="button" class="btn-blue qty-override-save-btn" ${hasQtyOverride ? "" : "disabled"} style="font-size:11px; padding:2px 8px; opacity:${hasQtyOverride ? "1" : "0.4"};">保存</button>
                                     </div>
                                 `;
                             }

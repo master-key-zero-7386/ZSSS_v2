@@ -540,6 +540,7 @@ def _build_listing_row_with_shipping(
         "override_price": row["override_price"],
         "override_weight_class": row["override_weight_class"],
         "override_stock_zero": row["override_stock_zero"],
+        "override_quantity": row["override_quantity"],
         "profit_rate": row["profit_rate"],
         "min_price": row["min_price"], 
         "max_price": row["max_price"],
@@ -588,7 +589,7 @@ def _build_listing_row_with_shipping(
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
 # Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
 # （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
-def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None, length_cm_value=None, length_cm_op="gte"):
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, override_filter="all", ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None, length_cm_value=None, length_cm_op="gte"):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -804,13 +805,15 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
         query_filter += f" AND length_cm IS NOT NULL AND length_cm {op_sql} %s"
         params_base.append(float(length_cm_value))
 
-    # --- 手動固定の絞り込み（送料区分／出品価格）：両方チェックならどちらかに該当すればOK ---
-    if weight_override_only and price_override_only:
-        query_filter += " AND (override_weight_class IS NOT NULL OR override_price IS NOT NULL)"
-    elif weight_override_only:
+    # --- 独自設定の絞り込み（プルダウンで1つだけ選ぶ） ---
+    if override_filter == "weight":
         query_filter += " AND override_weight_class IS NOT NULL"
-    elif price_override_only:
+    elif override_filter == "price":
         query_filter += " AND override_price IS NOT NULL"
+    elif override_filter == "quantity":
+        query_filter += " AND override_quantity IS NOT NULL"
+    elif override_filter == "stock_zero":
+        query_filter += " AND override_stock_zero IS NOT NULL"
 
     if info_status != "all":
         query_filter += " AND information_status = %s"
@@ -846,7 +849,7 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     return query_filter, params_base
 
 # --- ▼ SECTION 05: 共通 Listing取得処理（status別） ▼ ---
-def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, weight_override_only=False, price_override_only=False, ems_ng_only=False, length_cm_value=None, length_cm_op="gte"):
+def _get_listing_by_status(user_id, country_code, status_value, sort="created_desc", info_status="all", page=1, limit=100, keyword="", reason="all", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, override_filter="all", ems_ng_only=False, length_cm_value=None, length_cm_op="gte"):
     # --- marketplace_id + timezone取得 ---
     conn_mid = get_conn("a_marketplaces.db")
     cur_mid = conn_mid.cursor()
@@ -948,7 +951,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         status_value, user_id, marketplace_id,
         info_status=info_status, reason=reason, keyword=keyword,
         brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
-        exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only,
+        exclude_books=exclude_books, override_filter=override_filter,
         ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
         ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm,
         length_cm_value=length_cm_value, length_cm_op=length_cm_op
@@ -979,6 +982,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             COALESCE(override_price, NULL) AS override_price,
             override_weight_class,
             override_stock_zero,
+            override_quantity,
             COALESCE(profit_rate, NULL) AS profit_rate,
             COALESCE(min_price, NULL) AS min_price,
             COALESCE(max_price, NULL) AS max_price,
@@ -1372,8 +1376,7 @@ def get_alllisting():
         brandgate_filter = request.args.get("brandgate") or "all"
         region_seller_filter = request.args.get("region_seller") or "all"
         exclude_books = (request.args.get("exclude_books") or "0") == "1"
-        weight_override_only = (request.args.get("weight_override_only") or "0") == "1"
-        price_override_only = (request.args.get("price_override_only") or "0") == "1"
+        override_filter = request.args.get("override_filter") or "all"
         ems_ng_only = (request.args.get("ems_ng_only") or "0") == "1"
 
         length_cm_value_raw = request.args.get("length_cm_value") or ""
@@ -1385,7 +1388,7 @@ def get_alllisting():
 
         page = int(request.args.get("page") or 1)
         keyword = request.args.get("keyword") or ""
-        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, weight_override_only=weight_override_only, price_override_only=price_override_only, ems_ng_only=ems_ng_only, length_cm_value=length_cm_value, length_cm_op=length_cm_op)
+        rows, total_count, grand_total_count, err = _get_listing_by_status(user_id, country_code, "listed", sort, info_status, page=page, keyword=keyword, reason=reason, brandgate_filter=brandgate_filter, region_seller_filter=region_seller_filter, exclude_books=exclude_books, override_filter=override_filter, ems_ng_only=ems_ng_only, length_cm_value=length_cm_value, length_cm_op=length_cm_op)
 
         if err:
             return jsonify({"status": "error", "message": err}), 400
@@ -2640,6 +2643,25 @@ def update_strategy():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)})
 
+# --- ▼ SECTION 14-1 独自設定の対象行（国）を特定する共通処理 ▼ ---
+# listed_items は全マーケット共通の1テーブルのため、asin+user_id だけで UPDATE すると
+# 同じASINを他国にも出品している場合にその国の行まで書き換えてしまう。
+# 画面で選んでいる国（country_code）→ marketplace_id を引いて、その国の行だけを対象にする。
+def _resolve_region_marketplace_id(user_id, country_code):
+    conn = get_conn("a_marketplaces.db")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND UPPER(country_code) = UPPER(%s)
+            LIMIT 1
+        """, (user_id, country_code))
+        row = cur.fetchone()
+    finally:
+        conn.close()
+    return row["marketplace_id"] if row else None
+
 # --- ▼ SECTION 15 送料区分 手動上書き 保存処理 ▼ ---
 @listing_bp.route("/update_shipping_override", methods=["POST"])
 def update_shipping_override():
@@ -2657,6 +2679,10 @@ def update_shipping_override():
 
         if not asin or not country_code or not user_id:
             return jsonify({"status": "error", "message": "missing parameter"})
+
+        region_marketplace_id = _resolve_region_marketplace_id(user_id, country_code)
+        if not region_marketplace_id:
+            return jsonify({"status": "error", "message": "marketplace not found"})
 
         # --- 正規化 ---
         override_weight_class = data.get("override_weight_class")
@@ -2680,12 +2706,13 @@ def update_shipping_override():
             SET
                 override_weight_class = %s,
                 updated_at = %s
-            WHERE asin = %s AND user_id = %s
+            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
         """, (
             override_weight_class,
             now_utc,
             asin,
-            user_id
+            user_id,
+            region_marketplace_id
         ))
 
         conn.commit()
@@ -2735,6 +2762,10 @@ def update_price_override():
         if not asin or not country_code or not user_id:
             return jsonify({"status": "error", "message": "missing parameter"})
 
+        region_marketplace_id = _resolve_region_marketplace_id(user_id, country_code)
+        if not region_marketplace_id:
+            return jsonify({"status": "error", "message": "marketplace not found"})
+
         # --- 正規化 ---
         override_price = data.get("override_price")
         if override_price in ("", None):
@@ -2759,12 +2790,13 @@ def update_price_override():
             SET
                 override_price = %s,
                 updated_at = %s
-            WHERE asin = %s AND user_id = %s
+            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
         """, (
             override_price,
             now_utc,
             asin,
-            user_id
+            user_id,
+            region_marketplace_id
         ))
 
         conn.commit()
@@ -2819,9 +2851,10 @@ def update_price_override():
 def update_stock_zero_override():
     """
     ALL Listing：在庫0（一時的な出品停止）の手動切替
-    - ON：override_stock_zero を立てて、すぐに出品を取り下げる（削除フィード送信）。
+    - ON：override_stock_zero を立てて、すぐに出品を取り下げる。
           ONの間はTTLの対象からも外れ、ユーザーがOFFにするまで自動では復帰しない。
     - OFF：override_stock_zero を解除して、最新情報を取得してから出品を再開する
+           （出品数ONの商品は自動では再出品しない。出品数を保存した時に再出品される）
     """
     try:
         data = request.get_json() or {}
@@ -2832,6 +2865,10 @@ def update_stock_zero_override():
 
         if not asin or not country_code or not user_id:
             return jsonify({"status": "error", "message": "missing parameter"})
+
+        region_marketplace_id = _resolve_region_marketplace_id(user_id, country_code)
+        if not region_marketplace_id:
+            return jsonify({"status": "error", "message": "marketplace not found"})
 
         stock_zero = bool(data.get("stock_zero"))
 
@@ -2845,11 +2882,11 @@ def update_stock_zero_override():
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT sku, region_marketplace_id
+            SELECT sku, region_marketplace_id, override_quantity
             FROM listed_items
-            WHERE asin = %s AND user_id = %s
+            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
             LIMIT 1
-        """, (asin, user_id))
+        """, (asin, user_id, region_marketplace_id))
         row = cur.fetchone()
 
         if not row:
@@ -2862,18 +2899,20 @@ def update_stock_zero_override():
             SET
                 override_stock_zero = %s,
                 updated_at = %s
-            WHERE asin = %s AND user_id = %s
+            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
         """, (
             1 if stock_zero else None,
             now_utc,
             asin,
-            user_id
+            user_id,
+            region_marketplace_id
         ))
 
         conn.commit()
         conn.close()
 
         result = None
+        submitted = False
         try:
             if stock_zero:
                 # --- ON：出品を取り下げる ---
@@ -2883,6 +2922,23 @@ def update_stock_zero_override():
                     marketplace_id=row["region_marketplace_id"],
                     seller_sku=row["sku"],
                 )
+                # 取り下げ成功（Amazon側に既に無い NOT_FOUND も成功扱い）なら REMOVED を記録。
+                # 価格更新は出品が生きている時は価格だけ送るため、ここを記録しておかないと
+                # OFF時の再出品判定が「まだ出品中」のままになる。
+                errors = result.get("errors") if isinstance(result, dict) else None
+                if not errors or all(e.get("code") == "NOT_FOUND" for e in errors):
+                    conn = get_conn(db_name)
+                    try:
+                        cur = conn.cursor()
+                        cur.execute("""
+                            UPDATE listed_items
+                            SET listing_status = 'REMOVED'
+                            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
+                        """, (asin, user_id, region_marketplace_id))
+                        conn.commit()
+                    finally:
+                        conn.close()
+                    submitted = True
             else:
                 # --- OFF：最新情報を取得してから出品を再開する ---
                 update_home_pricing(
@@ -2895,6 +2951,7 @@ def update_stock_zero_override():
                     asin=asin,
                     country_code=country_code
                 )
+                submitted = bool(isinstance(result, dict) and result.get("submitted"))
         except Exception:
             import traceback
             print("[update_stock_zero_override] action ERROR")
@@ -2903,12 +2960,113 @@ def update_stock_zero_override():
         return jsonify({
             "status": "success",
             "override_stock_zero": stock_zero,
-            "result": result,
+            "submitted": submitted,
+            "quantity_manual": row["override_quantity"] is not None,
         })
 
     except Exception as e:
         import traceback
         print("[update_stock_zero_override ERROR]")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)})
+
+# --- ▼ SECTION 18 出品数（override_quantity）手動設定 保存処理 ▼ ---
+@listing_bp.route("/update_quantity_override", methods=["POST"])
+def update_quantity_override():
+    """
+    ALL Listing：出品数の手動設定
+    - ON（数値を保存）：override_quantity に保存し、その数で Amazon に出品し直す（上書き・足し算ではない）。
+          以降は価格だけ自動更新され、売れた分は Amazon 側で減る。仕入済・取り下げ後の自動再出品もしない。
+    - OFF（None）：override_quantity を解除し、通常の1個出品に戻す（最新情報を取得してから1個で出品）
+    """
+    try:
+        data = request.get_json() or {}
+
+        asin = (data.get("asin") or "").strip()
+        country_code = (data.get("country_code") or "").strip()
+        user_id = session.get("user_id")
+
+        if not asin or not country_code or not user_id:
+            return jsonify({"status": "error", "message": "missing parameter"})
+
+        region_marketplace_id = _resolve_region_marketplace_id(user_id, country_code)
+        if not region_marketplace_id:
+            return jsonify({"status": "error", "message": "marketplace not found"})
+
+        # --- 正規化 ---
+        override_quantity = data.get("override_quantity")
+        if override_quantity in ("", None):
+            override_quantity = None
+        else:
+            if not str(override_quantity).isdigit() or int(override_quantity) < 1:
+                return jsonify({"status": "error", "message": "出品数は1以上の整数で入力してください"})
+            override_quantity = int(override_quantity)
+
+        db_name = f"a_{country_code}_listed_items.db"
+        conn = get_conn(db_name)
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE listed_items
+                SET
+                    override_quantity = %s,
+                    updated_at = %s
+                WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
+                RETURNING override_stock_zero
+            """, (
+                override_quantity,
+                datetime.utcnow().isoformat(),
+                asin,
+                user_id,
+                region_marketplace_id
+            ))
+            row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+
+        if not row:
+            return jsonify({"status": "error", "message": "listing not found"})
+
+        # --- 在庫0（停止中）の間は保存だけ。在庫0をOFFにした時点の扱いに任せる ---
+        if row["override_stock_zero"]:
+            return jsonify({
+                "status": "success",
+                "override_quantity": override_quantity,
+                "stock_zero": True,
+                "submitted": False,
+            })
+
+        # --- 最新情報を取得してから、指定数（OFFなら1個）で出品し直す ---
+        submitted = False
+        try:
+            update_home_pricing(
+                user_id=user_id,
+                asin=asin,
+                country_code=country_code
+            )
+            price_result = update_region_pricing(
+                user_id=user_id,
+                asin=asin,
+                country_code=country_code,
+                force_quantity=override_quantity if override_quantity is not None else 1,
+            )
+            submitted = bool(isinstance(price_result, dict) and price_result.get("submitted"))
+        except Exception:
+            import traceback
+            print("[update_quantity_override] relist ERROR")
+            traceback.print_exc()
+
+        return jsonify({
+            "status": "success",
+            "override_quantity": override_quantity,
+            "stock_zero": False,
+            "submitted": submitted,
+        })
+
+    except Exception as e:
+        import traceback
+        print("[update_quantity_override ERROR]")
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)})
 

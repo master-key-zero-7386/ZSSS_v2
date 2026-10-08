@@ -26,7 +26,7 @@ from amazon.core.price_calculator import (calculate_listing_price, calculate_shi
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
-from amazon.adapters.listings_items import put_listings_item
+from amazon.adapters.listings_items import put_listings_item, patch_listings_item_price
 from amazon.services.listing_submit_service import delete_listings_item
 from amazon.guard.guard_429 import is_blocked 
 from amazon.routes.routes_blacklist import _get_blacklist_db
@@ -466,7 +466,7 @@ def _get_offer_filter_rules(user_id: int, country_code: str):
         conn.close()
 
 # --- ▼ SECTION 05:REGION Pricing 正規更新 ▼ ---
-def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_price: float = 0):
+def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_price: float = 0, force_quantity: int = None):
 
     # === 05-01: REGION marketplace_id 確定（marketplacesマスタ基準） ===
     # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
@@ -615,7 +615,8 @@ def update_region_pricing(*, user_id: int, asin: str, country_code: str, home_pr
     price_result = update_listing_price(
         user_id=user_id,
         asin=asin,
-        country_code=country_code
+        country_code=country_code,
+        force_quantity=force_quantity,
     )
 
     # --- ▼ TTL更新（REGION PRICING） ▼ ---
@@ -829,7 +830,9 @@ def update_offer_filter_rules():
     })
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
-def update_listing_price(*, user_id: int, asin: str, country_code: str):
+def update_listing_price(*, user_id: int, asin: str, country_code: str, force_quantity: int = None):
+    # force_quantity: 数量も送って出品し直す時だけ指定する（出品数の保存・仕入済の再出品）。
+    #                 None（TTL・最新取得・手動価格の保存など）の時は、出品が生きていれば価格だけ送る。
     # === -00: REGION marketplace_id 確定（marketplacesマスタ基準） ===
     # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
     #        同一ASINを複数国に出品している場合にどの国の行か特定できず、
@@ -874,6 +877,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
                 override_weight_class,
                 override_price,
                 override_stock_zero,
+                override_quantity,
+                COALESCE(listing_status, '') AS listing_status,
                 status,
                 strategy_quantity,
                 information_status,
@@ -1393,40 +1398,75 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str):
             "submitted": False
         }
 
-    # --- quantity決定（将来UI対応） ---
-    quantity = row["strategy_quantity"]
-
+    # --- ▼ Listings API送信：価格だけ送るか、数量込みで出品し直すか ▼ ---
+    #     在庫数は Amazon 側の値を正とする。売れて Amazon 側で減った数を ZSSS が
+    #     送り直して元に戻す（＝売り越し）のを防ぐため、出品が生きている時は価格だけ PATCH する。
+    #     数量込みの PUT を送るのは次の時だけ：
+    #       ・force_quantity 指定（出品数の保存／仕入済の再出品）
+    #       ・出品数OFFで、取り下げ済み('REMOVED')からの再出品（従来どおり1個）
+    #     出品数ON（override_quantity あり）の商品は、取り下げ後も自動では再出品しない
+    #     （止めるのは自動・再開は手動＝出品数を保存した時か、出品数をOFFにした時だけ）。
     sku = row["sku"]
+    quantity_manual = row["override_quantity"] is not None
+    removed = row["listing_status"] == "REMOVED"
 
-    # --- Listings API送信 ---
-    # put_listings_item(
-    response = put_listings_item(
+    def _put(quantity):
+        response = put_listings_item(
+            user_id=user_id,
+            country_code=country_code,
+            marketplace_id=region_marketplace_id,
+            seller_sku=sku,
+            asin=asin,
+            price=final_price,
+            quantity=quantity,
+            handling_time=rules["default_handling_time"]
+        )
+        # put成功なら「再出品済み」として listing_status='LIVE' に戻す。
+        put_errors = response.get("errors") if isinstance(response, dict) else None
+        if not put_errors:
+            _mark_amazon_offer_live(
+                user_id=user_id,
+                asin=asin,
+                region_marketplace_id=region_marketplace_id,
+                country_code=country_code,
+            )
+        return not put_errors
+
+    if force_quantity is not None:
+        submitted = _put(int(force_quantity))
+        return {"status": "ok", "final_price": final_price, "submitted": submitted}
+
+    if removed:
+        if quantity_manual:
+            return {"status": "quantity_manual_hold", "final_price": final_price, "submitted": False}
+        submitted = _put(1)
+        return {"status": "ok", "final_price": final_price, "submitted": submitted}
+
+    response = patch_listings_item_price(
         user_id=user_id,
         country_code=country_code,
         marketplace_id=region_marketplace_id,
         seller_sku=sku,
         asin=asin,
         price=final_price,
-        quantity=quantity,
-        handling_time=rules["default_handling_time"]
     )
+    patch_errors = response.get("errors") if isinstance(response, dict) else None
+    patch_invalid = isinstance(response, dict) and response.get("status") == "INVALID"
+    if not patch_errors and not patch_invalid:
+        return {"status": "ok", "final_price": final_price, "submitted": True}
 
-    # ★追加: put成功なら「再出品済み」として listing_status='LIVE' に戻す。
-    #        （在庫復活→ACTIVE→ここで再出品、が成立したことの記録）
-    put_errors = response.get("errors") if isinstance(response, dict) else None
-    if not put_errors:
-        _mark_amazon_offer_live(
-            user_id=user_id,
-            asin=asin,
-            region_marketplace_id=region_marketplace_id,
-            country_code=country_code,
-        )
+    print(f"[PRICE_PATCH][NG] asin={asin} mp={region_marketplace_id} sku={sku}: {patch_errors or response.get('issues')}", flush=True)
 
-    return {
-        "status": "ok",
-        "final_price": final_price,
-        "submitted": True
-    }
+    # 429/通信失敗は次サイクルに任せる（ここで PUT に切り替えても同じく弾かれる）
+    if patch_errors and any(e.get("code") in ("Blocked429", "QuotaExceeded", "REQUEST_FAILED") for e in patch_errors):
+        return {"status": "patch_failed", "final_price": final_price, "submitted": False}
+
+    # Amazon に出品が無い等で価格だけの更新ができない時：
+    #   出品数OFF → 従来どおり1個で出品し直す / 出品数ON → 自動では出品しない
+    if quantity_manual:
+        return {"status": "quantity_manual_hold", "final_price": final_price, "submitted": False}
+    submitted = _put(1)
+    return {"status": "ok", "final_price": final_price, "submitted": submitted}
 
 # --- ▼ SECTION 11 : HOME通貨取得（UI表示用） ▼ ---
 @pricing_v2_bp.route("/pricing/get_home_currency", methods=["GET"])

@@ -282,6 +282,7 @@ LISTED_ITEMS_COLUMNS = {
     "override_stock_zero": "INTEGER",               # 在庫0 手動出品停止（ON中はTTL対象外・出品を取り下げたまま維持）
 
     # --- 在庫数情報 ---
+    "override_quantity": "INTEGER",                 # 出品数 手動設定（NULL=OFF：1個出品／数値=ON：その数で出品。ON中は数量を自動で送らない）
 
     # --- Pricing情報 ---
     # --- 価格・関税（編集UI用） ---

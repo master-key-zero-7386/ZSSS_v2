@@ -532,15 +532,20 @@ async function saveWeightOverride($row, overrideWeightClass) {
 
         const data = await res.json();
         if (data.status !== "success") {
-            window.showToast("保存に失敗しました", "error");
+            window.showToast(data.message || "保存に失敗しました", "error");
+            // 保存できなかったので一覧を読み直してトグル表示を実際の状態に戻す
+            if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+                $("#alllistingtable").DataTable().ajax.reload(null, false);
+            }
             return;
         }
 
         const submitted = data.price_result && data.price_result.submitted;
+        const label = overrideWeightClass === null ? "送料区分を自動計算に戻しました" : "送料区分を保存しました";
         window.showToast(
             submitted
-                ? "送料区分を保存し、Seller Centralへ送信しました"
-                : "送料区分を保存しました（未出品/非ACTIVEのためSeller Centralへの送信は行われません）",
+                ? `${label}（Seller Centralへ送信済み）`
+                : `${label}（停止中・未出品などのためSeller Centralへの送信はありません）`,
             "success"
         );
 
@@ -617,14 +622,18 @@ async function savePriceOverride($row, overridePrice) {
         const data = await res.json();
         if (data.status !== "success") {
             window.showToast(data.message || "保存に失敗しました", "error");
+            if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+                $("#alllistingtable").DataTable().ajax.reload(null, false);
+            }
             return;
         }
 
         const submitted = data.price_result && data.price_result.submitted;
+        const label = overridePrice === null ? "価格の固定を解除し、自動計算に戻しました" : "価格を固定しました";
         window.showToast(
             submitted
-                ? "価格を固定し、Seller Centralへ送信しました"
-                : "価格を固定しました（未出品/非ACTIVEのためSeller Centralへの送信は行われません）",
+                ? `${label}（Seller Centralへ送信済み）`
+                : `${label}（停止中・未出品などのためSeller Centralへの送信はありません）`,
             "success"
         );
 
@@ -681,12 +690,17 @@ $(document).on("change", ".stock-zero-toggle", async function () {
             return;
         }
 
-        window.showToast(
-            stockZero
-                ? "出品を取り下げました"
-                : "最新情報を取得して出品を再開しました",
-            "success"
-        );
+        let msg;
+        if (stockZero) {
+            msg = data.submitted ? "出品を取り下げました" : "在庫0にしました（Amazonへの取り下げは失敗しました。時間をおいて切り替え直してください）";
+        } else if (data.submitted) {
+            msg = "最新情報を取得して出品を再開しました";
+        } else if (data.quantity_manual) {
+            msg = "在庫0を解除しました（出品数を手動設定中のため自動では再出品しません。出品数を保存すると再出品されます）";
+        } else {
+            msg = "在庫0を解除しました（仕入先なし・価格条件外などのため出品は停止中です）";
+        }
+        window.showToast(msg, data.submitted ? "success" : "info");
 
         if ($.fn.DataTable.isDataTable("#alllistingtable")) {
             $("#alllistingtable").DataTable().ajax.reload(null, false);
@@ -699,6 +713,98 @@ $(document).on("change", ".stock-zero-toggle", async function () {
     } finally {
         $checkbox.prop("disabled", false);
     }
+});
+
+// --- ▼ SECTION 07g: 出品数（手動設定） ON/OFF・保存 ▼ ---
+// ON：数を入れて保存した時だけ、その数で出品し直す（上書き）。以降は価格だけ自動更新・売れた分はAmazon側で減る
+// OFF：トグルを切った時点で通常の1個出品に戻す（保存ボタンを待たない）
+async function saveQtyOverride($row, quantity) {
+    const asin = $row.data("asin");
+    const country_code = $("#globalRegion").val();
+    if (!asin || !country_code) return;
+
+    $row.find("input, button").prop("disabled", true);
+
+    try {
+        const res = await fetch("/listing/update_quantity_override", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                asin,
+                country_code,
+                override_quantity: quantity,
+            }),
+        });
+
+        const data = await res.json();
+        if (data.status !== "success") {
+            window.showToast(data.message || "保存に失敗しました", "error");
+        } else {
+            let msg;
+            if (data.stock_zero) {
+                msg = quantity === null
+                    ? "出品数の手動設定を解除しました（在庫0で停止中のため出品はしていません）"
+                    : `出品数を${quantity}に保存しました（在庫0で停止中のため出品はしていません）`;
+            } else if (data.submitted) {
+                msg = quantity === null
+                    ? "出品数の手動設定を解除し、1個で出品しました"
+                    : `出品数${quantity}でAmazonに出品しました`;
+            } else {
+                msg = quantity === null
+                    ? "出品数の手動設定を解除しました（仕入先なし・価格条件外などのため出品は停止中です）"
+                    : `出品数を${quantity}に保存しました（仕入先なし・価格条件外などのため出品は停止中です）`;
+            }
+            window.showToast(msg, data.submitted ? "success" : "info");
+        }
+
+    } catch (e) {
+        console.error("[update_quantity_override]", e);
+        window.showToast("通信エラーが発生しました", "error");
+    }
+
+    // 成功・失敗どちらでも一覧を読み直して、トグル・数値を実際の状態に合わせる
+    if ($.fn.DataTable.isDataTable("#alllistingtable")) {
+        $("#alllistingtable").DataTable().ajax.reload(null, false);
+    }
+}
+
+$(document).on("change", ".qty-override-toggle", function () {
+    const $row = $(this).closest(".qty-override-row");
+    const $input = $row.find(".qty-override-input");
+    const $saveBtn = $row.find(".qty-override-save-btn");
+
+    if ($(this).is(":checked")) {
+        // ONにしただけでは何も送らない（数を入れて保存した時に出品）
+        $input.prop("disabled", false).css("opacity", 1).trigger("focus");
+        $saveBtn.prop("disabled", false).css("opacity", 1);
+    } else {
+        $input.prop("disabled", true).css("opacity", 0.4);
+        $saveBtn.prop("disabled", true).css("opacity", 0.4);
+        if (!confirm("出品数の手動設定をOFFにして、通常の1個出品に戻しますか？\n（すぐにAmazonの在庫数が1になります）")) {
+            $(this).prop("checked", true);
+            $input.prop("disabled", false).css("opacity", 1);
+            $saveBtn.prop("disabled", false).css("opacity", 1);
+            return;
+        }
+        saveQtyOverride($row, null);
+    }
+});
+
+$(document).on("click", ".qty-override-save-btn", function () {
+    const $row = $(this).closest(".qty-override-row");
+    const val = String($row.find(".qty-override-input").val() || "").trim();
+
+    if (!/^[0-9]+$/.test(val) || Number(val) < 1) {
+        window.showToast("出品数は1以上の整数で入力してください", "error");
+        return;
+    }
+
+    const qty = Number(val);
+    if (!confirm(`Amazonの在庫数を ${qty} に上書きします（今の残り数に足すのではありません）。よろしいですか？`)) {
+        return;
+    }
+
+    saveQtyOverride($row, qty);
 });
 
 // --- ▼ SECTION 08: ALL 出品戦略 保存処理（ALL専用） ▼ ---
@@ -1002,11 +1108,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const excludeBooksEl = document.getElementById("allExcludeBooksFilter");
             if (excludeBooksEl) excludeBooksEl.checked = false;
 
-            const weightOverrideEl = document.getElementById("allWeightOverrideFilter");
-            if (weightOverrideEl) weightOverrideEl.checked = false;
-
-            const priceOverrideEl = document.getElementById("allPriceOverrideFilter");
-            if (priceOverrideEl) priceOverrideEl.checked = false;
+            const overrideFilterEl = document.getElementById("allOverrideFilter");
+            if (overrideFilterEl) overrideFilterEl.value = "all";
 
             const emsNgEl = document.getElementById("allEmsNgFilter");
             if (emsNgEl) emsNgEl.checked = false;

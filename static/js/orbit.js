@@ -2676,10 +2676,20 @@ window.initOrbit = function () {
                 if (data.status === "success") {
                     // 「仕入済」0→1 のときはサーバ側で再出品を試行している
                     const r = data.restock;
-                    if (r && r.status === "ok") {
+                    if (r && r.status === "ok" && r.price_result && r.price_result.submitted) {
                         window.showToast?.(
                             `再出品を実行しました（${(r.country_code || "").toUpperCase()} ${r.asin || ""}）`,
                             "success"
+                        );
+                    } else if (r && r.status === "ok") {
+                        window.showToast?.(
+                            `再出品できませんでした（${(r.country_code || "").toUpperCase()} ${r.asin || ""}：仕入先なし・価格条件外などで停止中）`,
+                            "info"
+                        );
+                    } else if (r && r.status === "skip" && r.reason === "quantity_manual") {
+                        window.showToast?.(
+                            `出品数を手動設定中のため再出品しません（${(r.country_code || "").toUpperCase()} ${r.asin || ""}）。ALL-Listing で出品数を入れ直してください`,
+                            "info"
                         );
                     } else if (r && r.status === "skip") {
                         window.showToast?.("再出品対象の出品が見つかりませんでした", "info");

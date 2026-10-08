@@ -132,7 +132,54 @@ def put_listings_item(user_id, country_code, marketplace_id, seller_sku, asin, p
     except Exception as e:
         print("BrandGate save error:", e)
 
-    return response 
+    return response
+
+# --- SECTION 01-B: Listings Items API PATCH（価格だけ更新：TTL・手動の価格反映用） ---
+# PUT は出品全体（数量込み）を上書きするため、売れて Amazon 側で減った在庫数を
+# 毎回送り直して元に戻してしまう。既に出品が生きている SKU の価格更新はこちらを使い、
+# 数量（fulfillment_availability）には触れない＝在庫数は Amazon 側の値を正とする。
+def patch_listings_item_price(user_id, country_code, marketplace_id, seller_sku, asin, price):
+    adapter = AmazonAdapter(user_id, country_code=None, marketplace_id=marketplace_id)
+
+    body = {
+        "productType": "PRODUCT",
+        "patches": [
+            {
+                "op": "replace",
+                "path": "/attributes/purchasable_offer",
+                "value": [
+                    {
+                        "marketplace_id": marketplace_id,
+                        "currency": adapter.account["currency"],
+                        "our_price": [
+                            {
+                                "schedule": [
+                                    {
+                                        "value_with_tax": float(price)
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+
+    # --- 価格更新APIチェック用 ---
+    write_log(
+        f"[{(datetime.utcnow() + timedelta(hours=9)).strftime('%H:%M:%S')}] [[PRICE {country_code}]] UserID:{user_id} ASIN:{asin} PRICE:{price} SKU:{seller_sku} "
+    )
+    # --- 価格更新APIチェック用 ---ここまで 削除しない
+
+    return adapter.real_signed_request(
+        "PATCH",
+        f"/listings/2021-08-01/items/{adapter.account['account_seller_id']}/{seller_sku}",
+        params={
+            "marketplaceIds": [marketplace_id],
+        },
+        json=body
+    )
 
 # --- SECTION 02: Delete Items API（From：ALL listing専用）SKU個別Delete ---
 def delete_listings_item(user_id, country_code, marketplace_id, seller_sku):

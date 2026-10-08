@@ -62,6 +62,14 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   `catalog_adapter_home.py` / `catalog_adapter_region.py`, `pricing_adapter_home.py` /
   `pricing_adapter_region.py`. This home/region duality runs throughout the codebase (DB columns,
   TTL settings, background loop logic) — always check whether a change needs to apply to both sides.
+- **Stock quantity is owned by Amazon, not ZSSS.** `update_listing_price` (routes_pricing_v2.py)
+  sends price-only PATCHes (`patch_listings_item_price`) while an offer is live, so units Amazon
+  decrements on a sale are never reset. A full PUT with quantity happens only with
+  `force_quantity` (出品数 save in ALL-Listing, 仕入済 relist in ORBIT = 1), or when an OFF item is
+  relisted from `listing_status='REMOVED'` (qty 1). Items with `override_quantity` set (出品数 ON)
+  are never relisted automatically — not by TTL, 仕入済, or 在庫0 OFF — only by saving 出品数 or
+  turning it OFF. ALL-Listing override routes must scope UPDATEs by `region_marketplace_id`
+  (`_resolve_region_marketplace_id`), since `listed_items` holds every marketplace in one table.
 - `core/` — pricing business logic: `price_calculator.py`, `pricing_strategy.py`, `fx_rate.py`.
 - `services/` — `blacklist_service.py`, `listing_submit_service.py`, `ttl_stop_service.py`.
 - `background/` — long-running daemon loops started from `app.py`:
