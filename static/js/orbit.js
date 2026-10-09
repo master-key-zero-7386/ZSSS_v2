@@ -222,6 +222,8 @@ const DISPATCH_COLUMNS = [
     { key: "ship_country", label: "国" },
     { key: "agent_notice_flag", label: "代行連絡", agentNoticeFlag: true },  // 代行会社→セラーの出荷連絡。未完了なら主行に警告
     { key: "quantity_purchased", label: "数量", qtyWarn: true },  // 2以上で色（発注数量チェック）
+    // 同梱の親N番。入れると同じ親の行＋親の行を1箱として同梱推定し、全行の備考1に「N5239・5240同梱」を自動で書き足す
+    { key: "bundle_parent_no", label: "同梱先", bundleParent: true },
     { key: "product_name_effective", label: "商品名", checkFlagKey: "flag_product_name", editable: "text", saveField: "product_name_override", mid: true },
     { key: "shipping_type", label: "発送種別", editable: "text", datalist: "orbit-dl-shipping-type" },  // 過去入力値をプルダウン候補に。新規も自由入力可
     { key: "agent_tracking_number", label: "トラッキング", copyClass: "orbit-orderid-cell" },  // 通知すべき番号（代行会社読み戻し）
@@ -305,7 +307,7 @@ const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 const DISPATCH_PRIMARY_KEYS = [
     "agent_serial_no", "asin", "kanrihin_mark", "order_id", "promise_date", "profit_rate_pct",
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
-    "ship_country", "quantity_purchased", "product_name_effective", "shipping_type",
+    "ship_country", "quantity_purchased", "bundle_parent_no", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
     "shipped_completed", "trouble_flag", "purchased",
     "fetch_fee_estimate",  // 主行に配置。列見出し＝「一括取得」ボタン、見出しに「手数料」、セル＝行ごとの「取得/取得済」（取得済も押せば再取得）
@@ -589,7 +591,8 @@ function qtyMultSuffix(col, r) {
 function bundleEstimateText(r) {
     const b = r.bundle_estimate;
     if (!b) return "";
-    const head = b.item_count > 1 ? `${b.qty}個（${b.item_count}商品）` : `${b.qty}個`;
+    const members = (b.serials || []).length > 1 ? `　同梱 N${b.serials.join("・")}` : "";
+    const head = (b.item_count > 1 ? `${b.qty}個（${b.item_count}商品）` : `${b.qty}個`) + members;
     if (b.missing_dims) return `${head}：寸法が分からない商品があるため推定できません`;
     const kg = (v, d) => (v == null ? "-" : `${Number(v).toFixed(d)}kg`);
     const actualNote = b.unit_actual_weight_kg != null ? `（${Number(b.unit_actual_weight_kg)}×${b.qty}）` : "";
@@ -968,6 +971,15 @@ function dispCellInner(col, r) {
         return `${fmtValue(col, r[col.key])}${suffix}`;
     }
     if (col.bundleEstimate) return bundleEstimateText(r);
+    if (col.bundleParent) {
+        const v = r.bundle_parent_no ?? "";
+        const cls = `orbit-manual orbit-bundle-input${r.bundle_parent_missing ? " orbit-bundle-missing" : ""}`;
+        const missing = r.bundle_parent_missing
+            ? ` <span class="orbit-text-red" title="同梱先のN番が発注管理にありません">N${orbitEscapeHtml(v)}なし</span>` : "";
+        const mismatch = r.bundle_remarks_mismatch
+            ? ` <span class="orbit-text-red" title="備考1に自動で書いた「${orbitEscapeHtml(r.bundle_remarks_auto)}」が見つかりません。備考1を手で直してください">備考1要確認</span>` : "";
+        return `<input type="text" class="${cls}" data-field="bundle_parent_no" value="${orbitEscapeHtml(v)}" placeholder="N番" title="同梱する親のN番（空にすると同梱解除）">${missing}${mismatch}`;
+    }
     if (col.asinCount) {
         const asin = r.asin;
         if (!asin) return "";
@@ -1307,6 +1319,32 @@ function attachSaveHandlers(tbody, { onSaved } = {}) {
                 .catch(err => {
                     console.error("orbit/orders/set_serial error:", err);
                     window.showToast?.("N番の保存に失敗しました", "error");
+                });
+            return;
+        }
+
+        // 同梱先：備考1をグループ全行ぶん自動で書き換えるので、成功したら全件リロードする
+        if (field === "bundle_parent_no") {
+            fetch("/orbit/orders/set_bundle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ order_item_id: orderItemId, bundle_parent_no: target.value }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === "success") {
+                        if ((data.remarks_mismatch || []).length) {
+                            window.showToast?.(`備考1の同梱表記が見つからない行があります（N${data.remarks_mismatch.join("・")}）。手で直してください`, "error");
+                        }
+                        onSaved?.();
+                    } else {
+                        window.showToast?.(data.message || "同梱先の保存に失敗しました", "error");
+                        target.value = target.dataset.origValue ?? "";
+                    }
+                })
+                .catch(err => {
+                    console.error("orbit/orders/set_bundle error:", err);
+                    window.showToast?.("同梱先の保存に失敗しました", "error");
                 });
             return;
         }

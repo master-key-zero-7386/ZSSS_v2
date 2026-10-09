@@ -12,6 +12,7 @@ from amazon.services.orbit_order_service import (
     upsert_orders,
     list_orders_with_calc,
     recompute_order_group,
+    set_bundle_parent,
     update_manual_fields,
     delete_order,
     delete_all_orders,
@@ -266,6 +267,30 @@ def update_order():
             traceback.print_exc()
 
     return jsonify({"status": "success", "restock": restock_result})
+
+
+# --- ▼ SECTION 03-0b: 同梱先N番の指定（備考1への自動表記つき） ▼ ---
+@orbit_bp.route("/orders/set_bundle", methods=["POST"])
+@block_if_serial_dup
+def set_bundle_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    order_item_id = data.get("order_item_id")
+    if not order_item_id:
+        return jsonify({"status": "error"}), 400
+
+    raw = str(data.get("bundle_parent_no") or "").strip().upper().lstrip("N")
+    if raw == "":
+        parent_no = None
+    elif raw.isdigit():
+        parent_no = int(raw)
+    else:
+        return jsonify({"status": "error", "message": "同梱先はN番の数字で入力してください"}), 400
+
+    return jsonify(set_bundle_parent(user_id, order_item_id, parent_no))
 
 
 # --- ▼ SECTION 03-1: 注文の削除（行ごと／全件リセット） ▼ ---

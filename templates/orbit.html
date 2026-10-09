@@ -350,6 +350,17 @@
   background-color: #fff3e0 !important;
 }
 
+/* 同梱先（親N番）の入力欄。存在しないN番は赤枠 */
+.orbit-page input.orbit-manual.orbit-bundle-input {
+  width: 60px;
+  border: 1px solid #d0d7de;
+  background: #fff;
+}
+.orbit-page input.orbit-manual.orbit-bundle-missing {
+  border-color: #c62828;
+  color: #c62828;
+}
+
 /* 予測送料を「1個分×数量」で出している目印（×N） */
 .orbit-page .orbit-qty-mult {
   color: #c62828;

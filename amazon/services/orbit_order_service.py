@@ -599,13 +599,17 @@ _RAW_SHEET_APPEND_COLUMNS = [
 
 # 画面表示専用の派生キー。ZSSS_RAW に列として出さない（②に紛れ込むと後ろの列が1列ずつずれて
 # VLOOKUP が壊れるため）。
-_RAW_SHEET_SKIP_KEYS = {"predicted_shipping_fee_unit", "predicted_shipping_qty", "bundle_estimate"}
+_RAW_SHEET_SKIP_KEYS = {
+    "predicted_shipping_fee_unit", "predicted_shipping_qty", "bundle_estimate",
+    "bundle_parent_no", "bundle_remarks_auto", "bundle_parent_missing", "bundle_remarks_mismatch",
+}
 
 _RAW_SHEET_EXTRA_COLUMNS = [
     c for c in ORBIT_ORDERS_COLUMNS
     if c not in set(EXPORT_COLUMNS)
     and c not in ("id", "user_id")
     and c not in set(_RAW_SHEET_APPEND_COLUMNS)
+    and c not in _RAW_SHEET_SKIP_KEYS
 ]
 
 
@@ -1464,21 +1468,56 @@ def _estimate_bundle_box(items, padding_cm: float):
     return tuple(sorted((stack + padding_cm, mid + padding_cm, long_ + padding_cm), reverse=True))
 
 
+def _bundle_groups(rows) -> list:
+    """同じorder-idの行と、同梱先N番でつながった行（同じ親N番の行＋親N番そのものの行）を
+    1グループにまとめる（つながりが連鎖しても1つにまとまるよう union-find で結合）。"""
+    parent = list(range(len(rows)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    first_by_key = {}
+    for i, row in enumerate(rows):
+        keys = []
+        if row.get("order_id"):
+            keys.append(("order", row["order_id"]))
+        if row.get("bundle_parent_no"):
+            keys.append(("serial", int(row["bundle_parent_no"])))
+        if row.get("agent_serial_no"):
+            keys.append(("serial", int(row["agent_serial_no"])))
+        for key in keys:
+            if key in first_by_key:
+                parent[find(i)] = find(first_by_key[key])
+            else:
+                first_by_key[key] = i
+
+    groups = {}
+    for i, row in enumerate(rows):
+        groups.setdefault(find(i), []).append(row)
+    return list(groups.values())
+
+
 def _apply_bundle_estimates(user_id, rows, *, shipping_config, prefix_map, rate_cache,
                             marketplace_country_map, pricing_rule_cache):
-    groups = {}
-    for row in rows:
-        if row.get("order_id"):
-            groups.setdefault(row["order_id"], []).append(row)
-
     padding_cm = float(shipping_config.get("padding_cm") or 0)
 
-    for order_id, group in groups.items():
+    for group in _bundle_groups(rows):
         total_qty = sum(row["predicted_shipping_qty"] for row in group)
         if total_qty < 2:
             continue
 
-        estimate = {"qty": total_qty, "item_count": len(group)}
+        # 運賃表は親（N番最小）の行の販売マーケットで引く（同梱は同じ発送先が前提）
+        group = sorted(group, key=lambda r: (r.get("agent_serial_no") is None, r.get("agent_serial_no") or 0))
+        order_id = group[0].get("order_id")
+        serials = [r["agent_serial_no"] for r in group if r.get("agent_serial_no")]
+        estimate = {
+            "qty": total_qty, "item_count": len(group),
+            "order_count": len({r.get("order_id") for r in group}),
+            "serials": serials,
+        }
         if not all(row.get("length_cm") and row.get("width_cm") and row.get("height_cm") for row in group):
             estimate["missing_dims"] = True
         else:
@@ -1523,6 +1562,147 @@ def _apply_bundle_estimates(user_id, rows, *, shipping_config, prefix_map, rate_
 
         for row in group:
             row["bundle_estimate"] = estimate
+
+
+# --- ▼ SECTION 04-5: 同梱先N番の指定と備考1への自動表記 ▼ ---
+# 発注管理の主行「同梱先」に親N番を入れると、同じ親N番の行＋親N番の行が1グループになる。
+# グループ全行の備考1の末尾に「N5239・5240同梱」を自動で書き足し、メンバーが変われば全行書き換える。
+# 書き足した文字列は bundle_remarks_auto に控え、次回はそれを探して置換・削除する
+# （手で書いた文には触らない。自動部分を手で書き換えていて見つからない行は触らず、画面で赤字警告）。
+def _bundle_remarks_text(serials) -> str:
+    serials = sorted(set(int(s) for s in serials))
+    if len(serials) < 2:
+        return ""
+    return "N" + "・".join(str(s) for s in serials) + "同梱"
+
+
+def _replace_bundle_remarks(remarks, old_auto, new_auto):
+    """(新しい備考1, 置換できたか) を返す。old_auto が見つからなければ触らない。"""
+    remarks = remarks or ""
+    if old_auto:
+        if old_auto not in remarks:
+            return remarks, False
+        if new_auto:
+            return remarks.replace(old_auto, new_auto, 1), True
+        idx = remarks.index(old_auto)
+        before, after = remarks[:idx].rstrip(" "), remarks[idx + len(old_auto):].lstrip(" ")
+        return (before + (" " if before and after else "") + after), True
+    if not new_auto:
+        return remarks, True
+    return (remarks.rstrip(" ") + " " + new_auto) if remarks.strip() else new_auto, True
+
+
+def set_bundle_parent(user_id: int, order_item_id: str, parent_no) -> dict:
+    conn = get_conn("a_orbit_orders.db")
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT agent_serial_no, bundle_parent_no FROM orbit_orders WHERE user_id = %s AND order_item_id = %s",
+            (user_id, order_item_id),
+        )
+        target = cur.fetchone()
+        if not target:
+            return {"status": "error", "message": "注文が見つかりません"}
+
+        if parent_no is not None:
+            if target["agent_serial_no"] is None:
+                return {"status": "error", "message": "この行はN番が未採番のため同梱先を指定できません"}
+            cur.execute(
+                "SELECT 1 FROM orbit_orders WHERE user_id = %s AND agent_serial_no = %s LIMIT 1",
+                (user_id, parent_no),
+            )
+            if not cur.fetchone():
+                return {"status": "error", "message": f"N{parent_no} は発注管理にありません"}
+            # 自分自身を入れた（親の行に親N番を入れた）場合は「親」として扱い、値は空で保存する
+            if int(parent_no) == int(target["agent_serial_no"]):
+                parent_no = None
+
+        old_parent = target["bundle_parent_no"]
+        cur.execute(
+            "UPDATE orbit_orders SET bundle_parent_no = %s, updated_at = %s WHERE user_id = %s AND order_item_id = %s",
+            (parent_no, datetime.utcnow().isoformat(), user_id, order_item_id),
+        )
+
+        # 変更前後のグループ（と、外れた行自身）の備考1を書き直す
+        affected_parents = {p for p in (old_parent, parent_no) if p is not None}
+        mismatched = _rewrite_bundle_remarks(cur, user_id, affected_parents, extra_order_item_ids=[order_item_id])
+        conn.commit()
+        return {"status": "success", "remarks_mismatch": mismatched}
+    finally:
+        conn.close()
+
+
+def _rewrite_bundle_remarks(cur, user_id, parents, extra_order_item_ids=()) -> list:
+    if not parents and not extra_order_item_ids:
+        return []
+    parents = list(parents)
+    cur.execute(
+        """
+        SELECT order_item_id, agent_serial_no, bundle_parent_no, remarks, bundle_remarks_auto
+        FROM orbit_orders
+        WHERE user_id = %s
+          AND (bundle_parent_no = ANY(%s) OR agent_serial_no = ANY(%s) OR order_item_id = ANY(%s))
+        """,
+        (user_id, parents, parents, list(extra_order_item_ids)),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+
+    members = {p: [] for p in parents}
+    for r in rows:
+        if r["bundle_parent_no"] in members:
+            members[r["bundle_parent_no"]].append(r)
+    for p in parents:
+        # 親の行は「誰かがこのN番を同梱先にしている」ときだけメンバー（親自身が別の親を指していない場合）
+        if members[p]:
+            members[p] += [r for r in rows if r["agent_serial_no"] == p and r["bundle_parent_no"] is None]
+
+    new_text_by_id = {}
+    for p, group in members.items():
+        text = _bundle_remarks_text([r["agent_serial_no"] for r in group if r["agent_serial_no"]])
+        for r in group:
+            new_text_by_id[r["order_item_id"]] = text
+
+    mismatched = []
+    now = datetime.utcnow().isoformat()
+    for r in rows:
+        new_auto = new_text_by_id.get(r["order_item_id"], "")
+        old_auto = r["bundle_remarks_auto"] or ""
+        if new_auto == old_auto and (not old_auto or old_auto in (r["remarks"] or "")):
+            continue
+        remarks, ok = _replace_bundle_remarks(r["remarks"], old_auto, new_auto)
+        if not ok:
+            mismatched.append(r["agent_serial_no"])
+            # 備考1は触らないが、控えは新しい表記にしておく（画面で「表記が見つからない」警告を出すため）
+            cur.execute(
+                "UPDATE orbit_orders SET bundle_remarks_auto = %s, updated_at = %s WHERE user_id = %s AND order_item_id = %s",
+                (new_auto or None, now, user_id, r["order_item_id"]),
+            )
+            continue
+        cur.execute(
+            "UPDATE orbit_orders SET remarks = %s, bundle_remarks_auto = %s, updated_at = %s "
+            "WHERE user_id = %s AND order_item_id = %s",
+            (remarks or None, new_auto or None, now, user_id, r["order_item_id"]),
+        )
+    return mismatched
+
+
+def _apply_bundle_checks(user_id, rows):
+    serials = {r.get("agent_serial_no") for r in rows if r.get("agent_serial_no")}
+    wanted = {r["bundle_parent_no"] for r in rows if r.get("bundle_parent_no")} - serials
+    if wanted:
+        # 1注文だけの再計算（recompute_order_group）では親の行が rows に無いことがあるのでDBで確認
+        conn = get_conn("a_orbit_orders.db")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT DISTINCT agent_serial_no FROM orbit_orders WHERE user_id = %s AND agent_serial_no = ANY(%s)",
+            (user_id, list(wanted)),
+        )
+        serials |= {r["agent_serial_no"] for r in cur.fetchall()}
+        conn.close()
+    for row in rows:
+        row["bundle_parent_missing"] = bool(row.get("bundle_parent_no")) and row["bundle_parent_no"] not in serials
+        auto = row.get("bundle_remarks_auto")
+        row["bundle_remarks_mismatch"] = bool(auto) and auto not in (row.get("remarks") or "")
 
 
 # --- ▼ SECTION 05: 注文一覧取得（ASIN・サイズ・重量・予測送料つき） ▼ ---
@@ -1677,6 +1857,7 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
         shipping_config=shipping_config, prefix_map=prefix_map, rate_cache=rate_cache,
         marketplace_country_map=marketplace_country_map, pricing_rule_cache=pricing_rule_cache,
     )
+    _apply_bundle_checks(user_id, rows)
 
     # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
     #     予測送料無しで代行会社確定送料だけは反映したいため、上のループとは別パスで全行に適用する。 ---
@@ -1756,7 +1937,36 @@ def recompute_order_group(user_id: int, order_id: str) -> list:
     rows = _fetch_raw_order_rows(user_id, order_id=order_id)
     if not rows:
         return []
+    rows = _expand_bundle_rows(user_id, rows)
     return _apply_calc_to_rows(user_id, rows)
+
+
+def _expand_bundle_rows(user_id: int, rows: list) -> list:
+    """同梱推定はorder-idをまたぐため、同梱先N番でつながった注文の行（とその注文の全行＝決済按分用）も足す。"""
+    by_id = {r["order_item_id"]: r for r in rows}
+    for _ in range(5):  # つながりの連鎖は数段で収まる想定（無限ループ防止の上限）
+        parents = {int(r["bundle_parent_no"]) for r in by_id.values() if r.get("bundle_parent_no")}
+        own = {int(r["agent_serial_no"]) for r in by_id.values() if r.get("agent_serial_no")}
+        if not parents and not own:
+            break
+        # 同じ親を指す行・自分を親に指している行・自分が指している親の行
+        conn = get_conn("a_orbit_orders.db")
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT DISTINCT order_id FROM orbit_orders WHERE user_id = %s "
+            "AND (bundle_parent_no = ANY(%s) OR agent_serial_no = ANY(%s))",
+            (user_id, list(parents | own), list(parents)),
+        )
+        order_ids = {r["order_id"] for r in cur.fetchall() if r["order_id"]}
+        conn.close()
+        known = {r.get("order_id") for r in by_id.values()}
+        new_ids = order_ids - known
+        if not new_ids:
+            break
+        for oid in new_ids:
+            for r in _fetch_raw_order_rows(user_id, order_id=oid):
+                by_id.setdefault(r["order_item_id"], r)
+    return list(by_id.values())
 
 
 # --- ▼ SECTION 05-3: リピーター件数・返品セキュリティメモの一括取得（買い手キー単位） ▼ ---

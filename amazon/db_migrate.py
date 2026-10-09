@@ -677,6 +677,10 @@ ORBIT_ORDERS_COLUMNS = {
     "agent_delivery_area": "TEXT",         # U列 配送エリア
     "agent_synced_at": "TEXT",             # 最終取込日時
 
+    # --- 同梱指定（発注管理の主行「同梱先」。order-idが違う注文を1箱にまとめる指定。ZSSS_RAWには出さない） ---
+    "bundle_parent_no": "INTEGER",         # 同梱の親N番（同じ値の行＋そのN番の行が1グループ）
+    "bundle_remarks_auto": "TEXT",         # 備考1へ自動で書き足した同梱表記（次回の置換・削除で探す用）
+
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }
