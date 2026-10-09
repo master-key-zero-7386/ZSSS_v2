@@ -2111,10 +2111,9 @@ def relist_after_purchase(user_id: int, order_item_id: str) -> dict:
     # 循環importを避けるため関数内import（背景ループと同じ扱い）
     from amazon.routes.routes_pricing_v2 import update_home_pricing, update_region_pricing
 
-    # 価格更新は通常「価格だけ」送る（在庫数に触れない）ため、ここでは数量1を明示して出品し直す
     update_home_pricing(user_id=user_id, asin=asin, country_code=country_code)
     price_result = update_region_pricing(
-        user_id=user_id, asin=asin, country_code=country_code, force_quantity=1
+        user_id=user_id, asin=asin, country_code=country_code
     )
 
     return {

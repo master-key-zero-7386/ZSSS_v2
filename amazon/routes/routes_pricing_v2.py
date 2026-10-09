@@ -831,8 +831,8 @@ def update_offer_filter_rules():
 
 # --- ▼ SECTION 10: Listing Price 計算（From：FIRST / TTL 共通） ▼ ---
 def update_listing_price(*, user_id: int, asin: str, country_code: str, force_quantity: int = None):
-    # force_quantity: 数量も送って出品し直す時だけ指定する（出品数の保存・仕入済の再出品）。
-    #                 None（TTL・最新取得・手動価格の保存など）の時は、出品が生きていれば価格だけ送る。
+    # force_quantity: その数量で出品し直す時だけ指定する（ALL-Listing の出品数の保存・OFF）。
+    #                 None（TTL・最新取得・仕入済など）の時は通常どおり（出品数ONの商品だけ価格のみ送信）。
     # === -00: REGION marketplace_id 確定（marketplacesマスタ基準） ===
     # ★修正: 従来はlisted_itemsをasin+user_idだけでLIMIT 1して取得していたため、
     #        同一ASINを複数国に出品している場合にどの国の行か特定できず、
@@ -1398,14 +1398,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
             "submitted": False
         }
 
-    # --- ▼ Listings API送信：価格だけ送るか、数量込みで出品し直すか ▼ ---
-    #     在庫数は Amazon 側の値を正とする。売れて Amazon 側で減った数を ZSSS が
-    #     送り直して元に戻す（＝売り越し）のを防ぐため、出品が生きている時は価格だけ PATCH する。
-    #     数量込みの PUT を送るのは次の時だけ：
-    #       ・force_quantity 指定（出品数の保存／仕入済の再出品）
-    #       ・出品数OFFで、取り下げ済み('REMOVED')からの再出品（従来どおり1個）
-    #     出品数ON（override_quantity あり）の商品は、取り下げ後も自動では再出品しない
-    #     （止めるのは自動・再開は手動＝出品数を保存した時か、出品数をOFFにした時だけ）。
+    # --- ▼ Listings API送信 ▼ ---
+    #     出品数OFF（通常）：従来どおり毎回 数量込みで PUT（売れて0になっても次の更新で1に戻る）。
+    #       ※ AU は ATLAS（別DB）で稼働しており ORBIT の仕入済で再出品できないため、
+    #         通常商品は「TTL更新で数量を戻す」動きを変えてはいけない。
+    #     出品数ON（override_quantity あり）：在庫数は Amazon 側の値を正とし、価格だけ PATCH する
+    #       （売れて減った数を戻さない）。取り下げ後も自動では再出品しない
+    #       （止めるのは自動・再開は手動＝出品数を保存した時か、出品数をOFFにした時だけ）。
+    #     force_quantity 指定（出品数の保存・OFF）は ON/OFF に関わらずその数で PUT。
     sku = row["sku"]
     quantity_manual = row["override_quantity"] is not None
     removed = row["listing_status"] == "REMOVED"
@@ -1436,11 +1436,14 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
         submitted = _put(int(force_quantity))
         return {"status": "ok", "final_price": final_price, "submitted": submitted}
 
-    if removed:
-        if quantity_manual:
-            return {"status": "quantity_manual_hold", "final_price": final_price, "submitted": False}
-        submitted = _put(1)
+    # --- 出品数OFF（通常）：従来どおり ---
+    if not quantity_manual:
+        submitted = _put(row["strategy_quantity"])
         return {"status": "ok", "final_price": final_price, "submitted": submitted}
+
+    # --- 出品数ON：取り下げ済みなら自動では再出品しない ---
+    if removed:
+        return {"status": "quantity_manual_hold", "final_price": final_price, "submitted": False}
 
     response = patch_listings_item_price(
         user_id=user_id,
@@ -1457,16 +1460,9 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
 
     print(f"[PRICE_PATCH][NG] asin={asin} mp={region_marketplace_id} sku={sku}: {patch_errors or response.get('issues')}", flush=True)
 
-    # 429/通信失敗は次サイクルに任せる（ここで PUT に切り替えても同じく弾かれる）
-    if patch_errors and any(e.get("code") in ("Blocked429", "QuotaExceeded", "REQUEST_FAILED") for e in patch_errors):
-        return {"status": "patch_failed", "final_price": final_price, "submitted": False}
-
-    # Amazon に出品が無い等で価格だけの更新ができない時：
-    #   出品数OFF → 従来どおり1個で出品し直す / 出品数ON → 自動では出品しない
-    if quantity_manual:
-        return {"status": "quantity_manual_hold", "final_price": final_price, "submitted": False}
-    submitted = _put(1)
-    return {"status": "ok", "final_price": final_price, "submitted": submitted}
+    # 価格だけの更新ができなかった時も、出品数ONなので数量込みの PUT には切り替えない
+    #（数量を送ると売れて減った数を上書きしてしまう）。次のサイクルで再試行される。
+    return {"status": "patch_failed", "final_price": final_price, "submitted": False}
 
 # --- ▼ SECTION 11 : HOME通貨取得（UI表示用） ▼ ---
 @pricing_v2_bp.route("/pricing/get_home_currency", methods=["GET"])
