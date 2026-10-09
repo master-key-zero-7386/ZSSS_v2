@@ -597,6 +597,10 @@ _RAW_SHEET_APPEND_COLUMNS = [
                                  # 既存列の位置を動かさないため最右端へ回す（②以降のズレ＝VLOOKUP破綻を防ぐ）
 ]
 
+# 画面表示専用の派生キー。ZSSS_RAW に列として出さない（②に紛れ込むと後ろの列が1列ずつずれて
+# VLOOKUP が壊れるため）。
+_RAW_SHEET_SKIP_KEYS = {"predicted_shipping_fee_unit", "predicted_shipping_qty", "bundle_estimate"}
+
 _RAW_SHEET_EXTRA_COLUMNS = [
     c for c in ORBIT_ORDERS_COLUMNS
     if c not in set(EXPORT_COLUMNS)
@@ -608,7 +612,7 @@ _RAW_SHEET_EXTRA_COLUMNS = [
 def _raw_sheet_columns_for(orders) -> list:
     """EXPORT_COLUMNS → 未出力DB列 → 計算派生キー → 後付けDB列(最右端) の順に列を組む。"""
     cols = list(EXPORT_COLUMNS)
-    seen = set(cols) | {"id", "user_id"}
+    seen = set(cols) | {"id", "user_id"} | _RAW_SHEET_SKIP_KEYS
     for c in _RAW_SHEET_EXTRA_COLUMNS:
         if c not in seen:
             cols.append(c)
@@ -1423,6 +1427,104 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
     return {"fee_estimate_amount": fee_amount, "fee_estimate_currency": fee_currency}
 
 
+# --- ▼ SECTION 04-4: 同梱推定（数量2以上・同じorder-idに複数商品の注文を1箱で送った場合の目安） ▼ ---
+# キャリア選択の参考表示用。利益計算には使わない（予測送料は1個分×数量のまま）。
+# 箱のサイズは「商品をすき間なく並べた直方体＋余白(padding_cm)を箱1つ分だけ」で推定し、
+# 請求重量・運賃表の引き方は1個分の予測送料と同じ（shipping_calc → calc_min_shipping_fee）。
+_BUNDLE_GRID_MAX_QTY = 50  # 並べ方の総当たり上限（これを超える数量は1列に重ねるだけにする）
+
+
+def _row_quantity(row) -> int:
+    try:
+        qty = int(row.get("quantity_purchased") or 1)
+    except (TypeError, ValueError):
+        qty = 1
+    return max(qty, 1)
+
+
+def _estimate_bundle_box(items, padding_cm: float):
+    """items: [(寸法3辺, 個数)]。余白込みの箱寸法（長い順）を返す。
+    同じ商品だけなら縦横高さの並べ方を総当たりして一番小さい箱、違う商品が混ざるときは
+    それぞれ一番薄い向きで積み重ねた形（高さ＝薄い辺の合計、縦横＝各商品の最大）にする。"""
+    if len(items) == 1 and items[0][1] <= _BUNDLE_GRID_MAX_QTY:
+        (s, m, l), n = sorted(items[0][0]), items[0][1]
+        best = None
+        for a in range(1, n + 1):
+            for b in range(1, n // a + 2):
+                c = math.ceil(n / (a * b))
+                box = (a * s + padding_cm, b * m + padding_cm, c * l + padding_cm)
+                key = (box[0] * box[1] * box[2], max(box))
+                if best is None or key < best[0]:
+                    best = (key, box)
+        return tuple(sorted(best[1], reverse=True))
+
+    stack = sum(sorted(dims)[0] * qty for dims, qty in items)
+    mid = max(sorted(dims)[1] for dims, _ in items)
+    long_ = max(sorted(dims)[2] for dims, _ in items)
+    return tuple(sorted((stack + padding_cm, mid + padding_cm, long_ + padding_cm), reverse=True))
+
+
+def _apply_bundle_estimates(user_id, rows, *, shipping_config, prefix_map, rate_cache,
+                            marketplace_country_map, pricing_rule_cache):
+    groups = {}
+    for row in rows:
+        if row.get("order_id"):
+            groups.setdefault(row["order_id"], []).append(row)
+
+    padding_cm = float(shipping_config.get("padding_cm") or 0)
+
+    for order_id, group in groups.items():
+        total_qty = sum(row["predicted_shipping_qty"] for row in group)
+        if total_qty < 2:
+            continue
+
+        estimate = {"qty": total_qty, "item_count": len(group)}
+        if not all(row.get("length_cm") and row.get("width_cm") and row.get("height_cm") for row in group):
+            estimate["missing_dims"] = True
+        else:
+            items = [
+                ((float(row["length_cm"]), float(row["width_cm"]), float(row["height_cm"])), row["predicted_shipping_qty"])
+                for row in group
+            ]
+            box = _estimate_bundle_box(items, padding_cm)
+            actual_total = sum(float(row.get("actual_weight_kg") or 0) * row["predicted_shipping_qty"] for row in group)
+            estimate.update({
+                "length_cm": round(box[0], 1), "width_cm": round(box[1], 1), "height_cm": round(box[2], 1),
+                "actual_weight_kg": round(actual_total, 3),
+                "unit_actual_weight_kg": group[0].get("actual_weight_kg") if len(group) == 1 else None,
+                "weight_override": any(row.get("override_weight_class") for row in group),
+                "volumetric_weight_kg": None, "billable_weight_kg": None, "shipping_fee": None,
+            })
+
+            marketplace_id = _resolve_row_marketplace_id(order_id, prefix_map)
+            if marketplace_id:
+                if marketplace_id not in rate_cache:
+                    rate_cache[marketplace_id] = get_shipping_rate(user_id, marketplace_id)
+                # 余白は箱寸法に含め済みなので、shipping_calc で二重に足さないよう padding_cm=0 で渡す
+                calc = calculate_shipping_result(
+                    {"length_cm": box[0], "width_cm": box[1], "height_cm": box[2], "actual_weight_kg": actual_total},
+                    {**shipping_config, "padding_cm": 0},
+                    user_id, marketplace_id, rate_cache[marketplace_id],
+                )
+                estimate["volumetric_weight_kg"] = calc["calc_result"]["volumetric_weight_kg"]
+                estimate["billable_weight_kg"] = calc["billable_weight"]
+
+                # 燃油サーチャージは送料に掛け、発送外注費・梱包費は箱1つ分だけ足す
+                fee = calc["shipping_fee"]
+                country_code = marketplace_country_map.get(marketplace_id)
+                if fee is not None and country_code:
+                    if marketplace_id not in pricing_rule_cache:
+                        pricing_rule_cache[marketplace_id] = get_pricing_master_rule(user_id=user_id, country_code=country_code)
+                    rule = pricing_rule_cache[marketplace_id]
+                    fee = (fee * (1 + float(rule.get("fuel_surcharge_rate") or 0) / 100)
+                           + float(rule.get("shipping_outsource_cost") or 0)
+                           + float(rule.get("extra_cost") or 0))
+                estimate["shipping_fee"] = fee
+
+        for row in group:
+            row["bundle_estimate"] = estimate
+
+
 # --- ▼ SECTION 05: 注文一覧取得（ASIN・サイズ・重量・予測送料つき） ▼ ---
 def _fetch_raw_order_rows(user_id: int, order_id: str = None) -> list:
     """orbit_orders + listed_itemsの生行を取得する。order_id指定時はその注文（複数商品なら
@@ -1476,6 +1578,9 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
     for row in rows:
         row["billable_weight_kg"] = None
         row["predicted_shipping_fee"] = None
+        row["predicted_shipping_fee_unit"] = None
+        row["predicted_shipping_qty"] = _row_quantity(row)
+        row["bundle_estimate"] = None
         row["dims_source"] = "listed_items" if (row.get("length_cm") and row.get("width_cm") and row.get("height_cm")) else None
 
         # 販売マーケット（＝セラーセントラルのドメイン判定に使う。ship-countryは発送先であって
@@ -1558,9 +1663,20 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
             fuel_rate = float(rule.get("fuel_surcharge_rate") or 0) / 100
             outsource = float(rule.get("shipping_outsource_cost") or 0)
             packing = float(rule.get("extra_cost") or 0)
-            row["predicted_shipping_fee"] = base_shipping_fee * (1 + fuel_rate) + outsource + packing
+            row["predicted_shipping_fee_unit"] = base_shipping_fee * (1 + fuel_rate) + outsource + packing
         else:
-            row["predicted_shipping_fee"] = base_shipping_fee
+            row["predicted_shipping_fee_unit"] = base_shipping_fee
+
+        # 数量2以上は「1個ずつ別々に送った」想定で1個分×数量にする（送料込みで販売額に含まれる前提の
+        # 安全側の見積り）。同梱した場合の推定は下の _apply_bundle_estimates で別途参考表示する。
+        unit_fee = row["predicted_shipping_fee_unit"]
+        row["predicted_shipping_fee"] = unit_fee * row["predicted_shipping_qty"] if unit_fee is not None else None
+
+    _apply_bundle_estimates(
+        user_id, rows,
+        shipping_config=shipping_config, prefix_map=prefix_map, rate_cache=rate_cache,
+        marketplace_country_map=marketplace_country_map, pricing_rule_cache=pricing_rule_cache,
+    )
 
     # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
     #     予測送料無しで代行会社確定送料だけは反映したいため、上のループとは別パスで全行に適用する。 ---
@@ -2579,6 +2695,7 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
     # 電話番号(国番号除去)・州(正式表記)は自動補正、商品名・宛名・住所1〜3は手修正(*_override)された
     # 値があればそちらを優先。いずれも代行会社シート側の制約のため、貼り付け用CSVにも反映する。
     export_value_overrides = {
+        "predicted_shipping_fee": "predicted_shipping_fee_unit",  # CSVは従来どおり1個分
         "buyer_phone_number": "buyer_phone_number_effective",
         "ship_state": "ship_state_effective",
         "product_name": "product_name_effective",
@@ -2632,6 +2749,7 @@ def export_notify_csv(user_id: int, order_item_ids=None) -> str:
 #   4. N番なし（採番ミス）はスキップ。ORBITから消えた／アーカイブ済みのN番の行は放置。
 # ※ export_notify_csv と違い notified_at は更新しない（CSV出力＝送信済みの目印を壊さないため）。
 _RAW_VALUE_OVERRIDES = {
+    "predicted_shipping_fee": "predicted_shipping_fee_unit",  # シートは従来どおり1個分（画面の×数量は出さない）
     "buyer_phone_number": "buyer_phone_number_effective",
     "ship_state": "ship_state_effective",
     "product_name": "product_name_effective",

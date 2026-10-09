@@ -134,7 +134,7 @@ const ORBIT_COLUMNS = [
     { key: "height_cm", label: "高さ(cm)" },
     { key: "actual_weight_kg", label: "実重量(kg)" },
     { key: "billable_weight_kg", label: "請求重量(kg)" },
-    { key: "predicted_shipping_fee", label: "送料" },
+    { key: "predicted_shipping_fee", label: "送料", qtyMultMark: true },  // 数量2以上は1個分×数量（×N の印）
     { key: "manual_length_cm", label: "長さ手入力(cm)", editable: "number" },
     { key: "manual_width_cm", label: "幅手入力(cm)", editable: "number" },
     { key: "manual_height_cm", label: "高さ手入力(cm)", editable: "number" },
@@ -282,12 +282,13 @@ const DISPATCH_COLUMNS = [
     { key: "agent_length_cm", label: "長さ" },
     { key: "agent_width_cm", label: "幅" },
     { key: "agent_height_cm", label: "高さ" },
+    { key: "bundle_estimate", label: "同梱推定", bundleEstimate: true },  // 数量2以上・同じorder-idに複数商品のときだけ表示
 
     { key: "fetch_fee_estimate", label: "手数料見積り", fetchFeeEstimateButton: true },
     { key: "sale_price_used", label: "販売額", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used", label: "入金額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
-    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
+    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", qtyMultMark: true },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 
@@ -336,7 +337,7 @@ const DISPATCH_DETAIL_SECTIONS = [
         "agent_shipping_weight", "agent_confirmed_weight", "agent_deadline", "agent_status",
         "agent_shipping_fee", "agent_shipping_fee_total", "agent_delivery_area", "agent_synced_at",
     ] },
-    { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "actual_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm"] },
+    { key: "dims", label: "サイズ・重量", keys: ["agent_shipping_weight_kg", "actual_weight_kg", "agent_length_cm", "agent_width_cm", "agent_height_cm", "bundle_estimate"] },
     { key: "profit", label: "利益", keys: [
         // fetch_fee_estimate は DISPATCH_PRIMARY_KEYS（主行）へ移動済み
         "sale_price_used", "net_proceeds_used", "net_proceeds_used_jpy",
@@ -391,7 +392,7 @@ const PROCUREMENT_COLUMNS = [
     { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used", label: "入金額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
-    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate" },
+    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", qtyMultMark: true },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 ];
@@ -570,9 +571,42 @@ const JPY_ROUNDED_KEYS = ["net_proceeds_used_jpy", "shipping_cost_used", "profit
 
 // 見積り(概算)・1注文複数商品の按分(按分)の目印。決済実績が確定していれば両方falseになる想定
 function estimateSuffix(col, r) {
-    if (col.estimateFlagKey && r[col.estimateFlagKey]) return " (概算)";
+    if (col.estimateFlagKey && r[col.estimateFlagKey]) return " (概算)" + qtyMultSuffix(col, r);
     if (col.splitFlagKey && r[col.splitFlagKey]) return " (按分)";
-    return "";
+    return qtyMultSuffix(col, r);
+}
+
+// 予測送料を「1個分×数量」で出している行の目印（×N）。送料(円)は確定送料に切り替わったら付けない。
+function qtyMultSuffix(col, r) {
+    if (!col.qtyMultMark) return "";
+    const n = r.predicted_shipping_qty;
+    if (!(n >= 2)) return "";
+    if (col.estimateFlagKey && !r[col.estimateFlagKey]) return "";
+    return ` <span class="orbit-qty-mult" title="1個分の予測送料 × 数量${n}">×${n}</span>`;
+}
+
+// 同梱推定（サイズ・重量の段）。キャリア選択の参考用で、利益計算には使っていない。
+function bundleEstimateText(r) {
+    const b = r.bundle_estimate;
+    if (!b) return "";
+    const head = b.item_count > 1 ? `${b.qty}個（${b.item_count}商品）` : `${b.qty}個`;
+    if (b.missing_dims) return `${head}：寸法が分からない商品があるため推定できません`;
+    const kg = (v, d) => (v == null ? "-" : `${Number(v).toFixed(d)}kg`);
+    const actualNote = b.unit_actual_weight_kg != null ? `（${Number(b.unit_actual_weight_kg)}×${b.qty}）` : "";
+    const fee = b.shipping_fee != null
+        ? `¥${Math.round(b.shipping_fee).toLocaleString()}`
+        : (b.billable_weight_kg != null ? "運賃表の範囲外" : "-");
+    const parts = [
+        `箱 ${b.length_cm}×${b.width_cm}×${b.height_cm}cm`,
+        `実重量 ${b.actual_weight_kg == null ? "-" : `${Math.round(b.actual_weight_kg * 1000) / 1000}kg`}${actualNote}`,
+        `容積重量 ${kg(b.volumetric_weight_kg, 2)}`,
+        `<b>請求重量 ${kg(b.billable_weight_kg, 1)}</b>`,
+        `送料 ${fee}`,
+    ];
+    const warn = b.weight_override
+        ? ` <span class="orbit-text-red" title="重量帯を手動指定している商品は、カタログの寸法・重量が正しくない可能性があります">※重量帯手動指定あり</span>`
+        : "";
+    return `${head}：${parts.join(" ／ ")}${warn}`;
 }
 
 // 日付欄はネイティブ <input type="date"> で扱う。表示は ISO(YYYY-MM-DD) が必須なので
@@ -791,7 +825,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
                 return `<td class="${cellClass}">${amount.toLocaleString()} ${currency}${estimateSuffix(col, r)}</td>`;
             }
 
-            if (col.estimateFlagKey || col.splitFlagKey) {
+            if (col.estimateFlagKey || col.splitFlagKey || col.qtyMultMark) {
                 const suffix = r[col.key] != null ? estimateSuffix(col, r) : "";
                 return `<td class="${cellClass}">${fmtValue(col, r[col.key])}${suffix}</td>`;
             }
@@ -929,10 +963,11 @@ function dispCellInner(col, r) {
         const currency = r[col.currencyKey] || "";
         return `${amount.toLocaleString()} ${currency}${estimateSuffix(col, r)}`;
     }
-    if (col.estimateFlagKey || col.splitFlagKey) {
+    if (col.estimateFlagKey || col.splitFlagKey || col.qtyMultMark) {
         const suffix = r[col.key] != null ? estimateSuffix(col, r) : "";
         return `${fmtValue(col, r[col.key])}${suffix}`;
     }
+    if (col.bundleEstimate) return bundleEstimateText(r);
     if (col.asinCount) {
         const asin = r.asin;
         if (!asin) return "";
@@ -1054,6 +1089,7 @@ function dispatchRowPairHtml(r, primaryCols, colspan, expandedSet) {
                 ? renderBuyerMemoBlock(r) + renderSellerMemoBlock(r)
                 : (sec.keys || []).map(dispatchCol)
                     .filter(col => !col.kanrihinShip || r.kanrihin_available_count || r.kanrihin_used_management_no)
+                    .filter(col => !col.bundleEstimate || r.bundle_estimate)
                     .map(col => {
                     // 仕入れ情報の手入力欄が未入力なら淡いピンク（入力忘れ防止・見た目のみ）。
                     // リンク・依頼日・インボイス価格は editable が無いので自動的に対象外。
