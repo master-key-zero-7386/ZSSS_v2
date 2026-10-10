@@ -1592,12 +1592,24 @@ def _replace_bundle_remarks(remarks, old_auto, new_auto):
     return (remarks.rstrip(" ") + " " + new_auto) if remarks.strip() else new_auto, True
 
 
+# 同梱できるのは発送先が同じ注文だけ。国・郵便番号・住所1（手修正があれば修正後）を
+# リピーター判定と同じ正規化（全角半角・空白・大小文字を無視）で比べる。
+_BUNDLE_ADDRESS_COLS = "ship_country, ship_postal_code, ship_address_1, ship_address_1_override"
+
+
+def _bundle_address_key(row):
+    country = unicodedata.normalize("NFKC", str(row.get("ship_country") or "")).strip().upper()
+    address_1 = _effective(row.get("ship_address_1"), row.get("ship_address_1_override"))
+    return country, _normalize_buyer_key(row.get("ship_postal_code"), address_1)
+
+
 def set_bundle_parent(user_id: int, order_item_id: str, parent_no) -> dict:
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
     try:
         cur.execute(
-            "SELECT agent_serial_no, bundle_parent_no FROM orbit_orders WHERE user_id = %s AND order_item_id = %s",
+            f"SELECT agent_serial_no, bundle_parent_no, {_BUNDLE_ADDRESS_COLS} "
+            "FROM orbit_orders WHERE user_id = %s AND order_item_id = %s",
             (user_id, order_item_id),
         )
         target = cur.fetchone()
@@ -1608,14 +1620,17 @@ def set_bundle_parent(user_id: int, order_item_id: str, parent_no) -> dict:
             if target["agent_serial_no"] is None:
                 return {"status": "error", "message": "この行はN番が未採番のため同梱先を指定できません"}
             cur.execute(
-                "SELECT 1 FROM orbit_orders WHERE user_id = %s AND agent_serial_no = %s LIMIT 1",
+                f"SELECT {_BUNDLE_ADDRESS_COLS} FROM orbit_orders WHERE user_id = %s AND agent_serial_no = %s LIMIT 1",
                 (user_id, parent_no),
             )
-            if not cur.fetchone():
+            parent_row = cur.fetchone()
+            if not parent_row:
                 return {"status": "error", "message": f"N{parent_no} は発注管理にありません"}
             # 自分自身を入れた（親の行に親N番を入れた）場合は「親」として扱い、値は空で保存する
             if int(parent_no) == int(target["agent_serial_no"]):
                 parent_no = None
+            elif _bundle_address_key(target) != _bundle_address_key(parent_row):
+                return {"status": "error", "message": f"N{parent_no} と住所が違うので同梱できません"}
 
         old_parent = target["bundle_parent_no"]
         cur.execute(
