@@ -304,7 +304,10 @@
 
 /* セラーメモ（バイヤーメモの横）：手動ON/OFF目印つきの私的メモ */
 .orbit-seller-memo-sep { color: #c0c4c9; }
-.orbit-seller-memo-flag-btn.is-on { background-color: #c0392b; border-color: #c0392b; }
+/* 共通の .orbit-flag-toggle-btn.is-on（青）より後勝ちさせるため2クラスで指定 */
+.orbit-flag-toggle-btn.orbit-seller-memo-flag-btn.is-on { background-color: #c0392b; border-color: #c0392b; font-weight: bold; }
+/* ONの間はメモ欄を黄色塗り＋赤太字にして目立たせる */
+.orbit-page input.orbit-manual.orbit-seller-memo-on { background: #fff3bf; color: #c0392b; font-weight: bold; outline: 1px solid #f0c36d; }
 .orbit-memo-add-btn { padding: 1px 6px; margin-left: 4px; }
 .orbit-acc-field { display: inline-flex; align-items: baseline; gap: 4px; }
 .orbit-acc-field.orbit-issue-flag {

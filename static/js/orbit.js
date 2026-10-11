@@ -1069,7 +1069,7 @@ function renderSellerMemoBlock(r) {
     const memo = r.seller_memo || "";
     return `<span class="orbit-seller-memo-sep">｜</span>` +
         `<span class="orbit-acc-field-label">セラーメモ</span>` +
-        `<input type="text" class="orbit-manual orbit-manual-mid" data-field="seller_memo" value="${orbitEscapeHtml(memo)}" placeholder="自分用メモ" title="${orbitEscapeHtml(memo)}">` +
+        `<input type="text" class="orbit-manual orbit-manual-mid${on ? " orbit-seller-memo-on" : ""}" data-field="seller_memo" value="${orbitEscapeHtml(memo)}" placeholder="自分用メモ" title="${orbitEscapeHtml(memo)}">` +
         `<button type="button" class="orbit-flag-toggle-btn orbit-seller-memo-flag-btn ${on ? "is-on" : "is-off"}" data-order-item-id="${r.order_item_id}" data-field="seller_memo_flag" data-value="${on ? 1 : 0}" title="ONの間はN番を赤字表示します（手動でOFFにするまで消えません）">${on ? "ON" : "OFF"}</button>`;
 }
 
