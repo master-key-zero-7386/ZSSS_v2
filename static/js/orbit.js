@@ -3994,12 +3994,15 @@ window.initOrbit = function () {
 //   - 検索語: 行の表示テキスト＋入力欄の値に部分一致（全角半角・大小文字は区別しない）。スペース区切りはAND。
 //   - マーケット: 行内の order-id の先頭桁で判定（getOrderMarketColorClass と同じ基準）。
 //     order-id を1件も含まないテーブル（クレカ・休日など）にはマーケット条件を掛けない。
+//   - セラーメモONのみ: N番セルの赤字目印（orbit-serial-memo-flag）か、展開行のセラーメモONボタンで判定。
+//     N番もセラーメモ欄も無いテーブル（クレカ・休日など）には掛けない。
 //   - 発注管理のアコーディオンは 主行＋展開行 をひとまとまりとして判定する。
 // =====================================================================
 (function setupOrbitSearch() {
     const input = document.getElementById("orbit-search-input");
     const marketSel = document.getElementById("orbit-search-market");
     const clearBtn = document.getElementById("orbit-search-clear-btn");
+    const memoOnChk = document.getElementById("orbit-search-memo-on");
     const countEl = document.getElementById("orbit-search-count");
     const page = document.querySelector(".orbit-page");
     if (!input || !marketSel || !page) return;
@@ -4045,12 +4048,20 @@ window.initOrbit = function () {
         return text;
     }
 
+    const MEMO_ON_SEL = ".orbit-serial-memo-flag, .orbit-seller-memo-flag-btn.is-on";
+    const MEMO_INFO_SEL = ".orbit-serial-cell, .orbit-seller-memo-flag-btn";
+
+    function filterActive() {
+        return !!(input.value.trim() || marketSel.value || memoOnChk?.checked);
+    }
+
     let scheduled = false;
     function apply() {
         scheduled = false;
         const terms = norm(input.value).split(/\s+/).filter(Boolean);
         const market = marketSel.value;
-        const active = terms.length > 0 || market !== "";
+        const memoOnly = !!memoOnChk?.checked;
+        const active = terms.length > 0 || market !== "" || memoOnly;
         const activePane = page.querySelector(".st-subtab-pane.active");
         let shown = 0, total = 0;
 
@@ -4058,15 +4069,20 @@ window.initOrbit = function () {
             const groups = groupRows(tbody).map(g => {
                 const raw = groupText(g);
                 const m = raw.match(ORDER_ID_RE);
-                return { rows: g, text: norm(raw), market: m ? marketOfDigit(m[1]) : null };
+                return {
+                    rows: g, text: norm(raw), market: m ? marketOfDigit(m[1]) : null,
+                    memoOn: g.some(tr => tr.querySelector(MEMO_ON_SEL)),
+                };
             });
             const hasOrderIds = groups.some(g => g.market);
+            const hasMemoInfo = !!tbody.querySelector(MEMO_INFO_SEL);
             const inActivePane = activePane && activePane.contains(tbody);
             for (const g of groups) {
                 let ok = true;
                 if (active) {
                     ok = terms.every(t => g.text.includes(t));
                     if (ok && market && hasOrderIds) ok = g.market === market;
+                    if (ok && memoOnly && hasMemoInfo) ok = g.memoOn;
                 }
                 g.rows.forEach(tr => tr.classList.toggle("orbit-search-hidden", !ok));
                 if (inActivePane) {
@@ -4087,12 +4103,14 @@ window.initOrbit = function () {
 
     input.addEventListener("input", schedule);
     marketSel.addEventListener("change", schedule);
+    memoOnChk?.addEventListener("change", schedule);
     input.addEventListener("keydown", (e) => {
         if (e.key === "Escape") { input.value = ""; schedule(); }
     });
     clearBtn?.addEventListener("click", () => {
         input.value = "";
         marketSel.value = "";
+        if (memoOnChk) memoOnChk.checked = false;
         schedule();
         input.focus();
     });
@@ -4102,7 +4120,7 @@ window.initOrbit = function () {
     // 行の差し替え（再読込・並び替え・1行更新）に追従する。自分が付けるのは class だけなので
     // childList 監視ならループしない。
     const observer = new MutationObserver(() => {
-        if (input.value.trim() || marketSel.value) schedule();
+        if (filterActive()) schedule();
     });
     page.querySelectorAll(".st-subtab-pane table > tbody").forEach(tbody => {
         observer.observe(tbody, { childList: true });
