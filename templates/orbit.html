@@ -834,6 +834,30 @@ input.orbit-serial-dup {
 }
 
 /* 売上トレンド */
+/* ===== 送料検証 ===== */
+/* 発注管理・送料検証で、想定から大きく外れた送料・重量を赤字太字に（td と展開部の項目の両方） */
+.orbit-page table td.orbit-ship-warn,
+.orbit-page .orbit-acc-field.orbit-ship-warn .orbit-acc-field-value {
+  color: #dc3545 !important;
+  font-weight: bold;
+}
+/* 想定より大幅に安く・軽く済んだ（出品額が高すぎる可能性）＝送料検証タブだけ青字 */
+.orbit-page table td.orbit-ship-under {
+  color: #1565c0;
+  font-weight: bold;
+}
+.orbit-shipcheck-settings label { display: flex; align-items: center; gap: 4px; }
+.orbit-shipcheck-settings input[type="number"] { width: 80px; }
+#orbit-pane-ship-check .orbit-shipcheck-summary,
+#orbit-pane-ship-check details.orbit-sheet-settings { flex: none; }
+.orbit-shipcheck-summary { margin: 4px 0 8px; display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.orbit-page .orbit-shipcheck-summary table { border-collapse: collapse; width: auto; }
+.orbit-shipcheck-summary th,
+.orbit-shipcheck-summary td { border: 1px solid #ddd; padding: 2px 8px; text-align: right; }
+.orbit-shipcheck-summary th { background: #f0f4f8; text-align: center; }
+#shipcheck-table td { white-space: nowrap; }
+#shipcheck-table td.shipcheck-name { white-space: normal; min-width: 220px; max-width: 320px; }
+
 .sales-trend-head {
   display: flex;
   align-items: center;
@@ -896,6 +920,7 @@ input.orbit-serial-dup {
       <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入管理</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-ship-check">送料検証</button>
       <button class="st-subtab-btn" data-target="orbit-pane-kanrihin" id="orbit-kanrihin-subtab-btn">管理品</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
@@ -1110,6 +1135,54 @@ input.orbit-serial-dup {
           <tbody>
             <!-- JSで描画 -->
           </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ▼ SUBTAB: 送料検証（出品時の想定送料・請求重量 vs 発送代行の実績） -->
+  <div id="orbit-pane-ship-check" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          出品時に見込んだ送料・請求重量と、発送代行会社の実績（送料・確定重量）を並べ、大きく外れた注文だけを赤字にします。
+          ①送料：想定送料（燃油・外注費・梱包費込み）と送料合計 ②キャリア：実際の運賃と、実重量で送料表を引いた他キャリアの最安 ③重量：想定請求重量と確定重量（未確定の間は発送重量）。
+          同梱・キャンセルは対象外です。想定は注文が初めて表示された時点の値を保存しているため、あとで送料表や重量区分を直しても変わりません。
+      </div>
+
+      <details class="orbit-sheet-settings">
+          <summary>警告の基準</summary>
+          <div class="orbit-sheet-settings-body">
+              <div class="orbit-actions orbit-shipcheck-settings" style="flex-wrap:wrap;">
+                  <label>①送料 実際−想定が <input type="number" id="shipcheck-fee-yen" min="0" step="100"> 円以上 かつ <input type="number" id="shipcheck-fee-pct" min="0" step="5"> %以上</label>
+                  <label>②キャリア 他キャリア最安より <input type="number" id="shipcheck-carrier-yen" min="0" step="100"> 円以上高い</label>
+                  <label>③重量 実際÷想定が <input type="number" id="shipcheck-weight-ratio" min="1" step="0.1"> 倍以上 かつ 差 <input type="number" id="shipcheck-weight-kg" min="0" step="0.5"> kg以上</label>
+                  <button type="button" id="shipcheck-settings-save-btn" class="btn-blue">基準を保存</button>
+              </div>
+          </div>
+      </details>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <button type="button" id="shipcheck-refresh-btn" class="btn-blue">更新</button>
+          <select id="shipcheck-filter-warn">
+              <option value="any">警告ありだけ</option>
+              <option value="all">すべて</option>
+              <option value="fee">①送料のズレ</option>
+              <option value="carrier">②キャリア差</option>
+              <option value="weight">③重量のズレ</option>
+          </select>
+          <select id="shipcheck-filter-carrier"><option value="">キャリア：すべて</option></select>
+          <select id="shipcheck-filter-country"><option value="">国：すべて</option></select>
+          <label><input type="checkbox" id="shipcheck-filter-confirmed"> 確定重量が出た注文だけ</label>
+          <span id="shipcheck-status"></span>
+      </div>
+
+      <div id="shipcheck-summary" class="orbit-shipcheck-summary"></div>
+
+      <div class="table-wrapper" id="shipcheck-table-wrapper">
+        <table id="shipcheck-table">
+          <thead><tr><!-- JSで描画 --></tr></thead>
+          <tbody><!-- JSで描画 --></tbody>
         </table>
       </div>
     </div>
@@ -1368,3 +1441,4 @@ input.orbit-serial-dup {
 </div>
 
 <script src="{{ url_for('static', filename='js/orbit.js') }}"></script>
+<script src="{{ url_for('static', filename='js/orbit_ship_check.js') }}"></script>

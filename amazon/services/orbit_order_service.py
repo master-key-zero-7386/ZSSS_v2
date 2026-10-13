@@ -20,7 +20,9 @@ from psycopg2.extras import execute_values
 
 from amazon.db import get_conn
 from amazon.db_migrate import ORBIT_ORDERS_COLUMNS
-from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule
+from amazon.core.price_calculator import calculate_shipping_result, get_shipping_rate, get_pricing_master_rule, get_carrier_names
+from amazon.services.orbit_ship_check_service import apply_ship_checks, estimated_carrier
+from amazon.shipping_calc import calc_min_shipping_fee
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import (
     fetch_dispatch_sheet_preview,
@@ -602,6 +604,9 @@ _RAW_SHEET_APPEND_COLUMNS = [
 _RAW_SHEET_SKIP_KEYS = {
     "predicted_shipping_fee_unit", "predicted_shipping_qty", "bundle_estimate",
     "bundle_parent_no", "bundle_remarks_auto", "bundle_parent_missing", "bundle_remarks_mismatch",
+    # 送料検証（想定スナップショットのDB列と、判定結果の派生キー）
+    "est_shipping_fee", "est_shipping_base", "est_billable_weight_kg", "est_carrier", "est_snapshot_at",
+    "est_carrier_live", "ship_check", "ship_warn_fee", "ship_warn_carrier", "ship_warn_weight",
 }
 
 _RAW_SHEET_EXTRA_COLUMNS = [
@@ -1721,17 +1726,19 @@ def _apply_bundle_checks(user_id, rows):
 
 
 # --- ▼ SECTION 05: 注文一覧取得（ASIN・サイズ・重量・予測送料つき） ▼ ---
-def _fetch_raw_order_rows(user_id: int, order_id: str = None) -> list:
+def _fetch_raw_order_rows(user_id: int, order_id: str = None, table: str = "orbit_orders") -> list:
     """orbit_orders + listed_itemsの生行を取得する。order_id指定時はその注文（複数商品なら
     複数行）だけに絞る（recompute_order_group用。決済按分は同一order_id内の商品価格比で
-    計算するため、1商品だけでなく同じ注文の全行を渡す必要がある）。"""
+    計算するため、1商品だけでなく同じ注文の全行を渡す必要がある）。
+    table="orbit_procurement_history" でアーカイブ済み（列構成は同一）を読む（送料検証用）。"""
+    assert table in ("orbit_orders", "orbit_procurement_history")
     conn = get_conn("a_orbit_orders.db")
     cur = conn.cursor()
-    base_sql = """
+    base_sql = f"""
         SELECT o.*,
                l.asin, l.length_cm, l.width_cm, l.height_cm,
                l.actual_weight_kg, l.override_weight_class, l.override_price
-        FROM orbit_orders o
+        FROM {table} o
         LEFT JOIN listed_items l
           ON l.user_id = o.user_id AND l.sku = o.sku
         WHERE o.user_id = %s
@@ -1752,7 +1759,7 @@ def _fetch_raw_order_rows(user_id: int, order_id: str = None) -> list:
 # 寸法フォールバック・送料計算・決済実利益・リピーター判定などの派生値をその場で埋め込む。
 # 決済按分（同一order_id内の商品価格比）は渡されたrows内で完結するグループ計算のため、
 # rowsが「1注文の全行」を含んでさえいれば、全件計算・1注文だけの計算のどちらでも同じ結果になる。
-def _apply_calc_to_rows(user_id: int, rows: list) -> list:
+def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_orders") -> list:
     shipping_config = _get_shipping_config(user_id)
     prefix_map = _load_order_id_prefix_map()
     rate_cache = {}
@@ -1872,6 +1879,10 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
         shipping_config=shipping_config, prefix_map=prefix_map, rate_cache=rate_cache,
         marketplace_country_map=marketplace_country_map, pricing_rule_cache=pricing_rule_cache,
     )
+
+    # --- 送料検証：当初の想定（送料・請求重量・キャリア）を初回だけ固定保存し、代行実績と突き合わせる ---
+    carrier_names_cache = {}
+    _snapshot_est_shipping(user_id, rows, snapshot_table, rate_cache, carrier_names_cache)
     _apply_bundle_checks(user_id, rows)
 
     # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
@@ -1937,11 +1948,68 @@ def _apply_calc_to_rows(user_id: int, rows: list) -> list:
         row["kanrihin_available_count"] = len(row["kanrihin_available_nos"])
         row["kanrihin_used_management_no"] = kanrihin["used"].get(row.get("order_item_id"))
 
+    apply_ship_checks(user_id, rows, rate_cache=rate_cache, names_cache=carrier_names_cache)
+
     return rows
+
+
+# --- ▼ SECTION 05-0: 送料検証用「当初の想定」のスナップショット ▼ ---
+# 予測送料は毎回「今の送料表・補正・重量区分」で計算し直すため、ズレを見て設定を直すと過去の想定まで
+# 変わって比較の基準が消える。予測送料が初めて出せた時点の値を est_* 列へ一度だけ書き、以後は触らない。
+# 既存の注文・アーカイブ済みは、この機能を入れた後に初めて表示した時点の設定で埋まる。
+def _snapshot_est_shipping(user_id, rows, table, rate_cache, carrier_names_cache):
+    assert table in ("orbit_orders", "orbit_procurement_history")
+    pending = []
+    for row in rows:
+        mp = row.get("marketplace_id")
+        if mp and mp in rate_cache:
+            if mp not in carrier_names_cache:
+                carrier_names_cache[mp] = get_carrier_names(user_id, mp)
+            row["est_carrier_live"] = estimated_carrier(row.get("billable_weight_kg"), rate_cache[mp], carrier_names_cache[mp])
+        if row.get("est_snapshot_at") or row.get("predicted_shipping_fee") is None:
+            continue
+        unit = row.get("predicted_shipping_fee_unit")
+        base = None
+        if row.get("billable_weight_kg") and mp in rate_cache:
+            base = calc_min_shipping_fee(row["billable_weight_kg"], user_id, mp, SHIPPING_RATE_ROWS=rate_cache[mp])
+        row["est_shipping_fee"] = row["predicted_shipping_fee"]
+        row["est_shipping_base"] = base if base is not None else unit
+        row["est_billable_weight_kg"] = row.get("billable_weight_kg")
+        row["est_carrier"] = row.get("est_carrier_live")
+        row["est_snapshot_at"] = datetime.utcnow().isoformat()
+        pending.append(row)
+
+    if not pending:
+        return
+    conn = get_conn("a_orbit_orders.db")
+    try:
+        cur = conn.cursor()
+        for row in pending:
+            cur.execute(
+                f"""
+                UPDATE {table}
+                SET est_shipping_fee = %s, est_shipping_base = %s, est_billable_weight_kg = %s,
+                    est_carrier = %s, est_snapshot_at = %s
+                WHERE user_id = %s AND order_item_id = %s AND est_snapshot_at IS NULL
+                """,
+                (row["est_shipping_fee"], row["est_shipping_base"], row["est_billable_weight_kg"],
+                 row["est_carrier"], row["est_snapshot_at"], user_id, row["order_item_id"]),
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def list_orders_with_calc(user_id: int) -> list:
     return _apply_calc_to_rows(user_id, _fetch_raw_order_rows(user_id))
+
+
+def list_procurement_history_with_calc(user_id: int) -> list:
+    """アーカイブ済み（orbit_procurement_history）にも同じ計算を通す（送料検証タブ用・読み取り中心）。"""
+    rows = _fetch_raw_order_rows(user_id, table="orbit_procurement_history")
+    if not rows:
+        return []
+    return _apply_calc_to_rows(user_id, rows, snapshot_table="orbit_procurement_history")
 
 
 # --- ▼ SECTION 05-2: 1注文だけの再計算（寸法取得・手数料取得・領収書取込・セキュリティメモ追加後、

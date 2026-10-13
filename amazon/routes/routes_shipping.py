@@ -10,6 +10,7 @@ from flask import Blueprint, request, jsonify, session
 from amazon.adapters.shipping_rates import update_shipping_rates_bulk
 from amazon.adapters.shipping_rates import seed_shipping_rates
 from amazon.db import get_conn
+from amazon.core.price_calculator import get_carrier_names, save_carrier_names, CARRIER_NAME_OPTIONS
 
 shipping_bp = Blueprint("shipping_bp", __name__, url_prefix="/api")
 
@@ -92,7 +93,10 @@ def load_shipping_rates():
     return jsonify({
         "status": "success",
         "mode": mode,
-        "rows": rows
+        "rows": rows,
+        # Carrier 1〜3 の見出し（キャリア名）。未設定なら既定 DHL / FedEx / EMS
+        "carrier_names": get_carrier_names(user_id, marketplace_id),
+        "carrier_name_options": CARRIER_NAME_OPTIONS,
     })
 
 # --- ▼ SECTION 03: 送料設定 保存API ▼ ---
@@ -119,6 +123,9 @@ def save_shipping_rates():
         marketplace_id=marketplace_id,
         rows=rows
     )
+
+    if isinstance(data.get("carrier_names"), list):
+        save_carrier_names(user_id, marketplace_id, data["carrier_names"])
 
     return jsonify({"status": "success"})
 

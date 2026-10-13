@@ -270,12 +270,13 @@ const DISPATCH_COLUMNS = [
     { key: "agent_option_content", label: "オプション内容" },
     { key: "agent_option_fee", label: "オプション料計" },
     { key: "agent_non_deliverable_weight", label: "配送不可重量" },
-    { key: "agent_shipping_weight", label: "発送重量" },
-    { key: "agent_confirmed_weight", label: "確定重量" },
+    // shipWarnKey: 送料検証で想定から大きく外れたら赤字太字（値＝ツールチップ文言。基準は送料検証タブで設定）
+    { key: "agent_shipping_weight", label: "発送重量", shipWarnKey: "ship_warn_weight" },
+    { key: "agent_confirmed_weight", label: "確定重量", shipWarnKey: "ship_warn_weight" },
     { key: "agent_deadline", label: "期限" },
     { key: "agent_status", label: "状況" },
-    { key: "agent_shipping_fee", label: "送料" },
-    { key: "agent_shipping_fee_total", label: "送料合計" },
+    { key: "agent_shipping_fee", label: "送料", shipWarnKey: "ship_warn_carrier" },
+    { key: "agent_shipping_fee_total", label: "送料合計", shipWarnKey: "ship_warn_fee" },
     { key: "agent_delivery_area", label: "配送エリア" },
     { key: "agent_synced_at", label: "読戻し日時" },
 
@@ -290,7 +291,7 @@ const DISPATCH_COLUMNS = [
     { key: "sale_price_used", label: "販売額", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used", label: "入金額(現地)", profitHighlight: true, saleAmountCell: true, currencyKey: "net_proceeds_used_currency", estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "net_proceeds_used_jpy", label: "入金額(円)", profitHighlight: true, estimateFlagKey: "net_proceeds_is_estimate", splitFlagKey: "settlement_is_split" },
-    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", qtyMultMark: true },
+    { key: "shipping_cost_used", label: "送料(円)", profitHighlight: true, estimateFlagKey: "shipping_cost_is_estimate", qtyMultMark: true, shipWarnKey: "ship_warn_fee" },
     { key: "profit_jpy", label: "利益(円)", profitHighlight: true, estimateFlagKey: "profit_is_estimate", splitFlagKey: "settlement_is_split" },
     { key: "profit_rate_pct", label: "利益率(%)", profitHighlight: true, percentCell: true },
 
@@ -896,10 +897,19 @@ function dispCellClass(col, r) {
     if (col.key === "agent_serial_no" && r.seller_memo_flag) c += " orbit-serial-memo-flag";
     if (col.marketColor) c += " " + getOrderMarketColorClass(r[col.key]);
     if (col.qtyWarn && Number(r[col.key]) >= 2) c += " orbit-qty-warn";
+    if (col.shipWarnKey && r[col.shipWarnKey] && r[col.key] != null && r[col.key] !== "") c += " orbit-ship-warn";
     return c.trim();
 }
 
 function dispCellInner(col, r) {
+    const html = dispCellInnerBase(col, r);
+    // 送料検証の警告は理由（想定→実際）をツールチップで見せる
+    return (col.shipWarnKey && r[col.shipWarnKey] && html !== "")
+        ? `<span title="${orbitEscapeHtml(r[col.shipWarnKey])}">${html}</span>`
+        : html;
+}
+
+function dispCellInnerBase(col, r) {
     if (col.issueSummary) {
         const active = DISPATCH_ISSUE_FLAGS.filter(f => r[f.key]);
         if (!active.length) return "";

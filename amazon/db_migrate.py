@@ -545,6 +545,31 @@ SHIPPING_RATES_COLUMNS = {
     "updated_at": "TEXT"
 }
 
+# --- ▼ SECTION : shipping_carrier_names（送料表 Carrier 1〜3 の見出し＝キャリア名。マーケットごと） ---
+#     送料検証で代行会社シートの発送種別（DHL_… / FedEx_… / EMS…）と送料表の列を結び付けるのに使う。
+#     行が無いマーケットは既定（1=DHL / 2=FedEx / 3=EMS）として扱う。
+SHIPPING_CARRIER_NAMES_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "marketplace_id": "TEXT NOT NULL",
+    "carrier_1_name": "TEXT",
+    "carrier_2_name": "TEXT",
+    "carrier_3_name": "TEXT",
+    "updated_at": "TEXT",
+}
+
+# --- ▼ SECTION : orbit_ship_check_settings（ORBIT 送料検証の「大きなズレ」とみなす基準。user_idごと1行） ---
+ORBIT_SHIP_CHECK_SETTINGS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "fee_diff_yen": "REAL",       # ①想定送料とのズレ：実際の送料合計 − 想定送料 がこの円以上
+    "fee_diff_pct": "REAL",       #   かつ この%以上で警告
+    "carrier_diff_yen": "REAL",   # ②キャリア差：実際の運賃 − 他キャリアの最安 がこの円以上で警告
+    "weight_ratio": "REAL",       # ③重量のズレ：実重量 ÷ 想定請求重量 がこの倍率以上
+    "weight_diff_kg": "REAL",     #   かつ 差がこのkg以上で警告
+    "updated_at": "TEXT",
+}
+
 # --- ▼ SECTION : carrier_remote_area_codes（DHL/FedEx 遠隔地郵便番号マスタ） ---
 CARRIER_REMOTE_AREA_COLUMNS = {
     "id":           "SERIAL PRIMARY KEY",
@@ -680,6 +705,15 @@ ORBIT_ORDERS_COLUMNS = {
     # --- 同梱指定（発注管理の主行「同梱先」。order-idが違う注文を1箱にまとめる指定。ZSSS_RAWには出さない） ---
     "bundle_parent_no": "INTEGER",         # 同梱の親N番（同じ値の行＋そのN番の行が1グループ）
     "bundle_remarks_auto": "TEXT",         # 備考1へ自動で書き足した同梱表記（次回の置換・削除で探す用）
+
+    # --- 送料検証用の「当初の想定」スナップショット（ZSSS_RAWには出さない） ---
+    # 予測送料は画面表示のたびに「今の送料表・補正」で計算し直すため、送料表や重量区分を直すと
+    # 過去の注文の想定も変わってしまう。初めて予測送料が出せた時点の値をここに固定して残す。
+    "est_shipping_fee": "REAL",            # 想定送料(円・全部込み＝運賃×(1+燃油)+外注費+梱包費、×数量)
+    "est_shipping_base": "REAL",           # 想定運賃(円・送料表の生値・1個分)
+    "est_billable_weight_kg": "REAL",      # 想定請求重量(kg・1個分。重量区分の手動上書き込み)
+    "est_carrier": "TEXT",                 # 想定キャリア（送料表で最安だった列のキャリア名／固定送料なら「固定」）
+    "est_snapshot_at": "TEXT",             # スナップショット日時（入っていれば以後は書き換えない）
 
     "created_at": "TEXT",
     "updated_at": "TEXT",
@@ -944,6 +978,7 @@ def migrate_db(db_name):
         migrate_table(conn, "api_usage_logs", API_USAGE_LOGS_COLUMNS)
     elif base.endswith("_shipping_rates.db"):
         migrate_table(conn, "shipping_rates", SHIPPING_RATES_COLUMNS)
+        migrate_table(conn, "shipping_carrier_names", SHIPPING_CARRIER_NAMES_COLUMNS)
     elif base.endswith("_bg_scan_settings.db"):
         migrate_table(conn, "bg_scan_settings", BG_SCAN_SETTINGS_COLUMNS)
     elif base.endswith("_fx.db"):
@@ -995,6 +1030,8 @@ def migrate_db(db_name):
         migrate_table(conn, "jp_holidays", JP_HOLIDAYS_COLUMNS)
     elif base.endswith("_orbit_agent_closures.db"):
         migrate_table(conn, "orbit_agent_closures", ORBIT_AGENT_CLOSURES_COLUMNS)
+    elif base.endswith("_orbit_ship_check_settings.db"):
+        migrate_table(conn, "orbit_ship_check_settings", ORBIT_SHIP_CHECK_SETTINGS_COLUMNS)
 
 
     conn.close()
@@ -1114,6 +1151,10 @@ def add_unique_indexes():  # UNIQUE制約
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_rates_unique "
         "ON shipping_rates(user_id, marketplace_id, weight_from_g, weight_to_g)"
     )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_carrier_names_unique "
+        "ON shipping_carrier_names(user_id, marketplace_id)"
+    )
     conn.commit()
     conn.close()
 
@@ -1231,6 +1272,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE INDEX IF NOT EXISTS idx_orbit_agent_closures_user "
         "ON orbit_agent_closures(user_id, start_date)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_ship_check_settings.db ---
+    conn = get_conn("a_orbit_ship_check_settings.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_ship_check_settings_unique "
+        "ON orbit_ship_check_settings(user_id)"
     )
     conn.commit()
     conn.close()
@@ -1500,6 +1551,7 @@ def main():
         "a_orbit_credit_cards.db",
         "a_jp_holidays.db",
         "a_orbit_agent_closures.db",
+        "a_orbit_ship_check_settings.db",
     ]
 
     # 固定DB migrate

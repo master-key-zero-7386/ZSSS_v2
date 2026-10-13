@@ -510,6 +510,15 @@ def import_csv():
 
             inserted_count = 0 # ← 実際に登録できた件数を数える箱
 
+            # 送料区分（override_weight_class）はASIN単位の設定：他の国で同じASINに設定済みなら引き継ぐ
+            cur.execute("""
+                SELECT asin, MAX(override_weight_class) AS override_weight_class
+                FROM listed_items
+                WHERE user_id = %s AND override_weight_class IS NOT NULL
+                GROUP BY asin
+            """, (user_id,))
+            weight_override_by_asin = {r["asin"]: r["override_weight_class"] for r in cur.fetchall()}
+
             for asin, sku in zip(asins, skus):
                 if not sku:  
                     sku = f"Z_{country_code}_{asin}_{today}_{condition}"
@@ -595,7 +604,7 @@ def import_csv():
                     None,                        # volumetric_weight_kg
                     None,                        # billable_weight_kg
 
-                    None,                        # override_weight_class   1
+                    weight_override_by_asin.get(asin),  # override_weight_class   1（他国で設定済みなら引き継ぐ）
 
                     None,                        # home_price              4
                     None,                        # region_price

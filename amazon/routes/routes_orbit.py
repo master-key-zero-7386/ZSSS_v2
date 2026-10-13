@@ -54,6 +54,11 @@ from amazon.services.orbit_settlement_service import (
     import_settlement_lines,
 )
 from amazon.adapters.orbit_sales_trend import get_sales_trend
+from amazon.services.orbit_ship_check_service import (
+    list_ship_checks,
+    get_ship_check_settings,
+    save_ship_check_settings,
+)
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import (
     build_authorization_url,
@@ -221,6 +226,40 @@ def sales_trend():
         return jsonify({"status": "error", "message": "売上トレンドの集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "data": data})
+
+
+# --- ▼ SECTION 02-3: 送料検証（想定送料・請求重量 vs 発送代行の実績。読み取り専用＋基準の保存） ▼ ---
+# 発注管理の注文とアーカイブ済み（仕入れ履歴）の両方を list_orders_with_calc と同じ計算に通すため、
+# 件数が多いと数秒かかる。画面側は「更新」ボタンで手動集計。
+@orbit_bp.route("/ship-check", methods=["GET"])
+def ship_check():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        data = list_ship_checks(user_id)
+    except Exception:
+        import traceback
+        print("[orbit/ship-check] list_ship_checks ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "送料検証の集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", **data})
+
+
+@orbit_bp.route("/ship-check/settings", methods=["GET", "POST"])
+def ship_check_settings():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    if request.method == "GET":
+        return jsonify({"status": "success", "settings": get_ship_check_settings(user_id)})
+
+    data = request.get_json(silent=True) or {}
+    settings = save_ship_check_settings(user_id, data)
+    return jsonify({"status": "success", "settings": settings})
 
 
 # --- ▼ SECTION 03: 手入力項目の更新（JAN・仕入価格・依頼日・発送種別・トラッキング・備考） ▼ ---

@@ -2669,6 +2669,10 @@ def update_shipping_override():
     ALL Listing：送料区分（override_weight_class）手動上書きの保存
     - ONにしてプルダウンで選んだ重量帯の To(g) をそのまま保存
     - OFFにした場合は None（自動計算に戻す）
+    - 請求重量はどの国で売っても同じなので、国に関係なく ASIN 単位で効かせる：
+      このDBにある同じASINの全マーケットの行を書き換え、それぞれ価格を再計算・送信する
+      （値は重量(g)なので、国ごとに送料表の重量帯が違っても請求重量としてそのまま使える）。
+      ※ AU は ATLAS（別DB）で動いているため、ここからは届かない。
     """
     try:
         data = request.get_json() or {}
@@ -2706,36 +2710,53 @@ def update_shipping_override():
             SET
                 override_weight_class = %s,
                 updated_at = %s
-            WHERE asin = %s AND user_id = %s AND region_marketplace_id = %s
+            WHERE asin = %s AND user_id = %s
+            RETURNING region_marketplace_id
         """, (
             override_weight_class,
             now_utc,
             asin,
             user_id,
-            region_marketplace_id
         ))
+        touched_marketplace_ids = {r["region_marketplace_id"] for r in cur.fetchall() if r["region_marketplace_id"]}
+
+        cur.execute("""
+            SELECT marketplace_id, UPPER(country_code) AS country_code
+            FROM marketplaces
+            WHERE user_id = %s AND marketplace_id = ANY(%s)
+        """, (user_id, list(touched_marketplace_ids)))
+        touched_countries = sorted({r["country_code"] for r in cur.fetchall() if r["country_code"]})
 
         conn.commit()
         conn.close()
 
         # --- 保存と同時に請求重量・送料・出品価格を再計算し、SP-APIへ即時反映 ---
-        # TTL巡回を待たず、このASINだけその場でSeller Centralへ最新価格を送信する
+        # TTL巡回を待たず、このASINだけその場でSeller Centralへ最新価格を送信する（書き換えた全マーケット分）
         price_result = None
-        try:
-            price_result = update_listing_price(
-                user_id=user_id,
-                asin=asin,
-                country_code=country_code
-            )
-        except Exception:
-            import traceback
-            print("[update_shipping_override] update_listing_price ERROR")
-            traceback.print_exc()
+        other_results = {}
+        for cc in [country_code.upper()] + [c for c in touched_countries if c != country_code.upper()]:
+            try:
+                result = update_listing_price(
+                    user_id=user_id,
+                    asin=asin,
+                    country_code=cc
+                )
+            except Exception:
+                import traceback
+                print(f"[update_shipping_override] update_listing_price ERROR ({cc})")
+                traceback.print_exc()
+                result = None
+            if cc == country_code.upper():
+                price_result = result
+            else:
+                other_results[cc] = bool(result and result.get("submitted"))
 
         return jsonify({
             "status": "success",
             "override_weight_class": override_weight_class,
             "price_result": price_result,
+            "countries": touched_countries,
+            "other_submitted": other_results,
         })
 
     except Exception as e:

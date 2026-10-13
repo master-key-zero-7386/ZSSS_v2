@@ -541,7 +541,10 @@ async function saveWeightOverride($row, overrideWeightClass) {
         }
 
         const submitted = data.price_result && data.price_result.submitted;
-        const label = overrideWeightClass === null ? "送料区分を自動計算に戻しました" : "送料区分を保存しました";
+        const baseLabel = overrideWeightClass === null ? "送料区分を自動計算に戻しました" : "送料区分を保存しました";
+        // 送料区分はASIN単位（同じASINを出している他の国にも同時に反映される）
+        const others = (data.countries || []).filter(c => c !== String(country_code).toUpperCase());
+        const label = others.length ? `${baseLabel}（${others.join("・")} にも反映）` : baseLabel;
         window.showToast(
             submitted
                 ? `${label}（Seller Centralへ送信済み）`

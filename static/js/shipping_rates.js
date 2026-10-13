@@ -8,6 +8,22 @@ document.addEventListener("DOMContentLoaded", function () {
     let shippingRatesMode = "new";  
     const saveBtn = document.getElementById("save-shipping-rates");
 
+    // --- ▼ SECTION 00: Carrier 1〜3 見出しのキャリア名（選択式） ▼ ---
+    function renderCarrierNameSelects(names, options) {
+        const opts = options && options.length ? options : ["DHL", "FedEx", "EMS", "その他"];
+        document.querySelectorAll("#shipping-rates-table .carrier-name-select").forEach(sel => {
+            const idx = Number(sel.dataset.idx);
+            const current = (names && names[idx]) || "";
+            sel.innerHTML = opts.map(o => `<option value="${o}"${o === current ? " selected" : ""}>${o}</option>`).join("");
+        });
+    }
+
+    function getCarrierNames() {
+        return Array.from(document.querySelectorAll("#shipping-rates-table .carrier-name-select"))
+            .sort((a, b) => Number(a.dataset.idx) - Number(b.dataset.idx))
+            .map(sel => sel.value);
+    }
+
     // --- ▼ SECTION 01: 送料設定 初期ロード（表示専用） ▼ ---
     function initShippingRatesSeed() {
         const select = document.getElementById("globalRegion");
@@ -30,6 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(data => {
                 if (data.status === "success") {
                     shippingRatesMode = data.mode;
+                    renderCarrierNameSelects(data.carrier_names, data.carrier_name_options);
                     renderShippingRowsFromDB(data.rows);
                     saveBtn.textContent = (data.mode === "new") ? "新規作成" : "保　存";
                 } else {
@@ -367,7 +384,8 @@ document.addEventListener("DOMContentLoaded", function () {
             },
             body: JSON.stringify({
                 marketplace_id: region,
-                rows: rows
+                rows: rows,
+                carrier_names: getCarrierNames()
             })
         })
         .then(res => res.json())
@@ -397,6 +415,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 }
 
                 shippingRatesMode = data.mode;
+                renderCarrierNameSelects(data.carrier_names, data.carrier_name_options);
                 renderShippingRowsFromDB(data.rows);
                 saveBtn.textContent = (data.mode === "new") ? "新規作成" : "保　存";
             })
@@ -438,6 +457,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // コピー元マーケット & コピーする列を選んでもらうポップアップ
+        const carrierNames = getCarrierNames();
         const result = await showConfirmModal({
             contentHtml: `
                 <h3>他マーケットからコピー</h3>
@@ -452,9 +472,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 <div style="margin-bottom:12px;">
                     <label style="display:block; margin-bottom:6px;">コピーする列</label>
-                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier1" checked> Carrier 1</label>
-                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier2"> Carrier 2</label>
-                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier3"> Carrier 3</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier1" checked> Carrier 1（${carrierNames[0]}）</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier2"> Carrier 2（${carrierNames[1]}）</label>
+                    <label style="display:block;"><input type="checkbox" id="copy-col-carrier3"> Carrier 3（${carrierNames[2]}）</label>
                     <label style="display:block;"><input type="checkbox" id="copy-col-fixed"> 固定送料</label>
                 </div>
 

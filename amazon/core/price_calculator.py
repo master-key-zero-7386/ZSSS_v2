@@ -258,6 +258,69 @@ def get_shipping_rate(user_id, marketplace_id):
 
     return shipping_rate
 
+# --- ▼ SECTION 04-1: 送料表 Carrier 1〜3 のキャリア名（From：routes_shipping.py / orbit_ship_check_service.py） ▼ ---
+# 自由入力にすると表記ゆれ（Fedex / FedEX 等）で代行会社シートの発送種別と結び付かなくなるため選択式。
+# 「その他」はどの発送種別とも一致させない。
+CARRIER_NAME_OPTIONS = ["DHL", "FedEx", "EMS", "その他"]
+DEFAULT_CARRIER_NAMES = ["DHL", "FedEx", "EMS"]
+
+
+def get_carrier_names(user_id, marketplace_id):
+    """[carrier_1_name, carrier_2_name, carrier_3_name]。未設定のマーケットは既定（DHL/FedEx/EMS）。"""
+    conn = get_conn("a_shipping_rates.db")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT carrier_1_name, carrier_2_name, carrier_3_name
+            FROM shipping_carrier_names
+            WHERE user_id = %s AND marketplace_id = %s
+        """, (user_id, marketplace_id))
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return list(DEFAULT_CARRIER_NAMES)
+    return [
+        row[f"carrier_{i + 1}_name"] or DEFAULT_CARRIER_NAMES[i]
+        for i in range(3)
+    ]
+
+
+def save_carrier_names(user_id, marketplace_id, names):
+    from datetime import datetime
+    cleaned = [
+        (n if n in CARRIER_NAME_OPTIONS else DEFAULT_CARRIER_NAMES[i])
+        for i, n in enumerate((list(names or []) + [None] * 3)[:3])
+    ]
+    conn = get_conn("a_shipping_rates.db")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO shipping_carrier_names
+                (user_id, marketplace_id, carrier_1_name, carrier_2_name, carrier_3_name, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, marketplace_id) DO UPDATE SET
+                carrier_1_name = EXCLUDED.carrier_1_name,
+                carrier_2_name = EXCLUDED.carrier_2_name,
+                carrier_3_name = EXCLUDED.carrier_3_name,
+                updated_at = EXCLUDED.updated_at
+        """, (user_id, marketplace_id, *cleaned, datetime.utcnow().isoformat()))
+        conn.commit()
+    finally:
+        conn.close()
+    return cleaned
+
+
+def find_shipping_rate_row(weight_g, SHIPPING_RATE_ROWS):
+    """重量(g)が入る送料表の行（calc_min_shipping_fee と同じ引き方）。無ければ None。"""
+    if not weight_g or weight_g <= 0:
+        return None
+    for r in SHIPPING_RATE_ROWS or []:
+        if r["weight_from_g"] <= weight_g <= r["weight_to_g"]:
+            return r
+    return None
+
 # --- ▼ SECTION 05: shipping_config取得（From：routes_pricing_v2.py / routes_listing.py / routes_admin.py） ▼ ---
 def get_shipping_config(user_id):
 

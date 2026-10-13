@@ -71,6 +71,16 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   在庫0 OFF) — only when 出品数 is saved or turned OFF (`force_quantity`). ALL-Listing override routes
   must scope UPDATEs by `region_marketplace_id` (`_resolve_region_marketplace_id`), since
   `listed_items` holds every marketplace in one table.
+- **重量区分 (`override_weight_class`) is per ASIN, not per marketplace.** Billable weight is the same
+  wherever an item sells, so `update_shipping_override` writes every `listed_items` row of that ASIN and
+  re-prices each country; CSV import copies an existing value to new rows of the same ASIN. (AU on ATLAS
+  has its own DB, so it isn't reached from ZSSS.)
+- **ORBIT 送料検証** (`services/orbit_ship_check_service.py`). `orbit_orders.est_*` freezes the
+  predicted shipping fee / billable weight / carrier the first time an order is calculated, so later
+  rate-table or weight-class edits don't rewrite the baseline. Never recompute or overwrite `est_*` once
+  `est_snapshot_at` is set. Agent sheet S列 (`agent_shipping_fee`) equals the raw rate-table price; T列 is
+  all-in. Carrier names for 送料表 Carrier 1–3 live in `shipping_carrier_names` (default DHL/FedEx/EMS).
+  New ORBIT row keys must go in `_RAW_SHEET_SKIP_KEYS`, or ZSSS_RAW columns shift and VLOOKUPs break.
 - `core/` — pricing business logic: `price_calculator.py`, `pricing_strategy.py`, `fx_rate.py`.
 - `services/` — `blacklist_service.py`, `listing_submit_service.py`, `ttl_stop_service.py`.
 - `background/` — long-running daemon loops started from `app.py`:
