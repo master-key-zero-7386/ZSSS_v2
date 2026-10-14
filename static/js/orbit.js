@@ -1655,8 +1655,12 @@ window.initOrbit = function () {
         window.showToast?.("N番号に重複があるため実行できません。赤字のN番を修正してください。", "error");
     }
 
+    // ORBITタブ再訪時は注文一覧を取り直さない（表示中の表・並び順・スクロール位置をそのまま残す）。
+    // 注文が変わるのはORBIT内の操作だけで、その都度その場で反映済みのため。他PCでの変更を見たいときは
+    // 検索バー横の「更新」ボタン（またはF5）で取り直す。
+    // ※ ここでloadOrders()を呼ぶと、この2回目以降のinitOrbit()の新しいスコープ（ordersRowsCacheが空）で
+    //   走るため、毎回「読み込み中…」で表を消してから描き直し、初回スコープのキャッシュとも二重持ちになっていた。
     if (tbody.dataset.orbitInitialized === "true") {
-        loadOrders();
         loadBuyerHistory();
         loadSecurityNotes();
         loadOrbitDeposit();
@@ -1672,6 +1676,9 @@ window.initOrbit = function () {
         orbitPageEl.addEventListener("change", orbitDupGuard, true);
         orbitPageEl.addEventListener("focusout", orbitDupGuard, true);
     }
+
+    // 検索バー横の「更新」：注文一覧をサーバーから取り直す（タブ再訪では自動で取り直さないため）。
+    document.getElementById("orbit-orders-refresh-btn")?.addEventListener("click", () => loadOrders());
 
     // --- ▼ SECTION 12: 集計パネル（月次売上／未出荷サマリ。サブタブ非依存で常時表示） ▼ ---
     //   loadOrders() で取得済みの ordersRowsCache をその場で集計するだけ（API追加なし）。
