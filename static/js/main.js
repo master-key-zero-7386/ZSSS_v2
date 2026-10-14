@@ -836,8 +836,28 @@ window.addEventListener("DOMContentLoaded", () => {
     const topBtn = document.getElementById("scrollTopBtn");
     const bottomBtn = document.getElementById("scrollBottomBtn");
 
+    // 通常はタブ(.tab-content.active)自体がスクロールするが、ORBITのように
+    // タブを overflow:hidden にしてサブタブ内の表(.table-wrapper)やペインだけを
+    // スクロールさせている画面もあるため、実際に縦スクロールできる要素を探す
+    const canScrollY = el =>
+        el && el.scrollHeight > el.clientHeight + 1
+        && getComputedStyle(el).overflowY !== "hidden";
+
+    function getScrollArea(){
+        const tab = document.querySelector(".tab-content.active");
+        if (!tab || canScrollY(tab)) return tab;
+        const pane = tab.querySelector(".st-subtab-pane.active");
+        if (pane) {
+            if (canScrollY(pane)) return pane;
+            const wrapper = [...pane.querySelectorAll(".table-wrapper")]
+                .find(el => el.offsetParent && canScrollY(el));
+            if (wrapper) return wrapper;
+        }
+        return tab;
+    }
+
     window.updateScrollButtons = function(){
-        const scrollArea = document.querySelector(".tab-content.active");
+        const scrollArea = getScrollArea();
         if (!topBtn || !bottomBtn || !scrollArea) return;
 
         topBtn.style.display = scrollArea.scrollTop > 50 ? "block" : "none";
@@ -852,13 +872,26 @@ window.addEventListener("DOMContentLoaded", () => {
     // 仕掛けることで、現在アクティブなタブ内のスクロールを個別バインドなしで拾う
     document.addEventListener("scroll", window.updateScrollButtons, true);
 
+    // サブタブ切替やデータ読込後の表の描き直しでもボタン表示を更新する
+    // （1フレームに1回へ間引く）
+    let scrollBtnRaf = 0;
+    const scheduleScrollButtons = () => {
+        if (scrollBtnRaf) return;
+        scrollBtnRaf = requestAnimationFrame(() => {
+            scrollBtnRaf = 0;
+            window.updateScrollButtons();
+        });
+    };
+    new MutationObserver(scheduleScrollButtons)
+        .observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:["class"]});
+    window.addEventListener("resize", scheduleScrollButtons);
+
     if (topBtn) {
-        topBtn.onclick = () => document.querySelector(".tab-content.active")
-            ?.scrollTo({top:0, behavior:"smooth"});
+        topBtn.onclick = () => getScrollArea()?.scrollTo({top:0, behavior:"smooth"});
     }
     if (bottomBtn) {
         bottomBtn.onclick = () => {
-            const scrollArea = document.querySelector(".tab-content.active");
+            const scrollArea = getScrollArea();
             scrollArea?.scrollTo({top:scrollArea.scrollHeight, behavior:"smooth"});
         };
     }
