@@ -604,6 +604,7 @@ _RAW_SHEET_APPEND_COLUMNS = [
 _RAW_SHEET_SKIP_KEYS = {
     "predicted_shipping_fee_unit", "predicted_shipping_qty", "bundle_estimate",
     "bundle_parent_no", "bundle_remarks_auto", "bundle_parent_missing", "bundle_remarks_mismatch",
+    "bundle_shipping_share", "shipping_cost_is_bundle",
     # 送料検証（想定スナップショットのDB列と、判定結果の派生キー）
     "est_shipping_fee", "est_shipping_base", "est_billable_weight_kg", "est_carrier", "est_snapshot_at",
     "est_carrier_live", "ship_check", "ship_warn_fee", "ship_warn_carrier", "ship_warn_weight",
@@ -1066,9 +1067,15 @@ def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_we
     # かつ確定送料が正の値のときだけ確定額として採用する。
     is_shipped = bool(row.get("agent_weight_recorded_date"))
     agent_fee = _parse_agent_fee_text(row.get("agent_shipping_fee_total")) if is_shipped else None
+    row["shipping_cost_is_bundle"] = False
     if agent_fee is not None and agent_fee > 0:
         row["shipping_cost_used"] = agent_fee
         row["shipping_cost_is_estimate"] = False
+    elif row.get("bundle_shipping_share") is not None:
+        # 数量2以上・同梱グループは、1箱で送った場合の同梱推定送料（按分後）で見積もる
+        row["shipping_cost_used"] = row["bundle_shipping_share"]
+        row["shipping_cost_is_estimate"] = True
+        row["shipping_cost_is_bundle"] = True
     else:
         predicted = row.get("predicted_shipping_fee")
         if predicted is not None:
@@ -1437,7 +1444,8 @@ def fetch_and_cache_fee_estimate(user_id: int, order_item_id: str) -> dict:
 
 
 # --- ▼ SECTION 04-4: 同梱推定（数量2以上・同じorder-idに複数商品の注文を1箱で送った場合の目安） ▼ ---
-# キャリア選択の参考表示用。利益計算には使わない（予測送料は1個分×数量のまま）。
+# キャリア選択の参考表示と、確定送料が出るまでの利益計算の送料（各行へ按分した bundle_shipping_share）に使う。
+# 予測送料(predicted_shipping_fee)そのものは1個分×数量のまま（送料検証の想定値・シート出力は従来どおり）。
 # 箱のサイズは「商品をすき間なく並べた直方体＋余白(padding_cm)を箱1つ分だけ」で推定し、
 # 請求重量・運賃表の引き方は1個分の予測送料と同じ（shipping_calc → calc_min_shipping_fee）。
 _BUNDLE_GRID_MAX_QTY = 50  # 並べ方の総当たり上限（これを超える数量は1列に重ねるだけにする）
@@ -1567,6 +1575,18 @@ def _apply_bundle_estimates(user_id, rows, *, shipping_config, prefix_map, rate_
 
         for row in group:
             row["bundle_estimate"] = estimate
+
+        # 利益計算用：同梱送料を各行へ按分（1個ずつ送った場合の予測送料の比、取れなければ個数比）。
+        # 1箱で送るのが実態なので、1個分×数量のままだと利益が大きく赤字に見えてしまうため。
+        bundle_fee = estimate.get("shipping_fee")
+        if bundle_fee is not None:
+            unit_fees = [row.get("predicted_shipping_fee") for row in group]
+            if all(f is not None for f in unit_fees) and sum(unit_fees) > 0:
+                weights = [f / sum(unit_fees) for f in unit_fees]
+            else:
+                weights = [row["predicted_shipping_qty"] / total_qty for row in group]
+            for row, w in zip(group, weights):
+                row["bundle_shipping_share"] = bundle_fee * w
 
 
 # --- ▼ SECTION 04-5: 同梱先N番の指定と備考1への自動表記 ▼ ---
@@ -1783,6 +1803,7 @@ def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_o
         row["predicted_shipping_fee_unit"] = None
         row["predicted_shipping_qty"] = _row_quantity(row)
         row["bundle_estimate"] = None
+        row["bundle_shipping_share"] = None
         row["dims_source"] = "listed_items" if (row.get("length_cm") and row.get("width_cm") and row.get("height_cm")) else None
 
         # 販売マーケット（＝セラーセントラルのドメイン判定に使う。ship-countryは発送先であって
@@ -1870,7 +1891,7 @@ def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_o
             row["predicted_shipping_fee_unit"] = base_shipping_fee
 
         # 数量2以上は「1個ずつ別々に送った」想定で1個分×数量にする（送料込みで販売額に含まれる前提の
-        # 安全側の見積り）。同梱した場合の推定は下の _apply_bundle_estimates で別途参考表示する。
+        # 安全側の見積り）。利益計算の送料は下の _apply_bundle_estimates の同梱推定（按分後）を優先する。
         unit_fee = row["predicted_shipping_fee_unit"]
         row["predicted_shipping_fee"] = unit_fee * row["predicted_shipping_qty"] if unit_fee is not None else None
 

@@ -585,10 +585,13 @@ function qtyMultSuffix(col, r) {
     const n = r.predicted_shipping_qty;
     if (!(n >= 2)) return "";
     if (col.estimateFlagKey && !r[col.estimateFlagKey]) return "";
+    if (col.key === "shipping_cost_used" && r.shipping_cost_is_bundle) {
+        return ` <span class="orbit-qty-mult" title="${n}個を1箱で送った場合の同梱推定送料（サイズ・重量の段の「同梱推定」）">同梱</span>`;
+    }
     return ` <span class="orbit-qty-mult" title="1個分の予測送料 × 数量${n}">×${n}</span>`;
 }
 
-// 同梱推定（サイズ・重量の段）。キャリア選択の参考用で、利益計算には使っていない。
+// 同梱推定（サイズ・重量の段）。確定送料が出るまでは、この送料（按分後）で利益を見積もる。
 function bundleEstimateText(r) {
     const b = r.bundle_estimate;
     if (!b) return "";
