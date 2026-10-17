@@ -86,6 +86,14 @@ from amazon.services.orbit_kanrihin_service import (
     set_kanrihin_processed,
     ship_from_kanrihin,
 )
+from amazon.services.orbit_ingredient_service import (
+    get_ingredient_sheet_settings,
+    save_ingredient_sheet_settings,
+    list_ingredient_ledger,
+    save_ingredient_item,
+    delete_ingredient_item,
+    import_ingredient_sheet,
+)
 
 orbit_bp = Blueprint("orbit_bp", __name__, url_prefix="/orbit")
 
@@ -1110,5 +1118,83 @@ def ship_from_kanrihin_route():
         print("[orbit/orders/ship_from_kanrihin] ERROR")
         traceback.print_exc()
         return jsonify({"status": "error", "message": "管理品から出荷の処理でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+# --- ▼ SECTION 19: 成分台帳（ASINごとの成分・電池。台帳にあるASINは備考1へ成分を自動で書き足す） ▼ ---
+@orbit_bp.route("/ingredient_ledger", methods=["GET"])
+def ingredient_ledger_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        items = list_ingredient_ledger(user_id)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", "items": items, "settings": get_ingredient_sheet_settings(user_id)})
+
+
+@orbit_bp.route("/ingredient_ledger/settings", methods=["POST"])
+def ingredient_ledger_settings_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    save_ingredient_sheet_settings(
+        user_id, (data.get("spreadsheet_url") or "").strip(), (data.get("sheet_name") or "").strip(),
+    )
+    return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/ingredient_ledger/save", methods=["POST"])
+def ingredient_ledger_save_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = save_ingredient_item(user_id, request.get_json(silent=True) or {})
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+@orbit_bp.route("/ingredient_ledger/delete", methods=["POST"])
+def ingredient_ledger_delete_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = delete_ingredient_item(user_id, data.get("asin"))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
+@orbit_bp.route("/ingredient_ledger/import", methods=["POST"])
+def ingredient_ledger_import_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        result = import_ingredient_sheet(user_id)
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        import traceback
+        print("[orbit/ingredient_ledger/import] ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
     return jsonify({"status": "success", **result})

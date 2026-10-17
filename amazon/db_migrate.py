@@ -706,6 +706,9 @@ ORBIT_ORDERS_COLUMNS = {
     "bundle_parent_no": "INTEGER",         # 同梱の親N番（同じ値の行＋そのN番の行が1グループ）
     "bundle_remarks_auto": "TEXT",         # 備考1へ自動で書き足した同梱表記（次回の置換・削除で探す用）
 
+    # --- 成分台帳（ASINごとの成分・電池の申告文）。台帳にあるASINは備考1の末尾へ成分を自動で書き足す ---
+    "ingredient_remarks_auto": "TEXT",     # 備考1へ自動で書き足した成分（次回の置換・削除で探す用）
+
     # --- 送料検証用の「当初の想定」スナップショット（ZSSS_RAWには出さない） ---
     # 予測送料は画面表示のたびに「今の送料表・補正」で計算し直すため、送料表や重量区分を直すと
     # 過去の注文の想定も変わってしまう。初めて予測送料が出せた時点の値をここに固定して残す。
@@ -865,6 +868,9 @@ ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS = {
     "request_form_url": "TEXT",
     # 管理品タブ名（発送不可品の一覧。spreadsheet_urlと同じ代行会社スプレッドシート内の別タブ）
     "kanrihin_sheet_name": "TEXT",
+    # 成分台帳の取込元（ASINごとの成分・電池を記録しているスプレッドシートとタブ名）。既定値は持たない
+    "ingredient_sheet_url": "TEXT",
+    "ingredient_sheet_name": "TEXT",
     "created_at": "TEXT",
     "updated_at": "TEXT",
 }
@@ -886,6 +892,23 @@ ORBIT_KANRIHIN_CONFIRMED_COLUMNS = {
     "processed_at": "TEXT",
     # 「管理品から出荷」で使われた出荷先注文（orbit_orders.order_item_id）。手動で処理済にした場合はNULL。
     "used_order_item_id": "TEXT",
+}
+
+# --- ▼ SECTION : 成分台帳（ORBIT: 代行会社へ申告する成分・電池をASINごとに記録） ---
+# 台帳にあるASINの注文は、発注管理の備考1の末尾へ「成分」を自動で書き足す（国を問わず）。
+# 説明（発送不可など）が入っていれば発注管理で赤字の警告を出す。user_id + asin で一意。
+ORBIT_INGREDIENT_LEDGER_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "asin": "TEXT NOT NULL",
+    "product_name": "TEXT",
+    "genre": "TEXT",                # ジャンル（シャンプー・化粧品・おもちゃ等）
+    "jan_code": "TEXT",
+    "note": "TEXT",                 # 説明（発送不可など、送るときの注意）
+    "ingredients": "TEXT",          # 成分（代行会社の備考へそのまま貼る文。電池の種類もここ）
+    "sheet_shipped": "INTEGER",     # 取込元シートの「出荷実績」チェック（ZSSSでの出荷実績は注文から別途数える）
+    "created_at": "TEXT",
+    "updated_at": "TEXT",
 }
 
 # --- ▼ SECTION : user_login_account（ユーザーアカウント管理テーブル） ---
@@ -1026,6 +1049,8 @@ def migrate_db(db_name):
         migrate_table(conn, "orbit_dispatch_sheet_settings", ORBIT_DISPATCH_SHEET_SETTINGS_COLUMNS)
     elif base.endswith("_orbit_kanrihin_confirmed.db"):
         migrate_table(conn, "orbit_kanrihin_confirmed", ORBIT_KANRIHIN_CONFIRMED_COLUMNS)
+    elif base.endswith("_orbit_ingredient_ledger.db"):
+        migrate_table(conn, "orbit_ingredient_ledger", ORBIT_INGREDIENT_LEDGER_COLUMNS)
     elif base.endswith("_jp_holidays.db"):
         migrate_table(conn, "jp_holidays", JP_HOLIDAYS_COLUMNS)
     elif base.endswith("_orbit_agent_closures.db"):
@@ -1262,6 +1287,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_kanrihin_confirmed_user_mgmt_unique "
         "ON orbit_kanrihin_confirmed(user_id, management_no)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_orbit_ingredient_ledger.db ---
+    conn = get_conn("a_orbit_ingredient_ledger.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_ingredient_ledger_user_asin_unique "
+        "ON orbit_ingredient_ledger(user_id, asin)"
     )
     conn.commit()
     conn.close()
@@ -1548,6 +1583,7 @@ def main():
         "a_google_oauth_tokens.db",
         "a_orbit_dispatch_sheet_settings.db",
         "a_orbit_kanrihin_confirmed.db",
+        "a_orbit_ingredient_ledger.db",
         "a_orbit_credit_cards.db",
         "a_jp_holidays.db",
         "a_orbit_agent_closures.db",

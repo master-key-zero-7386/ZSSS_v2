@@ -215,6 +215,8 @@ const DISPATCH_COLUMNS = [
     { key: "order_id", label: "order-id", copyClass: "orbit-orderid-cell", marketColor: true },  // クリックでコピー＋マーケット色
     // ASINの右：同ASINの管理品（保管在庫）が残っていれば紫の「管」、この注文で管理品から出荷済ならグレーの「管」
     { key: "kanrihin_mark", label: "管", kanrihinMark: true },
+    // 「管」の右：成分台帳にある商品＝橙の「成」（備考1へ成分を自動記入）。説明（発送不可など）は赤字で横に出す
+    { key: "ingredient_mark", label: "成", ingredientMark: true },
     { key: "promise_date", label: "出荷期日", dateOnly: true, deadline: true, holidayMark: true },
     { key: "issue_summary", label: "⚠", issueSummary: true },
     { key: "security_badge", label: "要注意", securityBadge: true },
@@ -306,7 +308,7 @@ const dispatchCol = (key) => DISPATCH_COL_DEFS[key] || { key, label: key };
 
 // 主行に出す列（左から順）。「これ主行に上げて」「順番入れ替え」はこの配列を編集するだけ。
 const DISPATCH_PRIMARY_KEYS = [
-    "agent_serial_no", "asin", "kanrihin_mark", "order_id", "promise_date", "profit_rate_pct",
+    "agent_serial_no", "asin", "kanrihin_mark", "ingredient_mark", "order_id", "promise_date", "profit_rate_pct",
     "issue_summary", "security_badge", "security_note_add", "agent_notice_flag",
     "ship_country", "quantity_purchased", "bundle_parent_no", "product_name_effective", "shipping_type",
     "agent_tracking_number", "agent_weight_recorded_date",
@@ -947,6 +949,20 @@ function dispCellInnerBase(col, r) {
         const nos = r.kanrihin_available_nos || [];
         if (!nos.length) return "";
         return `<span class="orbit-kanrihin-mark" title="管理品あり（在庫${nos.length}）${orbitEscapeHtml(nos.join(" / "))}">管</span>`;
+    }
+    if (col.ingredientMark) {
+        const parts = [];
+        if (r.ingredient_listed) {
+            parts.push(`<span class="orbit-ingredient-mark" title="成分台帳にあり（備考1に成分を自動記入）
+${orbitEscapeHtml(r.ingredient_text || "（成分なし）")}">成</span>`);
+        }
+        if (r.ingredient_note) {
+            parts.push(`<span class="orbit-ingredient-note" title="成分台帳の説明">${orbitEscapeHtml(r.ingredient_note)}</span>`);
+        }
+        if (r.ingredient_remarks_mismatch) {
+            parts.push(`<span class="orbit-text-red" title="備考1に自動で書いた成分が見つかりません。備考1を手で直してください">備考1要確認</span>`);
+        }
+        return parts.join(" ");
     }
     if (col.kanrihinShip) {
         if (r.kanrihin_used_management_no) {

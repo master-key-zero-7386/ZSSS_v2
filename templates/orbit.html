@@ -670,6 +670,31 @@
 .orbit-page .orbit-kanrihin-mark.is-used {
   background-color: #9e9e9e;
 }
+/* 発注管理 ASINの右「成」：成分台帳にある商品（備考1へ成分を自動で書き足す）。説明（発送不可など）は赤字で横に出す */
+.orbit-page .orbit-ingredient-mark {
+  display: inline-block;
+  background-color: #ef6c00;
+  color: #fff;
+  font-weight: bold;
+  border-radius: 3px;
+  padding: 0 5px;
+  cursor: help;
+}
+.orbit-page .orbit-ingredient-note {
+  color: #dc3545;
+  font-weight: bold;
+  white-space: nowrap;
+}
+/* 成分台帳タブ */
+#orbit-pane-ingredient details.orbit-sheet-settings,
+#orbit-pane-ingredient .orbit-ingredient-add { flex: none; }
+.orbit-ingredient-add { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 8px; }
+#orbit-ingredient-table td { vertical-align: top; }
+#orbit-ingredient-table input[type="text"] { width: 100%; box-sizing: border-box; }
+#orbit-ingredient-table td.ing-col-name { min-width: 200px; }
+#orbit-ingredient-table td.ing-col-ingredients { min-width: 360px; }
+#orbit-ingredient-table textarea { width: 100%; box-sizing: border-box; min-height: 2.6em; resize: vertical; font: inherit; }
+#orbit-ingredient-table .ing-note-input.has-value { color: #dc3545; font-weight: bold; }
 .orbit-page .orbit-asin-count.is-zero {
   background-color: #e53935;
   color: #fff;
@@ -922,6 +947,7 @@ input.orbit-serial-dup {
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-ship-check">送料検証</button>
       <button class="st-subtab-btn" data-target="orbit-pane-kanrihin" id="orbit-kanrihin-subtab-btn">管理品</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-ingredient">成分台帳</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-receipt">領収書</button>
@@ -1189,6 +1215,53 @@ input.orbit-serial-dup {
     </div>
   </div>
 
+  <!-- ▼ SUBTAB: 成分台帳（代行会社へ申告する成分・電池をASINごとに記録。発注管理の備考1へ自動で書き足す） -->
+  <div id="orbit-pane-ingredient" class="st-subtab-pane">
+    <div class="card">
+
+      <div class="master-description">
+          代行会社へ申告が必要な成分（化粧品・食品の成分、電池入り商品の電池の種類など）をASINごとに記録します。
+          台帳にある商品の注文は、発注管理の備考1の最後へ「成分」をそのまま自動で書き足します（国は問いません。出荷通知前の注文だけ）。
+          成分を直したり台帳から消したりすると、出荷通知前の注文の備考1も書き換わります。手で書いた備考はそのまま残ります。
+          「説明」に発送不可などの注意を書いておくと、発注管理のASINの横に赤字で出ます。
+      </div>
+
+      <details class="orbit-sheet-settings">
+          <summary>スプレッドシートから取込</summary>
+          <div class="orbit-sheet-settings-body">
+              <div class="orbit-actions" style="flex-wrap:wrap;">
+                  <input type="text" id="orbit-ingredient-sheet-url" class="file-input-text" placeholder="スプレッドシートのURL" style="width:360px;" />
+                  <input type="text" id="orbit-ingredient-sheet-name" class="file-input-text" placeholder="タブ名" style="width:200px;" />
+                  <button type="button" id="orbit-ingredient-settings-save-btn" class="btn-blue">設定を保存</button>
+                  <button type="button" id="orbit-ingredient-import-btn" class="btn-blue" title="見出しに「ASIN」「成分」がある表を読み込みます。シートにあるASINはシートの内容で上書きし、シートに無いASINはそのまま残します">シートから取込</button>
+              </div>
+          </div>
+      </details>
+
+      <div class="orbit-ingredient-add">
+          <input type="text" id="orbit-ingredient-new-asin" class="file-input-text" placeholder="ASIN" style="width:120px;" />
+          <input type="text" id="orbit-ingredient-new-product_name" class="file-input-text" placeholder="商品名" style="width:200px;" />
+          <input type="text" id="orbit-ingredient-new-genre" class="file-input-text" placeholder="ジャンル" style="width:100px;" />
+          <input type="text" id="orbit-ingredient-new-jan_code" class="file-input-text" placeholder="JAN" style="width:130px;" />
+          <input type="text" id="orbit-ingredient-new-note" class="file-input-text" placeholder="説明（発送不可など）" style="width:150px;" />
+          <textarea id="orbit-ingredient-new-ingredients" placeholder="成分（例: アルカリ電池 / 理美容関係：水、BG…）" style="width:320px; min-height:2.6em;"></textarea>
+          <button type="button" id="orbit-ingredient-add-btn" class="btn-blue">追加</button>
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <input type="text" id="orbit-ingredient-search" class="file-input-text" placeholder="ASIN・商品名・成分で検索" style="width:260px;" />
+          <span id="orbit-ingredient-status"></span>
+      </div>
+
+      <div class="table-wrapper" id="orbit-ingredient-table-wrapper">
+        <table id="orbit-ingredient-table">
+          <thead><tr><!-- JSで描画 --></tr></thead>
+          <tbody><!-- JSで描画 --></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="orbit-pane-kanrihin" class="st-subtab-pane">
     <div class="card">
 
@@ -1443,3 +1516,4 @@ input.orbit-serial-dup {
 
 <script src="{{ url_for('static', filename='js/orbit.js') }}"></script>
 <script src="{{ url_for('static', filename='js/orbit_ship_check.js') }}"></script>
+<script src="{{ url_for('static', filename='js/orbit_ingredient.js') }}"></script>

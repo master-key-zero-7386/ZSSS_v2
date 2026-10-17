@@ -608,6 +608,9 @@ _RAW_SHEET_SKIP_KEYS = {
     # 送料検証（想定スナップショットのDB列と、判定結果の派生キー）
     "est_shipping_fee", "est_shipping_base", "est_billable_weight_kg", "est_carrier", "est_snapshot_at",
     "est_carrier_live", "ship_check", "ship_warn_fee", "ship_warn_carrier", "ship_warn_weight",
+    # 成分台帳（備考1へ書き足した成分の控えと、一覧表示用の派生キー。成分そのものは備考1で出る）
+    "ingredient_remarks_auto", "ingredient_listed", "ingredient_note", "ingredient_text",
+    "ingredient_remarks_mismatch",
 }
 
 _RAW_SHEET_EXTRA_COLUMNS = [
@@ -921,6 +924,10 @@ def upsert_orders(user_id: int, rows: list) -> int:
 
     # (a) 取込時: JANが空の行に同ASINの過去注文の最新JANを補完する（jan_from_history=TRUEで印）。
     _backfill_jan_from_history(user_id, cur, imported_ids)
+
+    # (b) 取込時: 成分台帳にあるASINの注文は、備考1の末尾へ成分を自動で書き足す。
+    from amazon.services.orbit_ingredient_service import sync_ingredient_remarks
+    sync_ingredient_remarks(user_id, order_item_ids=imported_ids, cur=cur)
 
     conn.commit()
     conn.close()
@@ -1968,6 +1975,10 @@ def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_o
         row["kanrihin_available_nos"] = kanrihin["available"].get(asin, []) if asin and not is_source else []
         row["kanrihin_available_count"] = len(row["kanrihin_available_nos"])
         row["kanrihin_used_management_no"] = kanrihin["used"].get(row.get("order_item_id"))
+
+    # --- 成分台帳：台帳にあるASINの「成」印・説明（発送不可など）の警告・備考1の成分が見つからない警告 ---
+    from amazon.services.orbit_ingredient_service import apply_ingredient_checks
+    apply_ingredient_checks(user_id, rows)
 
     apply_ship_checks(user_id, rows, rate_cache=rate_cache, names_cache=carrier_names_cache)
 

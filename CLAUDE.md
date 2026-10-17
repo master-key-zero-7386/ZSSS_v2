@@ -81,6 +81,13 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   `est_snapshot_at` is set. Agent sheet S列 (`agent_shipping_fee`) equals the raw rate-table price; T列 is
   all-in. Carrier names for 送料表 Carrier 1–3 live in `shipping_carrier_names` (default DHL/FedEx/EMS).
   New ORBIT row keys must go in `_RAW_SHEET_SKIP_KEYS`, or ZSSS_RAW columns shift and VLOOKUPs break.
+- **ORBIT 成分台帳** (`services/orbit_ingredient_service.py`, subtab「成分台帳」). Per-ASIN 成分 text (FDA
+  ingredients, battery type like アルカリ電池) that the shipping agent needs in 備考. Ledger ASINs get the text
+  auto-appended to 備考1 (`remarks`) on order import and on ledger edit/delete/sheet import, only for orders with
+  `shipped_completed` ≠ 1 (same freeze rule as the ZSSS_RAW push). Like the bundle note, the appended text is
+  remembered in `ingredient_remarks_auto` and found/replaced later — never touch hand-written remarks.
+  説明 (e.g. 発送不可) shows as a red warning next to the 「成」 mark in 発注管理. Can be imported from the old
+  「FDA&電池関係」 Google Sheet (header row located by the 「ASIN」 cell).
 - `core/` — pricing business logic: `price_calculator.py`, `pricing_strategy.py`, `fx_rate.py`.
 - `services/` — `blacklist_service.py`, `listing_submit_service.py`, `ttl_stop_service.py`.
 - `background/` — long-running daemon loops started from `app.py`:
