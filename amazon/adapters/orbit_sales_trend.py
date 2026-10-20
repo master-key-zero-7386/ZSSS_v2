@@ -7,6 +7,8 @@
 #   - 折れ線の値＝販売個数（quantity_purchased の日次合計）。1マーケット＝1系列
 #   - ツールチップ用に、日次×マーケットの総額（item_price 合計・現地通貨のまま）と
 #     概算利益率（Σ利益(円) ÷ Σ販売額(円)）＋その母数（利益を算出できた明細数）も返す
+#   - 利益額(円)・仕入額(円) の日次合計も返す（画面の期間合計表と「利益額／利益率／仕入額」表示切替用）。
+#     仕入額は仕入価格(円)が入力済みの明細だけを合計する（消費税還付の目安用・注文日ベース）
 #   - 集計元は ORBIT（注文管理）に取込済みの orbit_orders のみ。マーケットは order_id 先頭桁から
 #     判定する（list_orders_with_calc と同じロジック。判定不可は "不明"）
 #   - item_price は拡張版の注文レポートにしか入らないため、空欄の明細は総額に含まれない（過小表示）。
@@ -79,6 +81,8 @@ def get_sales_trend(user_id: int, days: int) -> dict:
                 "sale_jpy": [0.0] * days,      # 販売額(円) 合計（概算利益率の分母）
                 "profit_cnt": [0] * days,      # 利益を算出できた明細数
                 "line_cnt": [0] * days,        # その日の明細数（母数）
+                "purchase_jpy": [0.0] * days,  # 仕入額(円) 合計（仕入価格が入力済みの明細のみ）
+                "purchase_cnt": [0] * days,    # 仕入価格が入力済みの明細数
                 "currency": None,
             }
         return acc[market]
@@ -116,6 +120,11 @@ def get_sales_trend(user_id: int, days: int) -> dict:
             s["sale_jpy"][idx] += float(sale_jpy)
             s["profit_cnt"][idx] += 1
 
+        purchase_price = row.get("purchase_price")
+        if purchase_price is not None:
+            s["purchase_jpy"][idx] += float(purchase_price)
+            s["purchase_cnt"][idx] += 1
+
     series = []
     for market in sorted(acc.keys(), key=lambda m: (m == UNKNOWN_MARKET, m)):
         s = acc[market]
@@ -131,6 +140,10 @@ def get_sales_trend(user_id: int, days: int) -> dict:
             "amounts": [round(a, 2) for a in s["amounts"]],
             "amount_missing": s["amount_missing"],
             "profit_rate_pct": profit_rate,
+            "profit_jpy": [round(v) for v in s["profit_jpy"]],
+            "sale_jpy": [round(v) for v in s["sale_jpy"]],
+            "purchase_jpy": [round(v) for v in s["purchase_jpy"]],
+            "purchase_cnt": s["purchase_cnt"],
             "profit_cnt": s["profit_cnt"],
             "line_cnt": s["line_cnt"],
         })

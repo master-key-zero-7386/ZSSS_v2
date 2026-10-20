@@ -929,6 +929,18 @@ input.orbit-serial-dup {
   margin-bottom: 6px;
 }
 
+.sales-trend-mode { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.sales-trend-summary { margin-bottom: 10px; overflow-x: auto; }
+.sales-trend-summary table { border-collapse: collapse; font-size: 13px; }
+.sales-trend-summary th,
+.sales-trend-summary td { border: 1px solid #e3e3e3; padding: 4px 10px; white-space: nowrap; }
+.sales-trend-summary th { background: #f5f7fa; font-weight: normal; color: #555; }
+.sales-trend-summary td.num { text-align: right; }
+.sales-trend-summary tr.total td { font-weight: bold; background: #fafafa; }
+.sales-trend-summary .neg { color: #e5484d; }
+.sales-trend-summary .sub { color: #999; font-weight: normal; }
+
 .sales-trend-canvas-wrap {
   position: relative;
   width: 100%;
@@ -1000,7 +1012,7 @@ input.orbit-serial-dup {
   <div id="orbit-pane-sales-trend" class="st-subtab-pane">
       <div class="card">
           <div class="sales-trend-head">
-              <h3>売上トレンド（マーケット別 販売個数）</h3>
+              <h3>売上トレンド（マーケット別 販売個数・利益・仕入額）</h3>
               <div class="sales-trend-period" id="salesTrendPeriod">
                   <button type="button" class="stp-btn" data-days="7">7日</button>
                   <button type="button" class="stp-btn active" data-days="30">30日</button>
@@ -1015,8 +1027,17 @@ input.orbit-serial-dup {
               マーケットは注文番号から判定（判定不可は「不明」）。
               ツールチップの総額は item_price 合計（現地通貨・送料含まず／未取得の明細は除外）、
               概算利益率は Σ利益(円) ÷ Σ販売額(円)。
+              利益額は注文一覧の「利益(円)」と同じ計算で、利益が出せない注文（仕入価格・送料・入金額のどれかが未確定）は含まれない。
+              仕入額は仕入価格(円)が入力済みの注文の合計。消費税目安は 仕入額 × 10/110（軽減税率8%の商品があると実際より多めに出る）。
           </p>
           <div class="sales-trend-status" id="salesTrendStatus">「更新」を押すと集計します（全注文を再計算するため数秒かかることがあります）</div>
+          <div class="sales-trend-summary" id="salesTrendSummary"></div>
+          <div class="sales-trend-mode" id="salesTrendMode">
+              <button type="button" class="stp-btn active" data-mode="qty">販売個数</button>
+              <button type="button" class="stp-btn" data-mode="profit">利益額</button>
+              <button type="button" class="stp-btn" data-mode="rate">利益率</button>
+              <button type="button" class="stp-btn" data-mode="purchase">仕入額</button>
+          </div>
           <div class="sales-trend-canvas-wrap">
               <canvas id="salesTrendChart"></canvas>
           </div>
