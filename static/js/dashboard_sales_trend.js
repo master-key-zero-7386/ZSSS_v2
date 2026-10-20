@@ -6,6 +6,8 @@
 //   グラフ上に、選んだ期間の合計表（マーケット別＋合計：個数・利益額・利益率・仕入額・消費税目安）を出す。
 //   データは /orbit/sales-trend（list_orders_with_calc を通す＝全注文を再計算するため数秒かかる）。
 //   自動ロードはせず「更新」ボタンでのみ集計する。集計後に期間ボタンを変えると新しい期間で再集計する。
+//   期間は「直近N日」ボタン／「月で選ぶ」／「日付指定（開始〜終了）」のどれか（日の区切りは日本時間）。
+//   月・日付指定は選んだ時点で集計する。
 // ============================================================
 
 (function () {
@@ -17,6 +19,11 @@
   const REFRESH_ID = "salesTrendRefresh";
   const MODE_WRAP_ID = "salesTrendMode";
   const SUMMARY_ID = "salesTrendSummary";
+  const MONTH_ID = "salesTrendMonth";
+  const START_ID = "salesTrendStart";
+  const END_ID = "salesTrendEnd";
+  const RANGE_APPLY_ID = "salesTrendRangeApply";
+  const MONTH_OPTIONS = 12; // 今月を含めて過去12か月
 
   // 表示切替：折れ線の値・Y軸見出し・単位
   const MODES = {
@@ -39,7 +46,9 @@
 
   let chart = null;
   let loading = false;
-  let loadedDays = null;
+  let loadedKey = null; // 最後に集計した期間（クエリ文字列）。未集計なら null
+  // 現在の期間指定: {type:"days", days} / {type:"month", month:"YYYY-MM"} / {type:"range", start, end}
+  let period = { type: "days", days: 30 };
   let lastData = null;
   let mode = "qty";
 
@@ -228,13 +237,15 @@
     if (!el) return;
     if (!data || !data.series.length) { el.innerHTML = ""; return; }
 
-    function rowFor(label, qty, lines, profit, sale, pcnt, purchase, purCnt, cls) {
+    function rowFor(label, qty, lines, profit, sale, pcnt, estProfit, estCnt, purchase, purCnt, cls) {
       const rate = rateOf(profit, sale);
       const profitText = pcnt ? fmtYen(profit) : "-";
+      const estText = estCnt ? fmtYen(estProfit) + '<span class="sub">（' + estCnt + "件）</span>" : "-";
       return "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" +
         "<td>" + label + "</td>" +
         '<td class="num">' + qty + "個</td>" +
         '<td class="num' + (pcnt && profit < 0 ? " neg" : "") + '">' + profitText + "</td>" +
+        '<td class="num">' + estText + "</td>" +
         '<td class="num' + (rate != null && rate < 0 ? " neg" : "") + '">' + (rate == null ? "-" : rate + "%") + "</td>" +
         '<td class="num sub">' + pcnt + "/" + lines + "件</td>" +
         '<td class="num">' + (purCnt ? fmtYen(purchase) : "-") + "</td>" +
@@ -243,23 +254,24 @@
         "</tr>";
     }
 
-    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, purchase: 0, purCnt: 0 };
+    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, est: 0, estCnt: 0, purchase: 0, purCnt: 0 };
     let body = "";
     data.series.forEach(function (s) {
       const r = {
         qty: sumArr(s.counts), lines: sumArr(s.line_cnt),
         profit: sumArr(s.profit_jpy), sale: sumArr(s.sale_jpy), pcnt: sumArr(s.profit_cnt),
+        est: sumArr(s.profit_est_jpy), estCnt: sumArr(s.profit_est_cnt),
         purchase: sumArr(s.purchase_jpy), purCnt: sumArr(s.purchase_cnt),
       };
       Object.keys(t).forEach(function (k) { t[k] += r[k]; });
-      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.purchase, r.purCnt, "");
+      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.est, r.estCnt, r.purchase, r.purCnt, "");
     });
     if (data.series.length > 1) {
-      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.purchase, t.purCnt, "total");
+      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.est, t.estCnt, t.purchase, t.purCnt, "total");
     }
 
     el.innerHTML = "<table><thead><tr>" +
-      "<th>マーケット</th><th>販売個数</th><th>利益額</th><th>利益率</th><th>利益算出</th>" +
+      "<th>マーケット</th><th>販売個数</th><th>利益額</th><th>うち概算</th><th>利益率</th><th>利益算出</th>" +
       "<th>仕入額</th><th>消費税目安</th><th>仕入入力済</th>" +
       "</tr></thead><tbody>" + body + "</tbody></table>";
   }
@@ -269,24 +281,31 @@
     if (btn) btn.disabled = disabled;
   }
 
-  function load(days) {
+  function periodQuery(p) {
+    if (p.type === "month") return "month=" + encodeURIComponent(p.month);
+    if (p.type === "range") return "start=" + encodeURIComponent(p.start) + "&end=" + encodeURIComponent(p.end);
+    return "days=" + p.days;
+  }
+
+  function load(p) {
     if (loading) return;
+    const key = periodQuery(p);
     loading = true;
     setRefreshDisabled(true);
     setStatus("集計中…（全注文を再計算するため数秒かかることがあります）");
-    fetch("/orbit/sales-trend?days=" + days)
+    fetch("/orbit/sales-trend?" + key)
       .then(function (r) { return r.json(); })
       .then(function (json) {
         if (!json || json.status !== "success") {
           setStatus((json && json.message) || "取得に失敗しました");
           return;
         }
-        loadedDays = days;
+        loadedKey = key;
         const d = json.data;
         if (!d.series.length) {
-          setStatus("対象期間に注文がありません（" + d.start + " 〜 " + d.end + "）");
+          setStatus("対象期間に注文がありません（" + d.start + " 〜 " + d.end + "・日本時間）");
         } else {
-          setStatus(d.start + " 〜 " + d.end + "　販売個数 合計 " + d.total_qty + "個");
+          setStatus(d.start + " 〜 " + d.end + "（日本時間）　販売個数 合計 " + d.total_qty + "個");
         }
         lastData = d;
         renderSummary(d);
@@ -296,10 +315,40 @@
       .finally(function () { loading = false; setRefreshDisabled(false); });
   }
 
-  function activeDays() {
+  // 期間指定の見た目（どれが選ばれているか）を period に合わせる
+  function markPeriod() {
     const wrap = document.getElementById(PERIOD_WRAP_ID);
-    const btn = wrap && wrap.querySelector(".stp-btn.active");
-    return btn ? (parseInt(btn.getAttribute("data-days"), 10) || 30) : 30;
+    wrap.querySelectorAll(".stp-btn").forEach(function (b) {
+      b.classList.toggle("active", period.type === "days" && parseInt(b.getAttribute("data-days"), 10) === period.days);
+    });
+    const month = document.getElementById(MONTH_ID);
+    if (month) {
+      if (period.type !== "month") month.value = "";
+      month.classList.toggle("active", period.type === "month");
+    }
+    [START_ID, END_ID].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("active", period.type === "range");
+    });
+  }
+
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+  // 「月で選ぶ」の選択肢（今月から過去 MONTH_OPTIONS か月）。日本時間の今月を基準にする
+  function fillMonthOptions() {
+    const sel = document.getElementById(MONTH_ID);
+    if (!sel) return;
+    const now = new Date(Date.now() + 9 * 3600 * 1000); // UTC → JST
+    let y = now.getUTCFullYear();
+    let m = now.getUTCMonth() + 1;
+    for (let i = 0; i < MONTH_OPTIONS; i++) {
+      const opt = document.createElement("option");
+      opt.value = y + "-" + pad2(m);
+      opt.textContent = y + "年" + m + "月" + (i === 0 ? "（今月）" : "");
+      sel.appendChild(opt);
+      m -= 1;
+      if (m === 0) { m = 12; y -= 1; }
+    }
   }
 
   function init() {
@@ -311,11 +360,37 @@
     wrap.addEventListener("click", function (e) {
       const btn = e.target.closest(".stp-btn");
       if (!btn) return;
-      wrap.querySelectorAll(".stp-btn").forEach(function (b) { b.classList.remove("active"); });
-      btn.classList.add("active");
       const days = parseInt(btn.getAttribute("data-days"), 10) || 30;
-      if (loadedDays !== null && days !== loadedDays) load(days);
+      period = { type: "days", days: days };
+      markPeriod();
+      if (loadedKey !== null && periodQuery(period) !== loadedKey) load(period);
     });
+
+    fillMonthOptions();
+    const month = document.getElementById(MONTH_ID);
+    if (month) {
+      month.addEventListener("change", function () {
+        if (!month.value) return;
+        period = { type: "month", month: month.value };
+        markPeriod();
+        load(period);
+      });
+    }
+
+    const rangeApply = document.getElementById(RANGE_APPLY_ID);
+    if (rangeApply) {
+      rangeApply.addEventListener("click", function () {
+        const start = document.getElementById(START_ID).value;
+        const end = document.getElementById(END_ID).value;
+        if (!start || !end) {
+          setStatus("日付指定は開始日と終了日の両方を選んでください");
+          return;
+        }
+        period = { type: "range", start: start, end: end };
+        markPeriod();
+        load(period);
+      });
+    }
 
     // 表示切替：集計済みデータを描き直すだけ（再集計しない）
     const modeWrap = document.getElementById(MODE_WRAP_ID);
@@ -332,7 +407,7 @@
 
     const refresh = document.getElementById(REFRESH_ID);
     if (refresh) {
-      refresh.addEventListener("click", function () { load(activeDays()); });
+      refresh.addEventListener("click", function () { load(period); });
     }
   }
 

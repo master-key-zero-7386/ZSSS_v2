@@ -929,6 +929,13 @@ input.orbit-serial-dup {
   margin-bottom: 6px;
 }
 
+.sales-trend-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
+.sales-trend-range select,
+.sales-trend-range input[type=date] { padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+.sales-trend-range select.active,
+.sales-trend-range input.active { border-color: #4a90e2; background: #eef5fd; }
+.sales-trend-range .str-sep { margin-left: 12px; color: #666; }
+
 .sales-trend-mode { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 
 .sales-trend-summary { margin-bottom: 10px; overflow-x: auto; }
@@ -1022,12 +1029,22 @@ input.orbit-serial-dup {
                   <button type="button" class="btn-blue stp-refresh" id="salesTrendRefresh">更新</button>
               </div>
           </div>
+          <div class="sales-trend-range">
+              <span>月で選ぶ</span>
+              <select id="salesTrendMonth"><option value="">—</option></select>
+              <span class="str-sep">日付指定</span>
+              <input type="date" id="salesTrendStart">
+              <span>〜</span>
+              <input type="date" id="salesTrendEnd">
+              <button type="button" class="stp-btn" id="salesTrendRangeApply">この期間で集計</button>
+          </div>
           <p class="sales-trend-note">
-              注文日（purchase_date）ベース。取込済みの注文のみ集計。
+              注文日（purchase_date）ベース・日の区切りは日本時間。取込済みの注文のみ集計。
               マーケットは注文番号から判定（判定不可は「不明」）。
               ツールチップの総額は item_price 合計（現地通貨・送料含まず／未取得の明細は除外）、
               概算利益率は Σ利益(円) ÷ Σ販売額(円)。
               利益額は注文一覧の「利益(円)」と同じ計算で、利益が出せない注文（仕入価格・送料・入金額のどれかが未確定）は含まれない。
+              「うち概算」は手数料見積りや予測送料で計算した分（決済レポート・送料実績が入ると確定に変わる）。
               仕入額は仕入価格(円)が入力済みの注文の合計。消費税目安は 仕入額 × 10/110（軽減税率8%の商品があると実際より多めに出る）。
           </p>
           <div class="sales-trend-status" id="salesTrendStatus">「更新」を押すと集計します（全注文を再計算するため数秒かかることがあります）</div>

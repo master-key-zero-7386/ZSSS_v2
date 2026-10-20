@@ -53,7 +53,7 @@ from amazon.services.orbit_settlement_service import (
     parse_settlement_report,
     import_settlement_lines,
 )
-from amazon.adapters.orbit_sales_trend import get_sales_trend
+from amazon.adapters.orbit_sales_trend import get_sales_trend, resolve_range
 from amazon.services.orbit_ship_check_service import (
     list_ship_checks,
     get_ship_check_settings,
@@ -220,13 +220,20 @@ def sales_trend():
     if not user_id:
         return jsonify({"status": "error"}), 401
 
+    # 期間: start&end（日付指定）＞ month（YYYY-MM）＞ days（直近N日）
     try:
         days = int(request.args.get("days", 30))
     except (TypeError, ValueError):
         days = 30
+    start, end = resolve_range(
+        days=days,
+        month=(request.args.get("month") or "").strip() or None,
+        start=(request.args.get("start") or "").strip() or None,
+        end=(request.args.get("end") or "").strip() or None,
+    )
 
     try:
-        data = get_sales_trend(user_id, days)
+        data = get_sales_trend(user_id, start, end)
     except Exception:
         import traceback
         print("[orbit/sales-trend] get_sales_trend ERROR")
