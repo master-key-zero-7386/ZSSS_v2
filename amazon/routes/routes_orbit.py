@@ -54,6 +54,7 @@ from amazon.services.orbit_settlement_service import (
     import_settlement_lines,
 )
 from amazon.adapters.orbit_sales_trend import get_sales_trend, resolve_range
+from amazon.adapters.orbit_profit_analysis import get_profit_analysis
 from amazon.services.orbit_ship_check_service import (
     list_ship_checks,
     get_ship_check_settings,
@@ -239,6 +240,36 @@ def sales_trend():
         print("[orbit/sales-trend] get_sales_trend ERROR")
         traceback.print_exc()
         return jsonify({"status": "error", "message": "売上トレンドの集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", "data": data})
+
+
+# --- ▼ SECTION 02-2b: 利益分析（期間内の注文ごとの利益内訳＋予測送料と実際のズレ。読み取り専用） ▼ ---
+# 期間の指定は売上トレンドと同じ（start&end ＞ month ＞ days）。全注文を再計算するため数秒かかる。
+@orbit_bp.route("/profit-analysis", methods=["GET"])
+def profit_analysis():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        days = int(request.args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    start, end = resolve_range(
+        days=days,
+        month=(request.args.get("month") or "").strip() or None,
+        start=(request.args.get("start") or "").strip() or None,
+        end=(request.args.get("end") or "").strip() or None,
+    )
+
+    try:
+        data = get_profit_analysis(user_id, start, end)
+    except Exception:
+        import traceback
+        print("[orbit/profit-analysis] get_profit_analysis ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "利益分析の集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "data": data})
 

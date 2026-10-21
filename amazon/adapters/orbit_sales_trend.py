@@ -9,10 +9,11 @@
 #     概算利益率（Σ利益(円) ÷ Σ販売額(円)）＋その母数（利益を算出できた明細数）も返す
 #   - 利益額(円)・仕入額(円) の日次合計も返す（画面の期間合計表と「利益額／利益率／仕入額」表示切替用）。
 #     仕入額は仕入価格(円)が入力済みの明細だけを合計する（消費税還付の目安用・注文日ベース）
+#   - 送料(円) 合計も返す（送料率＝Σ送料 ÷ Σ販売額。送料と販売額が両方ある明細だけ）
 #   - 利益は「うち概算」（手数料見積り・予測送料を使った分＝profit_is_estimate）も別に返す
 #   - 期間は「直近N日」「月指定(YYYY-MM)」「開始日〜終了日」のどれか。日の区切りは日本時間（JST）。
 #     purchase_date は UTC の ISO8601 なので +9時間して日付を決める
-#   - 集計元は ORBIT（注文管理）に取込済みの orbit_orders のみ。マーケットは order_id 先頭桁から
+#   - 集計元は ORBIT（注文管理）に取込済みの orbit_orders ＋ アーカイブ済み（orbit_procurement_history）。マーケットは order_id 先頭桁から
 #     判定する（list_orders_with_calc と同じロジック。判定不可は "不明"）
 #   - item_price は拡張版の注文レポートにしか入らないため、空欄の明細は総額に含まれない（過小表示）。
 #     amount_missing でその件数を返す
@@ -21,7 +22,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from amazon.db import get_conn
-from amazon.services.orbit_order_service import list_orders_with_calc
+from amazon.services.orbit_order_service import list_orders_with_calc, list_procurement_history_with_calc
 
 ALLOWED_DAYS = (7, 30, 90, 180, 365)
 DEFAULT_DAYS = 30
@@ -70,6 +71,12 @@ def _purchase_date_key(value):
     return dt.astimezone(JST).date().isoformat()
 
 
+def load_rows_with_calc(user_id: int) -> list:
+    """発注管理の注文＋アーカイブ済み（仕入れ履歴）に、注文一覧と同じ計算を通した行。
+    アーカイブは手動なので、過去の月を集計するときに抜けないよう両方を対象にする。"""
+    return list_orders_with_calc(user_id) + list_procurement_history_with_calc(user_id)
+
+
 def today_jst() -> date:
     return datetime.now(JST).date()
 
@@ -114,7 +121,7 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
 
     # 注文一覧と同じ計算（寸法・予測送料・決済実績・為替）を通した行を使う。
     # profit_jpy / sale_price_used_jpy / marketplace_country はここで既に付与済み。
-    orders = list_orders_with_calc(user_id)
+    orders = load_rows_with_calc(user_id)
 
     acc = {}
 
@@ -132,6 +139,9 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
                 "line_cnt": [0] * days,        # その日の明細数（母数）
                 "purchase_jpy": [0.0] * days,  # 仕入額(円) 合計（仕入価格が入力済みの明細のみ）
                 "purchase_cnt": [0] * days,    # 仕入価格が入力済みの明細数
+                "ship_jpy": [0.0] * days,      # 送料(円) 合計（送料率の分子・送料と販売額が両方ある明細のみ）
+                "ship_sale_jpy": [0.0] * days, # その明細の販売額(円) 合計（送料率の分母）
+                "ship_cnt": [0] * days,        # 送料率に使えた明細数
                 "currency": None,
             }
         return acc[market]
@@ -172,6 +182,12 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
                 s["profit_est_jpy"][idx] += float(profit_jpy)
                 s["profit_est_cnt"][idx] += 1
 
+        ship_jpy = row.get("shipping_cost_used")
+        if ship_jpy is not None and sale_jpy:
+            s["ship_jpy"][idx] += float(ship_jpy)
+            s["ship_sale_jpy"][idx] += float(sale_jpy)
+            s["ship_cnt"][idx] += 1
+
         purchase_price = row.get("purchase_price")
         if purchase_price is not None:
             s["purchase_jpy"][idx] += float(purchase_price)
@@ -198,6 +214,9 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
             "profit_est_cnt": s["profit_est_cnt"],
             "purchase_jpy": [round(v) for v in s["purchase_jpy"]],
             "purchase_cnt": s["purchase_cnt"],
+            "ship_jpy": [round(v) for v in s["ship_jpy"]],
+            "ship_sale_jpy": [round(v) for v in s["ship_sale_jpy"]],
+            "ship_cnt": s["ship_cnt"],
             "profit_cnt": s["profit_cnt"],
             "line_cnt": s["line_cnt"],
         })

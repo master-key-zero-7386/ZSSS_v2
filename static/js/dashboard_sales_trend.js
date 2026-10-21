@@ -2,7 +2,7 @@
 // ファイル名: static/js/dashboard_sales_trend.js
 // 目的: Dashboard「売上トレンド」サブタブ ― マーケット別の日次販売個数を折れ線で表示する。
 //   Y軸＝販売個数。ツールチップに「販売個数 ／ 総額（現地通貨） ／ 概算利益率（母数併記）」を出す。
-//   表示切替ボタンで折れ線を「利益額(円) ／ 利益率(%) ／ 仕入額(円)」にも切り替えられる。
+//   表示切替ボタンで折れ線を「利益額(円) ／ 利益率(%) ／ 仕入額(円) ／ 送料率(%)」にも切り替えられる。
 //   グラフ上に、選んだ期間の合計表（マーケット別＋合計：個数・利益額・利益率・仕入額・消費税目安）を出す。
 //   データは /orbit/sales-trend（list_orders_with_calc を通す＝全注文を再計算するため数秒かかる）。
 //   自動ロードはせず「更新」ボタンでのみ集計する。集計後に期間ボタンを変えると新しい期間で再集計する。
@@ -31,6 +31,7 @@
     profit: { axis: "利益額(円)", unit: "円" },
     rate: { axis: "利益率(%)", unit: "%" },
     purchase: { axis: "仕入額(円)", unit: "円" },
+    ship: { axis: "送料率(%)", unit: "%" },
   };
 
   // 主要マーケットは固定色。未定義のコードはフォールバックパレットを順に割り当てる。
@@ -72,13 +73,14 @@
     }
     if (m === "rate") return s.profit_rate_pct;
     if (m === "purchase") return s.purchase_jpy;
+    if (m === "ship") return s.ship_jpy.map(function (v, i) { return rateOf(v, s.ship_sale_jpy[i]); });
     return s.counts;
   }
 
   function fmtValue(v, m) {
     if (v == null) return "—";
     if (m === "profit" || m === "purchase") return fmtYen(v);
-    if (m === "rate") return v + "%";
+    if (m === "rate" || m === "ship") return v + "%";
     return v + "個";
   }
 
@@ -129,6 +131,9 @@
         _profitJpy: s.profit_jpy,
         _purchaseJpy: s.purchase_jpy,
         _purchaseCnt: s.purchase_cnt,
+        _shipJpy: s.ship_jpy,
+        _shipSaleJpy: s.ship_sale_jpy,
+        _shipCnt: s.ship_cnt,
       };
     });
 
@@ -140,6 +145,7 @@
       if (mode === "profit") return sum("profit_cnt") ? sum("profit_jpy") : null;
       if (mode === "rate") return rateOf(sum("profit_jpy"), sum("sale_jpy"));
       if (mode === "purchase") return sum("purchase_jpy");
+      if (mode === "ship") return rateOf(sum("ship_jpy"), sum("ship_sale_jpy"));
       return sum("counts");
     });
     const totalDataset = {
@@ -183,6 +189,9 @@
     }
     if (ds._purchaseCnt[i]) {
       parts.push("仕入額 " + fmtYen(ds._purchaseJpy[i]) + "（入力済 " + ds._purchaseCnt[i] + "/" + lcnt + "件）");
+    }
+    if (ds._shipCnt[i]) {
+      parts.push("送料 " + fmtYen(ds._shipJpy[i]) + "（送料率 " + rateOf(ds._shipJpy[i], ds._shipSaleJpy[i]) + "%）");
     }
     return parts;
   }
@@ -237,7 +246,8 @@
     if (!el) return;
     if (!data || !data.series.length) { el.innerHTML = ""; return; }
 
-    function rowFor(label, qty, lines, profit, sale, pcnt, estProfit, estCnt, purchase, purCnt, cls) {
+    function rowFor(label, qty, lines, profit, sale, pcnt, estProfit, estCnt, purchase, purCnt, ship, shipSale, cls) {
+      const shipRate = rateOf(ship, shipSale);
       const rate = rateOf(profit, sale);
       const profitText = pcnt ? fmtYen(profit) : "-";
       const estText = estCnt ? fmtYen(estProfit) + '<span class="sub">（' + estCnt + "件）</span>" : "-";
@@ -251,10 +261,12 @@
         '<td class="num">' + (purCnt ? fmtYen(purchase) : "-") + "</td>" +
         '<td class="num">' + (purCnt ? fmtYen(purchase * 10 / 110) : "-") + "</td>" +
         '<td class="num sub">' + purCnt + "/" + lines + "件</td>" +
+        '<td class="num">' + (shipSale ? fmtYen(ship) : "-") + "</td>" +
+        '<td class="num">' + (shipRate == null ? "-" : shipRate + "%") + "</td>" +
         "</tr>";
     }
 
-    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, est: 0, estCnt: 0, purchase: 0, purCnt: 0 };
+    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, est: 0, estCnt: 0, purchase: 0, purCnt: 0, ship: 0, shipSale: 0 };
     let body = "";
     data.series.forEach(function (s) {
       const r = {
@@ -262,17 +274,18 @@
         profit: sumArr(s.profit_jpy), sale: sumArr(s.sale_jpy), pcnt: sumArr(s.profit_cnt),
         est: sumArr(s.profit_est_jpy), estCnt: sumArr(s.profit_est_cnt),
         purchase: sumArr(s.purchase_jpy), purCnt: sumArr(s.purchase_cnt),
+        ship: sumArr(s.ship_jpy), shipSale: sumArr(s.ship_sale_jpy),
       };
       Object.keys(t).forEach(function (k) { t[k] += r[k]; });
-      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.est, r.estCnt, r.purchase, r.purCnt, "");
+      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.est, r.estCnt, r.purchase, r.purCnt, r.ship, r.shipSale, "");
     });
     if (data.series.length > 1) {
-      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.est, t.estCnt, t.purchase, t.purCnt, "total");
+      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.est, t.estCnt, t.purchase, t.purCnt, t.ship, t.shipSale, "total");
     }
 
     el.innerHTML = "<table><thead><tr>" +
       "<th>マーケット</th><th>販売個数</th><th>利益額</th><th>うち概算</th><th>利益率</th><th>利益算出</th>" +
-      "<th>仕入額</th><th>消費税目安</th><th>仕入入力済</th>" +
+      "<th>仕入額</th><th>消費税目安</th><th>仕入入力済</th><th>送料</th><th>送料率</th>" +
       "</tr></thead><tbody>" + body + "</tbody></table>";
   }
 
