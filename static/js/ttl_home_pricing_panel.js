@@ -176,6 +176,15 @@
         var body = document.getElementById("ttlhp-body");
         if (!body) return;
 
+        // 押した瞬間に「読み込み中…」を出して、ボタンが効いたことを見せる
+        var up = document.getElementById("ttlhp-updated-at");
+        var btn = document.getElementById("ttlhpReload");
+        if (up) {
+            up.textContent = "読み込み中…";
+            up.classList.add("loading");
+        }
+        if (btn) btn.disabled = true;
+
         fetch("/account/ttl-home-pricing-summary")
             .then(function (res) { return res.json(); })
             .then(function (res) {
@@ -184,12 +193,16 @@
                     return;
                 }
                 body.innerHTML = render(res.data || {});
-                var up = document.getElementById("ttlhp-updated-at");
-                if (up) up.textContent = new Date().toLocaleString();
+                if (up) up.textContent = "最終更新: " + new Date().toLocaleString();
             })
             .catch(function (err) {
                 console.error("ttl-home-pricing-summary error:", err);
                 body.innerHTML = '<div style="color:#c0392b;">通信エラー</div>';
+                if (up) up.textContent = "最終更新: 失敗（通信エラー）";
+            })
+            .then(function () {
+                if (up) up.classList.remove("loading");
+                if (btn) btn.disabled = false;
             });
     }
 

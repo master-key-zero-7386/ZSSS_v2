@@ -59,7 +59,8 @@
 .ttlhp-badge.ok   { background:#e3f5e1; color:#1a7f37; }
 .ttlhp-badge.stuck{ background:#fdecea; color:#c0392b; }
 
-.ttlhp-updated { font-size: 11px; color: #999; margin-top: 8px; }
+.ttlhp-updated { margin-left: 12px; color: #222; font-weight: bold; vertical-align: middle; }
+.ttlhp-updated.loading { color: #1a6fd1; }
 </style>
 
 <div class="dashboard-block ttlhp-wrap">
@@ -71,12 +72,11 @@
     </div>
 
     <button id="ttlhpReload" class="btn-blue">UPDATE</button>
+    <span id="ttlhp-updated-at" class="ttlhp-updated">最終更新: ---</span>
 
     <hr style="margin:14px 0;">
 
     <div id="ttlhp-body">読み込み中...</div>
-
-    <div class="ttlhp-updated">Last updated: <span id="ttlhp-updated-at">---</span></div>
 </div>
 
 <script src="/static/js/ttl_home_pricing_panel.js"></script>
