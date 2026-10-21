@@ -189,7 +189,15 @@ def run_ttl_loop(app, db_dir):
                 pass
 
             # ★変更: 管理者タブⅡ ttl_cycle_sleep_sec をサイクルごとに反映（旧ハードコード3秒）
-            time.sleep(get_ttl_cycle_sleep_sec())
+            # ★修正: ここだけ try の外にあったため、DB接続の一時的な失敗（Postgres再起動・
+            #        スリープ復帰・プール枯渇など）が1回起きるとTTLスレッドごと死に、
+            #        画面は動くのに更新だけ永久に止まっていた。失敗時は既定3秒で続行する。
+            try:
+                cycle_sleep = get_ttl_cycle_sleep_sec()
+            except Exception as e:
+                print(f"[TTL] cycle sleep setting read failed, fallback 3s: {e}", flush=True)
+                cycle_sleep = 3.0
+            time.sleep(cycle_sleep)
 
 # --- ▼ SECTION 03: TTL対象取得（Cacheベース / catalog） ▼ ---
 def load_catalog_ttl_targets(db_dir: str):

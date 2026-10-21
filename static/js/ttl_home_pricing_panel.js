@@ -129,7 +129,10 @@
         var hist = "<div style=\"margin-top:12px;\"><b>鮮度分布</b>" + histogram(o.buckets || {}) + "</div>";
 
         // --- サイクル（フェーズ2） ---
-        var stuckBadge = cyc.stuck
+        // 直近1時間にサイクル記録が1件も無い＝TTLループ自体が止まっている（アプリ再起動が必要）
+        var stuckBadge = !cyc.cycles_1h
+            ? '<span class="ttlhp-badge stuck">⛔ 停止（直近1時間サイクルなし・アプリ再起動を）</span>'
+            : cyc.stuck
             ? '<span class="ttlhp-badge stuck">⚠ 停滞（同じ行に貼り付き疑い）</span>'
             : '<span class="ttlhp-badge ok">正常（最古が前進中）</span>';
 
