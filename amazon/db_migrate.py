@@ -581,6 +581,25 @@ CARRIER_REMOTE_AREA_COLUMNS = {
     "created_at":   "TEXT",
 }
 
+# --- ▼ SECTION : doc_template_categories / doc_templates（その他ツール「文書管理」：購入者メッセージ等の定型文） ---
+DOC_TEMPLATE_CATEGORIES_COLUMNS = {
+    "id":         "SERIAL PRIMARY KEY",
+    "user_id":    "INTEGER NOT NULL",
+    "name":       "TEXT NOT NULL",
+    "sort_order": "INTEGER DEFAULT 0",
+    "created_at": "TEXT",
+}
+
+DOC_TEMPLATES_COLUMNS = {
+    "id":          "SERIAL PRIMARY KEY",
+    "user_id":     "INTEGER NOT NULL",
+    "category_id": "INTEGER NOT NULL",   # doc_template_categories.id
+    "title":       "TEXT NOT NULL",
+    "body":        "TEXT",               # 本文（改行込みでそのまま保持）
+    "created_at":  "TEXT",
+    "updated_at":  "TEXT",
+}
+
 # --- ▼ SECTION : ORBIT（注文管理）注文明細テーブル ---
 ORBIT_ORDERS_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
@@ -1057,6 +1076,9 @@ def migrate_db(db_name):
         migrate_table(conn, "orbit_agent_closures", ORBIT_AGENT_CLOSURES_COLUMNS)
     elif base.endswith("_orbit_ship_check_settings.db"):
         migrate_table(conn, "orbit_ship_check_settings", ORBIT_SHIP_CHECK_SETTINGS_COLUMNS)
+    elif base.endswith("_doc_templates.db"):
+        migrate_table(conn, "doc_template_categories", DOC_TEMPLATE_CATEGORIES_COLUMNS)
+        migrate_table(conn, "doc_templates", DOC_TEMPLATES_COLUMNS)
 
 
     conn.close()
@@ -1297,6 +1319,20 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_ingredient_ledger_user_asin_unique "
         "ON orbit_ingredient_ledger(user_id, asin)"
+    )
+    conn.commit()
+    conn.close()
+
+    # --- a_doc_templates.db（同じカテゴリ名・同じカテゴリ内の同じタイトルは1件だけ。インポートの上書き判定に使う） ---
+    conn = get_conn("a_doc_templates.db")
+    cur = conn.cursor()
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_template_categories_user_name_unique "
+        "ON doc_template_categories(user_id, name)"
+    )
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_templates_user_category_title_unique "
+        "ON doc_templates(user_id, category_id, title)"
     )
     conn.commit()
     conn.close()
@@ -1588,6 +1624,7 @@ def main():
         "a_jp_holidays.db",
         "a_orbit_agent_closures.db",
         "a_orbit_ship_check_settings.db",
+        "a_doc_templates.db",
     ]
 
     # 固定DB migrate

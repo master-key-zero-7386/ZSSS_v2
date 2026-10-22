@@ -101,6 +101,112 @@
   padding: 4px 8px;
   border-bottom: 1px solid #ccc;
 }
+
+/* ============================= */
+/* 文書管理（定型文）             */
+/* ============================= */
+.dl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.dl-grid {
+  display: grid;
+  grid-template-columns: 280px 340px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.dl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.dl-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.dl-list li:hover {
+  background: #f3f7fc;
+}
+
+.dl-list li.active {
+  background: #4a90e2;
+  color: #fff;
+}
+
+.dl-list li .dl-name {
+  flex: 1;
+  word-break: break-all;
+}
+
+.dl-list li .dl-count {
+  opacity: 0.7;
+}
+
+.dl-list li .dl-mini-btn {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #333;
+  border-radius: 4px;
+  padding: 0 5px;
+  cursor: pointer;
+}
+
+.dl-list li .dl-sub {
+  display: block;
+  opacity: 0.7;
+}
+
+.dl-empty {
+  padding: 8px;
+  color: #888;
+}
+
+.dl-body-view {
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafafa;
+  min-height: 300px;
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.dl-form-row {
+  margin-bottom: 8px;
+}
+
+.dl-form-row label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+#dlEditTitle,
+#dlEditCategory,
+#dlEditBody {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+#dlStatus {
+  font-weight: bold;
+}
 </style>
 
 
@@ -111,6 +217,7 @@
     <div class="st-subtabs">
         <button class="st-subtab-btn active" data-target="st-brandgate">Brand Gate</button>
         <button class="st-subtab-btn" data-target="st-remotearea">遠隔地郵便番号管理</button>
+        <button class="st-subtab-btn" data-target="st-doclibrary">文書管理</button>
     </div>
 
     <!-- ▼ SUBTAB: Brand Gate Check -->
@@ -293,5 +400,79 @@
 
     </div>
     <!-- ▲ SUBTAB: 遠隔地郵便番号管理 -->
+
+    <!-- ▼ SUBTAB: 文書管理（定型文） -->
+    <div id="st-doclibrary" class="st-subtab-pane">
+
+        <div class="card">
+            <div class="dl-toolbar">
+                <input id="dlSearch" type="search" placeholder="タイトル・本文で検索" style="width:260px;">
+                <button id="dlNewBtn" class="btn-blue" type="button">＋ 新しい文書</button>
+                <span style="flex:1;"></span>
+                <button id="dlExportBtn" class="btn-blue" type="button">エクスポート</button>
+                <button id="dlImportBtn" class="btn-blue" type="button">インポート</button>
+                <input id="dlImportFile" type="file" accept=".json,application/json" style="display:none;">
+            </div>
+            <div id="dlStatus"></div>
+        </div>
+
+        <div class="dl-grid" style="margin-top:12px;">
+
+            <!-- 左：カテゴリ -->
+            <div class="card">
+                <h3>カテゴリ</h3>
+                <ul id="dlCategoryList" class="dl-list"></ul>
+                <div style="margin-top:8px;">
+                    <button id="dlAddCategoryBtn" class="btn-blue" type="button">＋ カテゴリ追加</button>
+                </div>
+            </div>
+
+            <!-- 中：文書一覧 -->
+            <div class="card">
+                <h3 id="dlListTitle">文書</h3>
+                <ul id="dlTemplateList" class="dl-list"></ul>
+            </div>
+
+            <!-- 右：本文（表示／編集） -->
+            <div class="card">
+                <div id="dlViewEmpty" class="dl-empty">左の一覧から文書を選んでください。</div>
+
+                <div id="dlView" style="display:none;">
+                    <h3 id="dlViewTitle" style="margin-top:0;"></h3>
+                    <div id="dlViewCategory" style="opacity:0.7; margin-bottom:8px;"></div>
+                    <div class="dl-toolbar">
+                        <button id="dlCopyBtn" class="btn-blue" type="button">コピー</button>
+                        <span id="dlCopyMsg" style="color:green; font-weight:bold;"></span>
+                        <span style="flex:1;"></span>
+                        <button id="dlEditBtn" class="btn-blue" type="button">編集</button>
+                        <button id="dlDeleteBtn" class="btn-blue" type="button">削除</button>
+                    </div>
+                    <div id="dlViewBody" class="dl-body-view"></div>
+                </div>
+
+                <div id="dlEdit" style="display:none;">
+                    <h3 id="dlEditHeading" style="margin-top:0;"></h3>
+                    <div class="dl-form-row">
+                        <label for="dlEditCategory">カテゴリ</label>
+                        <select id="dlEditCategory"></select>
+                    </div>
+                    <div class="dl-form-row">
+                        <label for="dlEditTitle">タイトル</label>
+                        <input id="dlEditTitle" type="text">
+                    </div>
+                    <div class="dl-form-row">
+                        <label for="dlEditBody">本文</label>
+                        <textarea id="dlEditBody" rows="22"></textarea>
+                    </div>
+                    <div class="dl-toolbar">
+                        <button id="dlSaveBtn" class="btn-blue" type="button">保存</button>
+                        <button id="dlCancelBtn" class="btn-blue" type="button">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!-- ▲ SUBTAB: 文書管理（定型文） -->
 
 </div>

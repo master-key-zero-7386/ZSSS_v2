@@ -88,6 +88,12 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   remembered in `ingredient_remarks_auto` and found/replaced later — never touch hand-written remarks.
   説明 (e.g. 発送不可) shows as a red warning next to the 「成」 mark in 発注管理. Can be imported from the old
   「FDA&電池関係」 Google Sheet (header row located by the 「ASIN」 cell).
+- **その他ツール「文書管理」** (`tools/doc_library_routes.py` + `static/js/doc_library.js`). Buyer-message
+  templates (category + title + body), copied from the screen and pasted into Amazon messages. Stored only in
+  each environment's DB (運用PC is the real one; it's also what's opened from outside). Export/import is JSON
+  (not CSV — Excel re-saves mangle bodies); import upserts by (category name, title) and never deletes. The copy
+  button falls back to `execCommand` because remote access over plain http has no `navigator.clipboard`.
+  英語マニュアル(PDF, ASIN/型番/JAN, multiple PDFs per item) is planned but parked until PDF storage is decided.
 - `core/` — pricing business logic: `price_calculator.py`, `pricing_strategy.py`, `fx_rate.py`.
 - `services/` — `blacklist_service.py`, `listing_submit_service.py`, `ttl_stop_service.py`.
 - `background/` — long-running daemon loops started from `app.py`:
