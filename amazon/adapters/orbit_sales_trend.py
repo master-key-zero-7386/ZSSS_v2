@@ -10,6 +10,7 @@
 #   - 利益額(円)・仕入額(円) の日次合計も返す（画面の期間合計表と「利益額／利益率／仕入額」表示切替用）。
 #     仕入額は仕入価格(円)が入力済みの明細だけを合計する（消費税還付の目安用・注文日ベース）
 #   - 送料(円) 合計も返す（送料率＝Σ送料 ÷ Σ販売額。送料と販売額が両方ある明細だけ）
+#   - 売上総額（販売額＝決済実績の販売額、無ければ item_price＋配送料）を現地通貨と円換算で返す（期間合計表用）
 #   - 利益は「うち概算」（手数料見積り・予測送料を使った分＝profit_is_estimate）も別に返す
 #   - 期間は「直近N日」「月指定(YYYY-MM)」「開始日〜終了日」のどれか。日の区切りは日本時間（JST）。
 #     purchase_date は UTC の ISO8601 なので +9時間して日付を決める
@@ -142,6 +143,10 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
                 "ship_jpy": [0.0] * days,      # 送料(円) 合計（送料率の分子・送料と販売額が両方ある明細のみ）
                 "ship_sale_jpy": [0.0] * days, # その明細の販売額(円) 合計（送料率の分母）
                 "ship_cnt": [0] * days,        # 送料率に使えた明細数
+                "sale_local": [0.0] * days,    # 売上総額（販売額＝商品代＋配送料。現地通貨）
+                "sale_total_jpy": [0.0] * days,  # 売上総額の円換算（換算できた明細のみ）
+                "sale_total_cnt": [0] * days,  # 売上総額に含められた明細数
+                "sale_currency": None,
                 "currency": None,
             }
         return acc[market]
@@ -174,6 +179,16 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
 
         profit_jpy = row.get("profit_jpy")
         sale_jpy = row.get("sale_price_used_jpy")
+
+        # 売上総額は利益の算出可否と無関係に、販売額がある明細をすべて足す
+        sale_local = row.get("sale_price_used")
+        if sale_local is not None:
+            s["sale_local"][idx] += float(sale_local)
+            s["sale_total_cnt"][idx] += 1
+            if sale_jpy is not None:
+                s["sale_total_jpy"][idx] += float(sale_jpy)
+            if not s["sale_currency"]:
+                s["sale_currency"] = (row.get("sale_price_used_currency") or "").strip().upper() or None
         if profit_jpy is not None and sale_jpy:
             s["profit_jpy"][idx] += float(profit_jpy)
             s["sale_jpy"][idx] += float(sale_jpy)
@@ -217,6 +232,10 @@ def get_sales_trend(user_id: int, start: date, end: date) -> dict:
             "ship_jpy": [round(v) for v in s["ship_jpy"]],
             "ship_sale_jpy": [round(v) for v in s["ship_sale_jpy"]],
             "ship_cnt": s["ship_cnt"],
+            "sale_local": [round(v, 2) for v in s["sale_local"]],
+            "sale_total_jpy": [round(v) for v in s["sale_total_jpy"]],
+            "sale_total_cnt": s["sale_total_cnt"],
+            "sale_currency": s["sale_currency"] or currency,
             "profit_cnt": s["profit_cnt"],
             "line_cnt": s["line_cnt"],
         })

@@ -3,7 +3,7 @@
 // 目的: Dashboard「売上トレンド」サブタブ ― マーケット別の日次販売個数を折れ線で表示する。
 //   Y軸＝販売個数。ツールチップに「販売個数 ／ 総額（現地通貨） ／ 概算利益率（母数併記）」を出す。
 //   表示切替ボタンで折れ線を「利益額(円) ／ 利益率(%) ／ 仕入額(円) ／ 送料率(%)」にも切り替えられる。
-//   グラフ上に、選んだ期間の合計表（マーケット別＋合計：個数・利益額・利益率・仕入額・消費税目安）を出す。
+//   グラフ上に、選んだ期間の合計表（マーケット別＋合計：売上総額・個数・利益額・利益率・仕入額・消費税目安）を出す。
 //   データは /orbit/sales-trend（list_orders_with_calc を通す＝全注文を再計算するため数秒かかる）。
 //   自動ロードはせず「更新」ボタンでのみ集計する。集計後に期間ボタンを変えると新しい期間で再集計する。
 //   期間は「直近N日」ボタン／「月で選ぶ」／「日付指定（開始〜終了）」のどれか（日の区切りは日本時間）。
@@ -99,6 +99,14 @@
     }
     const n = new Intl.NumberFormat("ja-JP", { maximumFractionDigits: 0 }).format(value);
     return currency ? currency + " " + n : n;
+  }
+
+  // 売上総額の現地通貨表記（例: AU$1,000.00）。ドル系は国2文字＋$、それ以外は通貨コード＋空白
+  function fmtLocal(value, currency) {
+    const n = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+    if (!currency) return n;
+    if (/^[A-Z]{2}D$/.test(currency)) return currency.slice(0, 2) + "$" + n;
+    return currency + " " + n;
   }
 
   function setStatus(text) {
@@ -246,13 +254,22 @@
     if (!el) return;
     if (!data || !data.series.length) { el.innerHTML = ""; return; }
 
-    function rowFor(label, qty, lines, profit, sale, pcnt, estProfit, estCnt, purchase, purCnt, ship, shipSale, cls) {
+    // 売上総額：マーケット行は「現地通貨（円換算）」、合計行は通貨が混ざるので円換算のみ
+    function totalText(local, currency, jpy, cnt) {
+      if (!cnt) return "-";
+      const yen = fmtYen(jpy);
+      if (currency == null) return yen;
+      return fmtLocal(local, currency) + '<span class="sub">（' + yen + "）</span>";
+    }
+
+    function rowFor(label, qty, lines, profit, sale, pcnt, estProfit, estCnt, purchase, purCnt, ship, shipSale, cls, saleTotalHtml) {
       const shipRate = rateOf(ship, shipSale);
       const rate = rateOf(profit, sale);
       const profitText = pcnt ? fmtYen(profit) : "-";
       const estText = estCnt ? fmtYen(estProfit) + '<span class="sub">（' + estCnt + "件）</span>" : "-";
       return "<tr" + (cls ? ' class="' + cls + '"' : "") + ">" +
         "<td>" + label + "</td>" +
+        '<td class="num">' + saleTotalHtml + "</td>" +
         '<td class="num">' + qty + "個</td>" +
         '<td class="num' + (pcnt && profit < 0 ? " neg" : "") + '">' + profitText + "</td>" +
         '<td class="num">' + estText + "</td>" +
@@ -266,7 +283,7 @@
         "</tr>";
     }
 
-    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, est: 0, estCnt: 0, purchase: 0, purCnt: 0, ship: 0, shipSale: 0 };
+    const t = { qty: 0, lines: 0, profit: 0, sale: 0, pcnt: 0, est: 0, estCnt: 0, purchase: 0, purCnt: 0, ship: 0, shipSale: 0, totJpy: 0, totCnt: 0 };
     let body = "";
     data.series.forEach(function (s) {
       const r = {
@@ -275,16 +292,19 @@
         est: sumArr(s.profit_est_jpy), estCnt: sumArr(s.profit_est_cnt),
         purchase: sumArr(s.purchase_jpy), purCnt: sumArr(s.purchase_cnt),
         ship: sumArr(s.ship_jpy), shipSale: sumArr(s.ship_sale_jpy),
+        totJpy: sumArr(s.sale_total_jpy), totCnt: sumArr(s.sale_total_cnt),
       };
       Object.keys(t).forEach(function (k) { t[k] += r[k]; });
-      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.est, r.estCnt, r.purchase, r.purCnt, r.ship, r.shipSale, "");
+      const saleTotal = totalText(sumArr(s.sale_local), s.sale_currency || "", r.totJpy, r.totCnt);
+      body += rowFor(s.market, r.qty, r.lines, r.profit, r.sale, r.pcnt, r.est, r.estCnt, r.purchase, r.purCnt, r.ship, r.shipSale, "", saleTotal);
     });
     if (data.series.length > 1) {
-      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.est, t.estCnt, t.purchase, t.purCnt, t.ship, t.shipSale, "total");
+      body += rowFor("合計", t.qty, t.lines, t.profit, t.sale, t.pcnt, t.est, t.estCnt, t.purchase, t.purCnt, t.ship, t.shipSale, "total",
+        totalText(null, null, t.totJpy, t.totCnt));
     }
 
     el.innerHTML = "<table><thead><tr>" +
-      "<th>マーケット</th><th>販売個数</th><th>利益額</th><th>うち概算</th><th>利益率</th><th>利益算出</th>" +
+      "<th>マーケット</th><th>売上総額</th><th>販売個数</th><th>利益額</th><th>うち概算</th><th>利益率</th><th>利益算出</th>" +
       "<th>仕入額</th><th>消費税目安</th><th>仕入入力済</th><th>送料</th><th>送料率</th>" +
       "</tr></thead><tbody>" + body + "</tbody></table>";
   }
