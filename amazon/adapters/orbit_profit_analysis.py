@@ -18,6 +18,7 @@ from amazon.adapters.orbit_sales_trend import (
     _purchase_date_key,
     load_rows_with_calc,
 )
+from amazon.services.orbit_ship_check_service import get_profit_weight_pct
 
 
 def _f(v):
@@ -78,6 +79,15 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
             "ship_under": bool(check.get("fee_under")),
             "weight_warn": bool(check.get("weight_warn")),
             "carrier_warn": bool(check.get("carrier_warn")),
+            # 送料のズレの中身（キャリア・請求重量の 予測 → 実際）
+            "est_carrier": check.get("est_carrier"),
+            "actual_carrier": check.get("actual_carrier"),
+            "actual_carrier_inferred": bool(check.get("actual_carrier_inferred")),
+            "carrier_best": check.get("carrier_best"),
+            "carrier_best_price": check.get("carrier_best_price"),
+            "carrier_diff": check.get("carrier_diff"),
+            "est_weight_kg": check.get("est_weight_kg"),
+            "actual_weight_kg": check.get("actual_weight_kg"),
             "ship_excluded": check.get("excluded"),
             "tips": check.get("tips") or [],
             "profit_jpy": profit,
@@ -89,4 +99,5 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
         "start": start_key,
         "end": end_key,
         "rows": out,
+        "weight_pct": get_profit_weight_pct(user_id),
     }

@@ -1262,6 +1262,9 @@ input.orbit-serial-dup {
               <option value="no_profit">利益が出せない（未入力あり）</option>
           </select>
           <span id="profit-status">サブタブを開くと直近30日を集計します</span>
+          <label title="実際の請求重量が予測よりこの%以上重い注文は、重量列を赤字にします">
+              ズレの目安 <input type="number" id="profit-weight-pct" min="0" step="1" value="15" style="width:4.5em;"> %
+          </label>
       </div>
 
       <div id="profit-summary" class="orbit-profit-summary"></div>

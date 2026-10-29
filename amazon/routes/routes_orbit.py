@@ -59,6 +59,7 @@ from amazon.services.orbit_ship_check_service import (
     list_ship_checks,
     get_ship_check_settings,
     save_ship_check_settings,
+    save_profit_weight_pct,
 )
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.services.google_sheets_service import (
@@ -272,6 +273,18 @@ def profit_analysis():
         return jsonify({"status": "error", "message": "利益分析の集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "data": data})
+
+
+# 利益分析「ズレの目安」（実重量が予測より何%重ければ赤字にするか）の保存
+@orbit_bp.route("/profit-analysis/settings", methods=["POST"])
+def profit_analysis_settings():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    value = save_profit_weight_pct(user_id, data.get("weight_pct"))
+    return jsonify({"status": "success", "weight_pct": value})
 
 
 # --- ▼ SECTION 02-3: 送料検証（想定送料・請求重量 vs 発送代行の実績。読み取り専用＋基準の保存） ▼ ---

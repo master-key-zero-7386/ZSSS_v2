@@ -567,6 +567,7 @@ ORBIT_SHIP_CHECK_SETTINGS_COLUMNS = {
     "carrier_diff_yen": "REAL",   # ②キャリア差：実際の運賃 − 他キャリアの最安 がこの円以上で警告
     "weight_ratio": "REAL",       # ③重量のズレ：実重量 ÷ 想定請求重量 がこの倍率以上
     "weight_diff_kg": "REAL",     #   かつ 差がこのkg以上で警告
+    "profit_weight_pct": "REAL",  # 利益分析：実重量が予測よりこの%以上重ければ赤字表示（送料検証の基準とは別）
     "updated_at": "TEXT",
 }
 

@@ -17,6 +17,7 @@
     let period = { type: "days", days: 30 };
     let sortKey = "ship_diff";
     let sortDesc = true;
+    let weightPct = 15; // ズレの目安：実重量が予測よりこの%以上重ければ重量列を赤字（DBに保存）
 
     const esc = (v) => (typeof orbitEscapeHtml === "function")
         ? orbitEscapeHtml(v == null ? "" : String(v))
@@ -107,7 +108,11 @@
             const res = await fetch("/orbit/profit-analysis?" + periodQuery(period));
             const json = await res.json();
             if (json.status !== "success") throw new Error(json.message || "集計に失敗しました");
-            rows = json.data.rows || [];
+            rows = (json.data.rows || []).map(addShipDetail);
+            if (json.data.weight_pct != null) {
+                weightPct = json.data.weight_pct;
+                document.getElementById("profit-weight-pct").value = weightPct;
+            }
             loaded = true;
             buildMarketOptions();
             render();
@@ -124,6 +129,33 @@
 
     ["profit-filter-market", "profit-filter-kind"].forEach(id =>
         document.getElementById(id).addEventListener("change", render));
+
+    // ズレの目安：変えたらその場で描き直し、DBにも保存（次回・外から開いても同じ値）
+    document.getElementById("profit-weight-pct").addEventListener("change", async (e) => {
+        const v = parseFloat(e.target.value);
+        if (!(v >= 0)) { e.target.value = weightPct; return; }
+        weightPct = v;
+        render();
+        try {
+            const res = await fetch("/orbit/profit-analysis/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ weight_pct: v }),
+            });
+            const json = await res.json();
+            if (json.status !== "success") throw new Error();
+        } catch (err) {
+            console.error("[profit-analysis/settings]", err);
+            toast("ズレの目安を保存できませんでした", "error");
+        }
+    });
+
+    // 並べ替え用の値（キャリア＝「予測→実際」の文字、重量＝実際÷予測）。数量2以上は合計重量なので比べない
+    function addShipDetail(r) {
+        r.carrier_label = (r.est_carrier || r.actual_carrier) ? `${r.est_carrier || "?"}→${r.actual_carrier || "?"}` : null;
+        r.weight_ratio = (Number(r.qty) === 1 && r.est_weight_kg && r.actual_weight_kg) ? r.actual_weight_kg / r.est_weight_kg : null;
+        return r;
+    }
 
     function buildMarketOptions() {
         const sel = document.getElementById("profit-filter-market");
@@ -158,6 +190,28 @@
     const estMark = (flag) => (flag ? '<span class="orbit-profit-sub">（概算）</span>' : "");
     const shipDiffCls = (r) => r.ship_warn ? "num orbit-ship-warn" : r.ship_under ? "num orbit-ship-under" : "num";
 
+    // キャリア：予測 → 実際（違えば実際を赤字）。実際に使ったより安いキャリアがあれば下に小さく出す
+    function carrierCell(r) {
+        if (!r.carrier_label) return "";
+        const differ = r.est_carrier && r.actual_carrier && r.est_carrier !== r.actual_carrier;
+        const actual = r.actual_carrier
+            ? `<span class="${differ ? "orbit-text-red" : ""}">${esc(r.actual_carrier)}</span>` +
+              (r.actual_carrier_inferred ? '<span class="orbit-profit-sub">（推定）</span>' : "")
+            : "?";
+        const cheaper = (r.carrier_best && r.carrier_diff > 0)
+            ? `<br><span class="orbit-profit-sub">${esc(r.carrier_best)}なら ${yen(r.carrier_best_price)}</span>` : "";
+        return `${esc(r.est_carrier || "?")} → ${actual}${cheaper}`;
+    }
+
+    // 重量（請求重量kg）：予測 → 実際。実際が予測より「ズレの目安」%以上重ければ赤字
+    function weightCell(r) {
+        if (r.est_weight_kg == null && r.actual_weight_kg == null) return "";
+        const kg = (v) => (v == null ? "?" : String(Math.round(v * 100) / 100));
+        const heavy = r.weight_ratio != null && r.weight_ratio >= 1 + weightPct / 100;
+        const qtyNote = Number(r.qty) > 1 ? `<br><span class="orbit-profit-sub">（${esc(r.qty)}個の合計）</span>` : "";
+        return `${kg(r.est_weight_kg)} → <span class="${heavy ? "orbit-text-red" : ""}">${kg(r.actual_weight_kg)}kg</span>${qtyNote}`;
+    }
+
     const COLUMNS = [
         { key: "date", label: "注文日", cell: r => esc(r.date) },
         { key: "serial", label: "N番", cell: r => r.serial != null ? `N${esc(r.serial)}` : "" },
@@ -174,6 +228,8 @@
         { key: "ship_jpy", label: "送料（利益計算）", cls: r => "num" + (heaviest(r) === "ship" ? " profit-heavy" : ""),
           cell: r => r.ship_jpy == null ? "" : `${yen(r.ship_jpy)} <span class="orbit-profit-sub">${pct(r.ship_pct)}</span>` +
             (r.ship_is_bundle ? '<span class="orbit-profit-sub">（同梱按分）</span>' : estMark(r.ship_is_estimate)) },
+        { key: "carrier_label", label: "キャリア", cell: carrierCell },
+        { key: "weight_ratio", label: "重量", cls: () => "num", cell: weightCell },
         { key: "est_ship", label: "予測送料", cls: () => "num", cell: r => yen(r.est_ship) },
         { key: "actual_ship", label: "実際の送料", cls: () => "num", cell: r => yen(r.actual_ship) },
         { key: "ship_diff", label: "送料差", cls: shipDiffCls,
@@ -237,7 +293,7 @@
             sortDesc = !sortDesc;
         } else {
             sortKey = key;
-            sortDesc = !["date", "serial", "market", "asin", "product_name"].includes(key) || key === "date";
+            sortDesc = !["date", "serial", "market", "asin", "product_name", "carrier_label"].includes(key) || key === "date";
         }
         render();
     });

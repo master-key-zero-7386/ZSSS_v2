@@ -80,6 +80,49 @@ def save_ship_check_settings(user_id: int, data: dict) -> dict:
     return values
 
 
+# 利益分析の「ズレの目安」（実重量が予測より何%以上重ければ赤字にするか）。同じ設定行の別列に持つが、
+# 送料検証の保存（SETTING_KEYS だけを更新）とは互いに上書きしない。
+DEFAULT_PROFIT_WEIGHT_PCT = 15.0
+
+
+def get_profit_weight_pct(user_id: int) -> float:
+    conn = get_conn("a_orbit_ship_check_settings.db")
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT profit_weight_pct FROM orbit_ship_check_settings WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+    finally:
+        conn.close()
+    if row and row.get("profit_weight_pct") is not None:
+        return float(row["profit_weight_pct"])
+    return DEFAULT_PROFIT_WEIGHT_PCT
+
+
+def save_profit_weight_pct(user_id: int, value) -> float:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        v = DEFAULT_PROFIT_WEIGHT_PCT
+    if v < 0:
+        v = DEFAULT_PROFIT_WEIGHT_PCT
+    conn = get_conn("a_orbit_ship_check_settings.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO orbit_ship_check_settings (user_id, profit_weight_pct, updated_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET profit_weight_pct = EXCLUDED.profit_weight_pct,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (user_id, v, datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return v
+
+
 # --- ▼ SECTION 02: 小さな変換 ▼ ---
 def _num(value):
     """"¥4,180" / "2000" / 4180.0 → float。読めなければ None。"""
