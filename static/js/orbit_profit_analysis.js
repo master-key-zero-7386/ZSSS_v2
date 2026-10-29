@@ -246,7 +246,7 @@
         const el = e.target.closest(".profit-asin");
         if (!el) return;
         const asin = el.textContent.trim();
-        const done = () => toast(`${asin} をコピーしました`, "success");
+        const done = () => window.showCopyNotification?.("コピーしました", el);
         // 外部から http で開くと navigator.clipboard が無いので execCommand で代替
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(asin).then(done).catch(err => console.error("コピー失敗:", err));
