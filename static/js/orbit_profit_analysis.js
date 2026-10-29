@@ -245,6 +245,19 @@
     document.querySelector("#profit-table tbody").addEventListener("click", (e) => {
         const el = e.target.closest(".profit-asin");
         if (!el) return;
-        navigator.clipboard?.writeText(el.textContent).then(() => toast(`${el.textContent} をコピーしました`, "success"));
+        const asin = el.textContent.trim();
+        const done = () => toast(`${asin} をコピーしました`, "success");
+        // 外部から http で開くと navigator.clipboard が無いので execCommand で代替
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(asin).then(done).catch(err => console.error("コピー失敗:", err));
+        } else {
+            const tmp = document.createElement("textarea");
+            tmp.value = asin;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand("copy");
+            document.body.removeChild(tmp);
+            done();
+        }
     });
 })();
