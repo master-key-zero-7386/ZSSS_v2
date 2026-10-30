@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function rowHtml(r) {
     return `
       <tr>
-        <td><input type="text" class="input cf-type" value="${esc(r.product_type)}" style="width:240px;"></td>
+        <td><input type="text" class="input cf-type" value="${esc(r.product_type)}" style="width:320px;"></td>
         <td><input type="number" class="input cf-fee" step="0.01" value="${esc(r.fee_rate)}" style="width:90px;"></td>
         <td><input type="number" class="input cf-min" step="0.01" value="${esc(r.min_profit_rate)}" style="width:90px;"></td>
         <td class="cf-live" style="text-align:right;"></td>
