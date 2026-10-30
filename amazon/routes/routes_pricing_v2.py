@@ -24,6 +24,7 @@ from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
 from amazon.core.pricing_strategy import decide_listing_price
+from amazon.core.category_fee import apply_category_fee, get_category_fee_settings, save_category_fee_settings, simulate_category_fee
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listings_items import put_listings_item, patch_listings_item_price
@@ -747,6 +748,59 @@ def update_pricing_master_rules():
         "data": data
     })
 
+# --- ▼ SECTION 07-2 : カテゴリ別手数料率（UI用API。値段の計算への適用は update_listing_price） ▼ ---
+def _region_marketplace_id(country_code):
+    conn = get_conn("a_marketplaces_master.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT marketplace_id FROM marketplaces_master WHERE UPPER(country_code) = UPPER(%s) LIMIT 1",
+            (country_code,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+    return row["marketplace_id"] if row else None
+
+
+@pricing_v2_bp.route("/pricing/category_fee", methods=["GET"])
+def get_category_fee():
+    user_id = session.get("user_id")
+    country_code = (request.args.get("country_code") or "").upper()
+    if not user_id or not country_code or country_code == "ALL":
+        return jsonify({"status": "error", "message": "国を選んでください"}), 400
+    data = get_category_fee_settings(int(user_id), country_code, seed=True)
+    return jsonify({"status": "success", "data": data})
+
+
+@pricing_v2_bp.route("/pricing/category_fee", methods=["POST"])
+def update_category_fee():
+    user_id = session.get("user_id")
+    body = request.get_json(force=True) or {}
+    country_code = (body.get("country_code") or "").upper()
+    if not user_id or not country_code or country_code == "ALL":
+        return jsonify({"status": "error", "message": "国を選んでください"}), 400
+    data = save_category_fee_settings(int(user_id), country_code, bool(body.get("enabled")), body.get("rows") or [])
+    return jsonify({"status": "success", "data": data})
+
+
+# 試算：ON にしたら対象の出品が何件で、最低価格が何%変わるか（値段も DB も変えない）
+@pricing_v2_bp.route("/pricing/category_fee/simulate", methods=["POST"])
+def simulate_category_fee_route():
+    user_id = session.get("user_id")
+    body = request.get_json(force=True) or {}
+    country_code = (body.get("country_code") or "").upper()
+    if not user_id or not country_code or country_code == "ALL":
+        return jsonify({"status": "error", "message": "国を選んでください"}), 400
+    marketplace_id = _region_marketplace_id(country_code)
+    if not marketplace_id:
+        return jsonify({"status": "error", "message": "マーケットプレイスが見つかりません"}), 400
+    base_rules = get_pricing_master_rule(user_id=int(user_id), country_code=country_code)
+    data = simulate_category_fee(int(user_id), country_code, marketplace_id, body.get("rows") or [], base_rules)
+    data["base_fee_rate"] = base_rules.get("amazon_fee_rate")
+    data["base_min_profit_rate"] = base_rules.get("min_profit_rate")
+    return jsonify({"status": "success", "data": data})
+
 # --- ▼ SECTION 08 : 競合条件取得（UI用API） ▼ ---
 @pricing_v2_bp.route("/pricing/get_offer_filter_rules", methods=["GET"])
 def get_offer_filter_rules():
@@ -1034,6 +1088,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
 
     # === -06: pricing_rules取得 ===
     rules = get_pricing_master_rule(user_id=user_id, country_code=country_code) 
+    # カテゴリ別手数料率が ON の国・対象の商品タイプだけ、手数料率と最低利益率を置き換える（利益率の表示も同じ rules）
+    rules = apply_category_fee(rules, user_id=user_id, country_code=country_code, asin=asin, marketplace_id=region_marketplace_id)
 
     # === -07: FX取得 ===
     exchange_rate = get_exchange_rate(home_currency, currency)

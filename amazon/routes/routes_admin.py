@@ -24,6 +24,7 @@ from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
+from amazon.core.category_fee import apply_category_fee
 from amazon.constants import BASE_DIR
 import json
 
@@ -977,6 +978,8 @@ def run_region_pricing_debug():
 
     # === ルール取得 ===
     rules = get_pricing_master_rule(user_id=user_id, country_code=country_code)
+    # 出品時と同じく、カテゴリ別手数料率が ON なら対象の商品タイプだけ置き換える
+    rules = apply_category_fee(rules, user_id=user_id, country_code=country_code, asin=asin, marketplace_id=region_marketplace_id)
 
     conn_ps = get_conn("a_pricing_settings.db") 
     cur_ps = conn_ps.cursor()

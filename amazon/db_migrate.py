@@ -502,6 +502,26 @@ PRICING_MASTER_RULES_COLUMNS = {
     "updated_at": "TEXT"
 }
 
+# --- ▼ カテゴリ別手数料率（商品タイプごとに手数料率・最低利益率を置き換える。国ごとの ON/OFF 付き） ---
+#     例：年末だけ、手数料15%のおもちゃ系を本当の手数料率で計算する。OFF の国・表に無い商品タイプは
+#     pricing_master_rules のまま。中身は amazon/core/category_fee.py
+PRICING_CATEGORY_FEE_SETTINGS_COLUMNS = {
+    "user_id": "INTEGER NOT NULL",
+    "country_code": "TEXT NOT NULL",
+    "enabled": "INTEGER DEFAULT 0",         # 1=ON（表の商品タイプだけ置き換える）
+    "updated_at": "TEXT",
+}
+
+PRICING_CATEGORY_FEE_RULES_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "country_code": "TEXT NOT NULL",
+    "product_type": "TEXT NOT NULL",        # カタログの productType（TOY_FIGURE 等）
+    "fee_rate": "REAL",                     # Amazon手数料率（％。pricing_master_rules.amazon_fee_rate と同じ意味）
+    "min_profit_rate": "REAL",              # 最低利益率（％）
+    "updated_at": "TEXT",
+}
+
 # --- ▼ ttl_state（TTL進行管理） ---
 TTL_STATE_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
@@ -1022,6 +1042,8 @@ def migrate_db(db_name):
         migrate_table(conn, "shipping_config", SHIPPING_CONFIG_COLUMNS)
         migrate_table(conn, "offer_filter_rules", OFFER_FILTER_RULES_COLUMNS)
         migrate_table(conn, "pricing_master_rules", PRICING_MASTER_RULES_COLUMNS)
+        migrate_table(conn, "pricing_category_fee_settings", PRICING_CATEGORY_FEE_SETTINGS_COLUMNS)
+        migrate_table(conn, "pricing_category_fee_rules", PRICING_CATEGORY_FEE_RULES_COLUMNS)
         migrate_table(conn, "ttl_state", TTL_STATE_COLUMNS)
         migrate_table(conn, "ttl_cycle_log", TTL_CYCLE_LOG_COLUMNS)
     elif base.endswith("_pricing_cache.db"):
@@ -1573,6 +1595,16 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_master_rules_unique "
         "ON pricing_master_rules(user_id, country_code)"
+    )
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_category_fee_settings_unique "
+        "ON pricing_category_fee_settings(user_id, country_code)"
+    )
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_category_fee_rules_unique "
+        "ON pricing_category_fee_rules(user_id, country_code, product_type)"
     )
 
     conn.commit()
