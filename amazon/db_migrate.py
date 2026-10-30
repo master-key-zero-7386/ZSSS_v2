@@ -522,6 +522,28 @@ PRICING_CATEGORY_FEE_RULES_COLUMNS = {
     "updated_at": "TEXT",
 }
 
+# --- ▼ カート取得状況の日ごとの記録（Pricing 設定「カート取得状況」。中身は amazon/services/buybox_stats_service.py） ---
+#     TTL で取ってある pricing_cache の出品情報から、LIVE の出品のうち自分がカートを取っている件数などを
+#     1日1回（日本時間の日付）国ごと・商品タイプごとに残す。product_type='' は国全体の行。
+BUYBOX_DAILY_STATS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "country_code": "TEXT NOT NULL",
+    "stat_date": "TEXT NOT NULL",           # YYYY-MM-DD（日本時間）
+    "product_type": "TEXT NOT NULL",        # '' = 国全体
+    "live_count": "INTEGER",                # LIVE の出品
+    "with_data": "INTEGER",                 # 価格データ（出品情報）がある件数＝割合の分母
+    "buybox_mine": "INTEGER",               # 自分がカート
+    "buybox_other": "INTEGER",              # 他の人がカート
+    "buybox_none": "INTEGER",               # カートが誰にも無い
+    "lowest_mine": "INTEGER",               # 自分が一番安い（送料込み）
+    "cheaper_other": "INTEGER",             # 自分より安い人がいる
+    "not_visible": "INTEGER",               # 出品情報の中に自分の出品が無い
+    "fresh_count": "INTEGER",               # 価格データが7日以内に取れている件数
+    "category_fee_enabled": "INTEGER",      # その日のカテゴリ別手数料率の ON/OFF（国全体の行だけ）
+    "created_at": "TEXT",
+}
+
 # --- ▼ ttl_state（TTL進行管理） ---
 TTL_STATE_COLUMNS = {
     "user_id": "INTEGER NOT NULL",
@@ -1044,6 +1066,7 @@ def migrate_db(db_name):
         migrate_table(conn, "pricing_master_rules", PRICING_MASTER_RULES_COLUMNS)
         migrate_table(conn, "pricing_category_fee_settings", PRICING_CATEGORY_FEE_SETTINGS_COLUMNS)
         migrate_table(conn, "pricing_category_fee_rules", PRICING_CATEGORY_FEE_RULES_COLUMNS)
+        migrate_table(conn, "buybox_daily_stats", BUYBOX_DAILY_STATS_COLUMNS)
         migrate_table(conn, "ttl_state", TTL_STATE_COLUMNS)
         migrate_table(conn, "ttl_cycle_log", TTL_CYCLE_LOG_COLUMNS)
     elif base.endswith("_pricing_cache.db"):
@@ -1605,6 +1628,11 @@ def add_unique_indexes():  # UNIQUE制約
     cur.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_pricing_category_fee_rules_unique "
         "ON pricing_category_fee_rules(user_id, country_code, product_type)"
+    )
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_buybox_daily_stats_unique "
+        "ON buybox_daily_stats(user_id, country_code, stat_date, product_type)"
     )
 
     conn.commit()

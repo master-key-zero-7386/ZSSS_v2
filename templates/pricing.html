@@ -429,6 +429,48 @@
             </div>
         </section>
 
+        <!-- カート取得状況（static/js/pricing_buybox_stats.js） -->
+        <section class="pricing-section" id="buybox-stats-section" style="margin-bottom:40px;">
+            <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">カート取得状況</h3>
+            <div style="margin-left:25px; padding-left:20px;">
+                <div style="font-size:13px; color:#555; line-height:1.7; margin-bottom:12px;">
+                    LIVE の出品のうち、自分がカート（おすすめ出品）を取っている割合です。値段を上げすぎて売れなくなっていないかの目安に使います。
+                    TTL で取ってある出品情報から数えるので、Amazon には問い合わせません（数字は TTL で取り直した時点のもの）。
+                    推移は毎日1回、自動で記録します。「対象」はカテゴリ別手数料率の表にある商品タイプの合計です。
+                </div>
+                <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:10px;">
+                    <button type="button" id="buybox-stats-refresh" class="btn-blue">更新</button>
+                    <span id="buybox-stats-msg" style="font-size:13px;"></span>
+                </div>
+                <table class="table" id="buybox-stats-now" style="width:auto;">
+                    <thead><tr>
+                        <th></th><th>LIVE</th><th>カート率</th><th>自分がカート</th><th>他の人がカート</th>
+                        <th>一番安い率</th><th>自分より安い人がいる</th><th>データが7日以内</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+
+                <h4 style="margin:18px 0 6px;">日ごとの推移</h4>
+                <table class="table" id="buybox-stats-history" style="width:auto;">
+                    <thead><tr>
+                        <th>日付</th><th>全体 カート率</th><th>全体 一番安い率</th>
+                        <th>対象 カート率</th><th>対象 一番安い率</th><th>対象 LIVE</th><th>カテゴリ別手数料率</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+
+                <details style="margin-top:14px;">
+                    <summary style="cursor:pointer; font-weight:600;">商品タイプごとの今の数字</summary>
+                    <table class="table" id="buybox-stats-types" style="width:auto; margin-top:8px;">
+                        <thead><tr>
+                            <th>商品タイプ</th><th>LIVE</th><th>カート率</th><th>一番安い率</th><th>自分より安い人がいる</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </details>
+            </div>
+        </section>
+
     </div>
 
     <div id="pricing-pane-check" class="st-subtab-pane">

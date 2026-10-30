@@ -26,6 +26,7 @@ from amazon.core.price_calculator import (calculate_listing_price, calculate_shi
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.category_fee import apply_category_fee, get_category_fee_settings, save_category_fee_settings, simulate_category_fee
 from amazon.adapters.orbit_category_fee import get_category_fee_rates
+from amazon.services.buybox_stats_service import get_buybox_overview
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listings_items import put_listings_item, patch_listings_item_price
@@ -815,6 +816,23 @@ def simulate_category_fee_route():
     data = simulate_category_fee(int(user_id), country_code, marketplace_id, body.get("rows") or [], base_rules)
     data["base_fee_rate"] = base_rules.get("amazon_fee_rate")
     data["base_min_profit_rate"] = base_rules.get("min_profit_rate")
+    return jsonify({"status": "success", "data": data})
+
+# --- ▼ SECTION 07-3 : カート取得状況（UI用API。今の数字はその場で集計、推移は1日1回の記録） ▼ ---
+@pricing_v2_bp.route("/pricing/buybox_stats", methods=["GET"])
+def get_buybox_stats():
+    user_id = session.get("user_id")
+    country_code = (request.args.get("country_code") or "").upper()
+    if not user_id or not country_code or country_code == "ALL":
+        return jsonify({"status": "error", "message": "国を選んでください"}), 400
+    marketplace_id = _region_marketplace_id(country_code)
+    if not marketplace_id:
+        return jsonify({"status": "error", "message": "マーケットプレイスが見つかりません"}), 400
+    try:
+        data = get_buybox_overview(int(user_id), country_code, marketplace_id)
+    except Exception:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "カート取得状況の集計でエラーが発生しました"}), 500
     return jsonify({"status": "success", "data": data})
 
 # --- ▼ SECTION 08 : 競合条件取得（UI用API） ▼ ---

@@ -104,6 +104,13 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   (not CSV — Excel re-saves mangle bodies); import upserts by (category name, title) and never deletes. The copy
   button falls back to `execCommand` because remote access over plain http has no `navigator.clipboard`.
   英語マニュアル(PDF, ASIN/型番/JAN, multiple PDFs per item) is planned but parked until PDF storage is decided.
+- **Pricing カテゴリ別手数料率 / カート取得状況** (`core/category_fee.py`, `services/buybox_stats_service.py`).
+  Per country ON/OFF table that swaps `amazon_fee_rate` / `min_profit_rate` for listings whose catalog productType
+  is in the table (built for year-end toys: AU 12%, CA 15%, min profit 0%). OFF countries and other types must price
+  exactly as before, and a failure in the lookup falls back to the normal rules — never let it stop pricing. The user
+  switches it ON themselves (CA on ZSSS, AU on ATLAS). カート取得状況 counts Buy Box share of LIVE listings from
+  `pricing_cache.region_offers_json` (no SP-API calls); `background/buybox/buybox_loop.py` records it once a day
+  (JST) into `buybox_daily_stats` so the effect of a price change can be compared before/after.
 - `core/` — pricing business logic: `price_calculator.py`, `pricing_strategy.py`, `fx_rate.py`.
 - `services/` — `blacklist_service.py`, `listing_submit_service.py`, `ttl_stop_service.py`.
 - `background/` — long-running daemon loops started from `app.py`:

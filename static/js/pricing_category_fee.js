@@ -112,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const json = await res.json();
       if (json.status !== "success") throw new Error(json.message || "保存に失敗しました");
       render(json.data);
+      document.dispatchEvent(new CustomEvent("zsss:categoryFeeSaved", { detail: { country_code: country } }));
       toast(`${country} のカテゴリ別手数料率を保存しました（${json.data.enabled ? "ON" : "OFF"}）`, "success");
     } catch (e) {
       console.error("[category_fee] save", e);
