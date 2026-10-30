@@ -1,7 +1,8 @@
 // =====================================================
 // ファイル名: static/js/orbit_profit_analysis.js
-// 目的: ORBIT「利益分析」サブタブ ― 期間内の注文ごとの利益内訳（販売額・手数料・仕入・送料）と
+// 目的: ORBIT「利益分析」サブタブ ― 期間内の注文ごとの利益内訳（販売額・返金・手数料・仕入・送料）と
 //   予測送料 vs 実際の送料のズレを一覧にする。見出しクリックで並べ替え（既定は送料差の大きい順）。
+//   決済レポート（実績）の取得・手動アップロードもこのサブタブで行う。
 //   データは /orbit/profit-analysis（全注文を再計算するため数秒かかる）。
 //   サブタブを初めて開いたときだけ自動で集計し、以後は期間の変更か「更新」ボタンで集計する。
 //   期間の選び方（直近N日／月／日付指定）は売上トレンドと同じ。
@@ -221,6 +222,7 @@
         { key: "product_name", label: "商品名", cls: () => "profit-name", cell: r => esc(r.product_name || "") },
         { key: "qty", label: "数量", cls: () => "num", cell: r => esc(r.qty) },
         { key: "sale_jpy", label: "販売額", cls: () => "num", cell: r => yen(r.sale_jpy) },
+        { key: "refund_jpy", label: "返金", cls: r => "num" + (r.refund_jpy ? " orbit-text-red" : ""), cell: r => yen(r.refund_jpy) },
         { key: "fee_jpy", label: "手数料", cls: r => "num" + (heaviest(r) === "fee" ? " profit-heavy" : ""),
           cell: r => r.fee_jpy == null ? "" : `${yen(r.fee_jpy)} <span class="orbit-profit-sub">${pct(r.fee_pct)}</span>${estMark(r.fee_is_estimate)}` },
         { key: "purchase_jpy", label: "仕入", cls: r => "num" + (heaviest(r) === "purchase" ? " profit-heavy" : ""),
@@ -314,6 +316,111 @@
             document.execCommand("copy");
             document.body.removeChild(tmp);
             done();
+        }
+    });
+
+    // --- ▼ SECTION 04: 決済レポートの取得（SP-API）・手動アップロード ▼ ---
+    // API取得は裏で1分に1件ずつ進むので、取得中は数秒ごとに進み具合を見に行き、終わったら集計し直す。
+    const fetchBtn = document.getElementById("settlement-fetch-btn");
+    const fetchStatusEl = document.getElementById("settlement-fetch-status");
+    let pollTimer = null;
+
+    function resultSummary(results) {
+        const ok = results.filter(r => r.status === "ok").length;
+        const errors = results.filter(r => r.status !== "ok");
+        let text = `取り込み ${ok}件`;
+        if (errors.length) text += `・エラー ${errors.length}件`;
+        return { text, errors, ok };
+    }
+
+    function errorDetail(errors) {
+        return errors.map(e => `${e.file ? e.file + " " : ""}${e.settlement_id || ""} ${e.start_date || ""}〜${e.end_date || ""}：${e.message}`).join("\n");
+    }
+
+    // notify=true：取得中を見届けた時だけ、終わったらトーストを出して集計し直す
+    // （開き直した時に、前回終わった取得の通知が毎回出ないようにする）
+    async function pollFetchStatus(notify) {
+        clearTimeout(pollTimer);
+        let json;
+        try {
+            const res = await fetch("/orbit/settlements/fetch/status");
+            json = await res.json();
+            if (json.status !== "success") throw new Error();
+        } catch (e) {
+            console.error("[settlements/fetch/status]", e);
+            fetchBtn.disabled = false;
+            return;
+        }
+        if (json.running) {
+            fetchBtn.disabled = true;
+            fetchStatusEl.textContent = json.total != null
+                ? `${json.message}（${json.done}/${json.total}件・1分に1件）` : json.message;
+            pollTimer = setTimeout(() => pollFetchStatus(true), 5000);
+            return;
+        }
+        fetchBtn.disabled = false;
+        if (!json.started_at) return; // まだ一度も取得していない
+        const { text, errors } = resultSummary(json.results || []);
+        const finished = (json.finished_at || "").slice(0, 16).replace("T", " ");
+        fetchStatusEl.textContent = json.failed ? json.message
+            : (json.total === 0 ? "新しい決済レポートはありません" : `${text}（${finished} UTC）`);
+        fetchStatusEl.title = errorDetail(errors);
+        if (!notify) return;
+        if (json.failed) toast(json.message, "error");
+        else toast(json.total === 0 ? "新しい決済レポートはありません" : text, errors.length ? "error" : "success");
+        if (loaded) load();
+    }
+
+    fetchBtn?.addEventListener("click", async () => {
+        fetchBtn.disabled = true;
+        try {
+            const res = await fetch("/orbit/settlements/fetch", { method: "POST" });
+            const json = await res.json();
+            if (json.status !== "success") throw new Error(json.message || "取得を始められませんでした");
+            fetchStatusEl.textContent = "決済レポートの一覧を取得中";
+            pollTimer = setTimeout(() => pollFetchStatus(true), 2000);
+        } catch (e) {
+            toast(e.message, "error");
+            fetchBtn.disabled = false;
+        }
+    });
+
+    // 画面を開き直したときに取得中なら進み具合を出す
+    if (fetchBtn) pollFetchStatus(false);
+
+    const fileInput = document.getElementById("settlement-file-input");
+    const fileName = document.getElementById("settlement-file-name");
+    fileName?.addEventListener("click", () => fileInput?.click());
+    fileInput?.addEventListener("change", () => {
+        const names = [...fileInput.files].map(f => f.name);
+        fileName.value = names.length > 1 ? `${names.length}ファイル（${names[0]} ほか）` : (names[0] || "");
+    });
+
+    document.getElementById("settlement-upload-btn")?.addEventListener("click", async () => {
+        if (!fileInput?.files?.length) {
+            toast("ファイルを選択してください", "error");
+            return;
+        }
+        const formData = new FormData();
+        [...fileInput.files].forEach(f => formData.append("files", f));
+        try {
+            const res = await fetch("/orbit/settlements/upload", { method: "POST", body: formData });
+            const json = await res.json();
+            if (json.status !== "success") throw new Error(json.message || "取り込みに失敗しました");
+            const { text, errors } = resultSummary(json.results || []);
+            if (errors.length) {
+                toast(`${text}（エラーの内容は横の文字にマウスを乗せると見られます）`, "error");
+                fetchStatusEl.textContent = text;
+                fetchStatusEl.title = errorDetail(errors);
+            } else {
+                toast(text, "success");
+            }
+            fileInput.value = "";
+            fileName.value = "";
+            if (loaded) load();
+        } catch (e) {
+            console.error("[settlements/upload]", e);
+            toast(e.message, "error");
         }
     });
 })();

@@ -763,25 +763,41 @@ ORBIT_CREDIT_CARDS_COLUMNS = {
     "updated_at":  "TEXT",
 }
 
-# --- ▼ SECTION : 決済トランザクション明細（ORBIT: 実利益計算用。セラーセントラル「支払い」→
-#     「トランザクション」画面からのCSVダウンロード。1行=1注文の集計済みデータで、
-#     「合計」列に既にAmazon手数料等を差し引いた後の入金額が入っている） ---
-# 返金・後日調整などで同じorder-idに複数回データが来ても、上書きせず全部残せば読み取り時のSUMで
-# 正しく合算できるようにする。
-ORBIT_SETTLEMENT_LINES_COLUMNS = {
+# --- ▼ SECTION : 決済レポート（ORBIT: 実利益計算用。Settlement Report フラットファイルV2） ---
+# 1精算（Amazonがまとめて振り込む1回分）＝1行。SP-API（GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2）か、
+# セラーセントラル「過去の決済情報」→「フラットファイルV2」の手動ダウンロードから取り込む。
+# 精算が締まった後に作られるので中身は二度と変わらない＝同じ精算番号は丸ごと入れ替えれば二重にならない。
+ORBIT_SETTLEMENTS_COLUMNS = {
     "id": "SERIAL PRIMARY KEY",
     "user_id": "INTEGER NOT NULL",
-    "order_id": "TEXT NOT NULL",
-    "transaction_date": "TEXT",         # 日付
-    "transaction_status": "TEXT",       # トランザクションステータス（留保中／支払い実行済み等）
-    "transaction_type": "TEXT",         # トランザクションの種類
-    "product_price": "REAL",            # 商品価格合計
-    "promotion_discount": "REAL",       # プロモーション割引合計
-    "amazon_fee": "REAL",               # Amazon手数料
-    "other_amount": "REAL",             # その他
-    "total_amount": "REAL",             # 合計（＝入金額。手数料等差引後）
-    "currency": "TEXT",                 # 「合計 (CAD)」等ヘッダーから取得
+    "settlement_id": "TEXT NOT NULL",
+    "start_date": "TEXT",               # 精算期間（YYYY-MM-DD）
+    "end_date": "TEXT",
+    "deposit_date": "TEXT",             # 入金日（YYYY-MM-DD）
+    "total_amount": "REAL",             # 入金額（明細の合計と一致したものだけ取り込む）
+    "currency": "TEXT",
+    "source": "TEXT",                   # api / file
+    "report_id": "TEXT",                # SP-APIのreportId（取得済みのレポートを再ダウンロードしないため）
     "imported_at": "TEXT",
+}
+
+# 決済レポートの明細。1行＝1つの金額（商品代金・手数料・税金など）。order_item_id で注文管理の
+# 商品ごとの行と直接つながるので、複数商品の注文でも按分は要らない。
+ORBIT_SETTLEMENT_ITEMS_COLUMNS = {
+    "id": "SERIAL PRIMARY KEY",
+    "user_id": "INTEGER NOT NULL",
+    "settlement_id": "TEXT NOT NULL",
+    "transaction_type": "TEXT",         # Order / Refund / other-transaction 等
+    "order_id": "TEXT",
+    "order_item_id": "TEXT",            # order-item-code
+    "adjustment_id": "TEXT",
+    "sku": "TEXT",
+    "marketplace_name": "TEXT",         # Amazon.ca 等
+    "amount_type": "TEXT",              # ItemPrice / ItemFees / ItemWithheldTax 等
+    "amount_description": "TEXT",       # Principal / Commission / Tax 等
+    "amount": "REAL",
+    "currency": "TEXT",
+    "posted_date": "TEXT",              # YYYY-MM-DD
 }
 
 # --- ▼ SECTION : 買い手購入履歴アーカイブ（ORBIT: 決済確定＋出荷完了の注文をorbit_ordersから退避）。
@@ -1053,8 +1069,9 @@ def migrate_db(db_name):
         migrate_table(conn, "lethal_weapon_preset", LETHAL_WEAPON_PRESET_COLUMNS)
     elif base.endswith("_orbit_orders.db"):
         migrate_table(conn, "orbit_orders", ORBIT_ORDERS_COLUMNS)
-    elif base.endswith("_orbit_settlement_lines.db"):
-        migrate_table(conn, "orbit_settlement_lines", ORBIT_SETTLEMENT_LINES_COLUMNS)
+    elif base.endswith("_orbit_settlements.db"):
+        migrate_table(conn, "orbit_settlements", ORBIT_SETTLEMENTS_COLUMNS)
+        migrate_table(conn, "orbit_settlement_items", ORBIT_SETTLEMENT_ITEMS_COLUMNS)
     elif base.endswith("_orbit_buyer_history.db"):
         migrate_table(conn, "orbit_buyer_history", ORBIT_BUYER_HISTORY_COLUMNS)
     elif base.endswith("_orbit_credit_cards.db"):
@@ -1220,16 +1237,20 @@ def add_unique_indexes():  # UNIQUE制約
     conn.commit()
     conn.close()
 
-    # --- a_orbit_settlement_lines.db ---
-    conn = get_conn("a_orbit_settlement_lines.db")
+    # --- a_orbit_settlements.db ---
+    conn = get_conn("a_orbit_settlements.db")
     cur = conn.cursor()
     cur.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_settlement_lines_unique "
-        "ON orbit_settlement_lines(user_id, order_id, transaction_date, total_amount)"
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_orbit_settlements_unique "
+        "ON orbit_settlements(user_id, settlement_id)"
     )
     cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_orbit_settlement_lines_order "
-        "ON orbit_settlement_lines(user_id, order_id)"
+        "CREATE INDEX IF NOT EXISTS idx_orbit_settlement_items_settlement "
+        "ON orbit_settlement_items(user_id, settlement_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_orbit_settlement_items_item "
+        "ON orbit_settlement_items(user_id, order_item_id)"
     )
     conn.commit()
     conn.close()
@@ -1613,7 +1634,7 @@ def main():
         "a_api_429_events.db",
         "a_carrier_remote_area.db",
         "a_orbit_orders.db",
-        "a_orbit_settlement_lines.db",
+        "a_orbit_settlements.db",
         "a_orbit_buyer_history.db",
         "a_orbit_procurement_history.db",
         "a_orbit_buyer_security_notes.db",

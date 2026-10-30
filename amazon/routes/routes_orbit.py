@@ -5,7 +5,7 @@
 
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, session, Response, redirect
+from flask import Blueprint, request, jsonify, session, Response, redirect, current_app
 
 from amazon.services.orbit_order_service import (
     parse_order_report,
@@ -50,8 +50,11 @@ from amazon.services.orbit_order_service import (
     NUMERIC_MANUAL_FIELDS,
 )
 from amazon.services.orbit_settlement_service import (
-    parse_settlement_report,
-    import_settlement_lines,
+    parse_settlement_file,
+    save_settlements,
+    export_settlements_tsv,
+    start_fetch as start_settlement_fetch,
+    get_fetch_status as get_settlement_fetch_status,
 )
 from amazon.adapters.orbit_sales_trend import get_sales_trend, resolve_range
 from amazon.adapters.orbit_profit_analysis import get_profit_analysis
@@ -145,28 +148,67 @@ def import_orders():
     return jsonify({"status": "success", "imported": count})
 
 
-# --- ▼ SECTION 01-2: 決済レポート(Settlement Report)インポート（実利益算定用） ▼ ---
-@orbit_bp.route("/settlements/import", methods=["POST"])
-@block_if_serial_dup
-def import_settlements():
+# --- ▼ SECTION 01-2: 決済レポート（Settlement Report フラットファイルV2。実利益算定用） ▼ ---
+# API取得：この環境（zsss=US/CA、atlas=AU）の分を裏で1分に1件ずつダウンロードする。進み具合は status で見る。
+@orbit_bp.route("/settlements/fetch", methods=["POST"])
+def fetch_settlements():
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"status": "error"}), 401
 
-    file = request.files.get("file")
-    if not file:
+    result = start_settlement_fetch(user_id, current_app.config.get("ZSSS_MODE", "dev"))
+    if not result["started"]:
+        return jsonify({"status": "error", "message": result["message"]}), 400
+    return jsonify({"status": "success", **result})
+
+
+@orbit_bp.route("/settlements/fetch/status", methods=["GET"])
+def fetch_settlements_status():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    return jsonify({"status": "success", **get_settlement_fetch_status(user_id)})
+
+
+# 手動アップロード：セラーセントラル「過去の決済情報」のフラットファイルV2、またはATLASの書き出しファイル（複数可）
+@orbit_bp.route("/settlements/upload", methods=["POST"])
+@block_if_serial_dup
+def upload_settlements():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    files = request.files.getlist("files")
+    if not files:
         return jsonify({"status": "error", "message": "ファイルがありません"}), 400
 
-    text = file.read().decode("utf-8-sig", errors="replace")
+    results = []
+    for file in files:
+        text = file.read().decode("utf-8-sig", errors="replace")
+        try:
+            settlements = parse_settlement_file(text)
+        except Exception as e:
+            results.append({"file": file.filename, "status": "error", "message": str(e)})
+            continue
+        for r in save_settlements(user_id, settlements, "file"):
+            results.append({"file": file.filename, **r})
 
-    try:
-        rows = parse_settlement_report(text)
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"CSV解析に失敗しました: {e}"}), 400
+    return jsonify({"status": "success", "results": results})
 
-    count = import_settlement_lines(user_id, rows)
 
-    return jsonify({"status": "success", "imported": count})
+# 書き出し：ATLAS(AU)の決済データをZSSSへ渡す用（取り込んだ全精算を1ファイルに）
+@orbit_bp.route("/settlements/export", methods=["GET"])
+def export_settlements():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    return Response(
+        export_settlements_tsv(user_id),
+        mimetype="text/tab-separated-values",
+        headers={"Content-Disposition": "attachment; filename=orbit_settlements.tsv"},
+    )
 
 
 # --- ▼ SECTION 02: 注文一覧取得（サイズ・重量・予測送料つき） ▼ ---

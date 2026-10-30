@@ -6,7 +6,8 @@
 # 目的: ORBIT「利益分析」サブタブ ― 期間内の注文を1行ずつ、利益の内訳（販売額・手数料・仕入・送料）と
 #   予測送料 vs 実際の送料のズレを並べる。読み取り専用。
 #   - 集計元・期間・日の区切り（日本時間）は売上トレンドと同じ（orbit_sales_trend の関数を使う）
-#   - 金額はすべて円。販売額＝注文一覧の sale_price_used_jpy、手数料＝販売額 − 入金額(円)
+#   - 金額はすべて円。販売額＝注文一覧の sale_price_used_jpy、返金＝決済レポートの返金（プラスで表示）、
+#     手数料＝販売額 − 入金額(円) − 返金
 #   - 送料ズレは送料検証（ship_check）の判定結果をそのまま使う（同梱・キャンセルは対象外）
 #   - 利益率は売上トレンドと同じ「利益 ÷ 販売額」（注文一覧の利益率は入金額基準なので少し違う）
 #   - キャンセル（発送種別＝キャンセル）は除外
@@ -44,7 +45,9 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
 
         sale = _f(r.get("sale_price_used_jpy"))
         net = _f(r.get("net_proceeds_used_jpy"))
-        fee = sale - net if sale is not None and net is not None else None
+        # 返金は決済レポートでマイナスで来る。表ではプラスの金額で出し、手数料からは除く
+        refund = -_f(r.get("refund_used_jpy")) if r.get("refund_used_jpy") else None
+        fee = sale - net - (refund or 0) if sale is not None and net is not None else None
         purchase = _f(r.get("purchase_price"))
         ship = _f(r.get("shipping_cost_used"))
         profit = _f(r.get("profit_jpy"))
@@ -61,6 +64,7 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
             "qty": r.get("quantity_purchased") or 0,
             "archived": bool(r.get("archived_at")),
             "sale_jpy": sale,
+            "refund_jpy": refund,
             "fee_jpy": fee,
             "fee_is_estimate": r.get("net_proceeds_is_estimate"),
             "purchase_jpy": purchase,

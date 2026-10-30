@@ -1129,11 +1129,6 @@ input.orbit-serial-dup {
               <button type="button" id="orbitFeeDataUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
           </div>
           <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="file" id="orbitSettlementFileInput" accept=".csv,.txt,.tsv" style="display:none;" />
-              <input type="text" id="orbitSettlementFileName" class="file-input-text" placeholder="トランザクションCSVデータを選択" readonly style="width:300px;" title="取引明細CSVを取り込むと、入金額・利益が最終確定値に置き換わります。セラーセントラルの「ファイナンス」→「支払い管理」を開き、「トランザクション」タブに切り替えて日付範囲を指定し、CSVでダウンロードしてください（「ファイナンスレポート」のSettlement Reportフラットファイルは形式が異なり取り込めません）。取り込むたびに表示言語（日付書式）は揃えてください。" />
-              <button type="button" id="orbitSettlementUploadBtn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
               <input type="text" id="orbit-request-form-url" class="file-input-text" placeholder="代行会社への依頼フォームのURL" style="width:300px;" title="代行会社への別途依頼内容を入力するフォームのURL。入力すると自動保存され、「依頼フォーム」ボタンで新しいタブに開きます。" />
               <button type="button" id="orbit-request-form-jump-btn" class="btn-blue" style="height:36px;">依頼フォーム</button>
           </div>
@@ -1232,6 +1227,18 @@ input.orbit-serial-dup {
           手数料・仕入・送料のうち、販売額に占める割合が一番大きいものを黄色にしています。
           送料差＝実際の送料 − 予測送料（プラス＝予測より高くついて、その分利益が減った）。赤字・青字の基準は送料検証タブと同じで、同梱・キャンセルは対象外です。
           注文日は日本時間。利益率は 利益 ÷ 販売額。「概算」は手数料見積りや予測送料で計算した分です。
+          販売額・返金・手数料は決済レポート（入金が決まった分）の実績です。返金はその商品で返したお金（税金を除く）、手数料は販売手数料・返金手数料などの合計です。
+      </div>
+
+      <div class="orbit-actions" style="flex-wrap:wrap;">
+          <button type="button" id="settlement-fetch-btn" class="btn-blue" title="この環境の口座（ZSSS＝US・CA、ATLAS＝AU）の決済レポートをSP-APIで取得します。まだ取り込んでいない精算だけを、1分に1件ずつ裏で取得します（最初は過去90日分で20分ほどかかります）。">決済レポート取得</button>
+          <span id="settlement-fetch-status"></span>
+          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
+              <input type="file" id="settlement-file-input" accept=".txt,.tsv,.csv" multiple style="display:none;" />
+              <input type="text" id="settlement-file-name" class="file-input-text" placeholder="決済レポート（フラットファイルV2）を選択" readonly style="width:300px;" title="APIで取れない分（90日より前・AU）を手で取り込みます。セラーセントラル「支払い管理」→「過去の決済情報」→「フラットファイルV2」でダウンロードしたファイル、またはATLASの「決済データ書き出し」のファイル。複数まとめて選べます。同じ精算を何回取り込んでも二重になりません。" />
+              <button type="button" id="settlement-upload-btn" class="btn-blue" style="height:36px;">UPLOAD</button>
+          </div>
+          <a href="/orbit/settlements/export" class="btn-blue" style="text-decoration:none;" title="取り込んだ決済レポートを全部1ファイルに書き出します（ATLASのAU分をZSSSへ渡す用）">決済データ書き出し</a>
       </div>
 
       <div class="sales-trend-period" id="profitPeriod">

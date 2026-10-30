@@ -81,6 +81,16 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   `est_snapshot_at` is set. Agent sheet S列 (`agent_shipping_fee`) equals the raw rate-table price; T列 is
   all-in. Carrier names for 送料表 Carrier 1–3 live in `shipping_carrier_names` (default DHL/FedEx/EMS).
   New ORBIT row keys must go in `_RAW_SHEET_SKIP_KEYS`, or ZSSS_RAW columns shift and VLOOKUPs break.
+- **ORBIT 決済レポート** (`services/orbit_settlement_service.py`, buttons in subtab「利益分析」). Sales/fees/net
+  proceeds come only from Settlement Report Flat File V2 (`orbit_settlements` + `orbit_settlement_items`), fetched via
+  SP-API (`GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2`, needs the 財務会計 role) or uploaded by hand (Seller Central
+  wide format, API long format, or another environment's export). Each settlement is replaced whole by settlement-id,
+  so re-imports never double-count; a settlement whose lines don't sum to its total is rejected. Lines join orders by
+  `order_item_id`, so multi-item orders need no proration. API fetch runs per `ZSSS_MODE` (`SETTLEMENT_API_COUNTRIES`:
+  zsss=US/CA, atlas=AU, dev=none) — never add AU to ZSSS; AU reaches ZSSS only as ATLAS's 決済データ書き出し file.
+  getReportDocument allows ~1 call/min, so documents are downloaded 61s apart in a background thread without
+  `user_id` (a 429 would otherwise block the user's other SP-API calls via guard_429). The old Transactions-CSV import
+  (`orbit_settlement_lines`) is gone; don't bring it back (it double-counted 保留→入金済み rows).
 - **ORBIT 成分台帳** (`services/orbit_ingredient_service.py`, subtab「成分台帳」). Per-ASIN 成分 text (FDA
   ingredients, battery type like アルカリ電池) that the shipping agent needs in 備考. Ledger ASINs get the text
   auto-appended to 備考1 (`remarks`) on order import and on ledger edit/delete/sheet import, only for orders with

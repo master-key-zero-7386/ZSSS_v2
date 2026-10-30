@@ -391,7 +391,7 @@ const PROCUREMENT_COLUMNS = [
     { key: "supplier_link", label: "注文リンク", computed: true },
     { key: "purchase_price", label: "仕入価格(円)", editable: "number" },
 
-    // --- 実利益。入金額は「決済トランザクション実績」＞「手数料見積り概算」の順で採用、送料は
+    // --- 実利益。入金額は「決済レポート実績」＞「手数料見積り概算」の順で採用、送料は
     //     「代行会社確定額」＞「ZSSS予測概算」の順で採用（円換算、いずれか概算のときは(概算)と表示） ---
     { key: "fetch_fee_estimate", label: "", fetchFeeEstimateButton: true },
     { key: "sale_price_used", label: "販売額(現地通貨)", profitHighlight: true, saleAmountCell: true, currencyKey: "sale_price_used_currency", splitFlagKey: "settlement_is_split" },
@@ -788,7 +788,7 @@ function renderTableRows(tbody, columns, rows, { grayShipped } = {}) {
             }
 
             if (col.fetchFeeEstimateButton) {
-                // 決済トランザクション実績が既にあれば手数料見積りは不要。
+                // 決済レポート実績が既にあれば手数料見積りは不要。
                 // item_priceが無くても、ボタン側でAmazon注文詳細(Orders API)から自動取得する。
                 if (r.net_proceeds != null || !r.asin) return "<td></td>";
                 const fetched = r.fee_estimate_amount != null;
@@ -2321,47 +2321,6 @@ window.initOrbit = function () {
             })
             .catch(err => {
                 console.error("orbit/import error:", err);
-                window.showToast?.("インポートに失敗しました", "error");
-            });
-    });
-
-    // --- ▼ SECTION 01-1b: 決済レポートインポート（実利益算定用） ▼ ---
-    const orbitSettlementFileInput = document.getElementById("orbitSettlementFileInput");
-    const orbitSettlementFileName = document.getElementById("orbitSettlementFileName");
-    const orbitSettlementUploadBtn = document.getElementById("orbitSettlementUploadBtn");
-
-    orbitSettlementFileName?.addEventListener("click", () => {
-        orbitSettlementFileInput?.click();
-    });
-
-    orbitSettlementFileInput?.addEventListener("change", (e) => {
-        const fileName = e.target.files.length ? e.target.files[0].name : "";
-        if (orbitSettlementFileName) orbitSettlementFileName.value = fileName;
-    });
-
-    orbitSettlementUploadBtn?.addEventListener("click", () => {
-        if (!orbitSettlementFileInput?.files?.length) {
-            window.showToast?.("ファイルを選択してください", "error");
-            return;
-        }
-
-        const formData = new FormData();
-        formData.append("file", orbitSettlementFileInput.files[0]);
-
-        fetch("/orbit/settlements/import", { method: "POST", body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === "success") {
-                    window.showToast?.(`${data.imported}件インポートしました`, "success");
-                    orbitSettlementFileInput.value = "";
-                    if (orbitSettlementFileName) orbitSettlementFileName.value = "";
-                    loadOrders();
-                } else {
-                    window.showToast?.(data.message || "インポートに失敗しました", "error");
-                }
-            })
-            .catch(err => {
-                console.error("orbit/settlements/import error:", err);
                 window.showToast?.("インポートに失敗しました", "error");
             });
     });

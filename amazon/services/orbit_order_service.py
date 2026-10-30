@@ -33,7 +33,7 @@ from amazon.services.google_sheets_service import (
     _extract_spreadsheet_id,
 )
 from amazon.background.common.background_common import background_pause
-from amazon.services.orbit_settlement_service import get_order_settlement_summary
+from amazon.services.orbit_settlement_service import get_item_settlement_summary, get_settled_order_ids
 from amazon.adapters.catalog_normalized_adapter import NormalizedCatalogAdapter
 from utils.remote_area_parser import normalize_postal
 
@@ -611,6 +611,8 @@ _RAW_SHEET_SKIP_KEYS = {
     # 成分台帳（備考1へ書き足した成分の控えと、一覧表示用の派生キー。成分そのものは備考1で出る）
     "ingredient_remarks_auto", "ingredient_listed", "ingredient_note", "ingredient_text",
     "ingredient_remarks_mismatch",
+    # 決済レポートの返金（利益分析の表示用）
+    "refund_total", "refund_used_jpy",
 }
 
 _RAW_SHEET_EXTRA_COLUMNS = [
@@ -1049,25 +1051,23 @@ def _parse_agent_fee_text(value):
         return None
 
 
-def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_weight=1.0):
-    # 決済トランザクションはorder_id単位（1注文にorder_item_idが複数=複数商品あっても1行）なので、
-    # そのまま各order_item_id行に適用すると同じ入金額が商品ごとに丸ごと重複してしまう。
-    # 販売価格(item_price)の比率（無ければ商品数で均等割り）で按分した額を使う。
-    settlement = settlement_summary.get(row.get("order_id"))
+def _apply_settlement_profit(row, *, settlement_summary, fx_cache):
+    # 決済レポートは商品ごと（order_item_id）の明細なので、複数商品の注文でも按分せずそのまま使う。
+    # 注文の入金（Order）がまだ精算に入っていない商品（返金だけ先に来た等）は決済実績なしとして扱い、
+    # 手数料見積りの概算で出す（返金だけを入金額にすると利益が大きくマイナスに見えてしまうため）。
+    settlement = settlement_summary.get(row.get("order_item_id"))
+    if settlement and not settlement.get("has_order"):
+        settlement = None
 
-    # net_proceeds/sale_price/fees_total は SUM() 集計値。対象列がその注文で全行NULL
-    # （返金のみ・調整のみの決済明細など）だと None が返るため、そのまま * settlement_weight
-    # すると「None * float」で TypeError になり注文一覧全体が500になる。値があるときだけ按分する。
-    def _weighted(key):
-        val = settlement.get(key) if settlement else None
-        return val * settlement_weight if val is not None else None
-
-    row["net_proceeds"] = _weighted("net_proceeds")
-    row["sale_price"] = _weighted("sale_price")
-    row["fees_total"] = _weighted("fees_total")
+    row["net_proceeds"] = settlement.get("net_proceeds") if settlement else None
+    row["sale_price"] = settlement.get("sale_price") if settlement else None
+    row["fees_total"] = settlement.get("fees_total") if settlement else None
+    row["refund_total"] = settlement.get("refund_total") if settlement else None
     row["settlement_currency"] = settlement.get("currency") if settlement else None
     row["deposit_date"] = settlement.get("deposit_date") if settlement else None
-    row["settlement_is_split"] = bool(settlement and settlement_weight != 1.0)
+    # ZSSS_RAW の列位置を変えないためにキーだけ残す（商品ごとの明細になったので按分は起きない）
+    row["settlement_is_split"] = False
+    row["refund_used_jpy"] = None
 
     # 出荷完了前は代行会社シートの送料セルが空欄または0のままのことが多く、それを確定額として
     # 採用すると送料0円で利益が過大に出てしまう。「発送重量記入日」（=出荷済みの目印）が入っていて、
@@ -1092,7 +1092,7 @@ def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_we
             row["shipping_cost_used"] = None
             row["shipping_cost_is_estimate"] = None
 
-    # 入金額は「決済トランザクション実績」を最優先、無ければ「販売価格−手数料見積り」の概算で代用する
+    # 入金額は「決済レポート実績」を最優先、無ければ「販売価格−手数料見積り」の概算で代用する
     # （手数料見積りは仕入れ判断のためのSP-API getMyFeesEstimate。出荷完了前でも取得できる）。
     if row["net_proceeds"] is not None:
         net_used = row["net_proceeds"]
@@ -1163,6 +1163,8 @@ def _apply_settlement_profit(row, *, settlement_summary, fx_cache, settlement_we
 
     # 入金額(円)は仕入価格・送料が未確定でも表示できるが、利益(円)は両方揃わないと出せない
     row["net_proceeds_used_jpy"] = net_used_jpy
+    if row.get("refund_total") and net_used:
+        row["refund_used_jpy"] = row["refund_total"] * (net_used_jpy / net_used)
     if row["shipping_cost_used"] is None or row.get("purchase_price") is None:
         return
 
@@ -1915,39 +1917,10 @@ def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_o
 
     # --- 実利益（決済レポートの入金額 − 仕入価格 − 送料）。dims/marketplace_idが解決できなかった行にも
     #     予測送料無しで代行会社確定送料だけは反映したいため、上のループとは別パスで全行に適用する。 ---
-    settlement_summary = get_order_settlement_summary(user_id)
+    settlement_summary = get_item_settlement_summary(user_id)
     fx_cache = {}
-
-    # 決済トランザクションはorder_id単位のため、1注文に商品が複数(=order_item_idが複数)あると
-    # 同じ入金額が重複適用されてしまう。販売価格(item_price)の比率で按分する重みを先に計算する
-    # （item_priceが全商品分揃わない場合は商品数で均等割り）。
-    order_id_groups = {}
     for row in rows:
-        order_id_groups.setdefault(row.get("order_id"), []).append(row)
-
-    settlement_weights = {}
-    for order_id, group in order_id_groups.items():
-        if len(group) <= 1:
-            for row in group:
-                settlement_weights[row["order_item_id"]] = 1.0
-            continue
-        prices = [row.get("item_price") for row in group]
-        if all(p is not None for p in prices) and sum(prices) > 0:
-            total = sum(prices)
-            for row, price in zip(group, prices):
-                settlement_weights[row["order_item_id"]] = price / total
-        else:
-            equal_weight = 1.0 / len(group)
-            for row in group:
-                settlement_weights[row["order_item_id"]] = equal_weight
-
-    for row in rows:
-        _apply_settlement_profit(
-            row,
-            settlement_summary=settlement_summary,
-            fx_cache=fx_cache,
-            settlement_weight=settlement_weights.get(row["order_item_id"], 1.0),
-        )
+        _apply_settlement_profit(row, settlement_summary=settlement_summary, fx_cache=fx_cache)
 
     # --- リピーター判定・返品セキュリティメモの反映（買い手＝住所キーで突き合わせ） ---
     buyer_history_counts = _load_buyer_history_counts(user_id)
@@ -2085,7 +2058,7 @@ def _expand_bundle_rows(user_id: int, rows: list) -> list:
 
 
 # --- ▼ SECTION 05-3: リピーター件数・返品セキュリティメモの一括取得（買い手キー単位） ▼ ---
-# list_orders_with_calc()の中で行ごとにクエリを投げないよう、既存のsettlement_summary一括取得
+# list_orders_with_calc()の中で行ごとにクエリを投げないよう、決済レポートの集計（settlement_summary）一括取得
 # （SECTION 04-2b付近）と同じ考え方で、ユーザー全体を1クエリずつまとめて取得する。
 def _load_buyer_history_counts(user_id: int) -> dict:
     conn = get_conn("a_orbit_buyer_history.db")
@@ -2748,7 +2721,7 @@ def delete_agent_closure(user_id: int, closure_id: int) -> int:
 
 
 # --- ▼ SECTION 06-1b: アーカイブ候補の検出・実行（決済確定＋出荷完了の注文をFBMバイヤー履歴へ移動） ▼ ---
-# 「決済確定」はorbit_settlement_linesに実績行があるかどうかで判定する。時間ベースの自動実行はせず、
+# 「決済確定」は決済レポート（orbit_settlement_items）に注文の入金（Order）があるかどうかで判定する。時間ベースの自動実行はせず、
 # 半自動（候補を確認してからボタンで実行）にする：セラーセントラルの決済レポートをいつ・どの期間分
 # 取り込むかで、事実上のアーカイブ対象期間をユーザー側でコントロールできるようにするため。
 def list_archive_candidates(user_id: int) -> list:
@@ -2765,8 +2738,8 @@ def list_archive_candidates(user_id: int) -> list:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
-    settlement_summary = get_order_settlement_summary(user_id)
-    return [r for r in rows if r.get("order_id") in settlement_summary]
+    settled_order_ids = get_settled_order_ids(user_id)
+    return [r for r in rows if r.get("order_id") in settled_order_ids]
 
 
 # アーカイブは注文明細の「移動」であって削除ではない。ただしorbit_buyer_historyが持つのは
@@ -2797,8 +2770,8 @@ def archive_orders(user_id: int, order_item_ids: list) -> int:
 
     # list_archive_candidates と同じ「決済確定」条件を実行時にも再チェックする。候補確認〜実行の
     # 間に状態が変わった行（出荷完了を取り消した等）を、確認時点の古いリストのまま流し込まないため。
-    settlement_summary = get_order_settlement_summary(user_id)
-    rows = [r for r in rows if r.get("order_id") in settlement_summary]
+    settled_order_ids = get_settled_order_ids(user_id)
+    rows = [r for r in rows if r.get("order_id") in settled_order_ids]
     if not rows:
         conn.close()
         return 0
