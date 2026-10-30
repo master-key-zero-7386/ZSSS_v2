@@ -47,6 +47,9 @@
         });
     }
 
+    // 再読み込みでブラウザが前回の月の選択だけを戻すと、表示（8月）と集計（直近30日）が食い違うため最初にそろえる
+    window.addEventListener("pageshow", markPeriod);
+
     (function fillMonthOptions() {
         const sel = document.getElementById("profitMonth");
         const now = new Date(Date.now() + 9 * 3600 * 1000); // UTC → JST
@@ -276,25 +279,65 @@
         renderSummary(list);
     }
 
-    // 絞り込み後の合計
+    // 絞り込み後の合計（国ごと＋合計の表。見た目は売上トレンドの期間合計表と同じ）
+    function summarize(list) {
+        const withProfit = list.filter(r => r.profit_jpy != null);
+        const sum = (rows, k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
+        const profit = sum(withProfit, "profit_jpy");
+        const sale = sum(withProfit, "sale_jpy");
+        const refund = sum(withProfit, "tax_refund_jpy");
+        const diffs = list.filter(r => r.ship_diff != null && !r.ship_excluded);
+        return {
+            count: list.length,
+            calcN: withProfit.length,
+            estN: withProfit.filter(r => r.profit_is_estimate).length,
+            sale, profit, refund,
+            lossN: withProfit.filter(r => r.profit_jpy < 0).length,
+            refundLossN: withProfit.filter(r => r.profit_with_refund_jpy < 0).length,
+            over: diffs.filter(r => r.ship_diff > 0).reduce((a, r) => a + r.ship_diff, 0),
+            under: diffs.filter(r => r.ship_diff < 0).reduce((a, r) => a + r.ship_diff, 0),
+            diffN: diffs.length,
+            warnN: list.filter(r => r.ship_warn).length,
+        };
+    }
+
+    function summaryRow(label, s, cls) {
+        const neg = (v) => (v < 0 ? ' class="num neg"' : ' class="num"');
+        const rate = (v) => (s.sale ? pct(v / s.sale * 100) : "-");
+        return `<tr${cls ? ` class="${cls}"` : ""}>` +
+            `<td>${esc(label)}</td>` +
+            `<td class="num">${s.count}件</td>` +
+            `<td class="num">${yen(s.sale)}</td>` +
+            `<td${neg(s.profit)}>${yen(s.profit)}</td>` +
+            `<td${neg(s.profit)}>${rate(s.profit)}</td>` +
+            `<td class="num">${s.lossN}件</td>` +
+            `<td class="num">${yen(s.refund)}</td>` +
+            `<td${neg(s.profit + s.refund)}>${yen(s.profit + s.refund)}</td>` +
+            `<td${neg(s.profit + s.refund)}>${rate(s.profit + s.refund)}</td>` +
+            `<td class="num">${s.refundLossN}件</td>` +
+            `<td class="num">${s.calcN}/${s.count}件<span class="sub">（概算 ${s.estN}）</span></td>` +
+            `<td class="num">${signedYen(s.over)}</td>` +
+            `<td class="num">${signedYen(s.under)}</td>` +
+            `<td class="num">${s.diffN}件<span class="sub">（基準超え ${s.warnN}）</span></td>` +
+            "</tr>";
+    }
+
     function renderSummary(list) {
         const box = document.getElementById("profit-summary");
-        const withProfit = list.filter(r => r.profit_jpy != null);
-        const profit = withProfit.reduce((a, r) => a + r.profit_jpy, 0);
-        const sale = withProfit.reduce((a, r) => a + (r.sale_jpy || 0), 0);
-        const estN = withProfit.filter(r => r.profit_is_estimate).length;
-        const lossN = withProfit.filter(r => r.profit_jpy < 0).length;
-        const refund = withProfit.reduce((a, r) => a + (r.tax_refund_jpy || 0), 0);
-        const refundLossN = withProfit.filter(r => r.profit_with_refund_jpy < 0).length;
-        const diffs = list.filter(r => r.ship_diff != null && !r.ship_excluded);
-        const over = diffs.filter(r => r.ship_diff > 0).reduce((a, r) => a + r.ship_diff, 0);
-        const under = diffs.filter(r => r.ship_diff < 0).reduce((a, r) => a + r.ship_diff, 0);
-        const warnN = list.filter(r => r.ship_warn).length;
+        if (!list.length) { box.innerHTML = ""; return; }
+        const markets = [...new Set(list.map(r => r.market))].sort();
+        const body = markets.length > 1
+            ? markets.map(m => summaryRow(m, summarize(list.filter(r => r.market === m)))).join("") +
+              summaryRow("合計", summarize(list), "total")
+            : summaryRow(markets[0], summarize(list), "total");
         box.innerHTML =
-            `${list.length}件　利益 ${yen(profit)}（利益率 ${sale ? pct(profit / sale * 100) : "-"}・算出 ${withProfit.length}件／うち概算 ${estN}件）` +
-            `　赤字 ${lossN}件` +
-            `　還付込み ${yen(profit + refund)}（利益率 ${sale ? pct((profit + refund) / sale * 100) : "-"}・赤字 ${refundLossN}件）` +
-            `　送料差：予測より高くついた分 ${signedYen(over)}／安く済んだ分 ${signedYen(under)}（実績 ${diffs.length}件・基準超え ${warnN}件）`;
+            "<table><thead>" +
+            '<tr><th rowspan="2">国</th><th rowspan="2">件数</th><th rowspan="2">販売額</th>' +
+            '<th colspan="3">利益</th><th colspan="4">還付込み</th><th rowspan="2">利益算出</th><th colspan="3">送料差（実際 − 予測）</th></tr>' +
+            "<tr><th>金額</th><th>利益率</th><th>赤字</th>" +
+            "<th>還付目安</th><th>金額</th><th>利益率</th><th>赤字</th>" +
+            "<th>高くついた分</th><th>安く済んだ分</th><th>実績</th></tr>" +
+            "</thead><tbody>" + body + "</tbody></table>";
     }
 
     // 見出しクリックで並べ替え（同じ見出しをもう一度押すと逆順）。数値は大きい順から始める
