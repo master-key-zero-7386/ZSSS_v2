@@ -3,6 +3,7 @@
 // 目的: Pricing 設定「カテゴリ別手数料率」― 商品タイプごとの手数料率・最低利益率の表と、国ごとの ON/OFF。
 //   国は上部の #globalRegion（ALL のときは使えない）。保存は「この表を保存」だけで、上の Save とは別。
 //   試算は表の今の内容で計算する（保存しなくてよい・値段も DB も変えない）。
+//   「決済の実績」は利益分析の参考表と同じ集計（amazon/adapters/orbit_category_fee.py）で、表を書き換えても変わらない。
 //   値段の計算への適用は amazon/core/category_fee.py
 // ==========================================
 
@@ -16,10 +17,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const countryEl = document.getElementById("category-fee-country");
   const simSummaryEl = document.getElementById("category-fee-sim-summary");
   let country = "";
+  let actuals = {}; // 決済の実績 {商品タイプ: {median, min, max, count}}
 
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const toast = (msg, type) => window.showToast ? window.showToast(msg, type) : alert(msg);
   const setMsg = (text, color) => { msgEl.textContent = text || ""; msgEl.style.color = color || "#555"; };
+
+  function actualHtml(productType) {
+    const a = actuals[(productType || "").trim().toUpperCase()];
+    if (!a) return '<span style="color:#aaa;">—</span>';
+    const range = a.min === a.max ? "" : `（${a.min}〜${a.max}%）`;
+    return `<b>${esc(a.median)}%</b> <span style="color:#777;">${a.count}件${range}</span>`;
+  }
 
   function rowHtml(r) {
     return `
@@ -27,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><input type="text" class="input cf-type" value="${esc(r.product_type)}" style="width:320px;"></td>
         <td><input type="number" class="input cf-fee" step="0.01" value="${esc(r.fee_rate)}" style="width:90px;"></td>
         <td><input type="number" class="input cf-min" step="0.01" value="${esc(r.min_profit_rate)}" style="width:90px;"></td>
+        <td class="cf-actual" style="text-align:right;">${actualHtml(r.product_type)}</td>
         <td class="cf-live" style="text-align:right;"></td>
         <td class="cf-floor" style="text-align:right;"></td>
         <td class="cf-change" style="text-align:right;"></td>
@@ -43,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function render(data) {
+    actuals = data.actuals || {};
     enabledEl.checked = !!data.enabled;
     tbody.innerHTML = (data.rows || []).map(rowHtml).join("");
     simSummaryEl.textContent = "";
@@ -76,6 +87,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("category-fee-add").addEventListener("click", () => {
     tbody.insertAdjacentHTML("beforeend", rowHtml({ product_type: "", fee_rate: "", min_profit_rate: "" }));
+  });
+
+  // 商品タイプを書き換えたら、その商品タイプの実績に出し直す
+  tbody.addEventListener("input", (e) => {
+    if (!e.target.classList.contains("cf-type")) return;
+    e.target.closest("tr").querySelector(".cf-actual").innerHTML = actualHtml(e.target.value);
   });
 
   tbody.addEventListener("click", (e) => {

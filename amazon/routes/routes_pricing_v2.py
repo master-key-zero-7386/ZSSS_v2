@@ -25,6 +25,7 @@ from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
 from amazon.core.pricing_strategy import decide_listing_price
 from amazon.core.category_fee import apply_category_fee, get_category_fee_settings, save_category_fee_settings, simulate_category_fee
+from amazon.adapters.orbit_category_fee import get_category_fee_rates
 from amazon.core.fx_rate import get_exchange_rate
 from amazon.adapters.pricing_normalized_adapter import NormalizedPricingAdapter
 from amazon.adapters.listings_items import put_listings_item, patch_listings_item_price
@@ -770,7 +771,21 @@ def get_category_fee():
     if not user_id or not country_code or country_code == "ALL":
         return jsonify({"status": "error", "message": "国を選んでください"}), 400
     data = get_category_fee_settings(int(user_id), country_code, seed=True)
+    data["actuals"] = _category_fee_actuals(int(user_id), country_code)
     return jsonify({"status": "success", "data": data})
+
+
+# 決済の実績（商品タイプごとの実際の手数料率）。表の数字を書き換えても元の値がわかるように横に出す
+def _category_fee_actuals(user_id, country_code):
+    try:
+        rows = get_category_fee_rates(user_id)["rows"]
+    except Exception as e:
+        print(f"[pricing/category_fee] actuals skipped: {e}")
+        return {}
+    return {
+        r["product_type"]: {"median": r["median"], "min": r["min"], "max": r["max"], "count": r["count"]}
+        for r in rows if r["market"] == country_code
+    }
 
 
 @pricing_v2_bp.route("/pricing/category_fee", methods=["POST"])
@@ -781,6 +796,7 @@ def update_category_fee():
     if not user_id or not country_code or country_code == "ALL":
         return jsonify({"status": "error", "message": "国を選んでください"}), 400
     data = save_category_fee_settings(int(user_id), country_code, bool(body.get("enabled")), body.get("rows") or [])
+    data["actuals"] = _category_fee_actuals(int(user_id), country_code)
     return jsonify({"status": "success", "data": data})
 
 

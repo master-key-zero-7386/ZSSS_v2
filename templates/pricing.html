@@ -406,7 +406,7 @@
                 <div style="font-size:13px; color:#555; line-height:1.7; margin-bottom:12px;">
                     ON にすると、下の表の商品タイプの出品だけ、上の Amazon Fee と Min Profit Margin の代わりにこの表の数字で値段を計算します。表に無い商品は今の設定のままです。
                     手数料率は Amazon の手数料表の%をそのまま入れてください（上の Amazon Fee と同じく、式の中で ×(1＋GST/VAT) されます）。
-                    値段は ON/OFF を保存したあと、次の TTL の巡回で順番に変わります。この国の設定はこの表だけで保存されます（上の Save とは別）。
+                    「決済の実績」は実際に取られた手数料率（利益分析の参考表と同じ。表の数字を変えても変わりません）。値段は ON/OFF を保存したあと、次の TTL の巡回で順番に変わります。この国の設定はこの表だけで保存されます（上の Save とは別）。
                 </div>
                 <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:10px;">
                     <label style="font-weight:700; display:flex; align-items:center; gap:6px;">
@@ -419,7 +419,7 @@
                 </div>
                 <table class="table" id="category-fee-rules" style="width:auto;">
                     <thead><tr>
-                        <th>商品タイプ</th><th>手数料率（％）</th><th>最低利益率（％）</th>
+                        <th>商品タイプ</th><th>手数料率（％）</th><th>最低利益率（％）</th><th title="取り込んだ決済レポートで、この商品タイプに実際にかかった販売手数料率（真ん中の値・件数・幅）。表の数字を変えても変わりません">決済の実績</th>
                         <th>LIVE の出品</th><th>うち最低価格で出品中</th><th>最低価格の変化</th><th></th>
                     </tr></thead>
                     <tbody></tbody>
