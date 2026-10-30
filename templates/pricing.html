@@ -437,9 +437,15 @@
                     LIVE の出品のうち、自分がカート（おすすめ出品）を取っている割合です。値段を上げすぎて売れなくなっていないかの目安に使います。
                     TTL で取ってある出品情報から数えるので、Amazon には問い合わせません（数字は TTL で取り直した時点のもの）。
                     推移は毎日1回、自動で記録します。「対象」はカテゴリ別手数料率の表にある商品タイプの合計です。
+                    カート率・一番安い率の横の ▲▼ は「比べる日」の記録からの変化（ポイント）です。
                 </div>
                 <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:10px;">
                     <button type="button" id="buybox-stats-refresh" class="btn-blue">更新</button>
+                    <label>比べる日
+                        <select id="buybox-stats-base" title="今の数字の横に、この日の記録からの変化（ポイント）を出します。カテゴリ別手数料率を ON にする前の日を選ぶと、ON の前と比べられます">
+                            <option value="">前回の記録</option>
+                        </select>
+                    </label>
                     <span id="buybox-stats-msg" style="font-size:13px;"></span>
                 </div>
                 <table class="table" id="buybox-stats-now" style="width:auto;">

@@ -235,8 +235,10 @@ def _with_rates(s: dict) -> dict:
     return out
 
 
-def get_buybox_overview(user_id: int, country_code: str, marketplace_id: str, days: int = 60) -> dict:
-    """今の数字（その場で集計）と、日ごとの推移（国全体・カテゴリ別手数料率の表の商品タイプ合計）"""
+def get_buybox_overview(user_id: int, country_code: str, marketplace_id: str, days: int = 60, base_date: str = None) -> dict:
+    """今の数字（その場で集計）と、日ごとの推移（国全体・カテゴリ別手数料率の表の商品タイプ合計）。
+    base（比べる日）は base_date の記録。指定が無ければ「前回の記録」＝今日より前で一番新しい記録
+    （今日の分しか無ければ今日の記録）"""
     country_code = country_code.upper()
     current = compute_buybox_stats(user_id, country_code, marketplace_id)
     target_types = [r["product_type"] for r in get_category_fee_settings(user_id, country_code)["rows"]]
@@ -262,8 +264,9 @@ def get_buybox_overview(user_id: int, country_code: str, marketplace_id: str, da
         cur = conn.cursor()
         cur.execute(
             f"SELECT stat_date, product_type, {', '.join(COUNT_KEYS)}, category_fee_enabled "
-            "FROM buybox_daily_stats WHERE user_id = %s AND country_code = %s AND stat_date >= %s",
-            (user_id, country_code, since),
+            "FROM buybox_daily_stats WHERE user_id = %s AND country_code = %s "
+            "AND (stat_date >= %s OR stat_date = %s)",
+            (user_id, country_code, since, base_date or ""),
         )
         rows = cur.fetchall()
     finally:
@@ -288,7 +291,25 @@ def get_buybox_overview(user_id: int, country_code: str, marketplace_id: str, da
             "target": _with_rates(_sum(stats_by_type, target_types)),
         })
 
+    # 比べる日（前回比）
+    dates = sorted((d for d in days_map if "" in days_map[d]), reverse=True)
+    if base_date not in dates:
+        today = today_jst()
+        base_date = next((d for d in dates if d < today), dates[0] if dates else None)
+    base = None
+    if base_date:
+        base_stats = days_map[base_date]
+        base = {
+            "date": base_date,
+            "category_fee_enabled": bool(enabled_map.get(base_date)),
+            "all": _with_rates(base_stats[""]),
+            "target": _with_rates(_sum(base_stats, target_types)),
+            "by_type": {t: _with_rates(s) for t, s in base_stats.items() if t},
+        }
+
     return {
+        "base": base,
+        "dates": dates,
         "all": _with_rates(current.get("", dict.fromkeys(COUNT_KEYS, 0))),
         "target": _with_rates(_sum(current, target_types)),
         "target_types": target_types,

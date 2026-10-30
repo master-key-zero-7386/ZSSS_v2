@@ -829,7 +829,8 @@ def get_buybox_stats():
     if not marketplace_id:
         return jsonify({"status": "error", "message": "マーケットプレイスが見つかりません"}), 400
     try:
-        data = get_buybox_overview(int(user_id), country_code, marketplace_id)
+        data = get_buybox_overview(int(user_id), country_code, marketplace_id,
+                                   base_date=(request.args.get("base_date") or "").strip() or None)
     except Exception:
         traceback.print_exc()
         return jsonify({"status": "error", "message": "カート取得状況の集計でエラーが発生しました"}), 500
