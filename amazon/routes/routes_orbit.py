@@ -58,6 +58,7 @@ from amazon.services.orbit_settlement_service import (
 )
 from amazon.adapters.orbit_sales_trend import get_sales_trend, resolve_range
 from amazon.adapters.orbit_profit_analysis import get_profit_analysis
+from amazon.adapters.orbit_category_fee import get_category_fee_rates
 from amazon.services.orbit_ship_check_service import (
     list_ship_checks,
     get_ship_check_settings,
@@ -313,6 +314,24 @@ def profit_analysis():
         print("[orbit/profit-analysis] get_profit_analysis ERROR")
         traceback.print_exc()
         return jsonify({"status": "error", "message": "利益分析の集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", "data": data})
+
+
+# 利益分析「カテゴリ別の実際の手数料率」（決済レポートから集計。値段の計算には使わない参考の表）
+@orbit_bp.route("/profit-analysis/category-fees", methods=["GET"])
+def profit_analysis_category_fees():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        data = get_category_fee_rates(user_id)
+    except Exception:
+        import traceback
+        print("[orbit/profit-analysis/category-fees] get_category_fee_rates ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "手数料率の集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "data": data})
 

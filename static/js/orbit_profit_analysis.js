@@ -472,9 +472,59 @@
             fileInput.value = "";
             fileName.value = "";
             if (loaded) load();
+            if (feeLoaded) loadCategoryFees();
         } catch (e) {
             console.error("[settlements/upload]", e);
             toast(e.message, "error");
         }
     });
+
+    // ===== カテゴリ別の実際の手数料率（参考。値段の計算には使わない） =====
+    // 折りたたみを初めて開いたときだけ集計し、以後は「更新」ボタンか決済の取り込みで集計し直す。
+    const feeDetails = document.getElementById("category-fee-details");
+    const feeStatus = document.getElementById("category-fee-status");
+    let feeLoaded = false;
+
+    function otherFeeCell(r) {
+        if (r.other_fee_avg == null) return "";
+        return `<span title="${esc(r.other_names.join(", "))}（${r.other_count}件）">${esc(r.other_fee_avg.toFixed(2))} ${esc(r.currency)}</span>`;
+    }
+
+    function renderCategoryFees(data) {
+        document.getElementById("category-fee-totals").innerHTML = (data.totals || []).map(t =>
+            `<span class="orbit-profit-sub">${esc(t.market)}：</span>${t.count}件 真ん中 <b>${pct(t.median)}</b>（${pct(t.min)}〜${pct(t.max)}）`
+        ).join("　／　");
+        document.querySelector("#category-fee-table tbody").innerHTML = (data.rows || []).map(r => `
+            <tr>
+                <td>${esc(r.market)}</td>
+                <td>${esc(r.product_type)}</td>
+                <td class="num">${r.count}</td>
+                <td class="num"><b>${pct(r.median)}</b></td>
+                <td class="num">${pct(r.min)}</td>
+                <td class="num">${pct(r.max)}</td>
+                <td class="num">${otherFeeCell(r)}</td>
+                <td>${esc(r.last_date || "")}</td>
+                <td>${r.asins.map(esc).join(" ")}</td>
+            </tr>`).join("");
+    }
+
+    async function loadCategoryFees() {
+        feeStatus.textContent = "集計中…";
+        try {
+            const res = await fetch("/orbit/profit-analysis/category-fees");
+            const json = await res.json();
+            if (json.status !== "success") throw new Error(json.message || "集計に失敗しました");
+            renderCategoryFees(json.data);
+            feeLoaded = true;
+            feeStatus.textContent = (json.data.rows || []).length ? "" : "決済レポートがまだ取り込まれていません";
+        } catch (e) {
+            console.error("[profit-analysis/category-fees]", e);
+            feeStatus.textContent = e.message;
+        }
+    }
+
+    feeDetails?.addEventListener("toggle", () => {
+        if (feeDetails.open && !feeLoaded) loadCategoryFees();
+    });
+    document.getElementById("category-fee-refresh")?.addEventListener("click", loadCategoryFees);
 })();

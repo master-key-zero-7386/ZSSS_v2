@@ -1284,6 +1284,33 @@ input.orbit-serial-dup {
           <tbody><!-- JSで描画 --></tbody>
         </table>
       </div>
+
+      <details class="orbit-sheet-settings" id="category-fee-details">
+          <summary>カテゴリ別の実際の手数料率（参考）</summary>
+          <div class="orbit-sheet-settings-body">
+              <div class="master-description">
+                  取り込んだ決済レポートの注文から、商品タイプ（Amazon の商品の種類）ごとに実際の販売手数料率を集計します。期間の指定に関係なく、取り込み済みの全部が対象です。
+                  <b>値段の計算には使っていません</b>（あとで手数料率を見直すときの参考用）。
+                  手数料率＝販売手数料 ÷ 商品代金（お客様負担の送料を含む・税金を除く）。成約料など割合でない手数料は「その他手数料」に、その手数料が付いた注文1件あたりの平均で出します。
+                  商品タイプはこの環境のカタログから引くので、AU の正しい数字は ATLAS で見てください。
+              </div>
+              <div class="orbit-actions">
+                  <button type="button" id="category-fee-refresh" class="btn-blue">更新</button>
+                  <span id="category-fee-status"></span>
+              </div>
+              <div id="category-fee-totals" class="sales-trend-summary"></div>
+              <div class="table-wrapper">
+                <table id="category-fee-table">
+                  <thead><tr>
+                      <th>国</th><th>商品タイプ</th><th>件数</th>
+                      <th>手数料率（真ん中）</th><th>最低</th><th>最高</th>
+                      <th>その他手数料</th><th>最後の注文</th><th>ASIN（例）</th>
+                  </tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+          </div>
+      </details>
     </div>
   </div>
 
