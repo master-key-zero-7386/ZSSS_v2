@@ -174,6 +174,7 @@
             if (kind === "ship_over") return r.ship_warn;
             if (kind === "ship_diff") return r.ship_diff != null;
             if (kind === "loss") return r.profit_jpy != null && r.profit_jpy < 0;
+            if (kind === "refund_loss") return r.profit_with_refund_jpy != null && r.profit_with_refund_jpy < 0;
             if (kind === "no_profit") return r.profit_jpy == null;
             return true;
         });
@@ -241,6 +242,13 @@
           cell: r => r.profit_jpy == null ? "" : yen(r.profit_jpy) + estMark(r.profit_is_estimate) },
         { key: "profit_rate", label: "利益率", cls: r => "num" + (r.profit_rate != null && r.profit_rate < 0 ? " orbit-text-red" : ""),
           cell: r => pct(r.profit_rate) },
+        { key: "tax_refund_jpy", label: "還付目安", cls: () => "num", cell: r => yen(r.tax_refund_jpy) },
+        { key: "profit_with_refund_jpy", label: "利益（還付込み）",
+          cls: r => "num" + (r.profit_with_refund_jpy != null && r.profit_with_refund_jpy < 0 ? " orbit-text-red" : ""),
+          cell: r => r.profit_with_refund_jpy == null ? "" : yen(r.profit_with_refund_jpy) + estMark(r.profit_is_estimate) },
+        { key: "profit_with_refund_rate", label: "利益率（還付込み）",
+          cls: r => "num" + (r.profit_with_refund_rate != null && r.profit_with_refund_rate < 0 ? " orbit-text-red" : ""),
+          cell: r => pct(r.profit_with_refund_rate) },
     ];
 
     function sortRows(list) {
@@ -276,6 +284,8 @@
         const sale = withProfit.reduce((a, r) => a + (r.sale_jpy || 0), 0);
         const estN = withProfit.filter(r => r.profit_is_estimate).length;
         const lossN = withProfit.filter(r => r.profit_jpy < 0).length;
+        const refund = withProfit.reduce((a, r) => a + (r.tax_refund_jpy || 0), 0);
+        const refundLossN = withProfit.filter(r => r.profit_with_refund_jpy < 0).length;
         const diffs = list.filter(r => r.ship_diff != null && !r.ship_excluded);
         const over = diffs.filter(r => r.ship_diff > 0).reduce((a, r) => a + r.ship_diff, 0);
         const under = diffs.filter(r => r.ship_diff < 0).reduce((a, r) => a + r.ship_diff, 0);
@@ -283,6 +293,7 @@
         box.innerHTML =
             `${list.length}件　利益 ${yen(profit)}（利益率 ${sale ? pct(profit / sale * 100) : "-"}・算出 ${withProfit.length}件／うち概算 ${estN}件）` +
             `　赤字 ${lossN}件` +
+            `　還付込み ${yen(profit + refund)}（利益率 ${sale ? pct((profit + refund) / sale * 100) : "-"}・赤字 ${refundLossN}件）` +
             `　送料差：予測より高くついた分 ${signedYen(over)}／安く済んだ分 ${signedYen(under)}（実績 ${diffs.length}件・基準超え ${warnN}件）`;
     }
 

@@ -1228,6 +1228,7 @@ input.orbit-serial-dup {
           送料差＝実際の送料 − 予測送料（プラス＝予測より高くついて、その分利益が減った）。赤字・青字の基準は送料検証タブと同じで、同梱・キャンセルは対象外です。
           注文日は日本時間。利益率は 利益 ÷ 販売額。「概算」は手数料見積りや予測送料で計算した分です。
           販売額・返金・手数料は決済レポート（入金が決まった分）の実績です。返金はその商品で返したお金（税金を除く）、手数料は販売手数料・返金手数料などの合計です。
+          還付目安は輸出で戻ってくる仕入の消費税の目安（仕入 × 10/110。軽減税率8%の商品は少し多めに出る）。利益（還付込み）＝利益＋還付目安。
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
@@ -1266,6 +1267,7 @@ input.orbit-serial-dup {
               <option value="ship_over">送料が予測より高い（赤字の基準超え）</option>
               <option value="ship_diff">送料の実績がある注文</option>
               <option value="loss">利益がマイナス</option>
+              <option value="refund_loss">還付込みでもマイナス</option>
               <option value="no_profit">利益が出せない（未入力あり）</option>
           </select>
           <span id="profit-status">サブタブを開くと直近30日を集計します</span>

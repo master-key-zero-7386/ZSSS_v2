@@ -10,6 +10,7 @@
 #     手数料＝販売額 − 入金額(円) − 返金
 #   - 送料ズレは送料検証（ship_check）の判定結果をそのまま使う（同梱・キャンセルは対象外）
 #   - 利益率は売上トレンドと同じ「利益 ÷ 販売額」（注文一覧の利益率は入金額基準なので少し違う）
+#   - 還付込み利益＝利益＋消費税還付の目安（仕入 × 10/110）。輸出で戻ってくる仕入の消費税を足した実質の利益
 #   - キャンセル（発送種別＝キャンセル）は除外
 # ==========================================================
 
@@ -51,6 +52,9 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
         purchase = _f(r.get("purchase_price"))
         ship = _f(r.get("shipping_cost_used"))
         profit = _f(r.get("profit_jpy"))
+        # 消費税還付の目安（売上トレンドの「消費税目安」と同じ 仕入 × 10/110。軽減税率8%の商品は少し多めに出る）
+        tax_refund = purchase * 10 / 110 if purchase is not None else None
+        profit_with_refund = profit + tax_refund if profit is not None and tax_refund is not None else None
         check = r.get("ship_check") or {}
 
         out.append({
@@ -97,6 +101,9 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
             "profit_jpy": profit,
             "profit_is_estimate": r.get("profit_is_estimate"),
             "profit_rate": _pct(profit, sale),
+            "tax_refund_jpy": tax_refund,
+            "profit_with_refund_jpy": profit_with_refund,
+            "profit_with_refund_rate": _pct(profit_with_refund, sale),
         })
 
     return {
