@@ -871,6 +871,14 @@ input.orbit-serial-dup {
 /* 販売額に占める割合が一番大きいコスト（手数料・仕入・送料のどれか）を薄い黄色に */
 .orbit-page table td.profit-heavy { background-color: #fff3cd; }
 .orbit-profit-sub { color: #888; }
+#card-pay-table td, #card-pay-table th { white-space: nowrap; }
+#card-pay-table td.num { text-align: right; }
+#card-pay-table tr.card-pay-row { cursor: pointer; }
+#card-pay-table tr.card-pay-row:hover { background: #f3f8ff; }
+#card-pay-table tr.card-pay-items > td { background: #fafafa; padding: 4px 8px 8px 28px; }
+#card-pay-table tr.card-pay-total td { font-weight: 700; border-top: 2px solid #999; }
+.card-pay-items table td { white-space: nowrap; padding: 2px 8px; }
+.card-pay-items table td.name { white-space: normal; min-width: 220px; max-width: 420px; }
 
 /* ===== 送料検証 ===== */
 /* 発注管理・送料検証で、想定から大きく外れた送料・重量を赤字太字に（td と展開部の項目の両方） */
@@ -1242,6 +1250,31 @@ input.orbit-serial-dup {
           <a href="/orbit/settlements/export" class="btn-blue" style="text-decoration:none;" title="取り込んだ決済レポートを全部1ファイルに書き出します（ATLASのAU分をZSSSへ渡す用）">決済データ書き出し</a>
       </div>
 
+      <details class="orbit-sheet-settings" id="card-pay-details">
+          <summary>クレカ別の支払い予定</summary>
+          <div class="orbit-sheet-settings-body">
+              <div class="master-description">
+                  選んだ支払月に、カードごとにいくら引き落とされるかの目安です。発注管理の「利用クレカ」「仕入日」「仕入れ価格」を、クレカ管理の締め日・支払日で振り分けて合計します（上の期間とは関係ありません）。
+                  仕入日で振り分けるので、お店の決済日（発送時に請求されるお店など）とずれると、締め日の近くの分は翌月の支払いに回ることがあります。
+                  支払日が土日祝のときは、実際は翌営業日になります。カード名の行をクリックすると中身（注文ごと）が見られます。
+              </div>
+              <div class="orbit-actions" style="flex-wrap:wrap;">
+                  <span>支払月</span>
+                  <select id="card-pay-month"></select>
+                  <button type="button" id="card-pay-refresh" class="btn-blue">更新</button>
+                  <span id="card-pay-status"></span>
+              </div>
+              <div class="table-wrapper">
+                <table id="card-pay-table">
+                  <thead><tr>
+                      <th>カード</th><th>支払日</th><th>対象の仕入日（締め期間）</th><th>件数</th><th>金額</th><th>注意</th>
+                  </tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+          </div>
+      </details>
+
       <div class="sales-trend-period" id="profitPeriod">
           <button type="button" class="stp-btn" data-days="7">7日</button>
           <button type="button" class="stp-btn active" data-days="30">30日</button>
@@ -1520,7 +1553,7 @@ input.orbit-serial-dup {
 
       <div class="master-description">
           仕入れに使うクレジットカードの一覧です。ここで登録した「カード名」が、発注管理タブの「仕入れ情報 → 利用クレカ」プルダウンに出ます。<br>
-          締め日・支払日は、いまは表記の決まった文字で入力してください（締め日＝「月末」「15日」など／支払日＝「翌月10日」「翌月27日」など）。締め・支払いの集計機能は後日追加予定で、そのときにこの文字を実際の日付へ変換します。
+          締め日・支払日は、いまは表記の決まった文字で入力してください（締め日＝「月末」「15日」など／支払日＝「翌月10日」「翌月27日」など）。この締め日・支払日を使って、利益分析タブの「クレカ別の支払い予定」で支払月ごとの引き落とし額を出します。
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">

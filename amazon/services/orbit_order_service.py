@@ -2563,8 +2563,8 @@ def delete_all_orders(user_id: int) -> int:
 
 
 # --- ▼ SECTION 06-2: クレジットカードマスタ（仕入れ利用カードの選択肢＋締め日/支払日） ▼ ---
-# 発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補。締め支払いの集計は後日追加予定で、
-# 締め日・支払日は「月末」「翌月27日」等のフリーテキストのまま保持する（集計搭載時にパースする）。
+# 発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補。支払月ごとの集計は adapters/orbit_card_payments.py で、
+# 締め日・支払日は「月末」「翌月27日」等のフリーテキストのまま保持し、集計時に読み取る。
 def list_credit_cards(user_id: int) -> list:
     conn = get_conn("a_orbit_credit_cards.db")
     cur = conn.cursor()

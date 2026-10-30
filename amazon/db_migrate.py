@@ -730,7 +730,7 @@ ORBIT_ORDERS_COLUMNS = {
     "supplier_shop_name": "TEXT",          # モール内のショップ名（楽天/Yahoo!等）
     "procurement_date": "TEXT",            # 仕入日（実際に仕入先へ発注した日）
     "arrival_date": "TEXT",                # 到着予定日
-    "procurement_credit_card": "TEXT",     # 仕入れに使ったクレジットカード（orbit_credit_cards.card_name を選択。締め支払い集計は後日）
+    "procurement_credit_card": "TEXT",     # 仕入れに使ったクレジットカード（orbit_credit_cards.card_name を選択。利益分析「クレカ別の支払い予定」で集計）
     "shipped_completed": "INTEGER",        # 出荷完了フラグ（仕入れ管理のボタンで手動ON/OFF。押し間違えても解除可能）
 
     # --- 発注管理タブのチェック欄（手入力。ZSSS_RAW・代行会社へは連携しない） ---
@@ -792,8 +792,8 @@ ORBIT_PROCUREMENT_HISTORY_COLUMNS = dict(ORBIT_ORDERS_COLUMNS)
 ORBIT_PROCUREMENT_HISTORY_COLUMNS["archived_at"] = "TEXT"  # orbit_ordersからの退避日時
 
 # --- ▼ SECTION : クレジットカードマスタ（ORBIT: 仕入れ利用カードの選択肢＋締め日/支払日） ---
-#     発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補になる。締め支払いの集計は後日追加予定で、
-#     締め日・支払日は「月末」「翌月27日」等の表記ゆれを許すフリーテキストで持つ（集計搭載時にパースする想定）。
+#     発注管理「仕入れ情報 → 利用クレカ」のプルダウン候補になる。支払月ごとの集計は adapters/orbit_card_payments.py で、
+#     締め日・支払日は「月末」「翌月27日」等のフリーテキストのまま持ち、集計時に読み取る。
 ORBIT_CREDIT_CARDS_COLUMNS = {
     "id":          "SERIAL PRIMARY KEY",
     "user_id":     "INTEGER NOT NULL",

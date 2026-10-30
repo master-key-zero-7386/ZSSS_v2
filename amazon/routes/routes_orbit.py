@@ -59,6 +59,7 @@ from amazon.services.orbit_settlement_service import (
 from amazon.adapters.orbit_sales_trend import get_sales_trend, resolve_range
 from amazon.adapters.orbit_profit_analysis import get_profit_analysis
 from amazon.adapters.orbit_category_fee import get_category_fee_rates
+from amazon.adapters.orbit_card_payments import get_card_payments
 from amazon.services.orbit_ship_check_service import (
     list_ship_checks,
     get_ship_check_settings,
@@ -332,6 +333,24 @@ def profit_analysis_category_fees():
         print("[orbit/profit-analysis/category-fees] get_category_fee_rates ERROR")
         traceback.print_exc()
         return jsonify({"status": "error", "message": "手数料率の集計でエラーが発生しました"}), 500
+
+    return jsonify({"status": "success", "data": data})
+
+
+# 利益分析「クレカ別の支払い予定」（month=YYYY-MM の支払月。省略時はまだ支払いの来ていない一番早い月）
+@orbit_bp.route("/profit-analysis/card-payments", methods=["GET"])
+def profit_analysis_card_payments():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    try:
+        data = get_card_payments(user_id, (request.args.get("month") or "").strip() or None)
+    except Exception:
+        import traceback
+        print("[orbit/profit-analysis/card-payments] get_card_payments ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": "クレカの支払い予定の集計でエラーが発生しました"}), 500
 
     return jsonify({"status": "success", "data": data})
 
