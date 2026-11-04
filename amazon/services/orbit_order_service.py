@@ -2894,6 +2894,23 @@ def update_security_note(user_id: int, note_id: int, note: str) -> bool:
     return updated
 
 
+# --- ▼ SECTION 06-1d-2: 返品・セキュリティメモの削除（入力ミスの取り消し用。1件ずつ） ▼ ---
+def delete_security_note(user_id: int, note_id: int) -> bool:
+    if not note_id:
+        return False
+
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM orbit_buyer_security_notes WHERE id = %s AND user_id = %s",
+        (note_id, user_id),
+    )
+    deleted = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
 # --- ▼ SECTION 06-1e: 返品・セキュリティメモの取込（旧スプレッドシート「返品・セキュリティ」タブ） ▼ ---
 # 旧シートの Buyer Name / Address 列は数式の残骸（数字だけ）で住所が入っていないため、order-id から
 # 発注管理(orbit_orders)・バイヤー履歴(orbit_buyer_history)の注文を探して買い手（住所）を特定する。

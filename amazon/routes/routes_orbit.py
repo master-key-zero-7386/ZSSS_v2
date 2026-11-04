@@ -35,6 +35,7 @@ from amazon.services.orbit_order_service import (
     archive_orders,
     add_security_note,
     update_security_note,
+    delete_security_note,
     import_security_notes_sheet,
     list_buyer_history,
     get_asin_shipping_history,
@@ -746,6 +747,25 @@ def update_security_note_route():
 
     updated = update_security_note(user_id, note_id, note)
     if not updated:
+        return jsonify({"status": "error", "message": "対象のメモが見つかりませんでした"}), 404
+
+    return jsonify({"status": "success"})
+
+
+@orbit_bp.route("/security_notes/delete", methods=["POST"])
+@block_if_serial_dup
+def delete_security_note_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    note_id = data.get("note_id")
+    if not note_id:
+        return jsonify({"status": "error", "message": "note_idが必要です"}), 400
+
+    deleted = delete_security_note(user_id, note_id)
+    if not deleted:
         return jsonify({"status": "error", "message": "対象のメモが見つかりませんでした"}), 404
 
     return jsonify({"status": "success"})

@@ -1083,7 +1083,8 @@ function renderBuyerMemoBlock(r) {
         ? `<ul class="orbit-memo-list">` + notes.map(n => {
             const d = (n.created_at || "").slice(0, 10);
             return `<li><span class="orbit-memo-date">${orbitEscapeHtml(d)}</span> ${orbitEscapeHtml(n.note)}` +
-                `<button type="button" class="orbit-security-note-edit-btn" data-note-id="${n.id}" data-note-text="${orbitEscapeHtml(n.note)}" title="このメモを編集">✏️</button></li>`;
+                `<button type="button" class="orbit-security-note-edit-btn" data-note-id="${n.id}" data-note-text="${orbitEscapeHtml(n.note)}" title="このメモを編集">✏️</button>` +
+                `<button type="button" class="orbit-security-note-delete-btn" data-note-id="${n.id}" data-note-text="${orbitEscapeHtml(n.note)}" title="このメモを削除">🗑</button></li>`;
         }).join("") + `</ul>`
         : `<span class="orbit-memo-none">メモなし</span>`;
 
@@ -3142,6 +3143,39 @@ window.initOrbit = function () {
             .catch(err => {
                 console.error("orbit/security_notes/add error:", err);
                 window.showToast?.("追加に失敗しました", "error");
+            });
+    });
+
+    // --- ▼ SECTION 01-3e: 返品・セキュリティメモの削除（入力ミスの取り消し用） ▼ ---
+    dispatchTbody?.addEventListener("click", (e) => {
+        const btn = e.target.closest(".orbit-security-note-delete-btn");
+        if (!btn) return;
+
+        const noteId = btn.dataset.noteId;
+        if (!noteId) return;
+        if (!confirm(`このメモを削除しますか？（元に戻せません）\n\n${btn.dataset.noteText || ""}`)) return;
+
+        btn.disabled = true;
+        fetch("/orbit/security_notes/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note_id: noteId }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "success") {
+                    window.showToast?.("メモを削除しました", "success");
+                    loadOrders();
+                    loadSecurityNotes();
+                } else {
+                    btn.disabled = false;
+                    window.showToast?.(data.message || "削除に失敗しました", "error");
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                console.error("orbit/security_notes/delete error:", err);
+                window.showToast?.("削除に失敗しました", "error");
             });
     });
 

@@ -296,11 +296,14 @@
 .orbit-memo-list { margin: 0; padding: 0 0 0 4px; list-style: none; }
 .orbit-memo-list li { padding: 1px 0; }
 .orbit-memo-date { color: #4a525a; margin-right: 6px; font-variant-numeric: tabular-nums; }
-.orbit-security-note-edit-btn {
+.orbit-security-note-edit-btn,
+.orbit-security-note-delete-btn {
   border: none; background: none; cursor: pointer; padding: 0 2px; margin-left: 4px;
   font-size: 11px; opacity: 0.6; vertical-align: middle;
 }
-.orbit-security-note-edit-btn:hover { opacity: 1; }
+.orbit-security-note-delete-btn { margin-left: 0; }
+.orbit-security-note-edit-btn:hover,
+.orbit-security-note-delete-btn:hover { opacity: 1; }
 
 /* セラーメモ（バイヤーメモの横）：手動ON/OFF目印つきの私的メモ */
 .orbit-seller-memo-sep { color: #c0c4c9; }
@@ -990,6 +993,7 @@ input.orbit-serial-dup {
       <button class="st-subtab-btn" data-target="orbit-pane-kanrihin" id="orbit-kanrihin-subtab-btn">管理品</button>
       <button class="st-subtab-btn" data-target="orbit-pane-ingredient">成分台帳</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
+      <button class="st-subtab-btn" data-target="orbit-pane-security-notes">返品管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-credit-cards">クレカ管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-receipt">領収書</button>
       <button class="st-subtab-btn" data-target="orbit-pane-holidays">休日設定</button>
@@ -1528,8 +1532,14 @@ input.orbit-serial-dup {
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
 
-      <h3 style="margin-top:24px;">返品・セキュリティメモ</h3>
+  <!-- ▼ SUBTAB: 返品管理（買い手＝住所ごとの返品・キャンセル理由等のメモ） -->
+  <div id="orbit-pane-security-notes" class="st-subtab-pane">
+    <div class="card">
+
+      <h3>返品・セキュリティメモ</h3>
       <div class="master-description">
           発注管理タブの「📝メモ追加」で登録した、バイヤー（住所）ごとの返品・キャンセル理由等のメモです。
       </div>
@@ -1544,7 +1554,7 @@ input.orbit-serial-dup {
               </div>
               <div class="master-description">
                   I列のorder-idで発注管理・バイヤー履歴の注文を探して住所を特定します。どちらにも無い注文は取り込めないので、
-                  先に上の「バイヤー履歴」を取り込んでから実行してください。同じ注文・同じ内容のメモは二重に入りません（何度実行しても大丈夫です）。
+                  先に「バイヤー履歴」タブで過去の履歴を取り込んでから実行してください。同じ注文・同じ内容のメモは二重に入りません（何度実行しても大丈夫です）。
               </div>
           </div>
       </details>
