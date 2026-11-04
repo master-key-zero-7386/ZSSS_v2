@@ -1,6 +1,6 @@
 // =====================================================
 // ファイル名: static/js/orbit_profit_analysis.js
-// 目的: ORBIT「利益分析」サブタブ ― 期間内の注文ごとの利益内訳（販売額・返金・手数料・仕入・送料）と
+// 目的: 分析タブ「利益分析」サブタブ ― 期間内の注文ごとの利益内訳（販売額・返金・手数料・仕入・送料）と
 //   予測送料 vs 実際の送料のズレを一覧にする。見出しクリックで並べ替え（既定は送料差の大きい順）。
 //   決済レポート（実績）の取得・手動アップロードもこのサブタブで行う。
 //   データは /orbit/profit-analysis（全注文を再計算するため数秒かかる）。
@@ -487,8 +487,7 @@
     });
 
     // ===== カテゴリ別の実際の手数料率（参考。値段の計算には使わない） =====
-    // 折りたたみを初めて開いたときだけ集計し、以後は「更新」ボタンか決済の取り込みで集計し直す。
-    const feeDetails = document.getElementById("category-fee-details");
+    // 分析タブ「手数料率」サブタブを初めて開いたときだけ集計し、以後は「更新」ボタンか決済の取り込みで集計し直す。
     const feeStatus = document.getElementById("category-fee-status");
     let feeLoaded = false;
 
@@ -530,8 +529,8 @@
         }
     }
 
-    feeDetails?.addEventListener("toggle", () => {
-        if (feeDetails.open && !feeLoaded) loadCategoryFees();
+    document.querySelector('.st-subtab-btn[data-target="analysis-pane-category-fee"]')?.addEventListener("click", () => {
+        if (!feeLoaded) loadCategoryFees();
     });
     document.getElementById("category-fee-refresh")?.addEventListener("click", loadCategoryFees);
 })();

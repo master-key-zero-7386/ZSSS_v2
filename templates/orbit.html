@@ -984,12 +984,9 @@ input.orbit-serial-dup {
   <h2>ORBIT 注文管理</h2>
 
   <div class="st-subtabs">
-      <button class="st-subtab-btn" data-target="orbit-pane-sales-trend">売上トレンド</button>
-      <button class="st-subtab-btn" data-target="orbit-pane-profit">利益分析</button>
       <button class="st-subtab-btn active" data-target="orbit-pane-orders">受注一覧</button>
       <button class="st-subtab-btn" data-target="orbit-pane-dispatch">発注管理</button>
       <button class="st-subtab-btn" data-target="orbit-pane-procurement">仕入管理</button>
-      <button class="st-subtab-btn" data-target="orbit-pane-ship-check">送料検証</button>
       <button class="st-subtab-btn" data-target="orbit-pane-kanrihin" id="orbit-kanrihin-subtab-btn">管理品</button>
       <button class="st-subtab-btn" data-target="orbit-pane-ingredient">成分台帳</button>
       <button class="st-subtab-btn" data-target="orbit-pane-buyer-history">バイヤー履歴</button>
@@ -1040,55 +1037,6 @@ input.orbit-serial-dup {
       </div>
     </div>
   </details>
-
-  <!-- ▼ SUBTAB: 売上トレンド（マーケット別 日次販売個数・旧Dashboardから移動） -->
-  <div id="orbit-pane-sales-trend" class="st-subtab-pane">
-      <div class="card">
-          <div class="sales-trend-head">
-              <h3>売上トレンド（マーケット別 販売個数・利益・仕入額）</h3>
-              <div class="sales-trend-period" id="salesTrendPeriod">
-                  <button type="button" class="stp-btn" data-days="7">7日</button>
-                  <button type="button" class="stp-btn active" data-days="30">30日</button>
-                  <button type="button" class="stp-btn" data-days="90">90日</button>
-                  <button type="button" class="stp-btn" data-days="180">180日</button>
-                  <button type="button" class="stp-btn" data-days="365">1年</button>
-                  <button type="button" class="btn-blue stp-refresh" id="salesTrendRefresh">更新</button>
-              </div>
-          </div>
-          <div class="sales-trend-range">
-              <span>月で選ぶ</span>
-              <select id="salesTrendMonth"><option value="">—</option></select>
-              <span class="str-sep">日付指定</span>
-              <input type="date" id="salesTrendStart">
-              <span>〜</span>
-              <input type="date" id="salesTrendEnd">
-              <button type="button" class="stp-btn" id="salesTrendRangeApply">この期間で集計</button>
-          </div>
-          <p class="sales-trend-note">
-              注文日（purchase_date）ベース・日の区切りは日本時間。取込済みの注文のみ集計。
-              マーケットは注文番号から判定（判定不可は「不明」）。
-              ツールチップの総額は item_price 合計（現地通貨・送料含まず／未取得の明細は除外）、
-              概算利益率は Σ利益(円) ÷ Σ販売額(円)。
-              売上総額は販売額（商品代＋配送料。決済レポートがあればその販売額）の合計で、現地通貨（円換算）。合計行は円換算のみ。
-              利益額は注文一覧の「利益(円)」と同じ計算で、利益が出せない注文（仕入価格・送料・入金額のどれかが未確定）は含まれない。
-              「うち概算」は手数料見積りや予測送料で計算した分（決済レポート・送料実績が入ると確定に変わる）。
-              仕入額は仕入価格(円)が入力済みの注文の合計。消費税目安は 仕入額 × 10/110（軽減税率8%の商品があると実際より多めに出る）。
-              送料率は 送料 ÷ 販売額（利益計算に使っている送料＝実績、出荷前は予測送料）。アーカイブ済みの注文も含む。
-          </p>
-          <div class="sales-trend-status" id="salesTrendStatus">「更新」を押すと集計します（全注文を再計算するため数秒かかることがあります）</div>
-          <div class="sales-trend-summary" id="salesTrendSummary"></div>
-          <div class="sales-trend-mode" id="salesTrendMode">
-              <button type="button" class="stp-btn active" data-mode="qty">販売個数</button>
-              <button type="button" class="stp-btn" data-mode="profit">利益額</button>
-              <button type="button" class="stp-btn" data-mode="rate">利益率</button>
-              <button type="button" class="stp-btn" data-mode="purchase">仕入額</button>
-              <button type="button" class="stp-btn" data-mode="ship">送料率</button>
-          </div>
-          <div class="sales-trend-canvas-wrap">
-              <canvas id="salesTrendChart"></canvas>
-          </div>
-      </div>
-  </div>
 
   <div id="orbit-pane-orders" class="st-subtab-pane active">
     <div class="card">
@@ -1224,150 +1172,6 @@ input.orbit-serial-dup {
           <tbody>
             <!-- JSで描画 -->
           </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ▼ SUBTAB: 送料検証（出品時の想定送料・請求重量 vs 発送代行の実績） -->
-  <!-- ▼ SUBTAB: 利益分析（期間内の注文ごとの利益内訳＋予測送料と実際の送料のズレ） -->
-  <div id="orbit-pane-profit" class="st-subtab-pane">
-    <div class="card">
-
-      <div class="master-description">
-          期間内の注文を1行ずつ、販売額・手数料・仕入・送料・利益に分けて並べます。見出しをクリックすると並べ替えできます（もう一度押すと逆順）。
-          手数料・仕入・送料のうち、販売額に占める割合が一番大きいものを黄色にしています。
-          送料差＝実際の送料 − 予測送料（プラス＝予測より高くついて、その分利益が減った）。赤字・青字の基準は送料検証タブと同じで、同梱・キャンセルは対象外です。
-          注文日は日本時間。利益率は 利益 ÷ 販売額。「概算」は手数料見積りや予測送料で計算した分です。
-          販売額・返金・手数料は決済レポート（入金が決まった分）の実績です。返金はその商品で返したお金（税金を除く）、手数料は販売手数料・返金手数料などの合計です。
-          還付目安は輸出で戻ってくる仕入の消費税の目安（仕入 × 10/110。軽減税率8%の商品は少し多めに出る）。利益（還付込み）＝利益＋還付目安。
-      </div>
-
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <button type="button" id="settlement-fetch-btn" class="btn-blue" title="この環境の口座（ZSSS＝US・CA、ATLAS＝AU）の決済レポートをSP-APIで取得します。まだ取り込んでいない精算だけを、1分に1件ずつ裏で取得します（最初は過去90日分で20分ほどかかります）。">決済レポート取得</button>
-          <span id="settlement-fetch-status"></span>
-          <div class="file-input-row" style="display:flex; align-items:center; gap:8px;">
-              <input type="file" id="settlement-file-input" accept=".txt,.tsv,.csv" multiple style="display:none;" />
-              <input type="text" id="settlement-file-name" class="file-input-text" placeholder="決済レポート（フラットファイルV2）を選択" readonly style="width:300px;" title="APIで取れない分（90日より前・AU）を手で取り込みます。セラーセントラル「支払い管理」→「過去の決済情報」→「フラットファイルV2」でダウンロードしたファイル、またはATLASの「決済データ書き出し」のファイル。複数まとめて選べます。同じ精算を何回取り込んでも二重になりません。" />
-              <button type="button" id="settlement-upload-btn" class="btn-blue" style="height:36px;">UPLOAD</button>
-          </div>
-          <a href="/orbit/settlements/export" class="btn-blue" style="text-decoration:none;" title="取り込んだ決済レポートを全部1ファイルに書き出します（ATLASのAU分をZSSSへ渡す用）">決済データ書き出し</a>
-      </div>
-
-      <div class="sales-trend-period" id="profitPeriod">
-          <button type="button" class="stp-btn" data-days="7">7日</button>
-          <button type="button" class="stp-btn active" data-days="30">30日</button>
-          <button type="button" class="stp-btn" data-days="90">90日</button>
-          <button type="button" class="stp-btn" data-days="180">180日</button>
-          <button type="button" class="stp-btn" data-days="365">1年</button>
-          <button type="button" class="btn-blue stp-refresh" id="profitRefresh">更新</button>
-      </div>
-      <div class="sales-trend-range">
-          <span>月で選ぶ</span>
-          <select id="profitMonth"><option value="">—</option></select>
-          <span class="str-sep">日付指定</span>
-          <input type="date" id="profitStart">
-          <span>〜</span>
-          <input type="date" id="profitEnd">
-          <button type="button" class="stp-btn" id="profitRangeApply">この期間で集計</button>
-      </div>
-
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <select id="profit-filter-market"><option value="">国：すべて</option></select>
-          <select id="profit-filter-kind">
-              <option value="">すべての注文</option>
-              <option value="ship_over">送料が予測より高い（赤字の基準超え）</option>
-              <option value="ship_diff">送料の実績がある注文</option>
-              <option value="loss">利益がマイナス</option>
-              <option value="refund_loss">還付込みでもマイナス</option>
-              <option value="no_profit">利益が出せない（未入力あり）</option>
-          </select>
-          <span id="profit-status">サブタブを開くと直近30日を集計します</span>
-          <label title="実際の請求重量が予測よりこの%以上重い注文は、重量列を赤字にします">
-              ズレの目安 <input type="number" id="profit-weight-pct" min="0" step="1" value="15" style="width:4.5em;"> %
-          </label>
-      </div>
-
-      <div id="profit-summary" class="orbit-profit-summary sales-trend-summary"></div>
-
-      <div class="table-wrapper" id="profit-table-wrapper">
-        <table id="profit-table">
-          <thead><tr><!-- JSで描画 --></tr></thead>
-          <tbody><!-- JSで描画 --></tbody>
-        </table>
-      </div>
-
-      <details class="orbit-sheet-settings" id="category-fee-details">
-          <summary>カテゴリ別の実際の手数料率（参考）</summary>
-          <div class="orbit-sheet-settings-body">
-              <div class="master-description">
-                  取り込んだ決済レポートの注文から、商品タイプ（Amazon の商品の種類）ごとに実際の販売手数料率を集計します。期間の指定に関係なく、取り込み済みの全部が対象です。
-                  <b>値段の計算には使っていません</b>（あとで手数料率を見直すときの参考用）。
-                  手数料率＝販売手数料 ÷ 商品代金（お客様負担の送料を含む・税金を除く）。成約料など割合でない手数料は「その他手数料」に、その手数料が付いた注文1件あたりの平均で出します。
-                  商品タイプはこの環境のカタログから引くので、AU の正しい数字は ATLAS で見てください。
-              </div>
-              <div class="orbit-actions">
-                  <button type="button" id="category-fee-refresh" class="btn-blue">更新</button>
-                  <span id="category-fee-status"></span>
-              </div>
-              <div id="category-fee-totals" class="sales-trend-summary"></div>
-              <div class="table-wrapper">
-                <table id="category-fee-table">
-                  <thead><tr>
-                      <th>国</th><th>商品タイプ</th><th>件数</th>
-                      <th>手数料率（真ん中）</th><th>最低</th><th>最高</th>
-                      <th>その他手数料</th><th>最後の注文</th><th>ASIN（例）</th>
-                  </tr></thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-          </div>
-      </details>
-    </div>
-  </div>
-
-  <div id="orbit-pane-ship-check" class="st-subtab-pane">
-    <div class="card">
-
-      <div class="master-description">
-          出品時に見込んだ送料・請求重量と、発送代行会社の実績（送料・確定重量）を並べ、大きく外れた注文だけを赤字にします。
-          ①送料：想定送料（燃油・外注費・梱包費込み）と送料合計 ②キャリア：実際の運賃と、実重量で送料表を引いた他キャリアの最安 ③重量：想定請求重量と確定重量（未確定の間は発送重量）。
-          同梱・キャンセルは対象外です。想定は注文が初めて表示された時点の値を保存しているため、あとで送料表や重量区分を直しても変わりません。
-      </div>
-
-      <details class="orbit-sheet-settings">
-          <summary>警告の基準</summary>
-          <div class="orbit-sheet-settings-body">
-              <div class="orbit-actions orbit-shipcheck-settings" style="flex-wrap:wrap;">
-                  <label>①送料 実際−想定が <input type="number" id="shipcheck-fee-yen" min="0" step="100"> 円以上 かつ <input type="number" id="shipcheck-fee-pct" min="0" step="5"> %以上</label>
-                  <label>②キャリア 他キャリア最安より <input type="number" id="shipcheck-carrier-yen" min="0" step="100"> 円以上高い</label>
-                  <label>③重量 実際÷想定が <input type="number" id="shipcheck-weight-ratio" min="1" step="0.1"> 倍以上 かつ 差 <input type="number" id="shipcheck-weight-kg" min="0" step="0.5"> kg以上</label>
-                  <button type="button" id="shipcheck-settings-save-btn" class="btn-blue">基準を保存</button>
-              </div>
-          </div>
-      </details>
-
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <button type="button" id="shipcheck-refresh-btn" class="btn-blue">更新</button>
-          <select id="shipcheck-filter-warn">
-              <option value="any">警告ありだけ</option>
-              <option value="all">すべて</option>
-              <option value="fee">①送料のズレ</option>
-              <option value="carrier">②キャリア差</option>
-              <option value="weight">③重量のズレ</option>
-          </select>
-          <select id="shipcheck-filter-carrier"><option value="">キャリア：すべて</option></select>
-          <select id="shipcheck-filter-country"><option value="">国：すべて</option></select>
-          <label><input type="checkbox" id="shipcheck-filter-confirmed"> 確定重量が出た注文だけ</label>
-          <span id="shipcheck-status"></span>
-      </div>
-
-      <div id="shipcheck-summary" class="orbit-shipcheck-summary"></div>
-
-      <div class="table-wrapper" id="shipcheck-table-wrapper">
-        <table id="shipcheck-table">
-          <thead><tr><!-- JSで描画 --></tr></thead>
-          <tbody><!-- JSで描画 --></tbody>
         </table>
       </div>
     </div>
@@ -1553,7 +1357,7 @@ input.orbit-serial-dup {
 
       <div class="master-description">
           仕入れに使うクレジットカードの一覧です。ここで登録した「カード名」が、発注管理タブの「仕入れ情報 → 利用クレカ」プルダウンに出ます。<br>
-          締め日・支払日は、いまは表記の決まった文字で入力してください（締め日＝「月末」「15日」など／支払日＝「翌月10日」「翌月27日」など）。この締め日・支払日を使って、下の「クレカ別の支払い予定」で支払月ごとの引き落とし額を出します。
+          締め日・支払日は、いまは表記の決まった文字で入力してください（締め日＝「月末」「15日」など／支払日＝「翌月10日」「翌月27日」など）。この締め日・支払日を使って、「分析」タブの「支払い予定」で支払月ごとの引き落とし額を出します。
       </div>
 
       <div class="orbit-actions" style="flex-wrap:wrap;">
@@ -1584,27 +1388,6 @@ input.orbit-serial-dup {
           <tbody>
             <!-- JSで描画 -->
           </tbody>
-        </table>
-      </div>
-
-      <h3 style="margin-top:24px;">クレカ別の支払い予定</h3>
-      <div class="master-description">
-          選んだ支払月に、カードごとにいくら引き落とされるかの目安です。発注管理の「利用クレカ」「仕入日」「仕入れ価格」を、上の締め日・支払日で振り分けて合計します。
-          仕入日で振り分けるので、お店の決済日（発送時に請求されるお店など）とずれると、締め日の近くの分は翌月の支払いに回ることがあります。
-          支払日が土日祝のときは、実際は翌営業日になります。カード名の行をクリックすると中身（注文ごと）が見られます。
-      </div>
-      <div class="orbit-actions" style="flex-wrap:wrap;">
-          <span>支払月</span>
-          <select id="card-pay-month"></select>
-          <button type="button" id="card-pay-refresh" class="btn-blue">更新</button>
-          <span id="card-pay-status"></span>
-      </div>
-      <div class="table-wrapper">
-        <table id="card-pay-table">
-          <thead><tr>
-              <th>カード</th><th>支払日</th><th>対象の仕入日（締め期間）</th><th>件数</th><th>金額</th><th>注意</th>
-          </tr></thead>
-          <tbody></tbody>
         </table>
       </div>
     </div>
@@ -1715,7 +1498,4 @@ input.orbit-serial-dup {
 </div>
 
 <script src="{{ url_for('static', filename='js/orbit.js') }}"></script>
-<script src="{{ url_for('static', filename='js/orbit_ship_check.js') }}"></script>
-<script src="{{ url_for('static', filename='js/orbit_profit_analysis.js') }}"></script>
-<script src="{{ url_for('static', filename='js/orbit_card_payments.js') }}"></script>
 <script src="{{ url_for('static', filename='js/orbit_ingredient.js') }}"></script>

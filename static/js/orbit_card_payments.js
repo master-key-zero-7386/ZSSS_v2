@@ -1,12 +1,12 @@
 // =====================================================
 // ファイル名: static/js/orbit_card_payments.js
-// 目的: ORBIT「クレカ管理」サブタブの「クレカ別の支払い予定」― 選んだ支払月に、カードごとに
+// 目的: 分析タブ「支払い予定」サブタブ（クレカ別の支払い予定。カード登録は ORBIT「クレカ管理」）― 選んだ支払月に、カードごとに
 //   いくら引き落とされるかの目安を出す。データは /orbit/profit-analysis/card-payments。
 //   サブタブを開くたび・カードの締め日/支払日を変えたときに集計し直す（発注管理の入力が反映されるように）。
 // =====================================================
 
 (function () {
-    const pane = document.getElementById("orbit-pane-credit-cards");
+    const pane = document.getElementById("orbit-pane-card-pay");
     const tbody = document.querySelector("#card-pay-table tbody");
     if (!pane || !tbody) return;
 
@@ -96,12 +96,12 @@
     document.getElementById("card-pay-refresh")?.addEventListener("click", loadCardPayments);
 
     // サブタブを開くたびに集計（発注管理で入れた利用クレカ・仕入れ価格を反映するため）
-    document.querySelector('.st-subtab-btn[data-target="orbit-pane-credit-cards"]')
+    document.querySelector('.st-subtab-btn[data-target="orbit-pane-card-pay"]')
         ?.addEventListener("click", loadCardPayments);
     // 上の表でカードの追加・変更・削除があったら集計し直す（orbit.js が投げる）
     document.addEventListener("orbit:credit-cards-changed", () => {
         if (payLoaded) loadCardPayments();
     });
-    // ページを開いた時点でクレカ管理が表示されていれば、そのまま集計
+    // ページを開いた時点で支払い予定が表示されていれば、そのまま集計
     if (pane.classList.contains("active")) loadCardPayments();
 })();

@@ -81,7 +81,7 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   `est_snapshot_at` is set. Agent sheet S列 (`agent_shipping_fee`) equals the raw rate-table price; T列 is
   all-in. Carrier names for 送料表 Carrier 1–3 live in `shipping_carrier_names` (default DHL/FedEx/EMS).
   New ORBIT row keys must go in `_RAW_SHEET_SKIP_KEYS`, or ZSSS_RAW columns shift and VLOOKUPs break.
-- **ORBIT 決済レポート** (`services/orbit_settlement_service.py`, buttons in subtab「利益分析」). Sales/fees/net
+- **ORBIT 決済レポート** (`services/orbit_settlement_service.py`, buttons in the 分析 tab's「利益分析」subtab). Sales/fees/net
   proceeds come only from Settlement Report Flat File V2 (`orbit_settlements` + `orbit_settlement_items`), fetched via
   SP-API (`GET_V2_SETTLEMENT_REPORT_DATA_FLAT_FILE_V2`, needs the 財務会計 role) or uploaded by hand (Seller Central
   wide format, API long format, or another environment's export). Each settlement is replaced whole by settlement-id,

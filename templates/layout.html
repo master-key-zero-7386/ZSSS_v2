@@ -285,6 +285,7 @@
 
         <button class="tab active" data-tab="top">TOP</button>
         <button class="tab" data-tab="orbit">注文管理</button>
+        <button class="tab" data-tab="analysis">分析</button>
         <button class="tab" data-tab="shipping-rates">配送料金設定</button>
         <button class="tab" data-tab="account">アカウント設定</button>
         <button class="tab" data-tab="research-tool">リサーチツール</button>
@@ -333,6 +334,11 @@
         <!-- ORBIT 注文管理 -->
         <div id="orbit" class="tab-content">
             {% include 'orbit.html' %}
+        </div>
+
+        <!-- 分析（売上トレンド・利益分析・送料検証・支払い予定・カート取得状況） -->
+        <div id="analysis" class="tab-content">
+            {% include 'analysis.html' %}
         </div>
 
         <!-- 管理者表示用 -->
