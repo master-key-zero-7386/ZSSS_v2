@@ -339,7 +339,7 @@ def profit_analysis_category_fees():
     return jsonify({"status": "success", "data": data})
 
 
-# 利益分析「クレカ別の支払い予定」（month=YYYY-MM の支払月。省略時はまだ支払いの来ていない一番早い月）
+# クレカ管理「クレカ別の支払い予定」（month=YYYY-MM の支払月。省略時はまだ支払いの来ていない一番早い月）
 @orbit_bp.route("/profit-analysis/card-payments", methods=["GET"])
 def profit_analysis_card_payments():
     user_id = session.get("user_id")

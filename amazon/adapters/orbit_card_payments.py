@@ -225,6 +225,9 @@ def get_card_payments(user_id: int, month=None, today=None) -> dict:
     while (yy, mm) <= (ey, em):
         months.append(f"{yy:04d}-{mm:02d}")
         yy, mm = _add_months(yy, mm, 1)
+    # 表示中の月は必ず選択肢に入れる（仕入れが無いと最初の月が来月からになり、プルダウンと表がずれる）
+    if f"{y:04d}-{m:02d}" not in months:
+        months = sorted(months + [f"{y:04d}-{m:02d}"])
 
     return {
         "month": f"{y:04d}-{m:02d}",

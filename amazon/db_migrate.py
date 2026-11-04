@@ -730,7 +730,7 @@ ORBIT_ORDERS_COLUMNS = {
     "supplier_shop_name": "TEXT",          # モール内のショップ名（楽天/Yahoo!等）
     "procurement_date": "TEXT",            # 仕入日（実際に仕入先へ発注した日）
     "arrival_date": "TEXT",                # 到着予定日
-    "procurement_credit_card": "TEXT",     # 仕入れに使ったクレジットカード（orbit_credit_cards.card_name を選択。利益分析「クレカ別の支払い予定」で集計）
+    "procurement_credit_card": "TEXT",     # 仕入れに使ったクレジットカード（orbit_credit_cards.card_name を選択。クレカ管理「クレカ別の支払い予定」で集計）
     "shipped_completed": "INTEGER",        # 出荷完了フラグ（仕入れ管理のボタンで手動ON/OFF。押し間違えても解除可能）
 
     # --- 発注管理タブのチェック欄（手入力。ZSSS_RAW・代行会社へは連携しない） ---

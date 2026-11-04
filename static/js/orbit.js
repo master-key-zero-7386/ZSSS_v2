@@ -3863,6 +3863,8 @@ window.initOrbit = function () {
                 applyCreditCardOptions();
                 renderCreditCardsTable();
                 if (dispatchTbody) renderDispatchTable();
+                // クレカ別の支払い予定（orbit_card_payments.js）に締め日・支払日の変更を知らせる
+                document.dispatchEvent(new CustomEvent("orbit:credit-cards-changed"));
             })
             .catch(err => console.error("credit_cards load error:", err));
     }
