@@ -1533,6 +1533,21 @@ input.orbit-serial-dup {
       <div class="master-description">
           発注管理タブの「📝メモ追加」で登録した、バイヤー（住所）ごとの返品・キャンセル理由等のメモです。
       </div>
+      <details class="orbit-sheet-settings">
+          <summary>旧スプレッドシートから取込</summary>
+          <div class="orbit-sheet-settings-body">
+              <div class="orbit-actions" style="flex-wrap:wrap;">
+                  <input type="text" id="orbit-security-sheet-url" class="file-input-text" placeholder="スプレッドシートのURL" style="width:360px;" />
+                  <input type="text" id="orbit-security-sheet-name" class="file-input-text" placeholder="タブ名" value="返品・セキュリティ" style="width:200px;" />
+                  <button type="button" id="orbit-security-import-btn" class="btn-blue" title="I列のorder-idから発注管理・バイヤー履歴の注文を探して買い手（住所）を特定し、理由・メモ・区分などを1行1件のメモとして取り込みます">シートから取込</button>
+                  <span id="orbit-security-import-status" style="font-size:13px; color:#555;"></span>
+              </div>
+              <div class="master-description">
+                  I列のorder-idで発注管理・バイヤー履歴の注文を探して住所を特定します。どちらにも無い注文は取り込めないので、
+                  先に上の「バイヤー履歴」を取り込んでから実行してください。同じ注文・同じ内容のメモは二重に入りません（何度実行しても大丈夫です）。
+              </div>
+          </div>
+      </details>
       <div class="table-wrapper" id="orbit-security-notes-table-wrapper" style="max-height:40vh;">
         <table id="orbit-security-notes-table">
           <thead>

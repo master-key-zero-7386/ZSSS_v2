@@ -35,6 +35,7 @@ from amazon.services.orbit_order_service import (
     archive_orders,
     add_security_note,
     update_security_note,
+    import_security_notes_sheet,
     list_buyer_history,
     get_asin_shipping_history,
     list_security_notes,
@@ -750,6 +751,26 @@ def update_security_note_route():
     return jsonify({"status": "success"})
 
 
+@orbit_bp.route("/security_notes/import_sheet", methods=["POST"])
+def import_security_notes_sheet_route():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error"}), 401
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = import_security_notes_sheet(user_id, data.get("spreadsheet_url"), data.get("sheet_name"))
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        import traceback
+        print("[orbit/security_notes/import_sheet] ERROR")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    return jsonify({"status": "success", **result})
+
+
 # --- ▼ SECTION 03-1b: 寸法・重量が無いASINをその場でHOME APIから取得 ▼ ---
 @orbit_bp.route("/orders/fetch_catalog", methods=["POST"])
 @block_if_serial_dup
@@ -901,7 +922,10 @@ def google_oauth_start():
     if not session.get("user_id"):
         return jsonify({"status": "error"}), 401
 
-    return redirect(build_authorization_url())
+    try:
+        return redirect(build_authorization_url())
+    except ValueError as e:
+        return str(e), 500
 
 
 @orbit_bp.route("/google_oauth/callback", methods=["GET"])

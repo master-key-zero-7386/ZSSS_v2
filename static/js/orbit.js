@@ -1544,6 +1544,51 @@ window.initOrbit = function () {
             });
     }
 
+    // 旧スプレッドシート「返品・セキュリティ」タブからの取込
+    document.getElementById("orbit-security-import-btn")?.addEventListener("click", (e) => {
+        const spreadsheetUrl = (document.getElementById("orbit-security-sheet-url")?.value || "").trim();
+        const sheetName = (document.getElementById("orbit-security-sheet-name")?.value || "").trim();
+        const statusEl = document.getElementById("orbit-security-import-status");
+        if (!spreadsheetUrl || !sheetName) {
+            window.showToast?.("スプレッドシートのURLとタブ名を入力してください", "error");
+            return;
+        }
+        if (!confirm("シートを読み込んで返品・セキュリティメモに取り込みます。よろしいですか？")) return;
+
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.textContent = "取込中...";
+        if (statusEl) statusEl.textContent = "";
+        fetch("/orbit/security_notes/import_sheet", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ spreadsheet_url: spreadsheetUrl, sheet_name: sheetName }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status !== "success") {
+                    window.showToast?.(data.message || "取込に失敗しました", "error");
+                    return;
+                }
+                const unmatched = data.unmatched || [];
+                window.showToast?.(`${data.imported}件を取り込みました`, "success");
+                if (statusEl) {
+                    statusEl.textContent = `シート${data.rows}行 → 取込${data.imported}件・取込済みで省略${data.duplicated}件・注文が見つからず${unmatched.length}件`
+                        + (unmatched.length ? `（${unmatched.slice(0, 10).join(", ")}${unmatched.length > 10 ? " ほか" : ""}）` : "");
+                }
+                if (unmatched.length) console.log("[security_notes/import_sheet] 注文が見つからないorder-id:", unmatched);
+                loadSecurityNotes();
+            })
+            .catch(err => {
+                console.error("orbit/security_notes/import_sheet error:", err);
+                window.showToast?.("取込に失敗しました", "error");
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = "シートから取込";
+            });
+    });
+
     // 発注管理も受注一覧と同様、行数が少ないと本体の横スクロールバーが画面下に隠れるため上部バーを同期する
     const dispatchTopScroll = document.getElementById("orbit-dispatch-top-scroll");
     const dispatchTableWrapper = document.getElementById("orbit-dispatch-table-wrapper");

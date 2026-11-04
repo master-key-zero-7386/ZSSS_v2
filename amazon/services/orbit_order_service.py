@@ -2894,6 +2894,156 @@ def update_security_note(user_id: int, note_id: int, note: str) -> bool:
     return updated
 
 
+# --- ▼ SECTION 06-1e: 返品・セキュリティメモの取込（旧スプレッドシート「返品・セキュリティ」タブ） ▼ ---
+# 旧シートの Buyer Name / Address 列は数式の残骸（数字だけ）で住所が入っていないため、order-id から
+# 発注管理(orbit_orders)・バイヤー履歴(orbit_buyer_history)の注文を探して買い手（住所）を特定する。
+# どちらにも無い order-id は buyer_key が作れないので取り込まず、件数と order-id を返す
+# （バイヤー履歴を取り込んだ後にもう一度実行すれば拾える）。
+# 同じ order-id・同じ本文のメモが既にあれば入れない＝何度実行しても二重にならない。
+# 列は見出し行の文字ではなく位置で読む（返品理由・メモ・区分などの列に見出しが無いため）。
+_SECURITY_SHEET_COLS = {
+    "order_id": 8,         # I列
+    "item_name": 14,       # O列 品名
+    "request_date": 15,    # P列 返品依頼日（例: 20-Jan-2025）
+    "ship_date": 16,       # Q列 出荷日（例: 2023/06/27）
+    "reason": 18,          # S列 情報①（返品理由）
+    "memo": 19,            # T列 自分のメモ
+    "category": 20,        # U列 悪質 / クレーマー 等
+    "return_status": 21,   # V列 返送状況
+    "refund": 23,          # X列 返金処理
+}
+_ORDER_ID_PATTERN = re.compile(r"^\d{3}-\d{7}-\d{7}$")
+_SHEET_YEAR_PATTERN = re.compile(r"^(\d{4})年$")
+
+
+def _parse_security_sheet_date(value: str):
+    for fmt in ("%d-%b-%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _security_sheet_note(cells: dict) -> str:
+    parts = []
+    if cells["reason"]:
+        parts.append(f"理由: {cells['reason']}")
+    if cells["memo"]:
+        parts.append(f"メモ: {cells['memo']}")
+    if cells["return_status"]:
+        parts.append(f"返送: {cells['return_status']}")
+    if cells["refund"]:
+        parts.append(f"返金: {cells['refund']}")
+    if cells["item_name"]:
+        parts.append(f"品名: {cells['item_name']}")
+    body = " / ".join(parts) if parts else "返品"
+    category = f"【{cells['category']}】" if cells["category"] else ""
+    return f"[旧シート] {category}{body}"
+
+
+def import_security_notes_sheet(user_id: int, spreadsheet_url: str, sheet_name: str) -> dict:
+    spreadsheet_id = _extract_spreadsheet_id(spreadsheet_url or "")
+    if not spreadsheet_id or not (sheet_name or "").strip():
+        raise ValueError("スプレッドシートのURLとタブ名を入力してください")
+    quoted = "'" + sheet_name.strip().replace("'", "''") + "'"
+    rows = fetch_sheet_range(user_id, spreadsheet_id, f"{quoted}!A1:Z")
+
+    entries = []
+    year = None
+    for row in rows:
+        def cell(idx):
+            return str(row[idx]).strip() if idx < len(row) else ""
+
+        # A列の「2020年」などの年区切り。日付の無い古い行の登録日時に使う
+        m = _SHEET_YEAR_PATTERN.match(cell(0))
+        if m:
+            year = int(m.group(1))
+
+        order_id = cell(_SECURITY_SHEET_COLS["order_id"])
+        if not _ORDER_ID_PATTERN.match(order_id):
+            continue
+        cells = {k: cell(i) for k, i in _SECURITY_SHEET_COLS.items()}
+        dated = (_parse_security_sheet_date(cells["request_date"])
+                 or _parse_security_sheet_date(cells["ship_date"])
+                 or (datetime(year, 1, 1) if year else None))
+        entries.append({
+            "order_id": order_id,
+            "note": _security_sheet_note(cells),
+            "created_at": (dated or datetime.utcnow()).isoformat(),
+        })
+
+    if not entries:
+        raise ValueError("I列に order-id がある行が見つかりません。タブ名を確認してください")
+
+    # order-id → 買い手（同じ注文に複数明細があれば order_item_id の小さい方）。発注管理を優先
+    order_ids = list({e["order_id"] for e in entries})
+    buyers = {}
+    for table, db_name in (("orbit_orders", "a_orbit_orders.db"), ("orbit_buyer_history", "a_orbit_buyer_history.db")):
+        conn = get_conn(db_name)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT order_id, order_item_id, recipient_name, ship_address_1, ship_postal_code "
+                f"FROM {table} WHERE user_id = %s AND order_id = ANY(%s) ORDER BY order_item_id",
+                (user_id, order_ids),
+            )
+            for r in cur.fetchall():
+                if r["order_id"] in buyers:
+                    continue
+                buyer_key = _normalize_buyer_key(r["ship_postal_code"], r["ship_address_1"])
+                if buyer_key:
+                    buyers[r["order_id"]] = dict(r, buyer_key=buyer_key)
+        finally:
+            conn.close()
+
+    conn = get_conn("a_orbit_buyer_security_notes.db")
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT order_id, note FROM orbit_buyer_security_notes WHERE user_id = %s AND order_id = ANY(%s)",
+            (user_id, order_ids),
+        )
+        existing = {(r["order_id"], r["note"]) for r in cur.fetchall()}
+
+        imported = 0
+        duplicated = 0
+        unmatched = []
+        for e in entries:
+            buyer = buyers.get(e["order_id"])
+            if not buyer:
+                if e["order_id"] not in unmatched:
+                    unmatched.append(e["order_id"])
+                continue
+            if (e["order_id"], e["note"]) in existing:
+                duplicated += 1
+                continue
+            cur.execute(
+                """
+                INSERT INTO orbit_buyer_security_notes
+                    (user_id, buyer_key, recipient_name, ship_address_1, ship_postal_code,
+                     order_id, order_item_id, note, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id, buyer["buyer_key"], buyer["recipient_name"], buyer["ship_address_1"],
+                    buyer["ship_postal_code"], e["order_id"], buyer["order_item_id"], e["note"], e["created_at"],
+                ),
+            )
+            existing.add((e["order_id"], e["note"]))
+            imported += 1
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {
+        "rows": len(entries),
+        "imported": imported,
+        "duplicated": duplicated,
+        "unmatched": unmatched,
+    }
+
+
 # --- ▼ SECTION 06-2: 代行会社連番（Nから始まる連番）の設定 ▼ ---
 # 指定した1行の N番(agent_serial_no) だけを設定する。他の行には一切触らない。
 # （かつては「編集行から末尾まで画面順で連番を振り直す」挙動だったが、既に正しく採番済みの

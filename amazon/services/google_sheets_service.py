@@ -346,6 +346,9 @@ def save_request_form_url(user_id: int, request_form_url: str):
 
 # --- ▼ SECTION 01: 認可URL生成 ▼ ---
 def build_authorization_url(redirect_uri: str = None) -> str:
+    # .envにクライアントID/シークレットが無い環境（開発PCなど）では、URLを組む前に分かる形で止める
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise ValueError(".env に GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET が設定されていません")
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": redirect_uri or GOOGLE_REDIRECT_URI,
