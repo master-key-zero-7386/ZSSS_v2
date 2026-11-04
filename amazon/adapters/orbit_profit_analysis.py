@@ -68,6 +68,9 @@ def get_profit_analysis(user_id: int, start, end) -> dict:
             "qty": r.get("quantity_purchased") or 0,
             "archived": bool(r.get("archived_at")),
             "sale_jpy": sale,
+            # 現地通貨の販売額（決済レポート実績、無ければ注文時の 商品代＋送料）。価格調整の目安用
+            "sale_local": _f(r.get("sale_price_used")),
+            "sale_currency": r.get("sale_price_used_currency"),
             "refund_jpy": refund,
             "fee_jpy": fee,
             "fee_is_estimate": r.get("net_proceeds_is_estimate"),

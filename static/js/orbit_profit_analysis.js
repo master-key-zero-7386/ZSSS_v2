@@ -217,6 +217,12 @@
         return `${kg(r.est_weight_kg)} → <span class="${heavy ? "orbit-text-red" : ""}">${kg(r.actual_weight_kg)}kg</span>${qtyNote}`;
     }
 
+    // 現地通貨の販売額（例: 123.45 AUD）。JPY のときや値が無いときは空欄
+    function localMoney(r) {
+        if (r.sale_local == null || !r.sale_currency || r.sale_currency === "JPY") return "";
+        return `${esc(r.sale_local.toFixed(2))} <span class="orbit-profit-sub">${esc(r.sale_currency)}</span>`;
+    }
+
     const COLUMNS = [
         { key: "date", label: "注文日", cell: r => esc(r.date) },
         { key: "serial", label: "N番", cell: r => r.serial != null ? `N${esc(r.serial)}` : "" },
@@ -225,6 +231,7 @@
             ? `<span class="profit-asin" style="color:#007bff;text-decoration:underline;cursor:pointer;" title="クリックでコピー">${esc(r.asin)}</span>` : "" },
         { key: "product_name", label: "商品名", cls: () => "profit-name", cell: r => esc(r.product_name || "") },
         { key: "qty", label: "数量", cls: () => "num", cell: r => esc(r.qty) },
+        { key: "sale_local", label: "販売額（現地）", cls: () => "num", cell: localMoney },
         { key: "sale_jpy", label: "販売額", cls: () => "num", cell: r => yen(r.sale_jpy) },
         { key: "refund_jpy", label: "返金", cls: r => "num" + (r.refund_jpy ? " orbit-text-red" : ""), cell: r => yen(r.refund_jpy) },
         { key: "fee_jpy", label: "手数料", cls: r => "num" + (heaviest(r) === "fee" ? " profit-heavy" : ""),
