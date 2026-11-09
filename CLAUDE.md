@@ -156,6 +156,26 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   file) purely as a naming convention for readability — they no longer resolve to real files.
 - `db_old/` is a snapshot of the pre-migration SQLite files kept for reference, not used by the app.
 
+### Automated DB backup (this machine only)
+
+- `scripts/backup_db.ps1` runs `pg_dump` (custom format, `-F c`) against the Postgres DB described in
+  `.env` and writes a timestamped `zsss_backup_<yyyyMMdd_HHmmss>.dump` file to
+  `H:\マイドライブ\ZSSS_backup\` (a Google Drive-synced folder on this PC), so backups leave the
+  machine automatically. DB credentials are read from `.env` at run time (never hardcoded); the script
+  sets/clears `PGPASSWORD` for the `pg_dump` call only. Every run appends to
+  `H:\マイドライブ\ZSSS_backup\backup_log.txt`.
+- On success it also deletes backups older than 30 days (`-RetentionDays` param) from that same folder,
+  so the folder doesn't grow forever; a failed dump is deleted and no rotation happens that run, so a
+  bad run can't quietly erase good history.
+- Registered as Windows Task Scheduler task **`ZSSS_DB_Backup`**, daily at 04:30, running as the
+  logged-in Windows user (`Interactive` logon type) — required because the `H:` Google Drive mapping
+  only exists in that user's desktop session, not for `SYSTEM`/background logons. This means the backup
+  only runs if this PC is logged in to that user session at 04:30; it will not run while fully logged
+  out or on the lock screen's own background session.
+- To restore: `pg_restore -h <host> -U <user> -d <database> --clean <dump file>`.
+- This covers only this machine's ZSSS Postgres DB. ATLAS runs on a separate PC with its own local
+  Postgres DB and needs the same setup done separately there.
+
 ## Environment
 
 `.env` (gitignored) configures: `PG_HOST`/`PG_PORT`/`PG_USER`/`PG_PASSWORD`/`PG_DATABASE`,
