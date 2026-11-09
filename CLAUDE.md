@@ -173,8 +173,14 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   only runs if this PC is logged in to that user session at 04:30; it will not run while fully logged
   out or on the lock screen's own background session.
 - To restore: `pg_restore -h <host> -U <user> -d <database> --clean <dump file>`.
-- This covers only this machine's ZSSS Postgres DB. ATLAS runs on a separate PC with its own local
-  Postgres DB and needs the same setup done separately there.
+- This covers only this machine's ZSSS Postgres DB.
+- **ATLAS機（別PC、リポジトリは同じだがローカルのフォルダ名は `atlas_web`）も 2026-11-09 に同じ仕組みで対応済み**:
+  同じ `scripts/backup_db.ps1` を `-BackupDir "H:\マイドライブ\ATLAS_backup"` 付きで実行し、タスク名も
+  **`ATLAS_DB_Backup`**（`ZSSS_DB_Backup`とは別名）で Windows タスクスケジューラに登録済み（毎日04:30、
+  `Interactive`ログオン）。保存先フォルダを `ZSSS_backup` と分けているのは、ダンプファイル名自体が
+  `zsss_backup_<timestamp>.dump`のまま（スクリプト側でprefixが固定）で区別がつかないため ——
+  フォルダを見れば迷わず区別できるようにした。登録に使った正確なコマンドは、このファイルの
+  git履歴（2026-11-09前後のコミット）か、このバックアップを最初に設定したセッションの会話を参照。
 
 ## Environment
 
