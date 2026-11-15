@@ -156,24 +156,37 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   file) purely as a naming convention for readability — they no longer resolve to real files.
 - `db_old/` is a snapshot of the pre-migration SQLite files kept for reference, not used by the app.
 
-### Automated DB backup (this machine only)
+### Automated DB backup (per machine, local DB only)
 
+- **The ZSSS production DB backup runs on the production PC, hostname `ZSSS-Panasonic`** (not on this
+  dev machine, hostname `MAIN` — `MAIN`'s local Postgres DB is a near-empty dev/test DB with no real
+  data; the backup task there was registered once by mistake on 2026-11-15, thinking `MAIN` was the
+  operations PC, then disabled the same day once the mistake was caught). The repo (`C:\zsss\zsss_web`)
+  is shared identically across machines via `git pull`, but each machine has its **own physically
+  separate local Postgres DB**, configured by that machine's own local `.env` — always check which
+  machine a backup/DB task is actually targeting, never assume from the repo path alone.
 - `scripts/backup_db.ps1` runs `pg_dump` (custom format, `-F c`) against the Postgres DB described in
-  `.env` and writes a timestamped `zsss_backup_<yyyyMMdd_HHmmss>.dump` file to
-  `H:\マイドライブ\ZSSS_backup\` (a Google Drive-synced folder on this PC), so backups leave the
-  machine automatically. DB credentials are read from `.env` at run time (never hardcoded); the script
-  sets/clears `PGPASSWORD` for the `pg_dump` call only. Every run appends to
-  `H:\マイドライブ\ZSSS_backup\backup_log.txt`.
+  that machine's own `.env` and writes a timestamped `zsss_backup_<yyyyMMdd_HHmmss>.dump` file to
+  `H:\マイドライブ\ZSSS_backup\` (a Google Drive-synced folder shared across this Google account's
+  machines), so backups leave the machine automatically. DB credentials are read from `.env` at run
+  time (never hardcoded); the script sets/clears `PGPASSWORD` for the `pg_dump` call only. Every run
+  appends to `H:\マイドライブ\ZSSS_backup\backup_log.txt`.
 - On success it also deletes backups older than 30 days (`-RetentionDays` param) from that same folder,
   so the folder doesn't grow forever; a failed dump is deleted and no rotation happens that run, so a
   bad run can't quietly erase good history.
-- Registered as Windows Task Scheduler task **`ZSSS_DB_Backup`**, daily at 04:30, running as the
-  logged-in Windows user (`Interactive` logon type) — required because the `H:` Google Drive mapping
-  only exists in that user's desktop session, not for `SYSTEM`/background logons. This means the backup
-  only runs if this PC is logged in to that user session at 04:30; it will not run while fully logged
-  out or on the lock screen's own background session.
+- Registered on `ZSSS-Panasonic` as Windows Task Scheduler task **`ZSSS_DB_Backup`**, daily at 04:30,
+  running as the logged-in Windows user (`Interactive` logon type) — required because the `H:` Google
+  Drive mapping only exists in that user's desktop session, not for `SYSTEM`/background logons. This
+  means the backup only runs if that PC is logged in to that user session at 04:30; it will not run
+  while fully logged out or on the lock screen's own background session. An older, broken task of the
+  same name (pointing at a long-deleted `C:\zsss_web_v2\backup_db.bat`, failing since 2026-06-12) was
+  found occupying the name on `ZSSS-Panasonic` and was deleted (admin rights) before registering this
+  one; its old definition was exported to `C:\zsss\old_task_ZSSS_DB_BACKUP_20261115.xml` for reference.
 - To restore: `pg_restore -h <host> -U <user> -d <database> --clean <dump file>`.
-- This covers only this machine's ZSSS Postgres DB.
+- Because `H:\マイドライブ\ZSSS_backup\` is shared across machines on the same Google Drive account,
+  it may also contain small (~6.5MB) dumps from `MAIN`'s near-empty dev DB (e.g. from 2026-11-09〜15,
+  before that task was disabled) mixed in with the real ~115MB+ production dumps — harmless (distinct
+  timestamped filenames, no overwrite risk), and they roll off automatically after 30 days.
 - **ATLAS機（別PC、リポジトリは同じだがローカルのフォルダ名は `atlas_web`）も 2026-11-09 に同じ仕組みで対応済み**:
   同じ `scripts/backup_db.ps1` を `-BackupDir "H:\マイドライブ\ATLAS_backup"` 付きで実行し、タスク名も
   **`ATLAS_DB_Backup`**（`ZSSS_DB_Backup`とは別名）で Windows タスクスケジューラに登録済み（毎日04:30、
