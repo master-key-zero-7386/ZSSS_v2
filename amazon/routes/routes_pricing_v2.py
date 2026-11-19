@@ -1172,6 +1172,7 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
 
     # === -08.5: 競合価格取得 ===
     selected_offer = None
+    fallback_competitor_price = None  # 評価条件で全員除外されたときの最安他社価格
 
     try:
         conn_cache = get_conn("a_pricing_cache.db") 
@@ -1241,6 +1242,22 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
 
             selected_offer = result.get("selected") if result else None
 
+            # --- ▼ 評価条件で全員除外された場合の保険 ▼ ---
+            # 評価率・評価数の条件を満たすセラーがいなくても、他セラーが出品している以上
+            # Amazon はその価格と比べて価格異常を検知する。ここで「他社なし」扱いにすると
+            # P_max で出してしまい、他社より極端に安く（＝low-pricing error）なりうるため、
+            # 評価に関係なく一番安い他社価格（自分除外・本体+送料）に沿わせる。
+            if not selected_offer:
+                my_seller_id_fb = rules.get("my_seller_id")
+                for offer in normalized:
+                    if my_seller_id_fb and offer.get("seller_id") == my_seller_id_fb:
+                        continue
+                    total_fb = float(offer.get("price_amount") or 0) + float(offer.get("shipping_amount") or 0)
+                    if total_fb <= 0:
+                        continue
+                    if fallback_competitor_price is None or total_fb < fallback_competitor_price:
+                        fallback_competitor_price = total_fb
+
     except Exception:
         selected_offer = None
 
@@ -1255,6 +1272,8 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
         # region_price = price_amount + shipping_amount  
 
         region_price = result.get("compare_price")
+    elif fallback_competitor_price is not None:
+        region_price = fallback_competitor_price
 
     # === -09: 出品価格決定 ===
     discount_rate = rules.get("discount_rate") or 0

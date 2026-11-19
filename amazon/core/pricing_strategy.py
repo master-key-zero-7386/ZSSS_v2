@@ -8,9 +8,13 @@ def decide_listing_price(*, P_min: float, P_max: float, competitor_price: float 
     """
     最終出品価格（base_price）を決定する。
 
-    ・API OFF → P_min
-    ・API ON + 競合なし → P_min
-    ・競合価格あり → レンジ内で決定
+    ・競合なし（API OFF 含む） → P_max
+        他社がいないのにわざわざ安く売る必要はないので、最大利益価格で出す。
+    ・競合あり → 競合価格 ×（1 − 値下げ率）に沿う。ただし P_min より下げない。
+        P_max では止めない。他社が高いのにこちらだけ極端に安いと、Amazon に
+        「Potential low-pricing error」で出品を止められるため（2026-11-18 AU 本で発生）。
+        高くなりすぎた場合は呼び出し側の絶対上限（max_listing_price_limit）・
+        COMPETITOR_RATIO の INACTIVE 判定で止める。
 
     ※ 利益保証は price_calculator 側責務
     ※ 心理価格はこの層では行わない
@@ -19,36 +23,16 @@ def decide_listing_price(*, P_min: float, P_max: float, competitor_price: float 
 
     # --- 型統一 ---
     if P_min is None:
-        return None 
+        return None
 
     P_min = float(P_min)
-    P_max = float(P_max)
+    P_max = float(P_max) if P_max is not None else P_min
 
-    if competitor_price is not None:
-        competitor_price = float(competitor_price)
-
-    # --- API OFF または 競合なし ---
+    # --- 競合なし（API OFF 含む）→ 最大利益価格 ---
     if not competitor_api_enabled or competitor_price is None:
-        return P_min
+        return round(max(P_max, P_min), 2)
 
-    # --- 競合価格レンジ判定 ---
-    if competitor_price < P_min:
-        return P_min
+    # --- 競合に沿う（P_min が下限、上は P_max で止めない） ---
+    comp_price = float(competitor_price) * (1 - discount_rate / 100)
 
-    if competitor_price > P_max:
-        competitor_price = P_max 
-
-    # --- 最終価格（P_min基準） ---
-    price = P_min  # ←ここを修正
-
-    # --- 競合反映 ---
-    comp_price = competitor_price * (1 - discount_rate / 100)
-
-    if comp_price > price:
-        price = comp_price
-
-    # --- 上限制御 ---
-    if price > P_max:
-        price = P_max
-
-    return round(price, 2)
+    return round(max(comp_price, P_min), 2)
