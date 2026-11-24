@@ -611,6 +611,8 @@ _RAW_SHEET_SKIP_KEYS = {
     # 成分台帳（備考1へ書き足した成分の控えと、一覧表示用の派生キー。成分そのものは備考1で出る）
     "ingredient_remarks_auto", "ingredient_listed", "ingredient_note", "ingredient_text",
     "ingredient_remarks_mismatch",
+    # 文書管理の定型文（対象ASINに登録された文書id。成列のリンク用）
+    "doc_template_ids",
     # 決済レポートの返金（利益分析の表示用）
     "refund_total", "refund_used_jpy",
 }
@@ -1952,6 +1954,16 @@ def _apply_calc_to_rows(user_id: int, rows: list, snapshot_table: str = "orbit_o
     # --- 成分台帳：台帳にあるASINの「成」印・説明（発送不可など）の警告・備考1の成分が見つからない警告 ---
     from amazon.services.orbit_ingredient_service import apply_ingredient_checks
     apply_ingredient_checks(user_id, rows)
+
+    # --- 文書管理：対象ASINに登録された定型文（成列から開く）。引けなくても一覧表示は止めない ---
+    try:
+        from tools.doc_library_routes import load_asin_template_map
+        doc_map = load_asin_template_map(user_id)
+    except Exception as e:
+        print(f"[orbit] 定型文の対象ASIN読込に失敗（定型文リンクなしで表示）: {e}")
+        doc_map = {}
+    for row in rows:
+        row["doc_template_ids"] = doc_map.get((row.get("asin") or "").strip().upper(), [])
 
     apply_ship_checks(user_id, rows, rate_cache=rate_cache, names_cache=carrier_names_cache)
 

@@ -956,8 +956,15 @@ function dispCellInnerBase(col, r) {
             parts.push(`<span class="orbit-ingredient-mark" title="成分台帳にあり（備考1に成分を自動記入）
 ${orbitEscapeHtml(r.ingredient_text || "（成分なし）")}">成</span>`);
         }
+        // 文書管理で対象ASINに登録された定型文があれば、説明（なければ「文」マーク）をクリックで開けるようにする
+        const docCount = (r.doc_template_ids || []).length;
+        const docAttr = docCount
+            ? ` data-doc-asin="${orbitEscapeHtml(r.asin || "")}" title="クリックで定型文を開く（${docCount}件）"`
+            : ` title="成分台帳の説明"`;
         if (r.ingredient_note) {
-            parts.push(`<span class="orbit-ingredient-note" title="成分台帳の説明">${orbitEscapeHtml(r.ingredient_note)}</span>`);
+            parts.push(`<span class="orbit-ingredient-note${docCount ? " orbit-doc-link" : ""}"${docAttr}>${orbitEscapeHtml(r.ingredient_note)}</span>`);
+        } else if (docCount) {
+            parts.push(`<span class="orbit-doc-mark orbit-doc-link"${docAttr}>文</span>`);
         }
         if (r.ingredient_remarks_mismatch) {
             parts.push(`<span class="orbit-text-red" title="備考1に自動で書いた成分が見つかりません。備考1を手で直してください">備考1要確認</span>`);
@@ -1059,6 +1066,127 @@ function orbitEscapeHtml(s) {
     return String(s ?? "").replace(/[&<>"']/g, c => (
         { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
     ));
+}
+
+// --- ▼ 成列の定型文ポップアップ（文書管理で対象ASINに登録した文書を表示・コピー） ▼ ---
+//   文書は開くたびに文書管理から読み直す（一覧を読み込んだ後に本文を直していても最新が出る）。
+async function orbitCopyText(text) {
+    // ★ 外出先から http で開くと navigator.clipboard が使えないため execCommand に切り替える（文書管理と同じ）
+    if (navigator.clipboard && window.isSecureContext) {
+        try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 下へ */ }
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    ta.remove();
+    return ok;
+}
+
+async function orbitOpenDocPopup(asin) {
+    let overlay = document.getElementById("orbit-doc-popup");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "orbit-doc-popup";
+        overlay.innerHTML = `
+            <div class="odp-box" role="dialog" aria-modal="true">
+                <div class="odp-head">
+                    <strong class="odp-heading"></strong>
+                    <span style="flex:1;"></span>
+                    <button type="button" class="odp-close" title="閉じる">×</button>
+                </div>
+                <div class="odp-main">
+                    <ul class="odp-list"></ul>
+                    <div class="odp-view">
+                        <div class="odp-title"></div>
+                        <div class="odp-toolbar">
+                            <button type="button" class="btn-blue odp-copy">コピー</button>
+                            <span class="odp-copy-msg"></span>
+                            <span style="flex:1;"></span>
+                            <button type="button" class="btn-blue odp-open">文書管理で開く</button>
+                        </div>
+                        <div class="odp-body"></div>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        const close = () => { overlay.style.display = "none"; };
+        overlay.addEventListener("click", e => { if (e.target === overlay) close(); });
+        overlay.querySelector(".odp-close").addEventListener("click", close);
+        document.addEventListener("keydown", e => {
+            if (e.key === "Escape" && overlay.style.display !== "none") close();
+        });
+        overlay.querySelector(".odp-copy").addEventListener("click", async () => {
+            const t = overlay._current;
+            if (!t) return;
+            const ok = await orbitCopyText(t.body || "");
+            const msg = overlay.querySelector(".odp-copy-msg");
+            msg.textContent = ok ? "コピーしました" : "コピーできませんでした。本文を選択して Ctrl+C でコピーしてください。";
+            msg.style.color = ok ? "green" : "red";
+            if (ok) setTimeout(() => { if (msg.textContent === "コピーしました") msg.textContent = ""; }, 2500);
+        });
+        overlay.querySelector(".odp-open").addEventListener("click", () => {
+            const t = overlay._current;
+            if (!t || typeof window.dlOpenTemplate !== "function") return;
+            close();
+            window.dlOpenTemplate(t.id);
+        });
+    }
+
+    const heading = overlay.querySelector(".odp-heading");
+    const list = overlay.querySelector(".odp-list");
+    const view = overlay.querySelector(".odp-view");
+    heading.textContent = `定型文：${asin}`;
+    list.innerHTML = `<li class="odp-empty">読み込み中…</li>`;
+    list.style.display = "";
+    view.style.display = "none";
+    overlay._current = null;
+    overlay.style.display = "flex";
+
+    let docs = [];
+    try {
+        const resp = await fetch("/tools/doc_library/data");
+        const result = await resp.json();
+        if (!resp.ok || result.status !== "ok") throw new Error(result.message || "読み込みに失敗しました。");
+        const catName = {};
+        (result.categories || []).forEach(c => { catName[c.id] = c.name; });
+        docs = (result.templates || [])
+            .filter(t => (t.asins || []).includes(asin))
+            .map(t => ({ ...t, category_name: catName[t.category_id] || "" }));
+    } catch (e) {
+        console.error("orbit doc popup load error:", e);
+        list.innerHTML = `<li class="odp-empty" style="color:red;">定型文を読み込めませんでした：${orbitEscapeHtml(e.message)}</li>`;
+        return;
+    }
+    if (!docs.length) {
+        list.innerHTML = `<li class="odp-empty">このASINを対象にした定型文はありません（文書管理で対象ASINから外された可能性があります）。</li>`;
+        return;
+    }
+
+    list.innerHTML = "";
+    const show = (t) => {
+        overlay._current = t;
+        list.querySelectorAll("li").forEach(li => li.classList.toggle("active", Number(li.dataset.id) === t.id));
+        overlay.querySelector(".odp-title").textContent = `${t.title}（${t.category_name}）`;
+        overlay.querySelector(".odp-body").textContent = t.body || "";
+        overlay.querySelector(".odp-copy-msg").textContent = "";
+        view.style.display = "";
+    };
+    docs.forEach(t => {
+        const li = document.createElement("li");
+        li.dataset.id = t.id;
+        li.textContent = t.title;
+        li.addEventListener("click", () => show(t));
+        list.appendChild(li);
+    });
+    // 1件だけなら一覧は出さずに本文だけ
+    list.style.display = docs.length > 1 ? "" : "none";
+    show(docs[0]);
 }
 
 // 集計パネル用：発送種別が「キャンセル」の行は売上・未出荷どちらの集計からも外す。
@@ -2833,6 +2961,17 @@ window.initOrbit = function () {
     procTbody?.addEventListener("click", flagToggleHandler);
     dispatchTbody?.addEventListener("click", flagToggleHandler);
     receiptTbody?.addEventListener("click", flagToggleHandler);
+
+    // --- ▼ 成列：文書管理の定型文（対象ASINに登録された文書）をポップアップで開く ▼ ---
+    const docLinkHandler = (e) => {
+        const el = e.target.closest(".orbit-doc-link");
+        if (!el) return;
+        e.preventDefault();
+        orbitOpenDocPopup(el.dataset.docAsin || "");
+    };
+    procTbody?.addEventListener("click", docLinkHandler);
+    dispatchTbody?.addEventListener("click", docLinkHandler);
+    receiptTbody?.addEventListener("click", docLinkHandler);
 
     // --- ▼ SECTION 01-2e2: 発注管理「管理品から出荷」（仕入れ情報の先頭ボタン） ▼ ---
     //   サーバ側で ①同ASINの未処理管理品のうちN番最古を選ぶ ②元N番の仕入情報を移植 ③処理済

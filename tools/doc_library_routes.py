@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, Response, session
@@ -22,6 +23,46 @@ def _err(message: str, code: int = 400):
     return jsonify({"status": "error", "message": message}), code
 
 
+# --- ▼ 対象ASIN（この定型文を使う商品。発注管理の該当行からワンクリックで開ける） ---
+_ASIN_SPLIT = re.compile(r"[\s,、，]+")
+_ASIN_RE = re.compile(r"^[A-Z0-9]{10}$")
+
+
+def _parse_asins(raw) -> tuple:
+    """改行・カンマ・空白区切りの入力 → (大文字・重複なしのASINリスト, 形式がおかしい語のリスト)。"""
+    if isinstance(raw, list):
+        raw = "\n".join(str(x) for x in raw)
+    asins, bad = [], []
+    for token in _ASIN_SPLIT.split((raw or "").upper()):
+        if not token:
+            continue
+        if not _ASIN_RE.match(token):
+            bad.append(token)
+        elif token not in asins:
+            asins.append(token)
+    return asins, bad
+
+
+def load_asin_template_map(user_id) -> dict:
+    """{ASIN: [文書id, ...]}。発注管理の一覧で「このASINに定型文があるか」を引く用。"""
+    conn = get_conn(DB_NAME)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, asins FROM doc_templates
+            WHERE user_id = %s AND asins IS NOT NULL AND asins <> ''
+            ORDER BY title, id
+        """, (user_id,))
+        result = {}
+        for r in cur.fetchall():
+            for asin in (r["asins"] or "").split("\n"):
+                if asin:
+                    result.setdefault(asin, []).append(r["id"])
+        return result
+    finally:
+        conn.close()
+
+
 # --- ▼ 一覧（カテゴリ＋全文書をまとめて返す。件数は多くない想定） ---
 @doc_library_bp.route("/data", methods=["GET"])
 def get_data():
@@ -39,11 +80,15 @@ def get_data():
     categories = [dict(r) for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT id, category_id, title, body, updated_at FROM doc_templates
+        SELECT id, category_id, title, body, asins, updated_at FROM doc_templates
         WHERE user_id = %s
         ORDER BY title, id
     """, (user_id,))
-    templates = [dict(r) for r in cur.fetchall()]
+    templates = []
+    for r in cur.fetchall():
+        t = dict(r)
+        t["asins"] = [a for a in (t.get("asins") or "").split("\n") if a]
+        templates.append(t)
     conn.close()
 
     return jsonify({"status": "ok", "categories": categories, "templates": templates})
@@ -170,11 +215,15 @@ def save_template():
     category_id = data.get("category_id")
     title = (data.get("title") or "").strip()
     body = data.get("body") or ""
+    asins, bad_asins = _parse_asins(data.get("asins"))
 
     if not category_id:
         return _err("カテゴリを選んでください。")
     if not title:
         return _err("タイトルを入力してください。")
+    if bad_asins:
+        return _err(f"対象ASINの形式が正しくありません（英数字10桁）：{'、'.join(bad_asins[:10])}")
+    asins_text = "\n".join(asins) or None
 
     conn = get_conn(DB_NAME)
     cur = conn.cursor()
@@ -197,14 +246,14 @@ def save_template():
     if tpl_id:
         cur.execute("""
             UPDATE doc_templates
-            SET category_id = %s, title = %s, body = %s, updated_at = %s
+            SET category_id = %s, title = %s, body = %s, asins = %s, updated_at = %s
             WHERE id = %s AND user_id = %s
-        """, (category_id, title, body, now, tpl_id, user_id))
+        """, (category_id, title, body, asins_text, now, tpl_id, user_id))
     else:
         cur.execute("""
-            INSERT INTO doc_templates (user_id, category_id, title, body, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
-        """, (user_id, category_id, title, body, now, now))
+            INSERT INTO doc_templates (user_id, category_id, title, body, asins, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (user_id, category_id, title, body, asins_text, now, now))
         tpl_id = cur.fetchone()["id"]
     conn.commit()
     conn.close()
@@ -248,11 +297,18 @@ def export_json():
     categories = cur.fetchall()
 
     cur.execute("""
-        SELECT category_id, title, body FROM doc_templates
+        SELECT category_id, title, body, asins FROM doc_templates
         WHERE user_id = %s ORDER BY title, id
     """, (user_id,))
     templates = cur.fetchall()
     conn.close()
+
+    def _doc(t):
+        return {
+            "title": t["title"],
+            "body": t["body"] or "",
+            "asins": [a for a in (t["asins"] or "").split("\n") if a],
+        }
 
     payload = {
         "format": EXPORT_FORMAT,
@@ -261,10 +317,7 @@ def export_json():
         "categories": [
             {
                 "name": c["name"],
-                "documents": [
-                    {"title": t["title"], "body": t["body"] or ""}
-                    for t in templates if t["category_id"] == c["id"]
-                ],
+                "documents": [_doc(t) for t in templates if t["category_id"] == c["id"]],
             }
             for c in categories
         ],
@@ -301,7 +354,8 @@ def import_json():
             or not isinstance(payload.get("categories"), list):
         return _err("文書管理のエクスポートファイルではありません。何も取り込んでいません。")
 
-    entries = []  # [(カテゴリ名, [(タイトル, 本文), ...]), ...]
+    # 対象ASINの無い古いファイル（asins キーなし）は、既存文書の対象ASINを消さずに残す（asins_text=False）
+    entries = []  # [(カテゴリ名, [(タイトル, 本文, asins_text), ...]), ...]
     for c in payload["categories"]:
         name = (c.get("name") or "").strip() if isinstance(c, dict) else ""
         docs = c.get("documents") if isinstance(c, dict) else None
@@ -313,7 +367,13 @@ def import_json():
             body = d.get("body") if isinstance(d, dict) else None
             if not title or not isinstance(body, str):
                 return _err(f"ファイルの中身に不正な箇所があります（カテゴリ「{name}」の文書）。何も取り込んでいません。")
-            doc_rows.append((title, body))
+            asins_text = False
+            if "asins" in d:
+                asins, bad = _parse_asins(d.get("asins"))
+                if bad:
+                    return _err(f"「{title}」の対象ASINの形式が正しくありません：{'、'.join(bad[:10])}。何も取り込んでいません。")
+                asins_text = "\n".join(asins) or None
+            doc_rows.append((title, body, asins_text))
         entries.append((name, doc_rows))
 
     conn = get_conn(DB_NAME)
@@ -342,22 +402,27 @@ def import_json():
                 cat_id = cur.fetchone()["id"]
                 new_categories += 1
 
-            for title, body in doc_rows:
+            for title, body, asins_text in doc_rows:
                 cur.execute("""
                     SELECT id FROM doc_templates
                     WHERE user_id = %s AND category_id = %s AND title = %s
                 """, (user_id, cat_id, title))
                 existing = cur.fetchone()
                 if existing:
-                    cur.execute("""
-                        UPDATE doc_templates SET body = %s, updated_at = %s WHERE id = %s
-                    """, (body, now, existing["id"]))
+                    if asins_text is False:
+                        cur.execute("""
+                            UPDATE doc_templates SET body = %s, updated_at = %s WHERE id = %s
+                        """, (body, now, existing["id"]))
+                    else:
+                        cur.execute("""
+                            UPDATE doc_templates SET body = %s, asins = %s, updated_at = %s WHERE id = %s
+                        """, (body, asins_text, now, existing["id"]))
                     updated += 1
                 else:
                     cur.execute("""
-                        INSERT INTO doc_templates (user_id, category_id, title, body, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (user_id, cat_id, title, body, now, now))
+                        INSERT INTO doc_templates (user_id, category_id, title, body, asins, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (user_id, cat_id, title, body, asins_text or None, now, now))
                     added += 1
         conn.commit()
     except Exception:

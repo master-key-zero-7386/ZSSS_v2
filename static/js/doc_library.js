@@ -187,7 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return state.templates.filter(t => {
             if (state.selectedCategory !== ALL && t.category_id !== state.selectedCategory) return false;
             if (!q) return true;
-            return (t.title || "").toLowerCase().includes(q) || (t.body || "").toLowerCase().includes(q);
+            return (t.title || "").toLowerCase().includes(q)
+                || (t.body || "").toLowerCase().includes(q)
+                || (t.asins || []).some(a => a.toLowerCase().includes(q));
         });
     }
 
@@ -252,6 +254,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         $("dlViewTitle").textContent = t.title;
         $("dlViewCategory").textContent = `カテゴリ：${categoryName(t.category_id)}`;
+        $("dlViewAsins").textContent = (t.asins || []).length
+            ? `対象ASIN（${t.asins.length}）：${t.asins.join(", ")}`
+            : "対象ASIN：なし";
         $("dlViewBody").textContent = t.body || "";
         $("dlCopyMsg").textContent = "";
         showMode("view");
@@ -279,6 +284,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         $("dlEditHeading").textContent = template ? "文書を編集" : "新しい文書";
         $("dlEditTitle").value = template ? template.title : "";
+        $("dlEditAsins").value = template ? (template.asins || []).join("\n") : "";
         $("dlEditBody").value = template ? (template.body || "") : "";
         showMode("edit");
         $("dlEditTitle").focus();
@@ -289,6 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
             id: state.editingId,
             category_id: Number($("dlEditCategory").value),
             title: $("dlEditTitle").value,
+            asins: $("dlEditAsins").value,
             body: $("dlEditBody").value,
         };
         try {
@@ -422,8 +429,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // サブタブを開いた時に最新を読み込む（他PC・別タブでの変更を拾う）
-    document.querySelector('.st-subtab-btn[data-target="st-doclibrary"]')
-        ?.addEventListener("click", () => { if ($("dlEdit").style.display === "none") load(); });
+    const subtabBtn = document.querySelector('.st-subtab-btn[data-target="st-doclibrary"]');
+    subtabBtn?.addEventListener("click", () => { if ($("dlEdit").style.display === "none") load(); });
+
+    // 発注管理の定型文ポップアップ「文書管理で開く」から呼ばれる：その他ツール→文書管理でこの文書を選んだ状態にする
+    window.dlOpenTemplate = (id) => {
+        if ($("dlEdit").style.display !== "none" &&
+            !confirm("文書管理で編集中の内容は保存されません。よろしいですか？")) return;
+        state.selectedCategory = ALL;
+        state.selectedTemplateId = id;
+        $("dlSearch").value = "";
+        showMode("view");
+        document.querySelector('.tab[data-tab="shipping-tools"]')?.click();
+        subtabBtn?.click();   // ここで最新を読み込み、選んだ文書を表示する
+    };
 
     load();
 });

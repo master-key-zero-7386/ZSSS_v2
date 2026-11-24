@@ -639,6 +639,7 @@ DOC_TEMPLATES_COLUMNS = {
     "category_id": "INTEGER NOT NULL",   # doc_template_categories.id
     "title":       "TEXT NOT NULL",
     "body":        "TEXT",               # 本文（改行込みでそのまま保持）
+    "asins":       "TEXT",               # 対象ASIN（大文字・重複なし・改行区切り）。発注管理でこのASINの行から開ける
     "created_at":  "TEXT",
     "updated_at":  "TEXT",
 }

@@ -198,6 +198,7 @@
 
 #dlEditTitle,
 #dlEditCategory,
+#dlEditAsins,
 #dlEditBody {
   width: 100%;
   box-sizing: border-box;
@@ -406,7 +407,7 @@
 
         <div class="card">
             <div class="dl-toolbar">
-                <input id="dlSearch" type="search" placeholder="タイトル・本文で検索" style="width:260px;">
+                <input id="dlSearch" type="search" placeholder="タイトル・本文・ASINで検索" style="width:260px;">
                 <button id="dlNewBtn" class="btn-blue" type="button">＋ 新しい文書</button>
                 <span style="flex:1;"></span>
                 <button id="dlExportBtn" class="btn-blue" type="button">エクスポート</button>
@@ -439,7 +440,8 @@
 
                 <div id="dlView" style="display:none;">
                     <h3 id="dlViewTitle" style="margin-top:0;"></h3>
-                    <div id="dlViewCategory" style="opacity:0.7; margin-bottom:8px;"></div>
+                    <div id="dlViewCategory" style="opacity:0.7; margin-bottom:4px;"></div>
+                    <div id="dlViewAsins" style="opacity:0.7; margin-bottom:8px; word-break:break-all;"></div>
                     <div class="dl-toolbar">
                         <button id="dlCopyBtn" class="btn-blue" type="button">コピー</button>
                         <span id="dlCopyMsg" style="color:green; font-weight:bold;"></span>
@@ -459,6 +461,10 @@
                     <div class="dl-form-row">
                         <label for="dlEditTitle">タイトル</label>
                         <input id="dlEditTitle" type="text">
+                    </div>
+                    <div class="dl-form-row">
+                        <label for="dlEditAsins">対象ASIN <span style="font-weight:normal; opacity:0.7;">（改行・カンマ区切り。発注管理の「成」列からこの文書を開けるようになります）</span></label>
+                        <textarea id="dlEditAsins" rows="3" placeholder="B00004YOH7&#10;B0000614UT"></textarea>
                     </div>
                     <div class="dl-form-row">
                         <label for="dlEditBody">本文</label>
