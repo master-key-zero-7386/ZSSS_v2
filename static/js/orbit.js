@@ -1184,11 +1184,8 @@ async function orbitOpenDocPopup(asin) {
         list.querySelectorAll("li").forEach(li => li.classList.toggle("active", Number(li.dataset.id) === t.id));
         overlay.querySelector(".odp-title").textContent = `${t.title}（${t.category_name}）`;
         overlay.querySelector(".odp-body").textContent = t.body || "";
-        // 原文の文字数（セラセンのメッセージ上限 2000文字。超えたら赤）
-        const n = [...(t.body || "")].length;
-        const countEl = overlay.querySelector(".odp-char-count");
-        countEl.textContent = `${n.toLocaleString()} / 2,000文字` + (n > 2000 ? `（${(n - 2000).toLocaleString()}文字オーバー）` : "");
-        countEl.classList.toggle("is-over", n > 2000);
+        // 原文の文字数（送り先ごとに上限が違うので数だけ出す）
+        overlay.querySelector(".odp-char-count").textContent = `${[...(t.body || "")].length.toLocaleString()}文字`;
         overlay.querySelector(".odp-copy-msg").textContent = "";
         renderTrans(t);
         view.style.display = "";

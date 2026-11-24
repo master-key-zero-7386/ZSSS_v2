@@ -21,14 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const $ = id => document.getElementById(id);
 
-    // 原文の文字数（セラセンのメッセージ上限 2000文字。超えたら赤）。絵文字なども1文字で数える
-    const MESSAGE_CHAR_LIMIT = 2000;
+    // 原文の文字数（送り先ごとに上限が違うので数だけ出す）。絵文字なども1文字で数える
     function showCharCount(el, text) {
-        const n = [...(text || "")].length;
-        const over = n > MESSAGE_CHAR_LIMIT;
-        el.textContent = `${n.toLocaleString()} / ${MESSAGE_CHAR_LIMIT.toLocaleString()}文字`
-            + (over ? `（${(n - MESSAGE_CHAR_LIMIT).toLocaleString()}文字オーバー）` : "");
-        el.classList.toggle("is-over", over);
+        el.textContent = `${[...(text || "")].length.toLocaleString()}文字`;
     }
 
     function setStatus(message, isError = false) {
