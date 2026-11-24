@@ -640,6 +640,9 @@ DOC_TEMPLATES_COLUMNS = {
     "title":       "TEXT NOT NULL",
     "body":        "TEXT",               # 本文（改行込みでそのまま保持）
     "asins":       "TEXT",               # 対象ASIN（大文字・重複なし・改行区切り）。発注管理でこのASINの行から開ける
+    "body_translated":   "TEXT",         # DeepLで日本語にした本文（表示の右側。見るたびには翻訳しない）
+    "translated_source": "TEXT",         # 翻訳したときの本文。今の本文と違えば翻訳が古い＝自動で翻訳し直す
+    "translated_at":     "TEXT",
     "created_at":  "TEXT",
     "updated_at":  "TEXT",
 }

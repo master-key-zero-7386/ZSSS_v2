@@ -1106,11 +1106,21 @@ async function orbitOpenDocPopup(asin) {
                         <div class="odp-title"></div>
                         <div class="odp-toolbar">
                             <button type="button" class="btn-blue odp-copy">コピー</button>
+                            <span class="odp-char-count"></span>
                             <span class="odp-copy-msg"></span>
                             <span style="flex:1;"></span>
                             <button type="button" class="btn-blue odp-open">文書管理で開く</button>
                         </div>
-                        <div class="odp-body"></div>
+                        <div class="odp-pair">
+                            <div class="odp-col">
+                                <div class="odp-label">原文（コピーされるのはこちら）</div>
+                                <div class="odp-body"></div>
+                            </div>
+                            <div class="odp-col">
+                                <div class="odp-label">日本語訳（DeepL） <span class="odp-trans-msg"></span></div>
+                                <div class="odp-body odp-translated"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>`;
@@ -1174,8 +1184,45 @@ async function orbitOpenDocPopup(asin) {
         list.querySelectorAll("li").forEach(li => li.classList.toggle("active", Number(li.dataset.id) === t.id));
         overlay.querySelector(".odp-title").textContent = `${t.title}（${t.category_name}）`;
         overlay.querySelector(".odp-body").textContent = t.body || "";
+        // 原文の文字数（セラセンのメッセージ上限 2000文字。超えたら赤）
+        const n = [...(t.body || "")].length;
+        const countEl = overlay.querySelector(".odp-char-count");
+        countEl.textContent = `${n.toLocaleString()} / 2,000文字` + (n > 2000 ? `（${(n - 2000).toLocaleString()}文字オーバー）` : "");
+        countEl.classList.toggle("is-over", n > 2000);
         overlay.querySelector(".odp-copy-msg").textContent = "";
+        renderTrans(t);
         view.style.display = "";
+        if (t.translation_stale && !t._translating && !t._transError) translateDoc(t);
+    };
+    // 日本語訳：文書管理で保存済みの訳を出す。無い・古い時だけDeepLで翻訳（結果は文書管理側のDBに残る）
+    const renderTrans = (t) => {
+        if (overlay._current !== t) return;
+        const msg = overlay.querySelector(".odp-trans-msg");
+        overlay.querySelector(".odp-translated").textContent = t.body_translated || "";
+        msg.style.color = t._transError ? "red" : "";
+        msg.textContent = t._translating ? "翻訳中..."
+            : t._transError ? t._transError
+            : (t.translation_stale && t.body_translated) ? "（本文を直す前の訳です）" : "";
+    };
+    const translateDoc = async (t) => {
+        t._translating = true;
+        renderTrans(t);
+        try {
+            const resp = await fetch("/tools/doc_library/template/translate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: t.id }),
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok || result.status !== "ok") throw new Error(result.message || "翻訳に失敗しました。");
+            t.body_translated = result.body_translated;
+            t.translation_stale = false;
+        } catch (e) {
+            t._transError = e.message;
+        } finally {
+            t._translating = false;
+            renderTrans(t);
+        }
     };
     docs.forEach(t => {
         const li = document.createElement("li");

@@ -80,7 +80,8 @@ def get_data():
     categories = [dict(r) for r in cur.fetchall()]
 
     cur.execute("""
-        SELECT id, category_id, title, body, asins, updated_at FROM doc_templates
+        SELECT id, category_id, title, body, asins, body_translated, translated_source, updated_at
+        FROM doc_templates
         WHERE user_id = %s
         ORDER BY title, id
     """, (user_id,))
@@ -88,6 +89,10 @@ def get_data():
     for r in cur.fetchall():
         t = dict(r)
         t["asins"] = [a for a in (t.get("asins") or "").split("\n") if a]
+        # 翻訳が無い・本文を直した後で古い → 画面が開いた時に自動で翻訳し直す
+        source = t.pop("translated_source", None)
+        t["translation_stale"] = t.get("body_translated") is None \
+            or (source or "") != (t.get("body") or "")
         templates.append(t)
     conn.close()
 
@@ -259,6 +264,47 @@ def save_template():
     conn.close()
 
     return jsonify({"status": "ok", "id": tpl_id})
+
+
+# --- ▼ 文書 翻訳（DeepLで日本語に。結果はDBに残し、本文が変わるまで再翻訳しない） ---
+@doc_library_bp.route("/template/translate", methods=["POST"])
+def translate_template():
+    user_id = session.get("user_id")
+    if not user_id:
+        return _err("ログインしてください。", 401)
+
+    tpl_id = (request.get_json(silent=True) or {}).get("id")
+
+    conn = get_conn(DB_NAME)
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT body FROM doc_templates WHERE id = %s AND user_id = %s
+    """, (tpl_id, user_id))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return _err("文書が見つかりません。画面を更新してください。", 404)
+
+    # DeepLの応答待ち（数秒）の間はDB接続を持たない
+    body = row["body"] or ""
+    from tools.deepl_client import translate_to_japanese, DeepLError
+    try:
+        translated = translate_to_japanese(body)
+    except DeepLError as e:
+        return _err(str(e), 502)
+
+    conn = get_conn(DB_NAME)
+    cur = conn.cursor()
+    # 翻訳中に本文が書き換えられていたら、古い本文の翻訳で上書きしない
+    cur.execute("""
+        UPDATE doc_templates
+        SET body_translated = %s, translated_source = %s, translated_at = %s
+        WHERE id = %s AND user_id = %s AND COALESCE(body, '') = %s
+    """, (translated, body, _now(), tpl_id, user_id, body))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "body_translated": translated})
 
 
 # --- ▼ 文書 削除 ---

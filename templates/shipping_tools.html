@@ -186,6 +186,38 @@
   overflow-y: auto;
 }
 
+/* 本文：左＝原文、右＝日本語訳（狭い画面では上下に並ぶ） */
+.dl-body-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.dl-pane-label {
+  font-weight: bold;
+  font-size: 0.9em;
+  opacity: 0.8;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+}
+
+/* 原文の文字数（セラセンのメッセージは2000文字まで。超えたら赤） */
+.dl-char-count {
+  font-weight: bold;
+  color: #555;
+}
+
+.dl-char-count.is-over {
+  color: #dc3545;
+}
+
+.dl-body-translated {
+  background: #f4f8ff;
+}
+
 .dl-form-row {
   margin-bottom: 8px;
 }
@@ -444,12 +476,26 @@
                     <div id="dlViewAsins" style="opacity:0.7; margin-bottom:8px; word-break:break-all;"></div>
                     <div class="dl-toolbar">
                         <button id="dlCopyBtn" class="btn-blue" type="button">コピー</button>
+                        <span id="dlCharCount" class="dl-char-count"></span>
                         <span id="dlCopyMsg" style="color:green; font-weight:bold;"></span>
                         <span style="flex:1;"></span>
                         <button id="dlEditBtn" class="btn-blue" type="button">編集</button>
                         <button id="dlDeleteBtn" class="btn-blue" type="button">削除</button>
                     </div>
-                    <div id="dlViewBody" class="dl-body-view"></div>
+                    <div class="dl-body-pair">
+                        <div>
+                            <div class="dl-pane-label">原文（コピーされるのはこちら）</div>
+                            <div id="dlViewBody" class="dl-body-view"></div>
+                        </div>
+                        <div>
+                            <div class="dl-pane-label">
+                                日本語訳（DeepL）
+                                <button id="dlRetranslateBtn" class="dl-mini-btn" type="button" title="DeepLでもう一度翻訳する">翻訳し直す</button>
+                                <span id="dlTransMsg"></span>
+                            </div>
+                            <div id="dlViewTranslated" class="dl-body-view dl-body-translated"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="dlEdit" style="display:none;">
@@ -469,6 +515,7 @@
                     <div class="dl-form-row">
                         <label for="dlEditBody">本文</label>
                         <textarea id="dlEditBody" rows="22"></textarea>
+                        <div id="dlEditCharCount" class="dl-char-count" style="margin-top:2px;"></div>
                     </div>
                     <div class="dl-toolbar">
                         <button id="dlSaveBtn" class="btn-blue" type="button">保存</button>

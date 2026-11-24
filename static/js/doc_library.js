@@ -21,6 +21,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const $ = id => document.getElementById(id);
 
+    // 原文の文字数（セラセンのメッセージ上限 2000文字。超えたら赤）。絵文字なども1文字で数える
+    const MESSAGE_CHAR_LIMIT = 2000;
+    function showCharCount(el, text) {
+        const n = [...(text || "")].length;
+        const over = n > MESSAGE_CHAR_LIMIT;
+        el.textContent = `${n.toLocaleString()} / ${MESSAGE_CHAR_LIMIT.toLocaleString()}文字`
+            + (over ? `（${(n - MESSAGE_CHAR_LIMIT).toLocaleString()}文字オーバー）` : "");
+        el.classList.toggle("is-over", over);
+    }
+
     function setStatus(message, isError = false) {
         const el = $("dlStatus");
         el.textContent = message || "";
@@ -258,8 +268,56 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `対象ASIN（${t.asins.length}）：${t.asins.join(", ")}`
             : "対象ASIN：なし";
         $("dlViewBody").textContent = t.body || "";
+        showCharCount($("dlCharCount"), t.body);
         $("dlCopyMsg").textContent = "";
+        renderTranslation(t);
         showMode("view");
+        // 翻訳が無い／本文を直して古い → 自動で翻訳（失敗した文書は「翻訳し直す」を押すまで再送しない）
+        if (t.translation_stale && !translating.has(t.id) && !transFailed.has(t.id)) translate(t);
+    }
+
+    // --- ▼ 右：日本語訳（DeepL。サーバーがDBに保存するので、本文を直すまで再翻訳しない） ---
+    const translating = new Set();
+    const transFailed = new Map();   // 文書id → エラーメッセージ
+
+    function renderTranslation(t) {
+        const msg = $("dlTransMsg");
+        const view = $("dlViewTranslated");
+        msg.style.color = "";
+        $("dlRetranslateBtn").disabled = translating.has(t.id);
+        if (translating.has(t.id)) {
+            msg.textContent = "翻訳中...";
+            view.textContent = t.body_translated || "";
+        } else if (transFailed.has(t.id)) {
+            msg.textContent = transFailed.get(t.id);
+            msg.style.color = "red";
+            view.textContent = t.body_translated || "";
+        } else {
+            msg.textContent = (t.translation_stale && t.body_translated) ? "（本文を直す前の訳です）" : "";
+            view.textContent = t.body_translated || "";
+        }
+    }
+
+    async function translate(t) {
+        translating.add(t.id);
+        transFailed.delete(t.id);
+        if (state.selectedTemplateId === t.id) renderTranslation(t);
+        try {
+            const result = await postJson("/template/translate", { id: t.id });
+            t.body_translated = result.body_translated;
+            t.translation_stale = false;
+        } catch (e) {
+            transFailed.set(t.id, e.message);
+        } finally {
+            translating.delete(t.id);
+            // 翻訳中に一覧を読み直していたら、新しい方の文書データにも結果を反映する
+            const current = state.templates.find(x => x.id === t.id);
+            if (current && current !== t && current.body === t.body) {
+                current.body_translated = t.body_translated;
+                current.translation_stale = t.translation_stale;
+            }
+            if (state.selectedTemplateId === t.id) renderTranslation(current || t);
+        }
     }
 
     function openEditor(template) {
@@ -286,6 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
         $("dlEditTitle").value = template ? template.title : "";
         $("dlEditAsins").value = template ? (template.asins || []).join("\n") : "";
         $("dlEditBody").value = template ? (template.body || "") : "";
+        showCharCount($("dlEditCharCount"), $("dlEditBody").value);
         showMode("edit");
         $("dlEditTitle").focus();
     }
@@ -418,6 +477,11 @@ document.addEventListener("DOMContentLoaded", () => {
         openEditor(state.templates.find(x => x.id === state.selectedTemplateId));
     });
     $("dlDeleteBtn").addEventListener("click", deleteTemplate);
+    $("dlEditBody").addEventListener("input", () => showCharCount($("dlEditCharCount"), $("dlEditBody").value));
+    $("dlRetranslateBtn").addEventListener("click", () => {
+        const t = state.templates.find(x => x.id === state.selectedTemplateId);
+        if (t && !translating.has(t.id)) translate(t);
+    });
     $("dlSaveBtn").addEventListener("click", saveTemplate);
     $("dlCancelBtn").addEventListener("click", cancelEdit);
     $("dlExportBtn").addEventListener("click", exportJson);

@@ -716,7 +716,7 @@
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-  width: min(900px, 92vw);
+  width: min(1400px, 95vw);
   max-height: 86vh;
   display: flex;
   flex-direction: column;
@@ -734,6 +734,11 @@
 #orbit-doc-popup .odp-title { font-weight: bold; margin-bottom: 6px; }
 #orbit-doc-popup .odp-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 #orbit-doc-popup .odp-copy-msg { font-weight: bold; }
+#orbit-doc-popup .odp-char-count { font-weight: bold; color: #555; }
+#orbit-doc-popup .odp-char-count.is-over { color: #dc3545; }
+#orbit-doc-popup .odp-pair { display: flex; gap: 12px; flex: 1; min-height: 0; }
+#orbit-doc-popup .odp-col { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+#orbit-doc-popup .odp-label { font-weight: bold; font-size: 0.9em; opacity: 0.8; margin-bottom: 4px; }
 #orbit-doc-popup .odp-body {
   white-space: pre-wrap;
   word-break: break-word;
@@ -745,6 +750,7 @@
   flex: 1;
   min-height: 200px;
 }
+#orbit-doc-popup .odp-translated { background: #f4f8ff; }
 /* 成分台帳タブ */
 #orbit-pane-ingredient details.orbit-sheet-settings,
 #orbit-pane-ingredient .orbit-ingredient-add { flex: none; }

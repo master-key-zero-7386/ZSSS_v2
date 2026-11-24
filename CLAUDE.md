@@ -103,6 +103,9 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   each environment's DB (運用PC is the real one; it's also what's opened from outside). Export/import is JSON
   (not CSV — Excel re-saves mangle bodies); import upserts by (category name, title) and never deletes. The copy
   button falls back to `execCommand` because remote access over plain http has no `navigator.clipboard`.
+  Each template can list 対象ASIN (`doc_templates.asins`, uppercase, newline-separated); 発注管理's 成 column then
+  makes the 成分台帳 説明 (or a blue 「文」 mark) clickable and opens the template in a popup
+  (`doc_template_ids` row key, in `_RAW_SHEET_SKIP_KEYS`). Importing an old export without `asins` keeps existing ASINs.
   英語マニュアル(PDF, ASIN/型番/JAN, multiple PDFs per item) is planned but parked until PDF storage is decided.
 - **Pricing カテゴリ別手数料率 / カート取得状況** (`core/category_fee.py`, `services/buybox_stats_service.py`).
   Per country ON/OFF table that swaps `amazon_fee_rate` / `min_profit_rate` for listings whose catalog productType
