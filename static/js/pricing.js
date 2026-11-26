@@ -56,8 +56,11 @@ document.addEventListener("DOMContentLoaded", () => {
   window.saveShippingConfigV2 = async function() {
     const globalRegion = document.getElementById("globalRegion");
     const region = globalRegion?.value;
-    // プルダウン未選択時は処理しない
-    if (!region) return;
+    // プルダウン未選択時は処理しない（黙って何もしないと「保存できた」と誤解するので通知する）
+    if (!region) {
+      window.showToast?.("配送先の国が未選択のため、梱包補正・EMS設定は保存されませんでした", "error");
+      return;
+    }
 
     const emsLongestSide = document.getElementById("pkg_max_longest_side_cm")?.value;
     const emsLengthPlusGirth = document.getElementById("pkg_max_length_plus_girth_cm")?.value;
@@ -328,8 +331,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("zsss:regionChanged", (e) => {
       const countryCode = e.detail?.country_code;
       updateListingCurrencyUnit(countryCode);
-      updateHomeCurrencyUnit();  
-      loadPricingMasterRules(countryCode); 
+      updateHomeCurrencyUnit();
+      loadPricingMasterRules(countryCode);
+      // EMSサイズ上限は配送先国別。globalRegionはfetch後に非同期で確定するため、
+      // 初期読込み（SECTION 11）の時点ではregionが空→"ALL"で読まれてEMS欄が空になる。
+      // 国が確定したこのタイミングで必ず読み直す（読み直さないと空欄のまま保存→上書き消去される）
+      if (countryCode) loadShippingConfigV2(countryCode);
   });
 
   // --- ▼ SECTION 11: Pricing設定 Offer部 初期読込み ▼ ---
