@@ -258,29 +258,35 @@
 
         <p style="margin:6px 0 12px;">
             Pre-Listingに入っている商品をブランド名で絞って、型番・説明文をCSVで出します。<br>
-            対象は、上で選んでいるリージョンのPre-Listingです。
+            どのブランドでも使えます。対象は、上で選んでいるリージョンのPre-Listingです。
         </p>
 
         <div class="btn-row" style="display:flex; gap:8px; align-items:center;">
             <input id="mnc-brand" type="text" class="zsss-control"
-                   placeholder="ブランド名（例：Makita）" style="width:260px;">
+                   placeholder="ブランド名（例：Makita、HiKOKI、Panasonic）" style="width:320px;">
             <button id="mnc-export-csv" class="btn-blue" type="button">Export CSV</button>
         </div>
 
-        <label style="display:inline-flex; align-items:center; gap:4px; margin-top:8px;">
+        <h3 style="margin:16px 0 4px;">CSVに出るもの（全ブランド共通）</h3>
+        <ul style="margin:0; padding-left:20px; line-height:1.7;">
+            <li>型番・部品番号・箇条書きの説明</li>
+            <li>説明文に出てくる電圧の言葉（「100V」「単相」など）。catalogの「電圧」の欄は当てにならないので使っていません。</li>
+            <li>Firstでcatalogがまだ取れていない商品は「未取得」と出ます。</li>
+        </ul>
+
+        <h3 style="margin:16px 0 4px;">マキタの商品だけのおまけ機能</h3>
+        <label style="display:inline-flex; align-items:center; gap:4px;">
             <input type="checkbox" id="mnc-check-makita">
             マキタカナダに型番が載ってるか自動で見に行く（1件1秒ほどかかります）
         </label>
-        <div id="mncStatus" style="margin-top:6px; font-weight:bold;"></div>
-
-        <ul style="margin:12px 0 0; padding-left:20px; line-height:1.7;">
-            <li>catalogの「電圧」の欄は当てにならないので使っていません。説明文に出てくる「100V」「単相」などの言葉だけを拾います。</li>
-            <li>Firstでcatalogがまだ取れていない商品は「未取得」と出ます。</li>
-            <li>マキタの商品には、マキタカナダで型番を検索するリンクが付きます。</li>
-            <li>自動チェックの「載ってない」は、カナダ版（120V）が無いということなので、ほぼNGです。</li>
+        <ul style="margin:4px 0 0; padding-left:20px; line-height:1.7;">
+            <li>マキタの商品には、マキタカナダで型番を検索するリンクが付きます。他のブランドは空欄です。</li>
+            <li>コード式の工具で「載ってない」なら、カナダ版（120V）が無いのでほぼNGです。</li>
             <li>「載ってる」は、カナダ版があるというだけです。日本で仕入れる物は100V版のこともあるので、説明文を見て自分で判断してください。</li>
-            <li>部品・アクセサリーの番号は、マキタカナダの検索では出てこないので「載ってない」になります。</li>
+            <li>Xで始まるアメリカ向けの型番や、部品・アクセサリーの番号は、マキタカナダでは出てこないので「載ってない」になります。</li>
         </ul>
+
+        <div id="mncStatus" style="margin-top:10px; font-weight:bold;"></div>
     </div>
     </div>
     <!-- ▲ SUBTAB: 型番チェック -->
