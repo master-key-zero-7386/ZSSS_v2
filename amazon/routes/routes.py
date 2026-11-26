@@ -278,6 +278,159 @@ def brand_gate_check():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+# --- ▼ SECTION 05-2: 型番チェックCSV（その他ツール） ▼ ---
+# Pre-Listingの商品をブランド名で絞り、保存済みcatalog（home_raw_json）から
+# 型番・部品番号・箇条書きの説明を抜き出してCSVで返す。APIは呼ばない。
+# ★catalogの「voltage」欄は世界共通データで実物と違うことがあるので使わない。
+#   電圧は日本語の説明文の中の言葉（100V／単相など）だけを拾う。
+MAKITA_CA_SEARCH_URL = "https://www.makita.ca/index2new.php?event=searchv2&listlang=English&searchkeyword="
+MAKITA_CA_WAIT_SEC = 1.0   # サイトに迷惑をかけないよう、1件ごとに間をあける
+
+
+def _check_makita_ca(model: str) -> str:
+    """マキタカナダで型番を検索した結果を返す。
+    型番がピッタリ合うと工具ページへ転送される／無いと「No results for」が出る。
+    ★「載ってる」＝カナダ版(120V)がある、という意味でしかない。
+      日本で仕入れる物が100V版のこともあるので、OKの判定ではない（NGのふるい落とし用）。"""
+    import time
+    import requests
+    try:
+        r = requests.get(MAKITA_CA_SEARCH_URL + requests.utils.quote(model), timeout=15,
+                         headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            result = f"確認失敗({r.status_code})"
+        elif "event=tool" in r.url:
+            result = "載ってる"
+        elif "No results for" in r.text:
+            result = "載ってない"
+        else:
+            result = "似た型番あり（要確認）"
+    except Exception:
+        result = "確認失敗"
+    time.sleep(MAKITA_CA_WAIT_SEC)
+    return result
+
+_VOLT_RE = re.compile(r"(?:AC|DC)?\s?\d{1,3}(?:\.\d)?\s?(?:V|ボルト)(?![A-Za-z])|単相|三相", re.I)
+
+
+def _attr_values(attrs: dict, key: str) -> list:
+    return [str(x.get("value")).strip() for x in (attrs.get(key) or [])
+            if isinstance(x, dict) and x.get("value") not in (None, "")]
+
+
+def _extract_voltage_words(text: str) -> str:
+    import unicodedata
+    text = unicodedata.normalize("NFKC", text or "")
+    found = []
+    for m in _VOLT_RE.findall(text):
+        w = re.sub(r"\s+", "", m).upper().replace("ボルト", "V")
+        if w not in found:
+            found.append(w)
+    return " / ".join(found)
+
+
+@amazon_bp.route("/model_number_csv", methods=["GET"])
+@login_required
+def model_number_csv():
+    import io
+    user_id = session.get("user_id")
+    brand = (request.args.get("brand") or "").strip()
+    country_code = (request.args.get("country_code") or "").strip().upper()
+    check_makita = request.args.get("check_makita") == "1"
+
+    if not brand:
+        return jsonify({"status": "error", "message": "ブランド名を入れてください"}), 400
+
+    conn = get_conn("a_marketplaces.db")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT marketplace_id
+            FROM marketplaces
+            WHERE user_id = %s AND UPPER(country_code) = %s
+            LIMIT 1
+        """, (user_id, country_code))
+        r = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not r:
+        return jsonify({"status": "error", "message": "マーケットプレイスが見つかりません"}), 400
+    region_marketplace_id = r["marketplace_id"]
+
+    like = f"%{brand}%"
+    conn = get_conn("listed_items")
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT li.asin, li.home_title, li.home_brand, li.region_brand, cc.home_raw_json
+            FROM listed_items li
+            LEFT JOIN catalog_cache cc
+              ON cc.asin = li.asin AND cc.home_marketplace_id = li.home_marketplace_id
+            WHERE li.user_id = %s
+              AND li.status = 'pre'
+              AND li.region_marketplace_id = %s
+              AND (li.home_brand ILIKE %s OR li.region_brand ILIKE %s)
+            ORDER BY li.home_brand, li.asin
+        """, (user_id, region_marketplace_id, like, like))
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["ASIN", "ブランド", "商品タイトル", "型番", "部品番号",
+                "説明文の電圧の言葉", "箇条書きの説明", "マキタカナダ検索リンク", "マキタカナダ結果", "状態"])
+
+    makita_cache = {}   # 同じ型番は1回だけ見に行く
+
+    for row in rows:
+        asin = row["asin"]
+        brand_name = row["home_brand"] or row["region_brand"] or ""
+        title = row["home_title"] or ""
+        model = part = bullets = volt = link = ""
+        state = "OK"
+
+        raw = row["home_raw_json"]
+        if not raw:
+            state = "未取得"
+        else:
+            try:
+                j = raw if isinstance(raw, dict) else json.loads(raw)
+            except Exception:
+                j = {}
+                state = "未取得"
+            summ = (j.get("summaries") or [{}])[0] or {}
+            attrs = j.get("attributes") or {}
+            title = title or summ.get("itemName") or ""
+            model = (summ.get("modelNumber") or next(iter(_attr_values(attrs, "model_number")), "")).strip()
+            part = (summ.get("partNumber") or next(iter(_attr_values(attrs, "part_number")), "")).strip()
+            bullet_list = _attr_values(attrs, "bullet_point")
+            desc_list = _attr_values(attrs, "product_description")
+            bullets = " / ".join(bullet_list)
+            volt = _extract_voltage_words(" ".join([title] + bullet_list + desc_list))
+            if state == "OK" and not model:
+                state = "型番なし"
+
+        is_makita = re.search(r"makita|マキタ", brand_name, re.I)
+        mk_result = ""
+        if is_makita and model:
+            link = MAKITA_CA_SEARCH_URL + model
+            if check_makita:
+                key = model.upper()
+                if key not in makita_cache:
+                    makita_cache[key] = _check_makita_ca(model)
+                mk_result = makita_cache[key]
+
+        w.writerow([asin, brand_name, title, model, part, volt, bullets, link, mk_result, state])
+
+    safe_brand = re.sub(r"[^A-Za-z0-9_-]", "_", brand)[:30] or "brand"
+    filename = f"{country_code}_model_number_{safe_brand}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    resp = make_response("﻿" + out.getvalue())
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return resp
+
 # --- ▼ SECTION 06: Brand Gate Brand ▼ ---
 @amazon_bp.route("/extract_brand", methods=["POST"])
 def extract_brand():

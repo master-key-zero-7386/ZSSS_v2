@@ -245,9 +245,45 @@
 
     <div class="st-subtabs">
         <button class="st-subtab-btn active" data-target="st-doclibrary">文書管理</button>
+        <button class="st-subtab-btn" data-target="st-modelnumber">型番チェック</button>
         <button class="st-subtab-btn" data-target="st-brandgate">Brand Gate</button>
         <button class="st-subtab-btn" data-target="st-remotearea">遠隔地郵便番号管理</button>
     </div>
+
+    <!-- ▼ SUBTAB: 型番チェック（Pre-Listingの型番・説明文をCSV出力） -->
+    <div id="st-modelnumber" class="st-subtab-pane">
+    <div class="card" style="margin-bottom:20px; max-width:760px;">
+
+        <h2>型番チェック</h2>
+
+        <p style="margin:6px 0 12px;">
+            Pre-Listingに入っている商品をブランド名で絞って、型番・説明文をCSVで出します。<br>
+            対象は、上で選んでいるリージョンのPre-Listingです。
+        </p>
+
+        <div class="btn-row" style="display:flex; gap:8px; align-items:center;">
+            <input id="mnc-brand" type="text" class="zsss-control"
+                   placeholder="ブランド名（例：Makita）" style="width:260px;">
+            <button id="mnc-export-csv" class="btn-blue" type="button">Export CSV</button>
+        </div>
+
+        <label style="display:inline-flex; align-items:center; gap:4px; margin-top:8px;">
+            <input type="checkbox" id="mnc-check-makita">
+            マキタカナダに型番が載ってるか自動で見に行く（1件1秒ほどかかります）
+        </label>
+        <div id="mncStatus" style="margin-top:6px; font-weight:bold;"></div>
+
+        <ul style="margin:12px 0 0; padding-left:20px; line-height:1.7;">
+            <li>catalogの「電圧」の欄は当てにならないので使っていません。説明文に出てくる「100V」「単相」などの言葉だけを拾います。</li>
+            <li>Firstでcatalogがまだ取れていない商品は「未取得」と出ます。</li>
+            <li>マキタの商品には、マキタカナダで型番を検索するリンクが付きます。</li>
+            <li>自動チェックの「載ってない」は、カナダ版（120V）が無いということなので、ほぼNGです。</li>
+            <li>「載ってる」は、カナダ版があるというだけです。日本で仕入れる物は100V版のこともあるので、説明文を見て自分で判断してください。</li>
+            <li>部品・アクセサリーの番号は、マキタカナダの検索では出てこないので「載ってない」になります。</li>
+        </ul>
+    </div>
+    </div>
+    <!-- ▲ SUBTAB: 型番チェック -->
 
     <!-- ▼ SUBTAB: Brand Gate Check -->
     <div id="st-brandgate" class="st-subtab-pane">
