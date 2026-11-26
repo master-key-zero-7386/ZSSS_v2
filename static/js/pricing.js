@@ -23,6 +23,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const isPricingPage = document.getElementById("pricing") !== null;
   if (!isPricingPage) return;
 
+  // キャリア別サイズ上限：[画面のinput id, APIのキー]（サーバー側 shipping_calc.CARRIER_LIMIT_FIELDS と対応）
+  const SIZE_LIMIT_FIELDS = [
+    ["pkg_max_longest_side_cm",             "max_longest_side_cm"],
+    ["pkg_ems_max_second_side_cm",          "ems_max_second_side_cm"],
+    ["pkg_max_length_plus_girth_cm",        "max_length_plus_girth_cm"],
+    ["pkg_fedex_max_longest_side_cm",       "fedex_max_longest_side_cm"],
+    ["pkg_fedex_max_second_side_cm",        "fedex_max_second_side_cm"],
+    ["pkg_fedex_max_length_plus_girth_cm",  "fedex_max_length_plus_girth_cm"],
+    ["pkg_dhl_max_longest_side_cm",         "dhl_max_longest_side_cm"],
+    ["pkg_dhl_max_second_side_cm",          "dhl_max_second_side_cm"],
+    ["pkg_dhl_max_length_plus_girth_cm",    "dhl_max_length_plus_girth_cm"],
+  ];
+
   // # === ▼ SECTION 01: Shipping Config 読込処理（新・最小） ▼ ===
   window.loadShippingConfigV2 = function(region) {
     // 梱包補正設定はALL固定だが、EMSサイズ上限は配送先国別のため実際のregionを渡す
@@ -45,9 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
         set("pkg_weight_ratio", cfg.pack_ratio);
         set("pkg_volumetric_divisor", cfg.volumetric_divisor);
 
-        // EMSサイズ上限（配送先国別）
-        set("pkg_max_longest_side_cm", cfg.max_longest_side_cm);
-        set("pkg_max_length_plus_girth_cm", cfg.max_length_plus_girth_cm);
+        // キャリア別サイズ上限（配送先国別）
+        SIZE_LIMIT_FIELDS.forEach(([inputId, key]) => set(inputId, cfg[key]));
       })
       .catch(err => console.error("[ERR] loadShippingConfigV2:", err));
   };
@@ -62,9 +74,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const emsLongestSide = document.getElementById("pkg_max_longest_side_cm")?.value;
-    const emsLengthPlusGirth = document.getElementById("pkg_max_length_plus_girth_cm")?.value;
-
     const payload = {
       user_id: ZSSS_USER_ID,
       // 梱包補正設定はALL固定。EMSサイズ上限は配送先国別のため実際のregionを送る
@@ -72,9 +81,12 @@ document.addEventListener("DOMContentLoaded", () => {
       padding_cm: parseFloat(document.getElementById("pkg_padding_cm")?.value || 0),
       pack_ratio: parseFloat(document.getElementById("pkg_weight_ratio")?.value || 0),
       volumetric_divisor: parseFloat(document.getElementById("pkg_volumetric_divisor")?.value || 5000),
-      max_longest_side_cm: emsLongestSide ? parseFloat(emsLongestSide) : null,
-      max_length_plus_girth_cm: emsLengthPlusGirth ? parseFloat(emsLengthPlusGirth) : null,
     };
+    // キャリア別サイズ上限（空欄は null＝判定しない）
+    SIZE_LIMIT_FIELDS.forEach(([inputId, key]) => {
+      const v = document.getElementById(inputId)?.value;
+      payload[key] = v ? parseFloat(v) : null;
+    });
 
     const res = await fetch("/amazon/update_shipping_config", {
       method: "POST",

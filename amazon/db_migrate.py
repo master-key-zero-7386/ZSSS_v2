@@ -454,6 +454,14 @@ SHIPPING_CONFIG_COLUMNS = {
     "volumetric_divisor": "REAL",
     "max_longest_side_cm": "REAL",         # EMS上限：最長辺（配送先国別）
     "max_length_plus_girth_cm": "REAL",    # EMS上限：最長辺＋胴回り合計（配送先国別）
+    # --- キャリア別サイズ上限（配送先国別。どれか1つでも超えたら INACTIVE: SIZE_LIMIT。空欄=判定しない） ---
+    "ems_max_second_side_cm": "REAL",            # EMS上限：2番目に長い辺
+    "fedex_max_longest_side_cm": "REAL",         # FedEx上限：最長辺
+    "fedex_max_second_side_cm": "REAL",          # FedEx上限：2番目に長い辺
+    "fedex_max_length_plus_girth_cm": "REAL",    # FedEx上限：最長辺＋胴回り合計
+    "dhl_max_longest_side_cm": "REAL",           # DHL上限：最長辺
+    "dhl_max_second_side_cm": "REAL",            # DHL上限：2番目に長い辺
+    "dhl_max_length_plus_girth_cm": "REAL",      # DHL上限：最長辺＋胴回り合計
     "updated_at": "TEXT"
 }
 

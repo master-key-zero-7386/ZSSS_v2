@@ -12,12 +12,40 @@ from amazon.routes.routes import amazon_bp
 from flask import request, jsonify
 from datetime import datetime
 
+# --- ▼ SECTION 00: キャリア別サイズ上限の定義（EMS / FedEx / DHL） ▼ ---
+# shipping_config の配送先国別の行に保存する。値が空（None）の項目は判定しない。
+# どれか1社・1項目でも超えたら「サイズ制限NG」＝ pricing で INACTIVE（理由 SIZE_LIMIT）にする。
+# EMSの最長辺・長さ+胴回りは既存カラム（max_longest_side_cm / max_length_plus_girth_cm）をそのまま使う。
+#   (キャリア名, 判定の種類, DBカラム名)  種類: longest=最長辺 / second=2番目に長い辺 / girth=最長辺+胴回り
+CARRIER_LIMIT_FIELDS = [
+    ("EMS",   "longest", "max_longest_side_cm"),
+    ("EMS",   "second",  "ems_max_second_side_cm"),
+    ("EMS",   "girth",   "max_length_plus_girth_cm"),
+    ("FedEx", "longest", "fedex_max_longest_side_cm"),
+    ("FedEx", "second",  "fedex_max_second_side_cm"),
+    ("FedEx", "girth",   "fedex_max_length_plus_girth_cm"),
+    ("DHL",   "longest", "dhl_max_longest_side_cm"),
+    ("DHL",   "second",  "dhl_max_second_side_cm"),
+    ("DHL",   "girth",   "dhl_max_length_plus_girth_cm"),
+]
+CARRIER_LIMIT_COLUMNS = [col for _, _, col in CARRIER_LIMIT_FIELDS]
+
+
+def _to_float_or_none(v):
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 # --- ▼ SECTION 01: Shipping Config API（取得：最小） ▼ ---
 @amazon_bp.route("/get_shipping_config", methods=["GET"])
 def get_shipping_config():
     try:
         user_id = int(request.args.get("user_id"))
-        # EMSサイズ上限は配送先国ごとに規定が異なるため、実際に選択中のcountry_codeを使う
+        # サイズ上限は配送先国ごとに規定が異なるため、実際に選択中のcountry_codeを使う
         country_code = (request.args.get("country_code") or "ALL").upper()
 
         from amazon.db import get_conn
@@ -33,36 +61,36 @@ def get_shipping_config():
 
         all_row = cur.fetchone()
 
-        # --- EMSサイズ上限（配送先国別。国別に登録が無ければ未設定扱い） ---
-        cur.execute("""
-            SELECT max_longest_side_cm, max_length_plus_girth_cm
+        # --- キャリア別サイズ上限（配送先国別。国別に登録が無ければ未設定扱い） ---
+        cur.execute(f"""
+            SELECT {", ".join(CARRIER_LIMIT_COLUMNS)}
             FROM shipping_config
             WHERE user_id=%s AND UPPER(country_code)=%s
         """, (user_id, country_code))
 
-        ems_row = cur.fetchone()
+        limit_row = cur.fetchone()
 
         conn.close()
 
-        return jsonify({
-            "status": "success",
-            "data": {
-                "padding_cm": all_row["padding_cm"] if all_row else 0,
-                "pack_ratio": all_row["pack_ratio"] if all_row else 0,
-                "volumetric_divisor": all_row["volumetric_divisor"] if all_row else 5000,
-                "max_longest_side_cm": ems_row["max_longest_side_cm"] if ems_row else None,
-                "max_length_plus_girth_cm": ems_row["max_length_plus_girth_cm"] if ems_row else None,
-            }
-        }), 200
+        data = {
+            "padding_cm": all_row["padding_cm"] if all_row else 0,
+            "pack_ratio": all_row["pack_ratio"] if all_row else 0,
+            "volumetric_divisor": all_row["volumetric_divisor"] if all_row else 5000,
+        }
+        for col in CARRIER_LIMIT_COLUMNS:
+            data[col] = limit_row[col] if limit_row else None
+
+        return jsonify({"status": "success", "data": data}), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ▼ SECTION 01-2: EMSサイズ上限取得（出品管理画面の絞り込み用） ▼ ---
+# --- ▼ SECTION 01-2: サイズ上限取得（出品管理画面の絞り込み・pricingのINACTIVE判定用） ▼ ---
 def get_ems_limits(user_id: int, country_code: str) -> Dict:
     """
     padding_cm（梱包補正：country_code='ALL'の共通行）と、
-    EMSサイズ上限（最長辺／最長辺+胴回り合計：配送先国別の行）をまとめて取得する。
+    キャリア別サイズ上限（EMS/FedEx/DHL：配送先国別の行）をまとめて取得する。
+    戻り値: {"padding_cm": float, "<カラム名>": float or None, ...}
     """
     from amazon.db import get_conn
     conn = get_conn("a_pricing_settings.db")
@@ -74,20 +102,56 @@ def get_ems_limits(user_id: int, country_code: str) -> Dict:
     """, (user_id,))
     all_row = cur.fetchone()
 
-    cur.execute("""
-        SELECT max_longest_side_cm, max_length_plus_girth_cm
+    cur.execute(f"""
+        SELECT {", ".join(CARRIER_LIMIT_COLUMNS)}
         FROM shipping_config
         WHERE user_id = %s AND UPPER(country_code) = UPPER(%s)
     """, (user_id, country_code))
-    ems_row = cur.fetchone()
+    limit_row = cur.fetchone()
 
     conn.close()
 
-    return {
+    result = {
         "padding_cm": float(all_row["padding_cm"]) if all_row and all_row["padding_cm"] is not None else 0.0,
-        "max_longest_side_cm": float(ems_row["max_longest_side_cm"]) if ems_row and ems_row["max_longest_side_cm"] is not None else None,
-        "max_length_plus_girth_cm": float(ems_row["max_length_plus_girth_cm"]) if ems_row and ems_row["max_length_plus_girth_cm"] is not None else None,
     }
+    for col in CARRIER_LIMIT_COLUMNS:
+        result[col] = _to_float_or_none(limit_row[col]) if limit_row else None
+    return result
+
+
+def has_any_size_limit(limits: Dict) -> bool:
+    """1つでもサイズ上限が入力されていれば True"""
+    return any(limits.get(col) is not None for col in CARRIER_LIMIT_COLUMNS)
+
+
+def find_size_limit_hits(length_cm, width_cm, height_cm, limits: Dict) -> list:
+    """
+    梱包補正後の寸法で、キャリア別サイズ上限を超えている項目を返す（純計算）。
+    戻り値例: ["DHL 最長辺 102.0>100", "FedEx 2番目の辺 78.0>76"]（超えていなければ空リスト）
+    寸法が1つでも無ければ判定しない（空リスト）。
+    """
+    if not length_cm or not width_cm or not height_cm:
+        return []
+
+    padding = float(limits.get("padding_cm") or 0.0)
+    sides = sorted(
+        [float(length_cm) + padding, float(width_cm) + padding, float(height_cm) + padding],
+        reverse=True,
+    )
+    longest, second = sides[0], sides[1]
+    # 最長辺 + 胴回り = 最長辺 + 2×(残り2辺)
+    girth_total = longest + 2 * (sides[1] + sides[2])
+    measured = {"longest": longest, "second": second, "girth": girth_total}
+    label = {"longest": "最長辺", "second": "2番目の辺", "girth": "長さ+胴回り"}
+
+    hits = []
+    for carrier, kind, col in CARRIER_LIMIT_FIELDS:
+        limit = limits.get(col)
+        if limit is None:
+            continue
+        if measured[kind] > float(limit):
+            hits.append(f"{carrier} {label[kind]} {measured[kind]:.1f}>{float(limit):g}")
+    return hits
 
 # --- ▼ SECTION 02: 内部ユーティリティ（純計算） ▼ ---
 def _calc_volumetric_weight(length_cm: float, width_cm: float, height_cm: float, volumetric_divisor: float,) -> float:
@@ -201,8 +265,8 @@ def update_shipping_config():
         pack_ratio = data.get("pack_ratio")
         volumetric_divisor = data.get("volumetric_divisor")
 
-        max_longest_side_cm = data.get("max_longest_side_cm")
-        max_length_plus_girth_cm = data.get("max_length_plus_girth_cm")
+        # キャリア別サイズ上限（空欄はNone＝判定しない）
+        limit_values = [_to_float_or_none(data.get(col)) for col in CARRIER_LIMIT_COLUMNS]
 
         from amazon.db import get_conn
         conn = get_conn("a_pricing_settings.db")
@@ -221,15 +285,17 @@ def update_shipping_config():
               updated_at=%s
         """, (user_id, country_code, padding_cm, pack_ratio, volumetric_divisor, now_utc, now_utc))
 
-        # --- ▼ EMSサイズ上限（配送先国別）の upsert ▼ ---
-        cur.execute("""
-            INSERT INTO shipping_config (user_id, country_code, max_longest_side_cm, max_length_plus_girth_cm, updated_at)
-            VALUES (%s, %s, %s, %s, %s)
+        # --- ▼ キャリア別サイズ上限（配送先国別）の upsert ▼ ---
+        cols_sql = ", ".join(CARRIER_LIMIT_COLUMNS)
+        placeholders = ", ".join(["%s"] * len(CARRIER_LIMIT_COLUMNS))
+        update_sql = ",\n              ".join(f"{c}=excluded.{c}" for c in CARRIER_LIMIT_COLUMNS)
+        cur.execute(f"""
+            INSERT INTO shipping_config (user_id, country_code, {cols_sql}, updated_at)
+            VALUES (%s, %s, {placeholders}, %s)
             ON CONFLICT(user_id, country_code) DO UPDATE SET
-              max_longest_side_cm=excluded.max_longest_side_cm,
-              max_length_plus_girth_cm=excluded.max_length_plus_girth_cm,
+              {update_sql},
               updated_at=%s
-        """, (user_id, ems_country_code, max_longest_side_cm, max_length_plus_girth_cm, now_utc, now_utc))
+        """, (user_id, ems_country_code, *limit_values, now_utc, now_utc))
 
         conn.commit()
         conn.close()

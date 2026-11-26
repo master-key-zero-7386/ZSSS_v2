@@ -157,38 +157,47 @@
     </section>
     <hr>
 
-    <!-- EMSサイズ上限設定 -->
+    <!-- キャリア別サイズ上限設定（EMS / FedEx / DHL） -->
     <section class="pricing-section" style="margin-bottom:40px;">
-        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">EMSサイズ上限設定</h3>
+        <h3 style="font-size:20px; font-weight:800; margin:30px 0 15px 0;">キャリア別サイズ上限設定</h3>
         <div style="margin-left:25px; padding-left:20px;"> <!-- 段落 -->
 
-            <div style="display:flex; flex-wrap:wrap; gap:20px 60px; margin-top:10px; align-items:flex-end;">
+            <table style="border-collapse:collapse; margin-top:10px;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; padding:4px 16px 4px 0; font-weight:600;">キャリア</th>
+                        <th style="text-align:left; padding:4px 16px 4px 0; font-weight:600;">最長辺上限（cm）</th>
+                        <th style="text-align:left; padding:4px 16px 4px 0; font-weight:600;">2番目に長い辺上限（cm）</th>
+                        <th style="text-align:left; padding:4px 16px 4px 0; font-weight:600;">最長辺＋胴回り合計上限（cm）</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding:4px 16px 4px 0; font-weight:700;">EMS</td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_max_longest_side_cm" class="input" type="number" placeholder="例：150" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_ems_max_second_side_cm" class="input" type="number" placeholder="空欄＝判定しない" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_max_length_plus_girth_cm" class="input" type="number" placeholder="例：300" style="width:130px;"></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 16px 4px 0; font-weight:700;">FedEx</td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_fedex_max_longest_side_cm" class="input" type="number" placeholder="例：121" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_fedex_max_second_side_cm" class="input" type="number" placeholder="例：76" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_fedex_max_length_plus_girth_cm" class="input" type="number" placeholder="例：266" style="width:130px;"></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 16px 4px 0; font-weight:700;">DHL</td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_dhl_max_longest_side_cm" class="input" type="number" placeholder="例：100" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_dhl_max_second_side_cm" class="input" type="number" placeholder="例：80" style="width:130px;"></td>
+                        <td style="padding:4px 16px 4px 0;"><input id="pkg_dhl_max_length_plus_girth_cm" class="input" type="number" placeholder="空欄＝判定しない" style="width:130px;"></td>
+                    </tr>
+                </tbody>
+            </table>
 
-                <div>
-                    <label for="pkg_max_longest_side_cm"
-                        style="display:block; font-weight:600; margin-bottom:4px;">最長辺上限（cm）</label>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input id="pkg_max_longest_side_cm" class="input" type="number" placeholder="例：150"
-                            style="width:130px;">
-                        <span>cm</span>
-                    </div>
-                </div>
-
-                <div>
-                    <label for="pkg_max_length_plus_girth_cm"
-                        style="display:block; font-weight:600; margin-bottom:4px;">最長辺＋胴回り合計上限（cm）</label>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <input id="pkg_max_length_plus_girth_cm" class="input" type="number" placeholder="例：300"
-                            style="width:150px;">
-                        <span>cm</span>
-                    </div>
-                </div>
-
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="color:#666; font-size:13px;">
-                        ※EMSのサイズ制限（最長辺／最長辺＋胴回り合計）は配送先国ごとに異なるため、上部の国選択（現在選択中の国）ごとに個別保存されます。
-                    </span>
-                </div>
+            <div style="margin-top:10px; color:#666; font-size:13px; line-height:1.7;">
+                ※梱包補正（cm）を各辺に足したサイズで判定します。<br>
+                ※<b style="color:#d32f2f;">どれか1つでも上限を超えた商品は、必ずINACTIVE（理由：SIZE_LIMIT）になり、出品中の商品はAmazonから取り下げられます。</b><br>
+                ※空欄の項目は判定しません（気にしないキャリア・項目は空欄のままでOK）。<br>
+                ※配送先国ごとに異なるため、上部の国選択（現在選択中の国）ごとに個別保存されます。
             </div>
         </div>
     </section>

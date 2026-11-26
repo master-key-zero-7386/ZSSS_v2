@@ -26,7 +26,7 @@ from amazon.adapters.catalog_image_extractor import CatalogImageExtractor
 from amazon.adapters.pricing_adapter_home import PricingAdapterHome
 from amazon.adapters.pricing_adapter_region import PricingAdapterRegion
 from amazon.core.price_calculator import (calculate_shipping_result, get_shipping_rate, get_shipping_config)
-from amazon.shipping_calc import get_ems_limits
+from amazon.shipping_calc import get_ems_limits, has_any_size_limit, CARRIER_LIMIT_FIELDS
 from amazon.services.listing_submit_service import submit_listing_service
 from amazon.adapters.amazon_adapter import AmazonAdapter
 from amazon.services.listing_submit_service import delete_listing_item
@@ -589,7 +589,7 @@ def _build_listing_row_with_shipping(
 # --- ▼ SECTION 04-2: 絞り込み条件（WHERE句）共通ビルド処理 ▼ ---
 # Pre/ALL一覧取得（_get_listing_by_status）と、絞り込み条件に一致する全件削除
 # （bulk_delete_all_pre）の双方から、同じ絞り込み条件を再現するために共通化。
-def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, override_filter="all", ems_ng_only=False, ems_padding_cm=0.0, ems_max_longest_side_cm=None, ems_max_length_plus_girth_cm=None, length_cm_value=None, length_cm_op="gte"):
+def _build_listing_query_filter(status_value, user_id, marketplace_id, info_status="all", reason="all", keyword="", brandgate_filter="all", brand_status_filter="all", region_seller_filter="all", exclude_books=False, override_filter="all", ems_ng_only=False, size_limits=None, length_cm_value=None, length_cm_op="gte"):
     query_filter = " AND region_marketplace_id = %s"
     params_base = [status_value, user_id, marketplace_id]
 
@@ -776,23 +776,31 @@ def _build_listing_query_filter(status_value, user_id, marketplace_id, info_stat
     if exclude_books:
         query_filter += " AND asin LIKE 'B%%'"
 
-    # --- EMS不可（配送先国のサイズ上限を超える商品）：梱包補正後の寸法で判定 ---
+    # --- サイズ制限NG（EMS/FedEx/DHLのどれか1つでも上限を超える商品）：梱包補正後の寸法で判定 ---
+    # pricing の INACTIVE(SIZE_LIMIT) 判定（shipping_calc.find_size_limit_hits）と同じ基準。
     # 補正後寸法 = 各辺 + padding_cm（緩衝材・段ボール厚み分の補正。二重補正を避けるため生データに1回だけ加算）
+    # 2番目に長い辺 = 3辺合計 − 最長辺 − 最短辺
     # 最長辺+胴回り = 最長辺 + 2×(残り2辺の合計) = 2×(3辺合計) − 最長辺
-    if ems_ng_only and (ems_max_longest_side_cm is not None or ems_max_length_plus_girth_cm is not None):
-        padding = float(ems_padding_cm or 0.0)
+    size_limits = size_limits or {}
+    if ems_ng_only and has_any_size_limit(size_limits):
+        padding = float(size_limits.get("padding_cm") or 0.0)
         corrected_l = f"(length_cm + {padding})"
         corrected_w = f"(width_cm + {padding})"
         corrected_h = f"(height_cm + {padding})"
         longest_expr = f"GREATEST({corrected_l}, {corrected_w}, {corrected_h})"
+        shortest_expr = f"LEAST({corrected_l}, {corrected_w}, {corrected_h})"
         total_expr = f"({corrected_l} + {corrected_w} + {corrected_h})"
-        length_plus_girth_expr = f"(2 * {total_expr} - {longest_expr})"
+        measured_expr = {
+            "longest": longest_expr,
+            "second": f"({total_expr} - {longest_expr} - {shortest_expr})",
+            "girth": f"(2 * {total_expr} - {longest_expr})",
+        }
 
         ng_conditions = []
-        if ems_max_longest_side_cm is not None:
-            ng_conditions.append(f"{longest_expr} > {float(ems_max_longest_side_cm)}")
-        if ems_max_length_plus_girth_cm is not None:
-            ng_conditions.append(f"{length_plus_girth_expr} > {float(ems_max_length_plus_girth_cm)}")
+        for _carrier, kind, col in CARRIER_LIMIT_FIELDS:
+            limit = size_limits.get(col)
+            if limit is not None:
+                ng_conditions.append(f"{measured_expr[kind]} > {float(limit)}")
 
         query_filter += f"""
             AND length_cm IS NOT NULL AND width_cm IS NOT NULL AND height_cm IS NOT NULL
@@ -938,13 +946,8 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
             created_at DESC
         """       
 
-    # --- EMS不可絞り込み用：配送先国のサイズ上限を取得（チェック時のみDBアクセス） ---
-    ems_padding_cm, ems_max_longest_side_cm, ems_max_length_plus_girth_cm = 0.0, None, None
-    if ems_ng_only:
-        ems_limits = get_ems_limits(user_id, country_code)
-        ems_padding_cm = ems_limits["padding_cm"]
-        ems_max_longest_side_cm = ems_limits["max_longest_side_cm"]
-        ems_max_length_plus_girth_cm = ems_limits["max_length_plus_girth_cm"]
+    # --- サイズ制限NG絞り込み用：配送先国のキャリア別サイズ上限を取得（チェック時のみDBアクセス） ---
+    size_limits = get_ems_limits(user_id, country_code) if ems_ng_only else None
 
     # --- フィルタ条件 ---
     query_filter, params_base = _build_listing_query_filter(
@@ -952,8 +955,7 @@ def _get_listing_by_status(user_id, country_code, status_value, sort="created_de
         info_status=info_status, reason=reason, keyword=keyword,
         brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
         exclude_books=exclude_books, override_filter=override_filter,
-        ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
-        ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm,
+        ems_ng_only=ems_ng_only, size_limits=size_limits,
         length_cm_value=length_cm_value, length_cm_op=length_cm_op
     )
 
@@ -2172,13 +2174,8 @@ def bulk_delete_all_pre():
 
         marketplace_id = row_mid["marketplace_id"]
 
-        # --- EMS不可絞り込み用：配送先国のサイズ上限を取得（チェック時のみDBアクセス） ---
-        ems_padding_cm, ems_max_longest_side_cm, ems_max_length_plus_girth_cm = 0.0, None, None
-        if ems_ng_only:
-            ems_limits = get_ems_limits(user_id, country_code)
-            ems_padding_cm = ems_limits["padding_cm"]
-            ems_max_longest_side_cm = ems_limits["max_longest_side_cm"]
-            ems_max_length_plus_girth_cm = ems_limits["max_length_plus_girth_cm"]
+        # --- サイズ制限NG絞り込み用：配送先国のキャリア別サイズ上限を取得（チェック時のみDBアクセス） ---
+        size_limits = get_ems_limits(user_id, country_code) if ems_ng_only else None
 
         # --- Pre一覧取得と同一ロジックで絞り込み条件を再現 ---
         query_filter, params_base = _build_listing_query_filter(
@@ -2186,8 +2183,7 @@ def bulk_delete_all_pre():
             info_status=info_status, reason=reason, keyword=keyword,
             brandgate_filter=brandgate_filter, brand_status_filter=brand_status_filter, region_seller_filter=region_seller_filter,
             exclude_books=exclude_books,
-            ems_ng_only=ems_ng_only, ems_padding_cm=ems_padding_cm,
-            ems_max_longest_side_cm=ems_max_longest_side_cm, ems_max_length_plus_girth_cm=ems_max_length_plus_girth_cm
+            ems_ng_only=ems_ng_only, size_limits=size_limits
         )
 
         db_name = f"a_{country_code}_listed_items.db"

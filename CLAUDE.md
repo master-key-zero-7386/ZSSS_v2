@@ -75,6 +75,13 @@ override_seller, admin/admin_market, api_raw_check, shipping, pricing_v2).
   wherever an item sells, so `update_shipping_override` writes every `listed_items` row of that ASIN and
   re-prices each country; CSV import copies an existing value to new rows of the same ASIN. (AU on ATLAS
   has its own DB, so it isn't reached from ZSSS.)
+- **キャリア別サイズ上限 → INACTIVE(SIZE_LIMIT)** (`shipping_calc.CARRIER_LIMIT_FIELDS`). Pricing設定の
+  「キャリア別サイズ上限設定」に EMS/FedEx/DHL それぞれ 最長辺・2番目の辺・最長辺+胴回り の上限を配送先国別に保存
+  (`shipping_config` の国別行。EMSの最長辺/胴回りは旧カラム `max_longest_side_cm`/`max_length_plus_girth_cm`)。
+  梱包補正(padding_cm)後の寸法で、どれか1つでも超えたら `update_listing_price` が必ず INACTIVE・理由 `SIZE_LIMIT`
+  （手動固定価格でも例外なし）→ listed なら Amazon から取り下げ。空欄の上限は判定しない。長尺は FedEx/DHL で
+  大きな追加料金（FedExは121cm超で最低18kg課金）や発送不可になるため（2026-11-26 ユーザー決定）。出品管理の
+  「サイズ制限NGのみ」絞り込み（`ems_ng_only`）も同じ基準。
 - **ORBIT 送料検証** (`services/orbit_ship_check_service.py`). `orbit_orders.est_*` freezes the
   predicted shipping fee / billable weight / carrier the first time an order is calculated, so later
   rate-table or weight-class edits don't rewrite the baseline. Never recompute or overwrite `est_*` once

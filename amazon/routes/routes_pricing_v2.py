@@ -24,6 +24,7 @@ from amazon.db import get_conn
 from amazon.adapters.pricing_rules_adapter import PricingRulesAdapter
 from amazon.core.price_calculator import (calculate_listing_price, calculate_shipping_result, get_shipping_rate, get_shipping_config, get_pricing_master_rule)
 from amazon.core.pricing_strategy import decide_listing_price
+from amazon.shipping_calc import get_ems_limits, find_size_limit_hits
 from amazon.core.category_fee import apply_category_fee, get_category_fee_settings, save_category_fee_settings, simulate_category_fee
 from amazon.adapters.orbit_category_fee import get_category_fee_rates
 from amazon.services.buybox_stats_service import get_buybox_overview
@@ -1363,6 +1364,20 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
     # --- ▼ 統合 ---
     brand_ng_flag = brand_ng_flag or asin_ng_flag
 
+    # --- ▼ キャリア別サイズ上限（EMS/FedEx/DHL）判定 ---
+    # 長尺・大型商品は追加料金で大幅な赤字、または発送不可になるため、
+    # Pricing設定で入力した上限をどれか1つでも超えたら必ずINACTIVE（手動固定価格でも例外なし）。
+    # 空欄の上限は判定しない。寸法はこの手前のNO_CATALOGチェックで揃っていることが保証済み。
+    size_limit_hits = []
+    try:
+        size_limits = get_ems_limits(user_id, country_code)
+        size_limit_hits = find_size_limit_hits(
+            row["length_cm"], row["width_cm"], row["height_cm"], size_limits
+        )
+    except Exception as e:
+        print(f"[WARN] size limit check failed asin={asin}: {e}")
+        size_limit_hits = []
+
     # --- ▼ status判定 ---
     inactive_reason = ""
     raw_min_price = None
@@ -1381,6 +1396,11 @@ def update_listing_price(*, user_id: int, asin: str, country_code: str, force_qu
     if brand_ng_flag:
         status_value = 'INACTIVE'
         inactive_reason = "BLACKLIST"
+
+    # --- ▼ キャリア別サイズ上限オーバー（追加料金で大赤字 or 発送不可） ▼ ---
+    elif size_limit_hits:
+        status_value = 'INACTIVE'
+        inactive_reason = "SIZE_LIMIT"
 
     # --- ▼ 仕入HOEMPric対象なし ▼ ---
     elif final_price is None or final_price == 0:
