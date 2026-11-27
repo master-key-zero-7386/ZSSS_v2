@@ -20,7 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const country_code = document.getElementById("globalRegion")?.value || "";
         const checkMakita = document.getElementById("mnc-check-makita")?.checked ? "1" : "0";
-        const url = `/amazon/model_number_csv?brand=${encodeURIComponent(brand)}&country_code=${encodeURIComponent(country_code)}&check_makita=${checkMakita}`;
+        const scope = document.getElementById("mnc-scope")?.value || "pre";
+        const url = `/amazon/model_number_csv?brand=${encodeURIComponent(brand)}&country_code=${encodeURIComponent(country_code)}&check_makita=${checkMakita}&scope=${encodeURIComponent(scope)}`;
         const statusEl = document.getElementById("mncStatus");
 
         btn.disabled = true;

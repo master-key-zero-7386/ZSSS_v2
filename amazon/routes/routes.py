@@ -337,6 +337,9 @@ def model_number_csv():
     brand = (request.args.get("brand") or "").strip()
     country_code = (request.args.get("country_code") or "").strip().upper()
     check_makita = request.args.get("check_makita") == "1"
+    # 対象：pre＝Pre-Listingだけ／listed＝ALL-Listing（出品済み）だけ／both＝両方
+    scope = (request.args.get("scope") or "pre").lower()
+    statuses = {"pre": ["pre"], "listed": ["listed"], "both": ["pre", "listed"]}.get(scope, ["pre"])
 
     if not brand:
         return jsonify({"status": "error", "message": "ブランド名を入れてください"}), 400
@@ -363,23 +366,23 @@ def model_number_csv():
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT li.asin, li.home_title, li.home_brand, li.region_brand, cc.home_raw_json
+            SELECT li.asin, li.status, li.home_title, li.home_brand, li.region_brand, cc.home_raw_json
             FROM listed_items li
             LEFT JOIN catalog_cache cc
               ON cc.asin = li.asin AND cc.home_marketplace_id = li.home_marketplace_id
             WHERE li.user_id = %s
-              AND li.status = 'pre'
+              AND li.status = ANY(%s)
               AND li.region_marketplace_id = %s
               AND (li.home_brand ILIKE %s OR li.region_brand ILIKE %s)
-            ORDER BY li.home_brand, li.asin
-        """, (user_id, region_marketplace_id, like, like))
+            ORDER BY li.status DESC, li.home_brand, li.asin
+        """, (user_id, statuses, region_marketplace_id, like, like))
         rows = cur.fetchall()
     finally:
         conn.close()
 
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["ASIN", "ブランド", "商品タイトル", "型番", "部品番号",
+    w.writerow(["ASIN", "Pre/ALL", "ブランド", "商品タイトル", "型番", "部品番号",
                 "説明文の電圧の言葉", "箇条書きの説明", "マキタカナダ検索リンク", "マキタカナダ結果", "状態"])
 
     makita_cache = {}   # 同じ型番は1回だけ見に行く
@@ -422,10 +425,12 @@ def model_number_csv():
                     makita_cache[key] = _check_makita_ca(model)
                 mk_result = makita_cache[key]
 
-        w.writerow([asin, brand_name, title, model, part, volt, bullets, link, mk_result, state])
+        where = "ALL" if row["status"] == "listed" else "Pre"
+        w.writerow([asin, where, brand_name, title, model, part, volt, bullets, link, mk_result, state])
 
     safe_brand = re.sub(r"[^A-Za-z0-9_-]", "_", brand)[:30] or "brand"
-    filename = f"{country_code}_model_number_{safe_brand}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    scope_label = {"pre": "Pre", "listed": "ALL", "both": "PreALL"}.get(scope, "Pre")
+    filename = f"{country_code}_model_number_{scope_label}_{safe_brand}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
     resp = make_response("﻿" + out.getvalue())
     resp.headers["Content-Type"] = "text/csv; charset=utf-8"
     resp.headers["Content-Disposition"] = f"attachment; filename={filename}"

@@ -257,11 +257,16 @@
         <h2>型番チェック</h2>
 
         <p style="margin:6px 0 12px;">
-            Pre-Listingに入っている商品をブランド名で絞って、型番・説明文をCSVで出します。<br>
-            どのブランドでも使えます。対象は、上で選んでいるリージョンのPre-Listingです。
+            Pre-Listing／ALL-Listingに入っている商品をブランド名で絞って、型番・説明文をCSVで出します。<br>
+            どのブランドでも使えます。対象は、上で選んでいるリージョンの商品です。
         </p>
 
         <div class="btn-row" style="display:flex; gap:8px; align-items:center;">
+            <select id="mnc-scope" class="zsss-control">
+                <option value="pre" selected>Preだけ</option>
+                <option value="listed">ALLだけ（出品済み）</option>
+                <option value="both">Pre＋ALL 両方</option>
+            </select>
             <input id="mnc-brand" type="text" class="zsss-control"
                    placeholder="ブランド名（例：Makita、HiKOKI、Panasonic）" style="width:320px;">
             <button id="mnc-export-csv" class="btn-blue" type="button">Export CSV</button>
@@ -269,6 +274,7 @@
 
         <h3 style="margin:16px 0 4px;">CSVに出るもの（全ブランド共通）</h3>
         <ul style="margin:0; padding-left:20px; line-height:1.7;">
+            <li>Pre／ALLのどちらに入っている商品か</li>
             <li>型番・部品番号・箇条書きの説明</li>
             <li>説明文に出てくる電圧の言葉（「100V」「単相」など）。catalogの「電圧」の欄は当てにならないので使っていません。</li>
             <li>Firstでcatalogがまだ取れていない商品は「未取得」と出ます。</li>
