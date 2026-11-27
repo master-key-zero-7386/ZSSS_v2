@@ -331,7 +331,7 @@ const DISPATCH_DETAIL_SECTIONS = [
     { key: "proc", label: "仕入れ情報", keys: [
         "kanrihin_ship",  // 先頭。対象の管理品が無い注文では項目ごと出さない
         "jan_code",  // asin は主行(DISPATCH_PRIMARY_KEYS)の order_id 左へ移動
-        "supplier", "supplier_order_number", "supplier_shop_name", "supplier_link",
+        "supplier", "supplier_shop_name", "supplier_order_number", "supplier_link",
         "procurement_credit_card",  // リンクと仕入日の間（利用クレカ選択）
         "procurement_date", "request_date", "arrival_date",
         "purchase_price", "invoice_price_jpy", "points",
